@@ -1,0 +1,6 @@
+[project]
+name="dog-tagger"
+version="0.1.0"
+dependencies=["typer","httpx","pydantic","sqlalchemy","pillow","opencv-python-headless","ultralytics","open_clip_torch","scikit-learn"]
+[project.scripts]
+dog-tagger="dog_tagger.main:app"
