@@ -25,8 +25,8 @@ htmlcov/
 Thumbs.db
 
 # Project data
-data/*
-!data/.gitkeep
+data/*/*
+!data/*/.gitkeep
 
 # AI models
 models/
@@ -37,3 +37,4 @@ models/
 # Environment secrets
 .env
 .env.*
+!.env.example
