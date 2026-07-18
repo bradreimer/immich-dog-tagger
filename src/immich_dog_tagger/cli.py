@@ -6,6 +6,7 @@ import argparse
 
 from .config import load_config
 from .database import create_database
+from .immich import ImmichClient
 
 
 def main() -> None:
@@ -29,6 +30,11 @@ def main() -> None:
     subparsers.add_parser(
         "init-db",
         help="Initialize local state database",
+    )
+
+    subparsers.add_parser(
+        "test-immich",
+        help="Test Immich connection",
     )
 
     args = parser.parse_args()
@@ -62,6 +68,20 @@ def main() -> None:
             f"Database initialized: {config.data_dir / 'state.db'}"
         )
 
+    elif args.command == "test-immich":
+        config = load_config()
+
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
+        )
+
+        assets = client.list_assets()
+
+        print(
+            f"Found {len(assets)} assets"
+        )
+        
     else:
         parser.print_help()
 
