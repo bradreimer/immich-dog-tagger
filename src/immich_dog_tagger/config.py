@@ -16,12 +16,13 @@ class Config:
     data_dir: Path
 
 
-def load_config() -> Config:
+def load_config(load_env_file: bool = True) -> Config:
     """
     Load application configuration from environment variables.
     """
 
-    load_dotenv()
+    if load_env_file:
+        load_dotenv()
 
     return Config(
         immich_url=os.environ.get(

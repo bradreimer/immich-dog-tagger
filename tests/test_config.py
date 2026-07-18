@@ -8,7 +8,7 @@ def test_default_configuration(monkeypatch):
     monkeypatch.delenv("IMMICH_API_KEY", raising=False)
     monkeypatch.delenv("DATA_DIR", raising=False)
 
-    config = load_config()
+    config = load_config(load_env_file=False)
 
     assert config.immich_url == ""
     assert config.immich_api_key == ""
