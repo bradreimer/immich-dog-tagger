@@ -2,6 +2,11 @@
 
 AI-assisted dog detection and tagging pipeline for Immich.
 
+## Requirements
+
+- Python 3.14+
+- uv
+
 ## Development
 
 This project uses `uv` for Python environment and dependency management.

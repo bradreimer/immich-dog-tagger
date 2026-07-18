@@ -5,6 +5,7 @@ Command line interface for Immich Dog Tagger.
 import argparse
 
 from .config import load_config
+from .database import create_database
 
 
 def main() -> None:
@@ -23,6 +24,11 @@ def main() -> None:
     subparsers.add_parser(
         "config-check",
         help="Display loaded configuration",
+    )
+
+    subparsers.add_parser(
+        "init-db",
+        help="Initialize local state database",
     )
 
     args = parser.parse_args()
@@ -44,6 +50,17 @@ def main() -> None:
         print()
         print("Storage:")
         print(f"  Data directory: {config.data_dir}")
+
+    elif args.command == "init-db":
+        config = load_config()
+
+        create_database(
+            config.data_dir
+        )
+
+        print(
+            f"Database initialized: {config.data_dir / 'state.db'}"
+        )
 
     else:
         parser.print_help()
