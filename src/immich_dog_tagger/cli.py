@@ -3,10 +3,12 @@ Command line interface for Immich Dog Tagger.
 """
 
 import argparse
+from sqlalchemy.orm import Session 
 
 from .config import load_config
 from .database import create_database
 from .immich import ImmichClient
+from .scanner import Scanner
 
 
 def main() -> None:
@@ -39,10 +41,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.command == "scan":
-        print("Scanner not implemented yet.")
-
-    elif args.command == "config-check":
+    if args.command == "config-check":
         config = load_config()
 
         print("Immich:")
@@ -82,6 +81,26 @@ def main() -> None:
             f"Found {len(assets)} assets"
         )
         
+    elif args.command == "scan":
+        config = load_config()
+
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
+        )
+
+        engine = create_database(config.data_dir)
+
+        with Session(engine) as session:
+            scanner = Scanner(
+                client,
+                session,
+            )
+
+            count = scanner.scan()
+
+        print(f"New assets: {count}")
+
     else:
         parser.print_help()
 

@@ -9,13 +9,17 @@ def test_list_assets():
 
         return httpx.Response(
             200,
-            json=[
-                {
-                    "id": "abc123",
-                    "originalFileName": "dog.jpg",
-                    "checksum": "xyz",
+            json={
+                "assets": {
+                    "items": [
+                        {
+                            "id": "abc123",
+                            "originalFileName": "dog.jpg",
+                            "checksum": "xyz",
+                        }
+                    ]
                 }
-            ],
+            },
         )
 
     transport = httpx.MockTransport(handler)
@@ -70,4 +74,3 @@ def test_client_creation():
     )
 
     assert client.client is not None
-    

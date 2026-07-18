@@ -6,38 +6,27 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
+from sqlalchemy.sql import func
 
 class Base(DeclarativeBase):
     pass
 
 
 class Asset(Base):
-    """
-    Represents an Immich asset known to the application.
-    """
-
     __tablename__ = "assets"
 
     id: Mapped[int] = mapped_column(
-        primary_key=True,
-        autoincrement=True,
+        primary_key=True
     )
 
     immich_asset_id: Mapped[str] = mapped_column(
-        String(128),
+        String(64),
         unique=True,
         nullable=False,
     )
 
     checksum: Mapped[str | None] = mapped_column(
         String(128),
-        nullable=True,
-    )
-
-    processed_at: Mapped[datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
     )
 
     status: Mapped[str] = mapped_column(
@@ -45,3 +34,10 @@ class Asset(Base):
         default="pending",
         nullable=False,
     )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+    

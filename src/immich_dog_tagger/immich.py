@@ -45,10 +45,13 @@ class ImmichClient:
         Retrieve assets from Immich.
         """
 
+        # Default page size for asset listing
+        DEFAULT_PAGE_SIZE = 1000
+
         response = self.client.post(
             f"{self.url}/api/search/metadata",
             json={
-                "size": 1000,
+                "size": DEFAULT_PAGE_SIZE,
             },
         )
 
