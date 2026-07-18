@@ -39,6 +39,11 @@ def main() -> None:
         help="Test Immich connection",
     )
 
+    subparsers.add_parser(
+        "detect",
+        help="Run object detection",
+    )
+
     args = parser.parse_args()
 
     if args.command == "config-check":
@@ -100,6 +105,11 @@ def main() -> None:
             count = scanner.scan()
 
         print(f"New assets: {count}")
+
+    elif args.command == "detect":
+        print(
+            "Detection pipeline placeholder"
+        )
 
     else:
         parser.print_help()

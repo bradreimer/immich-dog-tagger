@@ -4,7 +4,13 @@ Database models.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -41,3 +47,45 @@ class Asset(Base):
         nullable=False,
     )
     
+
+class Detection(Base):
+    __tablename__ = "detections"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    asset_id: Mapped[int] = mapped_column(
+        ForeignKey("assets.id"),
+        nullable=False,
+    )
+
+    label: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    confidence: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    x1: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    y1: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    x2: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    y2: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )

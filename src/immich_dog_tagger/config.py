@@ -14,13 +14,14 @@ class Config:
     immich_url: str
     immich_api_key: str
     data_dir: Path
+    yolo_model: Path
 
 
 def load_config(load_env_file: bool = True) -> Config:
     """
     Load application configuration from environment variables.
     """
-
+    
     if load_env_file:
         load_dotenv()
 
@@ -37,6 +38,12 @@ def load_config(load_env_file: bool = True) -> Config:
             os.environ.get(
                 "DATA_DIR",
                 "./data",
+            )
+        ),
+        yolo_model=Path(
+            os.environ.get(
+                "YOLO_MODEL",
+                "/models/yolo11n.pt",
             )
         ),
     )
