@@ -1,7 +1,0 @@
-services:
-  dog-tagger:
-    build: ./app
-    env_file: [.env]
-    volumes:
-      - ./data:/data
-    command: ["scan","--limit","100","--dry-run"]

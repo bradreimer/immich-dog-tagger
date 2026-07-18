@@ -1,0 +1,19 @@
+[project]
+name = "immich-dog-tagger"
+version = "0.1.0"
+description = "AI-assisted dog detection and tagging for Immich"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+immich-dog-tagger = "immich_dog_tagger.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
