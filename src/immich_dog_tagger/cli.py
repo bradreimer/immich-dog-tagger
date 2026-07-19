@@ -12,6 +12,7 @@ from .database import create_database
 from .detection import DetectionService
 from .downloader import Downloader
 from .immich import ImmichClient
+from .learner import Learner
 from .openclip_embedder import OpenClipEmbedder
 from .scanner import Scanner
 from .yolo_detector import YOLODetector
@@ -75,6 +76,18 @@ def main() -> None:
         "image",
     )
     
+    learn_parser = subparsers.add_parser(
+        "learn",
+        help="Learn a dog identity from images",
+    )
+
+    learn_parser.add_argument(
+        "identity",
+    )
+
+    learn_parser.add_argument(
+        "directory",
+    )
 
     args = parser.parse_args()
 
@@ -222,6 +235,32 @@ def main() -> None:
 
         print(
             f"First values: {embedding[:5]}"
+        )
+
+    elif args.command == "learn":
+
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        embedder = OpenClipEmbedder()
+
+        with Session(engine) as session:
+
+            learner = Learner(
+                embedder,
+                session,
+            )
+
+            count = learner.learn(
+                args.identity,
+                Path(args.directory),
+            )
+
+        print(
+            f"Learned examples: {count}"
         )
 
     elif args.command == "test-yolo":
