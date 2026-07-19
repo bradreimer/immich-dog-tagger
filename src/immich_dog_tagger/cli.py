@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from .config import load_config
 from .database import create_database
+from .downloader import Downloader
+from .detection import DetectionService
 from .immich import ImmichClient
 from .scanner import Scanner
-
+from .yolo_detector import YOLODetector
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -39,9 +41,29 @@ def main() -> None:
         help="Test Immich connection",
     )
 
+    download_parser = subparsers.add_parser(
+        "download",
+        help="Download pending assets",
+    )
+
+    download_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of assets to download",
+    )
+
     subparsers.add_parser(
         "detect",
-        help="Run object detection",
+        help="Run dog detection",
+    )
+
+    test_yolo_parser = subparsers.add_parser(
+        "test-yolo",
+        help="Run YOLO against a single image",
+    )
+
+    test_yolo_parser.add_argument(
+        "image",
     )
 
     args = parser.parse_args()
@@ -106,10 +128,81 @@ def main() -> None:
 
         print(f"New assets: {count}")
 
-    elif args.command == "detect":
-        print(
-            "Detection pipeline placeholder"
+    elif args.command == "download":
+        config = load_config()
+
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
         )
+
+        engine = create_database(
+            config.data_dir
+        )
+
+        with Session(engine) as session:
+            downloader = Downloader(
+                client,
+                session,
+                config.cache_dir,
+            )
+
+            count = downloader.download_pending(
+                limit=args.limit,
+            )
+
+        print(f"Downloaded: {count}")
+
+    elif args.command == "detect":
+
+        config = load_config()
+
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
+        )
+
+        detector = YOLODetector(
+            config.yolo_model,
+        )
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        with Session(engine) as session:
+
+            service = DetectionService(
+                detector,
+                session,
+                config.cache_dir,
+            )
+
+            count = service.run(
+                limit=args.limit,
+            )
+
+        print(
+            f"Processed {count} assets"
+        )
+
+    elif args.command == "test-yolo":
+
+        config = load_config()
+
+        detector = YOLODetector(
+            config.yolo_model,
+        )
+
+        detections = detector.detect(
+            args.image,
+        )
+
+        for detection in detections:
+            print(
+                f"{detection.label:12}"
+                f"{detection.confidence:.2f}"
+            )
 
     else:
         parser.print_help()

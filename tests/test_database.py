@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.models import Asset
+from immich_dog_tagger.status import AssetStatus
 
 
 def test_database_creation(tmp_path: Path):
@@ -24,4 +25,4 @@ def test_database_creation(tmp_path: Path):
 
         assert result.immich_asset_id == "abc123"
         assert result.checksum == "xyz"
-        assert result.status == "pending"
+        assert result.status is AssetStatus.PENDING

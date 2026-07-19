@@ -97,3 +97,16 @@ class ImmichClient:
         response.raise_for_status()
 
         return response.content
+
+    def download_asset(
+        self,
+        asset_id: str,
+    ) -> bytes:
+
+        response = self.client.get(
+            f"{self.url}/api/assets/{asset_id}/original",
+        )
+
+        response.raise_for_status()
+
+        return response.content

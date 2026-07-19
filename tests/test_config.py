@@ -34,3 +34,13 @@ def test_configuration_from_environment(monkeypatch):
     assert config.immich_url == "https://immich.example.com"
     assert config.immich_api_key == "secret"
     assert config.data_dir == Path("/tmp/state")
+
+def test_cache_dir(monkeypatch):
+    monkeypatch.setenv(
+        "DATA_DIR",
+        "/tmp/state",
+    )
+
+    config = load_config(load_env_file=False)
+    
+    assert config.cache_dir == config.data_dir / "cache" / "assets"

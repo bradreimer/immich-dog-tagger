@@ -14,6 +14,7 @@ class Config:
     immich_url: str
     immich_api_key: str
     data_dir: Path
+    cache_dir: Path
     yolo_model: Path
 
 
@@ -25,6 +26,10 @@ def load_config(load_env_file: bool = True) -> Config:
     if load_env_file:
         load_dotenv()
 
+    data_dir = Path(
+        os.environ.get("DATA_DIR", "./data")
+    )
+
     return Config(
         immich_url=os.environ.get(
             "IMMICH_URL",
@@ -34,12 +39,8 @@ def load_config(load_env_file: bool = True) -> Config:
             "IMMICH_API_KEY",
             "",
         ),
-        data_dir=Path(
-            os.environ.get(
-                "DATA_DIR",
-                "./data",
-            )
-        ),
+        data_dir=data_dir,
+        cache_dir=data_dir / "cache" / "assets",
         yolo_model=Path(
             os.environ.get(
                 "YOLO_MODEL",
