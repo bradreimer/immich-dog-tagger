@@ -52,9 +52,15 @@ def main() -> None:
         help="Maximum number of assets to download",
     )
 
-    subparsers.add_parser(
+    detect_parser = subparsers.add_parser(
         "detect",
         help="Run dog detection",
+    )
+
+    detect_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of images to process",
     )
 
     test_yolo_parser = subparsers.add_parser(
@@ -178,13 +184,21 @@ def main() -> None:
                 config.cache_dir,
             )
 
-            count = service.run(
+            summary = service.run(
                 limit=args.limit,
             )
 
-        print(
-            f"Processed {count} assets"
-        )
+            print(
+                f"Processed: {summary.processed}"
+            )
+
+            print(
+                f"Detections: {summary.detections}"
+            )
+
+            print(
+                f"Dogs: {summary.dogs}"
+            )
 
     elif args.command == "test-yolo":
 

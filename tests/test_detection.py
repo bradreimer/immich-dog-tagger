@@ -42,7 +42,12 @@ def test_detection_creates_record(
             tmp_path,
         )
 
-        assert service.run() == 1
+        
+        summary = service.run()
+
+        assert summary.processed == 1
+        assert summary.detections == 1
+        assert summary.dogs == 1
 
         detection = session.query(Detection).one()
 

@@ -3,12 +3,12 @@ Immich API client.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 import truststore
 
 truststore.inject_into_ssl()
-
 
 @dataclass(frozen=True)
 class ImmichAsset:
@@ -19,6 +19,10 @@ class ImmichAsset:
     id: str
     filename: str
     checksum: str | None
+
+    @property
+    def extension(self) -> str:
+        return Path(self.filename).suffix.lower()
 
 
 class ImmichClient:

@@ -4,7 +4,7 @@ Database models.
 
 from datetime import datetime
 from pathlib import Path
-from immich_dog_tagger.status import AssetStatus
+from .status import AssetStatus
 
 from sqlalchemy import (
     DateTime,
@@ -38,6 +38,10 @@ class Asset(Base):
         String(128),
     )
 
+    extension: Mapped[str] = mapped_column(
+        String(16),
+    )
+
     status: Mapped[AssetStatus] = mapped_column(
         Enum(
             AssetStatus,
@@ -58,8 +62,7 @@ class Asset(Base):
     )
 
     def cache_path(self, cache_dir: Path,) -> Path:
-        # return cache_dir / f"{self.immich_asset_id}.jpg"
-        return cache_dir / self.immich_asset_id
+        return cache_dir / f"{self.immich_asset_id}{self.extension}"
 
 class Detection(Base):
     __tablename__ = "detections"

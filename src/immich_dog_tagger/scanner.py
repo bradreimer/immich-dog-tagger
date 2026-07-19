@@ -21,14 +21,14 @@ class Scanner:
         Returns number of new assets.
         """
 
-        assets = self.client.list_assets()
+        immich_assets = self.client.list_assets()
 
         new_count = 0
 
-        for asset in assets:
+        for immich_asset in immich_assets:
             existing = self.session.scalar(
                 select(Asset).where(
-                    Asset.immich_asset_id == asset.id
+                    Asset.immich_asset_id == immich_asset.id
                 )
             )
 
@@ -37,8 +37,9 @@ class Scanner:
 
             self.session.add(
                 Asset(
-                    immich_asset_id=asset.id,
-                    checksum=asset.checksum,
+                    immich_asset_id = immich_asset.id,
+                    checksum        = immich_asset.checksum,
+                    extension       = immich_asset.extension,
                 )
             )
 
