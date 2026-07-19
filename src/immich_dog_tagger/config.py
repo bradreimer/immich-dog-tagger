@@ -16,6 +16,7 @@ class Config:
     data_dir: Path
     cache_dir: Path
     yolo_model: Path
+    crop_padding: float
 
     @property
     def crop_dir(self) -> Path:
@@ -49,6 +50,12 @@ def load_config(load_env_file: bool = True) -> Config:
             os.environ.get(
                 "YOLO_MODEL",
                 "/models/yolo11n.pt",
+            )
+        ),
+        crop_padding=float(
+            os.environ.get(
+                "CROP_PADDING",
+                "0.15",
             )
         ),
     )

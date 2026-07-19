@@ -6,7 +6,7 @@ from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.detector import DetectionResult
 
 
-def test_crop_writer_creates_dog_crop(tmp_path: Path):
+def test_crop_writer_creates_padded_dog_crop(tmp_path: Path):
     image_path = tmp_path / "test.jpg"
 
     # Create a simple 100x100 test image
@@ -60,7 +60,56 @@ def test_crop_writer_creates_dog_crop(tmp_path: Path):
 
     cropped = Image.open(crop_path)
 
+    # Expecting 50x60 + 15% padding on each side, resulting in 64x78
     assert cropped.size == (
-        50,
-        60,
+        64,
+        78,
+    )
+
+def test_crop_writer_clips_crop_to_image_bounds(tmp_path: Path):
+    image_path = tmp_path / "test.jpg"
+
+    image = Image.new(
+        "RGB",
+        (100, 100),
+        "white",
+    )
+
+    image.save(image_path)
+
+    crop_dir = tmp_path / "crops"
+
+    writer = CropWriter(
+        crop_dir,
+    )
+
+    detections = [
+        DetectionResult(
+            label="dog",
+            confidence=0.95,
+            x1=0,
+            y1=0,
+            x2=20,
+            y2=20,
+        ),
+    ]
+
+    count = writer.write(
+        image_path,
+        "edge",
+        detections,
+    )
+
+    assert count == 1
+
+    crop = Image.open(
+        crop_dir / "edge_0.jpg"
+    )
+
+    # Original 20x20 box receives 15% padding (3px each side),
+    # but negative coordinates are clipped to the image boundary:
+    # (-3,-3)-(23,23) becomes (0,0)-(23,23).
+    assert crop.size == (
+        23,
+        23,
     )

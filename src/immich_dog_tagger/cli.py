@@ -185,7 +185,8 @@ def main() -> None:
                 session,
                 config.cache_dir,
                 CropWriter(
-                    config.crop_dir
+                    config.crop_dir,
+                    config.crop_padding,
                 ),
             )
 
