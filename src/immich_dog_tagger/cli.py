@@ -2,15 +2,18 @@
 Command line interface for Immich Dog Tagger.
 """
 
-import argparse
+from pathlib import Path
 from sqlalchemy.orm import Session 
+import argparse
+import numpy as np
 
 from .config import load_config
 from .crops import CropWriter
 from .database import create_database
-from .downloader import Downloader
 from .detection import DetectionService
+from .downloader import Downloader
 from .immich import ImmichClient
+from .openclip_embedder import OpenClipEmbedder
 from .scanner import Scanner
 from .yolo_detector import YOLODetector
 
@@ -64,12 +67,12 @@ def main() -> None:
         help="Maximum number of images to process",
     )
 
-    test_yolo_parser = subparsers.add_parser(
-        "test-yolo",
-        help="Run YOLO against a single image",
+    test_embedding_parser = subparsers.add_parser(
+        "test-embedding",
+        help="Generate an image embedding",
     )
 
-    test_yolo_parser.add_argument(
+    test_embedding_parser.add_argument(
         "image",
     )
     
@@ -205,6 +208,22 @@ def main() -> None:
             print(
                 f"Dogs: {summary.dogs}"
             )
+
+    elif args.command == "test-embedding":
+
+        embedder = OpenClipEmbedder()
+
+        embedding = embedder.embed(
+            Path(args.image)
+        )
+
+        print(
+            f"Dimensions: {embedding.shape[0]}"
+        )
+
+        print(
+            f"Norm: {np.linalg.norm(embedding):.3f}"
+        )
 
     elif args.command == "test-yolo":
 

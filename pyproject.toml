@@ -12,6 +12,7 @@ dependencies = [
     "ultralytics>=8.4.100",
     "pi-heif>=1.4.0",
     "pillow>=12.3.0",
+    "open-clip-torch>=3.3.0",
 ]
 
 [project.scripts]
