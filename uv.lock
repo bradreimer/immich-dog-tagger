@@ -319,6 +319,7 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "pi-heif" },
+    { name = "pillow" },
     { name = "python-dotenv" },
     { name = "sqlalchemy" },
     { name = "truststore" },
@@ -334,6 +335,7 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pi-heif", specifier = ">=1.4.0" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "truststore", specifier = ">=0.10.4" },

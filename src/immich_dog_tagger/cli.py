@@ -6,6 +6,7 @@ import argparse
 from sqlalchemy.orm import Session 
 
 from .config import load_config
+from .crops import CropWriter
 from .database import create_database
 from .downloader import Downloader
 from .detection import DetectionService
@@ -71,6 +72,7 @@ def main() -> None:
     test_yolo_parser.add_argument(
         "image",
     )
+    
 
     args = parser.parse_args()
 
@@ -182,6 +184,9 @@ def main() -> None:
                 detector,
                 session,
                 config.cache_dir,
+                CropWriter(
+                    config.crop_dir
+                ),
             )
 
             summary = service.run(

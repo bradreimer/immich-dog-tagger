@@ -17,6 +17,10 @@ class Config:
     cache_dir: Path
     yolo_model: Path
 
+    @property
+    def crop_dir(self) -> Path:
+        return self.data_dir / "cache" / "crops"
+
 
 def load_config(load_env_file: bool = True) -> Config:
     """

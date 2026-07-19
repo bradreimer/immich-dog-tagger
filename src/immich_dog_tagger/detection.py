@@ -4,6 +4,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .crops import CropWriter
 from .detector import ObjectDetector
 from .models import Asset, Detection
 from .status import AssetStatus
@@ -21,10 +22,12 @@ class DetectionService:
         detector: ObjectDetector,
         session: Session,
         cache_dir: Path,
+        crop_writer: CropWriter | None = None,
     ):
         self.detector = detector
         self.session = session
         self.cache_dir = cache_dir
+        self.crop_writer = crop_writer
 
     def run(
         self,
@@ -54,6 +57,13 @@ class DetectionService:
             detections = self.detector.detect(
                 str(image_path)
             )
+
+            if self.crop_writer:
+                self.crop_writer.write(
+                    image_path,
+                    asset.immich_asset_id,
+                    detections,
+                )
 
             for detection in detections:
                 detection_count += 1

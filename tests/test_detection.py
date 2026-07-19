@@ -30,9 +30,9 @@ def test_detection_creates_record(
         asset = Asset(
             immich_asset_id="abc123",
             checksum="xyz",
+            extension=".jpg",
             status=AssetStatus.DOWNLOADED,
         )
-
         session.add(asset)
         session.commit()
 

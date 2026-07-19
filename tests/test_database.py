@@ -16,8 +16,8 @@ def test_database_creation(tmp_path: Path):
         asset = Asset(
             immich_asset_id="abc123",
             checksum="xyz",
+            extension=".jpg",
         )
-
         session.add(asset)
         session.commit()
 
