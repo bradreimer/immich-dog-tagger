@@ -5,7 +5,6 @@ Command line interface for Immich Dog Tagger.
 from pathlib import Path
 from sqlalchemy.orm import Session 
 import argparse
-import numpy as np
 
 from .config import load_config
 from .crops import CropWriter
@@ -222,7 +221,7 @@ def main() -> None:
         )
 
         print(
-            f"Norm: {np.linalg.norm(embedding):.3f}"
+            f"First values: {embedding[:5]}"
         )
 
     elif args.command == "test-yolo":
