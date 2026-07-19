@@ -3,7 +3,11 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.database import create_database
-from immich_dog_tagger.models import Asset
+from immich_dog_tagger.models import (
+    Asset,
+    Identity,
+    EmbeddingExample,
+)
 from immich_dog_tagger.status import AssetStatus
 
 
@@ -26,3 +30,35 @@ def test_database_creation(tmp_path: Path):
         assert result.immich_asset_id == "abc123"
         assert result.checksum == "xyz"
         assert result.status is AssetStatus.PENDING
+
+        identity = Identity(
+            name="Hermann",
+        )
+
+        session.add(identity)
+        session.commit()
+
+        embedding = EmbeddingExample(
+            identity_id=identity.id,
+            crop_path="crops/hermann_001.jpg",
+            embedding=b"\x01\x02\x03",
+        )
+
+        session.add(embedding)
+        session.commit()
+
+        result = session.query(
+            EmbeddingExample
+        ).one()
+
+        assert result.crop_path == (
+            "crops/hermann_001.jpg"
+        )
+
+        assert result.embedding == (
+            b"\x01\x02\x03"
+        )
+
+        assert result.identity.name == (
+            "Hermann"
+        )
