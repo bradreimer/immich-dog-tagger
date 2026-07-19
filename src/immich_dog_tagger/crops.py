@@ -17,7 +17,7 @@ class CropWriter:
         image_path: Path,
         asset_id: str,
         detections,
-    ) -> int:
+    ) -> list[tuple[int, Path]]:
 
         self.crop_dir.mkdir(
             parents=True,
@@ -28,7 +28,7 @@ class CropWriter:
 
         width, height = image.size
 
-        count = 0
+        crops = []
 
         for index, detection in enumerate(detections):
             if detection.label != "dog":
@@ -49,9 +49,9 @@ class CropWriter:
 
             crop.save(output)
 
-            count += 1
+            crops.append(output)
 
-        return count
+        return crops
 
     def _expand_box(
         self,

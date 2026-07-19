@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.models import (
     Asset,
-    Identity,
     EmbeddingExample,
+    Identity,
 )
 from immich_dog_tagger.status import AssetStatus
 

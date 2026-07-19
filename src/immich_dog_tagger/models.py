@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Float,
     LargeBinary,
     String,
 )
@@ -132,3 +133,59 @@ class Detection(Base):
     y2: Mapped[int]
 
     asset: Mapped["Asset"] = relationship(back_populates="detections")
+
+    crop: Mapped["Crop"] = relationship(
+        back_populates="detection",
+        cascade="all, delete-orphan",
+    )
+
+
+class CropClassification(Base):
+    __tablename__ = "crop_classifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    crop_id: Mapped[int] = mapped_column(
+        ForeignKey("crops.id"),
+        index=True,
+    )
+
+    crop: Mapped["Crop"] = relationship(back_populates="classification")
+
+    identity: Mapped[str | None] = mapped_column(
+        String(64),
+    )
+
+    confidence: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class Crop(Base):
+    __tablename__ = "crops"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    detection_id: Mapped[int] = mapped_column(
+        ForeignKey("detections.id"),
+        index=True,
+    )
+
+    path: Mapped[str] = mapped_column(
+        String(512),
+        nullable=False,
+    )
+
+    detection: Mapped["Detection"] = relationship(back_populates="crop")
+
+    classification: Mapped["CropClassification | None"] = relationship(
+        back_populates="crop",
+        cascade="all, delete-orphan",
+    )

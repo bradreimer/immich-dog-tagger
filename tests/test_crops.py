@@ -43,17 +43,18 @@ def test_crop_writer_creates_padded_dog_crop(tmp_path: Path):
         ),
     ]
 
-    count = writer.write(
+    crops = writer.write(
         image_path,
         "abc123",
         detections,
     )
 
-    assert count == 1
+    assert len(crops) == 1
 
     crop_path = crop_dir / "abc123_0.jpg"
 
     assert crop_path.exists()
+    assert crops[0] == crop_path
 
     cropped = Image.open(crop_path)
 
@@ -92,15 +93,16 @@ def test_crop_writer_clips_crop_to_image_bounds(tmp_path: Path):
         ),
     ]
 
-    count = writer.write(
+    crops = writer.write(
         image_path,
         "edge",
         detections,
     )
 
-    assert count == 1
+    assert len(crops) == 1
 
-    crop = Image.open(crop_dir / "edge_0.jpg")
+    crop_path = crop_dir / "edge_0.jpg"
+    crop = Image.open(crop_path)
 
     # Original 20x20 box receives 15% padding (3px each side),
     # but negative coordinates are clipped to the image boundary:

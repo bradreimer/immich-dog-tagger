@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .crops import CropWriter
 from .detector import ObjectDetector
-from .models import Asset, Detection
+from .models import Asset, Crop, Detection
 from .status import AssetStatus
 
 
@@ -51,30 +51,46 @@ class DetectionService:
 
             detections = self.detector.detect(str(image_path))
 
+            crop_map: dict[int, Path] = {}
+
             if self.crop_writer:
-                self.crop_writer.write(
+                crop_results = self.crop_writer.write(
                     image_path,
                     asset.immich_asset_id,
                     detections,
                 )
 
-            for detection in detections:
+                crop_map = dict(crop_results)
+
+            for index, detection in enumerate(detections):
                 detection_count += 1
 
                 if detection.label == "dog":
                     dog_count += 1
 
-                self.session.add(
-                    Detection(
-                        asset_id=asset.id,
-                        label=detection.label,
-                        confidence=detection.confidence,
-                        x1=detection.x1,
-                        y1=detection.y1,
-                        x2=detection.x2,
-                        y2=detection.y2,
-                    )
+                db_detection = Detection(
+                    asset_id=asset.id,
+                    label=detection.label,
+                    confidence=detection.confidence,
+                    x1=detection.x1,
+                    y1=detection.y1,
+                    x2=detection.x2,
+                    y2=detection.y2,
                 )
+
+                self.session.add(db_detection)
+
+                self.session.flush()
+
+                crop_path = crop_map.get(index)
+
+                if crop_path:
+                    self.session.add(
+                        Crop(
+                            detection_id=db_detection.id,
+                            path=str(crop_path),
+                        )
+                    )
 
             asset.status = AssetStatus.DETECTED
 
