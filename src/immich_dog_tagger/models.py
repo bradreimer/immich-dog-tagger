@@ -150,10 +150,9 @@ class CropClassification(Base):
         index=True,
     )
 
-    crop: Mapped["Crop"] = relationship(back_populates="classification")
-
     identity: Mapped[str | None] = mapped_column(
         String(64),
+        nullable=True,
     )
 
     confidence: Mapped[float] = mapped_column(
@@ -165,6 +164,10 @@ class CropClassification(Base):
         DateTime,
         server_default=func.now(),
         nullable=False,
+    )
+
+    crop: Mapped["Crop"] = relationship(
+        back_populates="classification",
     )
 
 
