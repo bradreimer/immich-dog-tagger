@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.database import create_database
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -11,9 +8,7 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.status import AssetStatus
 
 
-def test_crop_relationship(tmp_path: Path):
-    engine = create_database(tmp_path)
-
+def test_crop_relationship(engine):
     with Session(engine) as session:
         asset = Asset(
             immich_asset_id="abc123",

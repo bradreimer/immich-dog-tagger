@@ -3,7 +3,6 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
-from immich_dog_tagger.database import create_database
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.models import (
     Identity,
@@ -11,10 +10,7 @@ from immich_dog_tagger.models import (
 )
 
 
-def test_classifier_finds_closest_identity(tmp_path):
-
-    engine = create_database(tmp_path)
-
+def test_classifier_finds_closest_identity(engine):
     with Session(engine) as session:
         hermann = Identity(name="Hermann")
 
