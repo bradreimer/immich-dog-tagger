@@ -16,17 +16,11 @@ class OpenClipEmbedder:
         model_name: str = "ViT-B-32",
         pretrained: str = "laion2b_s34b_b79k",
     ):
-        self.device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
-        )
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.model, _, self.preprocess = (
-            open_clip.create_model_and_transforms(
-                model_name,
-                pretrained=pretrained,
-            )
+        self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+            model_name,
+            pretrained=pretrained,
         )
 
         self.model.to(self.device)
@@ -38,34 +32,16 @@ class OpenClipEmbedder:
         image_path: Path,
     ) -> np.ndarray:
 
-        image = Image.open(
-            image_path
-        ).convert(
-            "RGB"
-        )
+        image = Image.open(image_path).convert("RGB")
 
-        tensor = self.preprocess(
-            image
-        ).unsqueeze(
-            0
-        ).to(
-            self.device
-        )
+        tensor = self.preprocess(image).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-
-            features = self.model.encode_image(
-                tensor
-            )
+            features = self.model.encode_image(tensor)
 
         features = features / features.norm(
             dim=-1,
             keepdim=True,
         )
 
-        return (
-            features[0]
-            .cpu()
-            .numpy()
-            .astype(np.float32)
-        )
+        return features[0].cpu().numpy().astype(np.float32)

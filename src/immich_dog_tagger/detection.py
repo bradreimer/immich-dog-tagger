@@ -9,6 +9,7 @@ from .detector import ObjectDetector
 from .models import Asset, Detection
 from .status import AssetStatus
 
+
 @dataclass
 class DetectionSummary:
     processed: int
@@ -34,12 +35,7 @@ class DetectionService:
         limit: int | None = None,
     ) -> DetectionSummary:
 
-        query = (
-            select(Asset)
-            .where(
-                Asset.status == AssetStatus.DOWNLOADED
-            )
-        )
+        query = select(Asset).where(Asset.status == AssetStatus.DOWNLOADED)
 
         if limit is not None:
             query = query.limit(limit)
@@ -51,12 +47,9 @@ class DetectionService:
         dog_count = 0
 
         for asset in assets:
-
             image_path = asset.cache_path(self.cache_dir)
 
-            detections = self.detector.detect(
-                str(image_path)
-            )
+            detections = self.detector.detect(str(image_path))
 
             if self.crop_writer:
                 self.crop_writer.write(

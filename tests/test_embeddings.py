@@ -17,13 +17,9 @@ def test_embedding_round_trip():
         dtype=np.float32,
     )
 
-    blob = embedding_to_blob(
-        original
-    )
+    blob = embedding_to_blob(original)
 
-    restored = blob_to_embedding(
-        blob
-    )
+    restored = blob_to_embedding(blob)
 
     assert np.array_equal(
         original,

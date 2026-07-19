@@ -31,7 +31,6 @@ class CropWriter:
         count = 0
 
         for index, detection in enumerate(detections):
-
             if detection.label != "dog":
                 continue
 
@@ -46,10 +45,7 @@ class CropWriter:
 
             crop = image.crop(box)
 
-            output = (
-                self.crop_dir
-                / f"{asset_id}_{index}.jpg"
-            )
+            output = self.crop_dir / f"{asset_id}_{index}.jpg"
 
             crop.save(output)
 
@@ -70,13 +66,9 @@ class CropWriter:
         box_width = x2 - x1
         box_height = y2 - y1
 
-        pad_x = int(
-            box_width * self.padding
-        )
+        pad_x = int(box_width * self.padding)
 
-        pad_y = int(
-            box_height * self.padding
-        )
+        pad_y = int(box_height * self.padding)
 
         return (
             max(0, x1 - pad_x),

@@ -30,48 +30,31 @@ class Learner:
     ) -> int:
 
         identity = (
-            self.session.query(
-                Identity
-            )
-            .filter_by(
-                name=identity_name
-            )
-            .one_or_none()
+            self.session.query(Identity).filter_by(name=identity_name).one_or_none()
         )
 
         if identity is None:
-            identity = Identity(
-                name=identity_name
-            )
+            identity = Identity(name=identity_name)
 
-            self.session.add(
-                identity
-            )
+            self.session.add(identity)
 
             self.session.flush()
 
         count = 0
 
         for image_path in image_dir.iterdir():
-
             if not image_path.is_file():
                 continue
 
-            embedding = self.embedder.embed(
-                image_path
-            )
+            embedding = self.embedder.embed(image_path)
 
             example = EmbeddingExample(
                 identity_id=identity.id,
                 crop_path=str(image_path),
-                embedding=embedding_to_blob(
-                    embedding
-                ),
+                embedding=embedding_to_blob(embedding),
             )
 
-            self.session.add(
-                example
-            )
+            self.session.add(example)
 
             count += 1
 

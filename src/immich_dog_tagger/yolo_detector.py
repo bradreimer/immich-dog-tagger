@@ -14,9 +14,7 @@ class YOLODetector(ObjectDetector):
         model_path: Path,
         device: str | None = None,
     ):
-        self.model = YOLO(
-            str(model_path)
-        )
+        self.model = YOLO(str(model_path))
 
         self.device = device
 
@@ -35,18 +33,11 @@ class YOLODetector(ObjectDetector):
 
         for result in results:
             for box in result.boxes:
-                label = result.names[
-                    int(box.cls.item())
-                ]
+                label = result.names[int(box.cls.item())]
 
-                confidence = float(
-                    box.conf.item()
-                )
+                confidence = float(box.conf.item())
 
-                x1, y1, x2, y2 = (
-                    int(v)
-                    for v in box.xyxy[0].tolist()
-                )
+                x1, y1, x2, y2 = (int(v) for v in box.xyxy[0].tolist())
 
                 detections.append(
                     DetectionResult(
@@ -70,4 +61,3 @@ class YOLODetector(ObjectDetector):
             for detection in self.detect(image_path)
             if detection.label == "dog"
         ]
-    

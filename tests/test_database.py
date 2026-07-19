@@ -47,18 +47,10 @@ def test_database_creation(tmp_path: Path):
         session.add(embedding)
         session.commit()
 
-        result = session.query(
-            EmbeddingExample
-        ).one()
+        result = session.query(EmbeddingExample).one()
 
-        assert result.crop_path == (
-            "crops/hermann_001.jpg"
-        )
+        assert result.crop_path == ("crops/hermann_001.jpg")
 
-        assert result.embedding == (
-            b"\x01\x02\x03"
-        )
+        assert result.embedding == (b"\x01\x02\x03")
 
-        assert result.identity.name == (
-            "Hermann"
-        )
+        assert result.identity.name == ("Hermann")

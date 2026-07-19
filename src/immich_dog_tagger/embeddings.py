@@ -12,9 +12,7 @@ def embedding_to_blob(
     Convert an embedding vector into SQLite storage format.
     """
 
-    return embedding.astype(
-        np.float32
-    ).tobytes()
+    return embedding.astype(np.float32).tobytes()
 
 
 def blob_to_embedding(

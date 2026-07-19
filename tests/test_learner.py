@@ -11,7 +11,6 @@ from immich_dog_tagger.models import (
 
 
 class FakeEmbedder:
-
     def embed(
         self,
         image_path: Path,
@@ -43,7 +42,6 @@ def test_learner_creates_identity_and_embedding(
     )
 
     with Session(engine) as session:
-
         learner = Learner(
             FakeEmbedder(),
             session,
@@ -56,10 +54,6 @@ def test_learner_creates_identity_and_embedding(
 
         assert count == 1
 
-        result = session.query(
-            EmbeddingExample
-        ).one()
+        result = session.query(EmbeddingExample).one()
 
-        assert result.crop_path == str(
-            image
-        )
+        assert result.crop_path == str(image)

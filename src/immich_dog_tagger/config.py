@@ -27,13 +27,11 @@ def load_config(load_env_file: bool = True) -> Config:
     """
     Load application configuration from environment variables.
     """
-    
+
     if load_env_file:
         load_dotenv()
 
-    data_dir = Path(
-        os.environ.get("DATA_DIR", "./data")
-    )
+    data_dir = Path(os.environ.get("DATA_DIR", "./data"))
 
     return Config(
         immich_url=os.environ.get(

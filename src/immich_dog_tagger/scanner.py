@@ -27,9 +27,7 @@ class Scanner:
 
         for immich_asset in immich_assets:
             existing = self.session.scalar(
-                select(Asset).where(
-                    Asset.immich_asset_id == immich_asset.id
-                )
+                select(Asset).where(Asset.immich_asset_id == immich_asset.id)
             )
 
             if existing:
@@ -37,9 +35,9 @@ class Scanner:
 
             self.session.add(
                 Asset(
-                    immich_asset_id = immich_asset.id,
-                    checksum        = immich_asset.checksum,
-                    extension       = immich_asset.extension,
+                    immich_asset_id=immich_asset.id,
+                    checksum=immich_asset.checksum,
+                    extension=immich_asset.extension,
                 )
             )
 

@@ -10,6 +10,7 @@ import truststore
 
 truststore.inject_into_ssl()
 
+
 @dataclass(frozen=True)
 class ImmichAsset:
     """
@@ -63,9 +64,7 @@ class ImmichClient:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise RuntimeError(
-                f"Immich API error "
-                f"{response.status_code}: "
-                f"{response.text}"
+                f"Immich API error {response.status_code}: {response.text}"
             ) from exc
 
         data = response.json()
@@ -93,19 +92,6 @@ class ImmichClient:
         """
         Download original asset bytes.
         """
-
-        response = self.client.get(
-            f"{self.url}/api/assets/{asset_id}/original",
-        )
-
-        response.raise_for_status()
-
-        return response.content
-
-    def download_asset(
-        self,
-        asset_id: str,
-    ) -> bytes:
 
         response = self.client.get(
             f"{self.url}/api/assets/{asset_id}/original",

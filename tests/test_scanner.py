@@ -5,6 +5,7 @@ from immich_dog_tagger.models import Asset
 from immich_dog_tagger.immich import ImmichAsset
 from immich_dog_tagger.scanner import Scanner
 
+
 class FakeImmich:
     def list_assets(self):
         return [
@@ -26,9 +27,7 @@ def test_scanner_is_incremental(engine):
         assert scanner.scan() == 1
         assert scanner.scan() == 0
 
-        asset = session.scalar(
-            select(Asset)
-        )
+        asset = session.scalar(select(Asset))
 
         assert asset is not None
         assert asset.immich_asset_id == "abc123"

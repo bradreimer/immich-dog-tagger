@@ -13,6 +13,7 @@ dependencies = [
     "pi-heif>=1.4.0",
     "pillow>=12.3.0",
     "open-clip-torch>=3.3.0",
+    "ruff>=0.15.22",
 ]
 
 [project.scripts]

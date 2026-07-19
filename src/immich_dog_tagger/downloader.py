@@ -22,12 +22,7 @@ class Downloader:
         self,
         limit: int | None = None,
     ) -> int:
-        query = (
-            select(Asset)
-            .where(
-                Asset.status == AssetStatus.PENDING
-            )
-        )
+        query = select(Asset).where(Asset.status == AssetStatus.PENDING)
 
         if limit is not None:
             query = query.limit(limit)
@@ -44,9 +39,7 @@ class Downloader:
         for asset in assets:
             path = asset.cache_path(self.cache_dir)
 
-            data = self.client.download_asset(
-                asset.immich_asset_id
-            )
+            data = self.client.download_asset(asset.immich_asset_id)
 
             path.write_bytes(data)
 

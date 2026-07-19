@@ -9,24 +9,22 @@ from .status import AssetStatus
 from sqlalchemy import (
     DateTime,
     Enum,
-    Float,
     ForeignKey,
-    Integer,
     LargeBinary,
     String,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+
 class Base(DeclarativeBase):
     pass
+
 
 class Identity(Base):
     __tablename__ = "identities"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     name: Mapped[str] = mapped_column(
         String(64),
@@ -39,12 +37,11 @@ class Identity(Base):
         cascade="all, delete-orphan",
     )
 
+
 class EmbeddingExample(Base):
     __tablename__ = "embedding_examples"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     identity_id: Mapped[int] = mapped_column(
         ForeignKey("identities.id"),
@@ -67,16 +64,13 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
-    identity: Mapped["Identity"] = relationship(
-        back_populates="embeddings"
-    )
+    identity: Mapped["Identity"] = relationship(back_populates="embeddings")
+
 
 class Asset(Base):
     __tablename__ = "assets"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     immich_asset_id: Mapped[str] = mapped_column(
         String(64),
@@ -111,8 +105,12 @@ class Asset(Base):
         cascade="all, delete-orphan",
     )
 
-    def cache_path(self, cache_dir: Path,) -> Path:
+    def cache_path(
+        self,
+        cache_dir: Path,
+    ) -> Path:
         return cache_dir / f"{self.immich_asset_id}{self.extension}"
+
 
 class Detection(Base):
     __tablename__ = "detections"
@@ -133,6 +131,4 @@ class Detection(Base):
     x2: Mapped[int]
     y2: Mapped[int]
 
-    asset: Mapped["Asset"] = relationship(
-        back_populates="detections"
-    )
+    asset: Mapped["Asset"] = relationship(back_populates="detections")

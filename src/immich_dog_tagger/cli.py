@@ -3,7 +3,7 @@ Command line interface for Immich Dog Tagger.
 """
 
 from pathlib import Path
-from sqlalchemy.orm import Session 
+from sqlalchemy.orm import Session
 import argparse
 
 from .config import load_config
@@ -16,6 +16,7 @@ from .learner import Learner
 from .openclip_embedder import OpenClipEmbedder
 from .scanner import Scanner
 from .yolo_detector import YOLODetector
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -75,7 +76,7 @@ def main() -> None:
     test_embedding_parser.add_argument(
         "image",
     )
-    
+
     learn_parser = subparsers.add_parser(
         "learn",
         help="Learn a dog identity from images",
@@ -109,13 +110,9 @@ def main() -> None:
     elif args.command == "init-db":
         config = load_config()
 
-        create_database(
-            config.data_dir
-        )
+        create_database(config.data_dir)
 
-        print(
-            f"Database initialized: {config.data_dir / 'state.db'}"
-        )
+        print(f"Database initialized: {config.data_dir / 'state.db'}")
 
     elif args.command == "test-immich":
         config = load_config()
@@ -127,10 +124,8 @@ def main() -> None:
 
         assets = client.list_assets()
 
-        print(
-            f"Found {len(assets)} assets"
-        )
-        
+        print(f"Found {len(assets)} assets")
+
     elif args.command == "scan":
         config = load_config()
 
@@ -159,9 +154,7 @@ def main() -> None:
             config.immich_api_key,
         )
 
-        engine = create_database(
-            config.data_dir
-        )
+        engine = create_database(config.data_dir)
 
         with Session(engine) as session:
             downloader = Downloader(
@@ -177,7 +170,6 @@ def main() -> None:
         print(f"Downloaded: {count}")
 
     elif args.command == "detect":
-
         config = load_config()
 
         client = ImmichClient(
@@ -194,7 +186,6 @@ def main() -> None:
         )
 
         with Session(engine) as session:
-
             service = DetectionService(
                 detector,
                 session,
@@ -209,36 +200,22 @@ def main() -> None:
                 limit=args.limit,
             )
 
-            print(
-                f"Processed: {summary.processed}"
-            )
+            print(f"Processed: {summary.processed}")
 
-            print(
-                f"Detections: {summary.detections}"
-            )
+            print(f"Detections: {summary.detections}")
 
-            print(
-                f"Dogs: {summary.dogs}"
-            )
+            print(f"Dogs: {summary.dogs}")
 
     elif args.command == "test-embedding":
-
         embedder = OpenClipEmbedder()
 
-        embedding = embedder.embed(
-            Path(args.image)
-        )
+        embedding = embedder.embed(Path(args.image))
 
-        print(
-            f"Dimensions: {embedding.shape[0]}"
-        )
+        print(f"Dimensions: {embedding.shape[0]}")
 
-        print(
-            f"First values: {embedding[:5]}"
-        )
+        print(f"First values: {embedding[:5]}")
 
     elif args.command == "learn":
-
         config = load_config()
 
         engine = create_database(
@@ -248,7 +225,6 @@ def main() -> None:
         embedder = OpenClipEmbedder()
 
         with Session(engine) as session:
-
             learner = Learner(
                 embedder,
                 session,
@@ -259,12 +235,9 @@ def main() -> None:
                 Path(args.directory),
             )
 
-        print(
-            f"Learned examples: {count}"
-        )
+        print(f"Learned examples: {count}")
 
     elif args.command == "test-yolo":
-
         config = load_config()
 
         detector = YOLODetector(
@@ -276,10 +249,7 @@ def main() -> None:
         )
 
         for detection in detections:
-            print(
-                f"{detection.label:12}"
-                f"{detection.confidence:.2f}"
-            )
+            print(f"{detection.label:12}{detection.confidence:.2f}")
 
     else:
         parser.print_help()

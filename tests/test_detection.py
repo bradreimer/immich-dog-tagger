@@ -7,7 +7,6 @@ from immich_dog_tagger.status import AssetStatus
 
 
 class FakeDetector:
-
     def detect(self, image_path):
         return [
             DetectionResult(
@@ -26,7 +25,6 @@ def test_detection_creates_record(
     tmp_path,
 ):
     with Session(engine) as session:
-
         asset = Asset(
             immich_asset_id="abc123",
             checksum="xyz",
@@ -42,7 +40,6 @@ def test_detection_creates_record(
             tmp_path,
         )
 
-        
         summary = service.run()
 
         assert summary.processed == 1

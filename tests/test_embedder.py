@@ -1,5 +1,3 @@
-import numpy as np
-
 from immich_dog_tagger.embedder import Embedder
 
 

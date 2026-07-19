@@ -12,10 +12,6 @@ def count_detections(
     query = select(Detection)
 
     if label:
-        query = query.where(
-            Detection.label == label
-        )
+        query = query.where(Detection.label == label)
 
-    return len(
-        session.scalars(query).all()
-    )
+    return len(session.scalars(query).all())

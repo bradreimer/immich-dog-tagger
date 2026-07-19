@@ -65,6 +65,7 @@ def test_download_asset():
 
     assert data == b"image-data"
 
+
 def test_client_creation():
     from immich_dog_tagger.immich import ImmichClient
 
