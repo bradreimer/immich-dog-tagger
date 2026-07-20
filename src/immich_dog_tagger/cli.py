@@ -15,6 +15,7 @@ from .downloader import Downloader
 from .immich import ImmichClient
 from .openclip_embedder import OpenClipEmbedder
 from .review_export import ReviewExporter
+from .review_import import ReviewImporter
 from .scanner import Scanner
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
@@ -130,6 +131,11 @@ def main() -> None:
     export_parser.add_argument(
         "--limit",
         type=int,
+    )
+
+    subparsers.add_parser(
+        "import-review",
+        help="Import confirmed review images",
     )
 
     args = parser.parse_args()
@@ -348,6 +354,34 @@ def main() -> None:
         )
 
         print(f"Exported: {count}")
+
+    elif args.command == "import-review":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        embedder = OpenClipEmbedder()
+
+        with Session(engine) as session:
+            learner = Learner(
+                embedder,
+                session,
+            )
+
+            importer = ReviewImporter(
+                learner,
+            )
+
+            summary = importer.import_confirmed(
+                config.data_dir / "review" / "confirmed",
+            )
+
+        print(f"Imported: {summary.imported}")
+
+        for identity, count in summary.identities.items():
+            print(f"{identity}: {count}")
 
     else:
         parser.print_help()
