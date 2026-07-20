@@ -1,42 +1,44 @@
 # Immich Dog Tagger
 
-AI-assisted dog detection and tagging pipeline for Immich.
+AI-assisted dog detection and identity classification pipeline for [Immich](https://immich.app/).
 
-## Requirements
+Immich Dog Tagger scans a photo library, detects dogs, creates crops, generates image embeddings, and classifies individual dogs using a locally trained identity model.
 
-- Python 3.14+
-- uv
+The current workflow is designed around human-in-the-loop learning:
 
-## Development
+1. Detect dogs
+2. Classify predictions
+3. Review uncertain results
+4. Confirm correct identities
+5. Feed confirmed examples back into training
 
-This project uses `uv` for Python environment and dependency management.
+The goal is to identify individual dogs such as:
 
-Install dependencies:
+- Hermann
+- Fibonacci (Fibs)
+- Henri
 
-```bash
-uv sync
-```
+while keeping all processing local.
 
-Run tests:
+---
 
-```bash
-uv run pytest
-```
+## Features
 
-Run the application:
+Current capabilities:
 
-```bash
-uv run immich-dog-tagger --help
-```
+- Scan an Immich library through the Immich API
+- Maintain local processing state in SQLite
+- Download and cache assets
+- Detect dogs using YOLO
+- Generate dog crops
+- Generate image embeddings using OpenCLIP
+- Classify dogs using embedding similarity
+- Export predictions for human review
+- Import confirmed examples for continued learning
+- Incrementally build a local identity dataset
+
+---
 
 ## Architecture
 
-The project will eventually provide:
-
-- Immich asset scanning
-- Incremental processing
-- Dog detection
-- Breed classification
-- Immich metadata updates
-
-Processing state is stored locally so repeated scans only process new or changed assets.
+The processing pipeline:
