@@ -107,23 +107,23 @@ def main() -> None:
         "directory",
     )
 
-    review_parser = subparsers.add_parser(
+    classify_list_parser = subparsers.add_parser(
         "classify-list",
         help="List crop classifications",
     )
 
-    review_parser.add_argument(
+    classify_list_parser.add_argument(
         "--limit",
         type=int,
         help="Maximum number of classifications to show",
     )
 
-    review_parser.add_argument(
+    classify_list_parser.add_argument(
         "--identity",
         help="Filter by identity",
     )
 
-    review_parser.add_argument(
+    classify_list_parser.add_argument(
         "--unknown",
         action="store_true",
         help="Show only unknown classifications",

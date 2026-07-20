@@ -34,6 +34,10 @@ class ReviewService:
         identity: str | None = None,
         unknown: bool = False,
     ) -> list[ReviewItem]:
+
+        if unknown and identity is not None:
+            raise ValueError("identity and unknown cannot be combined")
+
         query = select(CropClassification).order_by(CropClassification.confidence.asc())
 
         if unknown:
