@@ -1,8 +1,10 @@
-from sqlalchemy.orm import Session
 from dataclasses import dataclass
 from pathlib import Path
 
-from immich_dog_tagger.repository import get_crop_classifications
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from immich_dog_tagger.models import CropClassification
 
 
 @dataclass(frozen=True)
@@ -12,6 +14,10 @@ class ReviewItem:
     identity: str | None
     confidence: float
     path: Path
+
+    @property
+    def filename(self) -> str:
+        return self.path.name
 
 
 class ReviewService:
@@ -26,4 +32,23 @@ class ReviewService:
         limit: int | None = None,
         identity: str | None = None,
     ) -> list[ReviewItem]:
-        return get_crop_classifications(self.session)
+        query = select(CropClassification).order_by(CropClassification.confidence.asc())
+
+        if identity is not None:
+            query = query.where(CropClassification.identity == identity)
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        classifications = self.session.scalars(query).all()
+
+        return [
+            ReviewItem(
+                classification_id=classification.id,
+                crop_id=classification.crop.id,
+                identity=classification.identity,
+                confidence=classification.confidence,
+                path=Path(classification.crop.path),
+            )
+            for classification in classifications
+        ]
