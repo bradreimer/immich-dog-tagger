@@ -1,3 +1,4 @@
+import csv
 from immich_dog_tagger.services.review import ReviewItem
 from immich_dog_tagger.review_export import ReviewExporter
 
@@ -24,3 +25,10 @@ def test_export_review(tmp_path):
     assert count == 1
     assert (output / "manifest.csv").exists()
     assert (output / "predicted" / "Fibs" / "crop.jpg").exists()
+
+    with (output / "manifest.csv").open() as file:
+        rows = list(csv.DictReader(file))
+
+    assert len(rows) == 1
+    assert rows[0]["source_path"] == str(source)
+    assert rows[0]["filename"] == "crop.jpg"

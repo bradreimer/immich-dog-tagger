@@ -18,8 +18,15 @@ class ReviewExporter:
             exist_ok=True,
         )
 
+        confirmed = directory / "confirmed"
+
         for identity in ("Fibs", "Hermann", "Henri", "Unknown"):
             (predicted / identity).mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            (confirmed / identity).mkdir(
                 parents=True,
                 exist_ok=True,
             )
@@ -36,6 +43,7 @@ class ReviewExporter:
                     "identity",
                     "confidence",
                     "filename",
+                    "source_path",
                 ],
             )
 
@@ -58,6 +66,7 @@ class ReviewExporter:
                         "identity": item.identity,
                         "confidence": item.confidence,
                         "filename": item.filename,
+                        "source_path": str(item.path),
                     }
                 )
 
