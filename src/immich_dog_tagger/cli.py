@@ -129,6 +129,11 @@ def main() -> None:
         help="Show only unknown classifications",
     )
 
+    subparsers.add_parser(
+        "review-stats",
+        help="Show classification statistics",
+    )
+
     export_parser = subparsers.add_parser(
         "export-review",
         help="Export classifications for review",
@@ -340,6 +345,35 @@ def main() -> None:
                 f"{item.confidence:<14.4f}"
                 f"{item.filename}"
             )
+
+    elif args.command == "review-stats":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        with Session(engine) as session:
+            service = ReviewService(session)
+            summary = service.summary()
+
+        print(f"Total classifications: {summary.total}")
+        print()
+
+        print("Identity")
+        print("--------")
+
+        for identity, count in sorted(summary.identities.items()):
+            print(f"{identity:<12}{count}")
+
+        print(f"{'Unknown':<12}{summary.unknown}")
+
+        print()
+        print("Confidence")
+        print("----------")
+
+        for bucket, count in summary.confidence_buckets.items():
+            print(f"{bucket:<12}{count}")
 
     elif args.command == "export-review":
         config = load_config()

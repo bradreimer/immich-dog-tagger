@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from collections import Counter
 from pathlib import Path
 
 from sqlalchemy import select
@@ -18,6 +19,14 @@ class ReviewItem:
     @property
     def filename(self) -> str:
         return self.path.name
+
+
+@dataclass(frozen=True)
+class ReviewSummary:
+    total: int
+    identities: dict[str, int]
+    unknown: int
+    confidence_buckets: dict[str, int]
 
 
 class ReviewService:
@@ -61,3 +70,39 @@ class ReviewService:
             )
             for classification in classifications
         ]
+
+    def summary(self) -> ReviewSummary:
+        query = select(CropClassification)
+
+        classifications = self.session.scalars(query).all()
+
+        total = len(classifications)
+
+        identities = Counter()
+        unknown = 0
+
+        confidence_buckets = {
+            "<0.80": 0,
+            "0.80-0.90": 0,
+            ">0.90": 0,
+        }
+
+        for classification in classifications:
+            if classification.identity:
+                identities[classification.identity] += 1
+            else:
+                unknown += 1
+
+            if classification.confidence < 0.80:
+                confidence_buckets["<0.80"] += 1
+            elif classification.confidence < 0.90:
+                confidence_buckets["0.80-0.90"] += 1
+            else:
+                confidence_buckets[">0.90"] += 1
+
+        return ReviewSummary(
+            total=total,
+            identities=dict(identities),
+            unknown=unknown,
+            confidence_buckets=dict(confidence_buckets),
+        )

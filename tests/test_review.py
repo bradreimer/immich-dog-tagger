@@ -167,3 +167,80 @@ def test_review_orders_by_lowest_confidence_first(engine):
 
         assert results[0].confidence == 0.70
         assert results[1].confidence == 0.99
+
+
+def test_review_summary(engine):
+    with Session(engine) as session:
+        fibs_crop_1 = Crop(
+            detection_id=1,
+            path="fibs1.jpg",
+        )
+
+        fibs_crop_2 = Crop(
+            detection_id=2,
+            path="fibs2.jpg",
+        )
+
+        henri_crop = Crop(
+            detection_id=3,
+            path="henri.jpg",
+        )
+
+        unknown_crop = Crop(
+            detection_id=4,
+            path="unknown.jpg",
+        )
+
+        session.add_all(
+            [
+                fibs_crop_1,
+                fibs_crop_2,
+                henri_crop,
+                unknown_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=fibs_crop_1,
+                    identity="Fibs",
+                    confidence=0.95,
+                ),
+                CropClassification(
+                    crop=fibs_crop_2,
+                    identity="Fibs",
+                    confidence=0.85,
+                ),
+                CropClassification(
+                    crop=henri_crop,
+                    identity="Henri",
+                    confidence=0.70,
+                ),
+                CropClassification(
+                    crop=unknown_crop,
+                    identity=None,
+                    confidence=0.60,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        summary = ReviewService(session).summary()
+
+        assert summary.total == 4
+
+        assert summary.identities == {
+            "Fibs": 2,
+            "Henri": 1,
+        }
+
+        assert summary.unknown == 1
+
+        assert summary.confidence_buckets == {
+            "<0.80": 2,
+            "0.80-0.90": 1,
+            ">0.90": 1,
+        }
