@@ -14,7 +14,7 @@ from .database import create_database
 from .downloader import Downloader
 from .immich import ImmichClient
 from .openclip_embedder import OpenClipEmbedder
-from .review_exporter import ReviewExporter
+from .review_export import ReviewExporter
 from .scanner import Scanner
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
