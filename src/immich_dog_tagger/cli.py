@@ -2,23 +2,24 @@
 Command line interface for Immich Dog Tagger.
 """
 
-from pathlib import Path
-from sqlalchemy.orm import Session
 import argparse
+from pathlib import Path
 
-from .classification import ClassificationService
+from sqlalchemy.orm import Session
+
 from .classifier import IdentityClassifier
 from .config import load_config
 from .crops import CropWriter
 from .database import create_database
-from .detection import DetectionService
 from .downloader import Downloader
 from .immich import ImmichClient
-from .learner import Learner
 from .openclip_embedder import OpenClipEmbedder
-from .review import ReviewService
 from .scanner import Scanner
 from .yolo_detector import YOLODetector
+from .services.classification import ClassificationService
+from .services.detection import DetectionService
+from .services.learner import Learner
+from .services.review import ReviewService
 
 
 def main() -> None:
@@ -104,9 +105,20 @@ def main() -> None:
         "directory",
     )
 
-    subparsers.add_parser(
+    classify_list_parser = subparsers.add_parser(
         "classify-list",
         help="List crop classifications",
+    )
+
+    classify_list_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of classifications to show",
+    )
+
+    classify_list_parser.add_argument(
+        "--identity",
+        help="Filter by identity",
     )
 
     args = parser.parse_args()
@@ -220,9 +232,7 @@ def main() -> None:
             )
 
             print(f"Processed: {summary.processed}")
-
             print(f"Detections: {summary.detections}")
-
             print(f"Dogs: {summary.dogs}")
 
     elif args.command == "classify":
@@ -258,7 +268,6 @@ def main() -> None:
         embedding = embedder.embed(Path(args.image))
 
         print(f"Dimensions: {embedding.shape[0]}")
-
         print(f"First values: {embedding[:5]}")
 
     elif args.command == "learn":
@@ -283,20 +292,6 @@ def main() -> None:
 
         print(f"Learned examples: {count}")
 
-    elif args.command == "test-yolo":
-        config = load_config()
-
-        detector = YOLODetector(
-            config.yolo_model,
-        )
-
-        detections = detector.detect(
-            args.image,
-        )
-
-        for detection in detections:
-            print(f"{detection.label:12}{detection.confidence:.2f}")
-
     elif args.command == "classify-list":
         config = load_config()
 
@@ -307,16 +302,19 @@ def main() -> None:
         with Session(engine) as session:
             service = ReviewService(session)
 
-            classifications = service.classifications()
+            items = service.classifications(
+                limit=args.limit,
+                identity=args.identity,
+            )
 
-        print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}Path")
+        print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}File")
 
-        for classification in classifications:
+        for item in items:
             print(
-                f"{classification.id:<8}"
-                f"{str(classification.identity):<12}"
-                f"{classification.confidence:<14.4f}"
-                f"{classification.crop.path}"
+                f"{item.classification_id:<8}"
+                f"{str(item.identity):<12}"
+                f"{item.confidence:<14.4f}"
+                f"{item.filename}"
             )
 
     else:
