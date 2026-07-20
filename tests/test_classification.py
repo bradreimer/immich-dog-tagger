@@ -1,7 +1,7 @@
 import numpy as np
 
 from immich_dog_tagger.classifier import ClassificationResult
-from immich_dog_tagger.classification import ClassificationService
+from immich_dog_tagger.services.classification import ClassificationService
 from sqlalchemy.orm import Session
 from immich_dog_tagger.models import (
     Asset,

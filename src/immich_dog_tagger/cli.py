@@ -16,7 +16,7 @@ from .downloader import Downloader
 from .immich import ImmichClient
 from .learner import Learner
 from .openclip_embedder import OpenClipEmbedder
-from .repository import get_crop_classifications
+from .review import ReviewService
 from .scanner import Scanner
 from .yolo_detector import YOLODetector
 
@@ -305,9 +305,9 @@ def main() -> None:
         )
 
         with Session(engine) as session:
-            classifications = get_crop_classifications(
-                session,
-            )
+            service = ReviewService(session)
+
+            classifications = service.classifications()
 
         print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}Path")
 

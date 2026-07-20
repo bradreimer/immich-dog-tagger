@@ -7,9 +7,9 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from .classifier import IdentityClassifier
-from .models import Crop, CropClassification
-from .openclip_embedder import OpenClipEmbedder
+from immich_dog_tagger.classifier import IdentityClassifier
+from immich_dog_tagger.models import Crop, CropClassification
+from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 
 
 @dataclass

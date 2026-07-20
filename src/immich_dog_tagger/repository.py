@@ -7,6 +7,6 @@ def get_crop_classifications(session: Session):
     return (
         session.query(CropClassification)
         .options(joinedload(CropClassification.crop))
-        .order_by(CropClassification.id)
+        .order_by(CropClassification.confidence.asc())
         .all()
     )

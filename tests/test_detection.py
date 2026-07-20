@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from pathlib import Path
-from immich_dog_tagger.detection import DetectionService
+from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.models import Asset, Detection
 from immich_dog_tagger.status import AssetStatus

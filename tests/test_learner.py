@@ -4,7 +4,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.database import create_database
-from immich_dog_tagger.learner import Learner
+from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.models import (
     EmbeddingExample,
 )

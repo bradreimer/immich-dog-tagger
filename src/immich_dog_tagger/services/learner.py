@@ -6,12 +6,12 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from .models import (
+from immich_dog_tagger.models import (
     Identity,
     EmbeddingExample,
 )
-from .embedder import Embedder
-from .embeddings import embedding_to_blob
+from immich_dog_tagger.embedder import Embedder
+from immich_dog_tagger.embeddings import embedding_to_blob
 
 
 class Learner:

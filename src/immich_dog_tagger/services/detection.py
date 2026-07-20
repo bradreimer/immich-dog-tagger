@@ -4,11 +4,11 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .crops import CropWriter
-from .detector import ObjectDetector
-from .media import is_supported_image
-from .models import Asset, Crop, Detection
-from .status import AssetStatus
+from immich_dog_tagger.crops import CropWriter
+from immich_dog_tagger.detector import ObjectDetector
+from immich_dog_tagger.media import is_supported_image
+from immich_dog_tagger.models import Asset, Crop, Detection
+from immich_dog_tagger.status import AssetStatus
 
 
 @dataclass
