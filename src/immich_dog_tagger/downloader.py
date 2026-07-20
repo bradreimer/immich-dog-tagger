@@ -39,7 +39,11 @@ class Downloader:
         for asset in assets:
             path = asset.cache_path(self.cache_dir)
 
-            data = self.client.download_asset(asset.immich_asset_id)
+            try:
+                data = self.client.download_asset(asset.immich_asset_id)
+            except Exception:
+                asset.status = AssetStatus.DOWNLOAD_FAILED
+                continue
 
             path.write_bytes(data)
 
