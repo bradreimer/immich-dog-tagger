@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .crops import CropWriter
 from .detector import ObjectDetector
+from .media import is_supported_image
 from .models import Asset, Crop, Detection
 from .status import AssetStatus
 
@@ -30,18 +31,6 @@ class DetectionService:
         self.cache_dir = cache_dir
         self.crop_writer = crop_writer
 
-    def is_image_asset(self, asset: Asset) -> bool:
-        return asset.extension.lower() in {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp",
-            ".tiff",
-            ".bmp",
-            ".gif",
-            ".heic",
-        }
-
     def run(
         self,
         limit: int | None = None,
@@ -52,11 +41,7 @@ class DetectionService:
         if limit is not None:
             query = query.limit(limit)
 
-        assets = [
-            asset
-            for asset in self.session.scalars(query).all()
-            if self.is_image_asset(asset)
-        ]
+        assets = self.session.scalars(query).all()
 
         processed = 0
         detection_count = 0
@@ -64,6 +49,9 @@ class DetectionService:
 
         for asset in assets:
             image_path = asset.cache_path(self.cache_dir)
+
+            if not is_supported_image(image_path):
+                continue
 
             detections = self.detector.detect(str(image_path))
 
