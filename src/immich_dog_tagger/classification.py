@@ -2,11 +2,20 @@
 Crop classification pipeline.
 """
 
+from collections import Counter
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 from .classifier import IdentityClassifier
-from .models import Crop
+from .models import Crop, CropClassification
 from .openclip_embedder import OpenClipEmbedder
+
+
+@dataclass
+class ClassificationSummary:
+    classified: int
+    identities: dict[str, int]
 
 
 class ClassificationService:
@@ -23,13 +32,15 @@ class ClassificationService:
     def classify_pending(
         self,
         limit: int | None = None,
-    ) -> int:
+    ) -> ClassificationSummary:
         query = self.session.query(Crop).filter(~Crop.classification.has())
 
         if limit is not None:
             query = query.limit(limit)
 
         crops = query.all()
+
+        counts = Counter()
 
         for crop in crops:
             embedding = self.embedder.embed(
@@ -40,7 +51,10 @@ class ClassificationService:
                 embedding,
             )
 
-            from .models import CropClassification
+            if result.identity:
+                counts[result.identity] += 1
+            else:
+                counts["Unknown"] += 1
 
             classification = CropClassification(
                 crop=crop,
@@ -52,4 +66,7 @@ class ClassificationService:
 
         self.session.commit()
 
-        return len(crops)
+        return ClassificationSummary(
+            classified=len(crops),
+            identities=dict(counts),
+        )

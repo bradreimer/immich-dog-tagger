@@ -57,9 +57,10 @@ def test_classification_service_creates_classification(engine):
             classifier,
         )
 
-        count = service.classify_pending()
+        summary = service.classify_pending()
 
-        assert count == 1
+        assert summary.classified == 1
+        assert summary.identities["Hermann"] == 1
 
         result = session.query(CropClassification).one()
 
@@ -114,9 +115,10 @@ def test_classification_service_handles_unknown_identity(engine):
             classifier,
         )
 
-        count = service.classify_pending()
+        summary = service.classify_pending()
 
-        assert count == 1
+        assert summary.classified == 1
+        assert summary.identities["Unknown"] == 1
 
         result = session.query(CropClassification).one()
 

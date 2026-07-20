@@ -103,6 +103,15 @@ def main() -> None:
         "directory",
     )
 
+    classify_parser = subparsers.add_parser(
+        "classify",
+        help="Classify dog crops",
+    )
+
+    classify_parser.add_argument(
+        "--limit",
+        type=int,
+    )
     args = parser.parse_args()
 
     if args.command == "config-check":
@@ -289,6 +298,33 @@ def main() -> None:
 
         for detection in detections:
             print(f"{detection.label:12}{detection.confidence:.2f}")
+
+    elif args.command == "classify":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        embedder = OpenClipEmbedder()
+
+        with Session(engine) as session:
+            classifier = IdentityClassifier(session)
+
+            service = ClassificationService(
+                session,
+                embedder,
+                classifier,
+            )
+
+            summary = service.classify_pending(
+                limit=args.limit,
+            )
+
+        print(f"Classified: {summary.classified}")
+
+        for identity, count in summary.identities.items():
+            print(f"{identity}: {count}")
 
     else:
         parser.print_help()
