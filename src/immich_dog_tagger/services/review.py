@@ -32,8 +32,12 @@ class ReviewService:
         *,
         limit: int | None = None,
         identity: str | None = None,
+        unknown: bool = False,
     ) -> list[ReviewItem]:
         query = select(CropClassification).order_by(CropClassification.confidence.asc())
+
+        if unknown:
+            query = query.where(CropClassification.identity.is_(None))
 
         if identity is not None:
             query = query.where(CropClassification.identity == identity)

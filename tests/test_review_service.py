@@ -34,25 +34,129 @@ def test_review_service_classifications(engine):
         assert results[0].filename == "test.jpg"
 
 
-def test_review_classifications_order_by_confidence(engine):
+def test_review_filters_by_identity(engine):
     with Session(engine) as session:
-        crop1 = Crop(detection_id=1, path="low.jpg")
-        crop2 = Crop(detection_id=2, path="high.jpg")
+        fibs_crop = Crop(
+            detection_id=1,
+            path="fibs.jpg",
+        )
 
-        session.add_all([crop1, crop2])
+        hermann_crop = Crop(
+            detection_id=2,
+            path="hermann.jpg",
+        )
+
+        session.add_all(
+            [
+                fibs_crop,
+                hermann_crop,
+            ]
+        )
         session.flush()
 
         session.add_all(
             [
                 CropClassification(
-                    crop=crop1,
+                    crop=fibs_crop,
                     identity="Fibs",
-                    confidence=0.2,
+                    confidence=0.95,
                 ),
                 CropClassification(
-                    crop=crop2,
+                    crop=hermann_crop,
+                    identity="Hermann",
+                    confidence=0.90,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        results = ReviewService(session).classifications(
+            identity="Fibs",
+        )
+
+        assert len(results) == 1
+        assert results[0].identity == "Fibs"
+        assert results[0].path.name == "fibs.jpg"
+
+
+def test_review_filters_unknown(engine):
+    with Session(engine) as session:
+        unknown_crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        known_crop = Crop(
+            detection_id=2,
+            path="fibs.jpg",
+        )
+
+        session.add_all(
+            [
+                unknown_crop,
+                known_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=unknown_crop,
+                    identity=None,
+                    confidence=0.60,
+                ),
+                CropClassification(
+                    crop=known_crop,
                     identity="Fibs",
-                    confidence=0.9,
+                    confidence=0.95,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        results = ReviewService(session).classifications(
+            unknown=True,
+        )
+
+        assert len(results) == 1
+        assert results[0].identity is None
+        assert results[0].path.name == "unknown.jpg"
+
+
+def test_review_orders_by_lowest_confidence_first(engine):
+    with Session(engine) as session:
+        low_crop = Crop(
+            detection_id=1,
+            path="low.jpg",
+        )
+
+        high_crop = Crop(
+            detection_id=2,
+            path="high.jpg",
+        )
+
+        session.add_all(
+            [
+                low_crop,
+                high_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=low_crop,
+                    identity="Fibs",
+                    confidence=0.70,
+                ),
+                CropClassification(
+                    crop=high_crop,
+                    identity="Fibs",
+                    confidence=0.99,
                 ),
             ]
         )
@@ -61,37 +165,5 @@ def test_review_classifications_order_by_confidence(engine):
 
         results = ReviewService(session).classifications()
 
-        assert results[0].path.name == "low.jpg"
-        assert results[1].path.name == "high.jpg"
-
-
-def test_review_classifications_filter_identity(engine):
-    with Session(engine) as session:
-        crop1 = Crop(detection_id=1, path="dog.jpg")
-        crop2 = Crop(detection_id=2, path="cat.jpg")
-
-        session.add_all([crop1, crop2])
-        session.flush()
-
-        session.add_all(
-            [
-                CropClassification(
-                    crop=crop1,
-                    identity="Dog",
-                    confidence=0.8,
-                ),
-                CropClassification(
-                    crop=crop2,
-                    identity="Cat",
-                    confidence=0.9,
-                ),
-            ]
-        )
-
-        session.commit()
-
-        results = ReviewService(session).classifications(identity="Dog")
-
-        assert len(results) == 1
-        assert results[0].identity == "Dog"
-        assert results[0].path.name == "dog.jpg"
+        assert results[0].confidence == 0.70
+        assert results[1].confidence == 0.99

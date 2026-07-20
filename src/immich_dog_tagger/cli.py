@@ -107,20 +107,26 @@ def main() -> None:
         "directory",
     )
 
-    classify_list_parser = subparsers.add_parser(
+    review_parser = subparsers.add_parser(
         "classify-list",
         help="List crop classifications",
     )
 
-    classify_list_parser.add_argument(
+    review_parser.add_argument(
         "--limit",
         type=int,
         help="Maximum number of classifications to show",
     )
 
-    classify_list_parser.add_argument(
+    review_parser.add_argument(
         "--identity",
         help="Filter by identity",
+    )
+
+    review_parser.add_argument(
+        "--unknown",
+        action="store_true",
+        help="Show only unknown classifications",
     )
 
     export_parser = subparsers.add_parser(
@@ -319,14 +325,15 @@ def main() -> None:
         with Session(engine) as session:
             service = ReviewService(session)
 
-            items = service.classifications(
+            classifications = service.classifications(
                 limit=args.limit,
                 identity=args.identity,
+                unknown=args.unknown,
             )
 
         print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}File")
 
-        for item in items:
+        for item in classifications:
             print(
                 f"{item.classification_id:<8}"
                 f"{str(item.identity):<12}"
