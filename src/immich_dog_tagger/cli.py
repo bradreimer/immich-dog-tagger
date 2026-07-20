@@ -6,6 +6,8 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 import argparse
 
+from .classification import ClassificationService
+from .classifier import IdentityClassifier
 from .config import load_config
 from .crops import CropWriter
 from .database import create_database
@@ -66,6 +68,17 @@ def main() -> None:
         "--limit",
         type=int,
         help="Maximum number of images to process",
+    )
+
+    classify_parser = subparsers.add_parser(
+        "classify",
+        help="Classify dog crops",
+    )
+
+    classify_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of crops to classify",
     )
 
     test_embedding_parser = subparsers.add_parser(
@@ -205,6 +218,32 @@ def main() -> None:
             print(f"Detections: {summary.detections}")
 
             print(f"Dogs: {summary.dogs}")
+
+    elif args.command == "classify":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        embedder = OpenClipEmbedder()
+
+        with Session(engine) as session:
+            classifier = IdentityClassifier(
+                session,
+            )
+
+            service = ClassificationService(
+                session,
+                embedder,
+                classifier,
+            )
+
+            count = service.classify_pending(
+                limit=args.limit,
+            )
+
+        print(f"Classified: {count}")
 
     elif args.command == "test-embedding":
         embedder = OpenClipEmbedder()

@@ -49,7 +49,7 @@ class CropWriter:
 
             crop.save(output)
 
-            crops.append(output)
+            crops.append((index, output))
 
         return crops
 

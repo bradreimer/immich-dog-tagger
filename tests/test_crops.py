@@ -54,7 +54,7 @@ def test_crop_writer_creates_padded_dog_crop(tmp_path: Path):
     crop_path = crop_dir / "abc123_0.jpg"
 
     assert crop_path.exists()
-    assert crops[0] == crop_path
+    assert crops[0] == (0, crop_path)
 
     cropped = Image.open(crop_path)
 

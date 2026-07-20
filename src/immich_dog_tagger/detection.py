@@ -30,6 +30,18 @@ class DetectionService:
         self.cache_dir = cache_dir
         self.crop_writer = crop_writer
 
+    def is_image_asset(self, asset: Asset) -> bool:
+        return asset.extension.lower() in {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".tiff",
+            ".bmp",
+            ".gif",
+            ".heic",
+        }
+
     def run(
         self,
         limit: int | None = None,
@@ -40,7 +52,11 @@ class DetectionService:
         if limit is not None:
             query = query.limit(limit)
 
-        assets = self.session.scalars(query).all()
+        assets = [
+            asset
+            for asset in self.session.scalars(query).all()
+            if self.is_image_asset(asset)
+        ]
 
         processed = 0
         detection_count = 0

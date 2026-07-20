@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-
+from pathlib import Path
 from immich_dog_tagger.detection import DetectionService
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.models import Asset, Detection
@@ -53,3 +53,31 @@ def test_detection_creates_record(
         session.refresh(asset)
 
         assert asset.status is AssetStatus.DETECTED
+
+
+def test_detection_skips_video_assets(engine):
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="abc123",
+            checksum="xyz",
+            extension=".mp4",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            Path("/tmp"),
+        )
+
+        summary = service.run()
+
+        assert summary.processed == 0
+        assert summary.detections == 0
+        assert summary.dogs == 0
+
+        result = session.query(Detection).all()
+
+        assert len(result) == 0

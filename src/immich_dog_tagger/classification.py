@@ -22,14 +22,14 @@ class ClassificationService:
 
     def classify_pending(
         self,
-        limit: int = 100,
+        limit: int | None = None,
     ) -> int:
-        crops = (
-            self.session.query(Crop)
-            .filter(~Crop.classification.has())
-            .limit(limit)
-            .all()
-        )
+        query = self.session.query(Crop).filter(~Crop.classification.has())
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        crops = query.all()
 
         for crop in crops:
             embedding = self.embedder.embed(
