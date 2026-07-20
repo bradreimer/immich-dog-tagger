@@ -57,3 +57,32 @@ def test_learner_creates_identity_and_embedding(
         result = session.query(EmbeddingExample).one()
 
         assert result.crop_path == str(image)
+
+
+def test_learner_skips_existing_examples(engine, tmp_path):
+    image_dir = tmp_path / "Fibs"
+    image_dir.mkdir()
+
+    image = image_dir / "fibs.jpg"
+    image.write_bytes(b"test")
+
+    embedder = FakeEmbedder()
+
+    with Session(engine) as session:
+        learner = Learner(
+            embedder,
+            session,
+        )
+
+        first = learner.learn(
+            "Fibs",
+            image_dir,
+        )
+
+        second = learner.learn(
+            "Fibs",
+            image_dir,
+        )
+
+    assert first == 1
+    assert second == 0

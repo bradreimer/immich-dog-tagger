@@ -42,8 +42,20 @@ class Learner:
 
         count = 0
 
-        for image_path in image_dir.iterdir():
+        for image_path in sorted(image_dir.iterdir()):
             if not image_path.is_file():
+                continue
+
+            existing = (
+                self.session.query(EmbeddingExample)
+                .filter_by(
+                    identity_id=identity.id,
+                    crop_path=str(image_path),
+                )
+                .one_or_none()
+            )
+
+            if existing is not None:
                 continue
 
             embedding = self.embedder.embed(image_path)
