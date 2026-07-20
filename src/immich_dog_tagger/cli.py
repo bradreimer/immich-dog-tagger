@@ -14,12 +14,13 @@ from .database import create_database
 from .downloader import Downloader
 from .immich import ImmichClient
 from .openclip_embedder import OpenClipEmbedder
+from .review_exporter import ReviewExporter
 from .scanner import Scanner
-from .yolo_detector import YOLODetector
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
 from .services.learner import Learner
 from .services.review import ReviewService
+from .yolo_detector import YOLODetector
 
 
 def main() -> None:
@@ -119,6 +120,16 @@ def main() -> None:
     classify_list_parser.add_argument(
         "--identity",
         help="Filter by identity",
+    )
+
+    export_parser = subparsers.add_parser(
+        "export-review",
+        help="Export classifications for review",
+    )
+
+    export_parser.add_argument(
+        "--limit",
+        type=int,
     )
 
     args = parser.parse_args()
@@ -316,6 +327,27 @@ def main() -> None:
                 f"{item.confidence:<14.4f}"
                 f"{item.filename}"
             )
+
+    elif args.command == "export-review":
+        config = load_config()
+
+        engine = create_database(config.data_dir)
+
+        with Session(engine) as session:
+            review = ReviewService(session)
+
+            items = review.classifications(
+                limit=args.limit,
+            )
+
+        exporter = ReviewExporter()
+
+        count = exporter.export(
+            items,
+            config.data_dir / "review",
+        )
+
+        print(f"Exported: {count}")
 
     else:
         parser.print_help()
