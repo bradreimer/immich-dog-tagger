@@ -29,6 +29,7 @@ class ReviewService:
 
     def classifications(
         self,
+        *,
         limit: int | None = None,
         identity: str | None = None,
     ) -> list[ReviewItem]:
