@@ -16,6 +16,7 @@ from .downloader import Downloader
 from .immich import ImmichClient
 from .learner import Learner
 from .openclip_embedder import OpenClipEmbedder
+from .repository import get_crop_classifications
 from .scanner import Scanner
 from .yolo_detector import YOLODetector
 
@@ -101,6 +102,11 @@ def main() -> None:
 
     learn_parser.add_argument(
         "directory",
+    )
+
+    subparsers.add_parser(
+        "classify-list",
+        help="List crop classifications",
     )
 
     args = parser.parse_args()
@@ -290,6 +296,28 @@ def main() -> None:
 
         for detection in detections:
             print(f"{detection.label:12}{detection.confidence:.2f}")
+
+    elif args.command == "classify-list":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        with Session(engine) as session:
+            classifications = get_crop_classifications(
+                session,
+            )
+
+        print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}Path")
+
+        for classification in classifications:
+            print(
+                f"{classification.id:<8}"
+                f"{str(classification.identity):<12}"
+                f"{classification.confidence:<14.4f}"
+                f"{classification.crop.path}"
+            )
 
     else:
         parser.print_help()
