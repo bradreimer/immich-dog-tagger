@@ -59,6 +59,12 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
+    source: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="unknown",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),

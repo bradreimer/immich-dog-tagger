@@ -27,8 +27,9 @@ class Learner:
         self,
         identity_name: str,
         image_dir: Path,
+        *,
+        source: str = "manual",
     ) -> int:
-
         identity = (
             self.session.query(Identity).filter_by(name=identity_name).one_or_none()
         )
@@ -64,6 +65,7 @@ class Learner:
                 identity_id=identity.id,
                 crop_path=str(image_path),
                 embedding=embedding_to_blob(embedding),
+                source=source,
             )
 
             self.session.add(example)

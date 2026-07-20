@@ -57,6 +57,7 @@ def test_learner_creates_identity_and_embedding(
         result = session.query(EmbeddingExample).one()
 
         assert result.crop_path == str(image)
+        assert result.source == "manual"
 
 
 def test_learner_skips_existing_examples(engine, tmp_path):
@@ -86,3 +87,27 @@ def test_learner_skips_existing_examples(engine, tmp_path):
 
     assert first == 1
     assert second == 0
+
+
+def test_learner_records_source(engine, tmp_path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+
+    image = image_dir / "dog.jpg"
+    image.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        learner = Learner(
+            FakeEmbedder(),
+            session,
+        )
+
+        learner.learn(
+            "Fibs",
+            image_dir,
+            source="review-confirmed",
+        )
+
+        result = session.query(EmbeddingExample).one()
+
+        assert result.source == "review-confirmed"

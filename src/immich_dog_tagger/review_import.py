@@ -30,7 +30,9 @@ class ReviewImporter:
             count = self.learner.learn(
                 identity_dir.name,
                 identity_dir,
+                source="review-confirmed",
             )
+
             total += count
             identities[identity_dir.name] = count
 

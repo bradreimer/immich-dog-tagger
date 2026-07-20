@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from immich_dog_tagger.review_import import ReviewImporter
 
 
@@ -9,10 +7,18 @@ class FakeLearner:
 
     def learn(
         self,
-        identity: str,
-        directory: Path,
+        identity,
+        directory,
+        *,
+        source="manual",
     ):
-        self.calls.append((identity, directory))
+        self.calls.append(
+            (
+                identity,
+                directory,
+                source,
+            )
+        )
 
         return 2
 
@@ -37,8 +43,16 @@ def test_import_confirmed(tmp_path):
     }
 
     assert learner.calls == [
-        ("Fibs", confirmed / "Fibs"),
-        ("Hermann", confirmed / "Hermann"),
+        (
+            "Fibs",
+            confirmed / "Fibs",
+            "review-confirmed",
+        ),
+        (
+            "Hermann",
+            confirmed / "Hermann",
+            "review-confirmed",
+        ),
     ]
 
 
