@@ -261,6 +261,15 @@ def test_review_summary(engine):
         }
 
 
+def test_review_summary_empty(engine):
+    with Session(engine) as session:
+        summary = ReviewService(session).summary()
+
+        assert summary.total == 0
+        assert summary.identities == {}
+        assert summary.unknown == 0
+
+
 def test_review_filters_low_confidence(engine):
     with Session(engine) as session:
         low_crop = Crop(
