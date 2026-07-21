@@ -84,7 +84,14 @@ class ReviewImporter:
             if not identity_dir.is_dir():
                 continue
 
-            count = sum(1 for path in identity_dir.iterdir() if path.is_file())
+            if identity_dir.name == "Unknown":
+                continue
+
+            count = sum(
+                1
+                for path in identity_dir.iterdir()
+                if path.is_file() and is_supported_image(path)
+            )
 
             identities[identity_dir.name] = count
 

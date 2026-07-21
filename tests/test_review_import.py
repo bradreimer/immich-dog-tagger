@@ -27,6 +27,25 @@ class FakeLearner:
         )
 
 
+class CountingLearner:
+    def __init__(self):
+        self.calls = 0
+
+    def learn(self, identity, directory, *, source):
+        self.calls += 1
+
+        if self.calls == 1:
+            return LearnSummary(
+                imported=3,
+                skipped_existing=0,
+            )
+
+        return LearnSummary(
+            imported=0,
+            skipped_existing=3,
+        )
+
+
 def test_import_confirmed(tmp_path):
     confirmed = tmp_path / "confirmed"
 
@@ -102,3 +121,39 @@ def test_plan_import(tmp_path):
     }
 
     assert learner.calls == []
+
+
+def test_import_confirmed_reports_skipped(tmp_path):
+    confirmed = tmp_path / "confirmed"
+    fibs = confirmed / "Fibs"
+    fibs.mkdir(parents=True)
+
+    (fibs / "dog.jpg").write_bytes(b"fake")
+
+    learner = CountingLearner()
+    importer = ReviewImporter(learner)
+
+    first = importer.import_confirmed(confirmed)
+    second = importer.import_confirmed(confirmed)
+
+    assert first.imported == 3
+    assert first.skipped == 0
+
+    assert second.imported == 0
+    assert second.skipped == 3
+
+
+def test_plan_import_only_counts_images(tmp_path):
+    confirmed = tmp_path / "confirmed"
+
+    fibs = confirmed / "Fibs"
+    fibs.mkdir(parents=True)
+
+    (fibs / "dog.jpg").write_bytes(b"fake")
+    (fibs / "notes.txt").write_text("ignore")
+
+    plan = ReviewImporter(FakeLearner()).plan_import(confirmed)
+
+    assert plan.identities == {
+        "Fibs": 1,
+    }
