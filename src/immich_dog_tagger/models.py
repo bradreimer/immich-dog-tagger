@@ -71,7 +71,14 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
-    identity: Mapped["Identity"] = relationship(back_populates="embeddings")
+    identity: Mapped["Identity"] = relationship(
+        back_populates="embeddings",
+    )
+
+    matched_classifications: Mapped[list["CropClassification"]] = relationship(
+        back_populates="matched_example",
+        foreign_keys="CropClassification.matched_example_id",
+    )
 
 
 class Asset(Base):
@@ -182,6 +189,7 @@ class CropClassification(Base):
     )
 
     matched_example: Mapped["EmbeddingExample | None"] = relationship(
+        back_populates="matched_classifications",
         foreign_keys=[matched_example_id],
     )
 

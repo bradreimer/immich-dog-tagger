@@ -1,7 +1,12 @@
 from pathlib import Path
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import Crop, CropClassification
+from immich_dog_tagger.models import (
+    Crop,
+    CropClassification,
+    EmbeddingExample,
+    Identity,
+)
 from immich_dog_tagger.services.review import ReviewService
 
 
@@ -15,10 +20,18 @@ def test_review_service_classifications(engine):
         session.add(crop)
         session.flush()
 
+        identity = Identity(name="Fibs")
+        example = EmbeddingExample(
+            identity=identity,
+            crop_path="training/fibs/example.jpg",
+            embedding=b"123",
+        )
+
         classification = CropClassification(
             crop=crop,
             identity="Fibs",
             confidence=0.95,
+            matched_example=example,
         )
 
         session.add(classification)
@@ -32,6 +45,8 @@ def test_review_service_classifications(engine):
         assert results[0].classification_id == classification.id
         assert results[0].path == Path("test.jpg")
         assert results[0].filename == "test.jpg"
+
+        assert results[0].matched_example_path == Path("training/fibs/example.jpg")
 
 
 def test_review_filters_by_identity(engine):
@@ -294,6 +309,16 @@ def test_review_filters_low_confidence(engine):
 
 def test_review_active_review_includes_unknown_and_low_confidence(engine):
     with Session(engine) as session:
+        identity = Identity(
+            name="Hermann",
+        )
+
+        example = EmbeddingExample(
+            identity=identity,
+            crop_path="training/hermann/example.jpg",
+            embedding=b"fake",
+        )
+
         unknown_crop = Crop(
             detection_id=1,
             path="unknown.jpg",
@@ -311,6 +336,8 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
 
         session.add_all(
             [
+                identity,
+                example,
                 unknown_crop,
                 low_crop,
                 good_crop,
@@ -329,6 +356,7 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
                     crop=low_crop,
                     identity="Hermann",
                     confidence=0.60,
+                    matched_example=example,
                 ),
                 CropClassification(
                     crop=good_crop,
@@ -350,3 +378,7 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
             "unknown.jpg",
             "low.jpg",
         }
+
+        low_result = next(item for item in results if item.path.name == "low.jpg")
+
+        assert low_result.matched_example_path == Path("training/hermann/example.jpg")

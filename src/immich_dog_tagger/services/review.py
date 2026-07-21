@@ -15,6 +15,7 @@ class ReviewItem:
     identity: str | None
     confidence: float
     path: Path
+    matched_example_path: Path | None
 
     @property
     def filename(self) -> str:
@@ -71,6 +72,11 @@ class ReviewService:
                 identity=classification.identity,
                 confidence=classification.confidence,
                 path=Path(classification.crop.path),
+                matched_example_path=(
+                    Path(classification.matched_example.crop_path)
+                    if classification.matched_example
+                    else None
+                ),
             )
             for classification in classifications
         ]
@@ -138,6 +144,11 @@ class ReviewService:
                 identity=classification.identity,
                 confidence=classification.confidence,
                 path=Path(classification.crop.path),
+                matched_example_path=(
+                    Path(classification.matched_example.crop_path)
+                    if classification.matched_example
+                    else None
+                ),
             )
             for classification in classifications
         ]

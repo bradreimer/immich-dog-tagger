@@ -13,6 +13,7 @@ def test_export_review(tmp_path):
         identity="Fibs",
         confidence=0.95,
         path=source,
+        matched_example_path=None,
     )
 
     output = tmp_path / "review"
