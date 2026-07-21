@@ -17,19 +17,18 @@ def test_classifier_finds_closest_identity(engine):
         session.add(hermann)
         session.flush()
 
-        session.add(
-            EmbeddingExample(
-                identity_id=hermann.id,
-                crop_path="hermann.jpg",
-                embedding=embedding_to_blob(
-                    np.array(
-                        [1, 0, 0],
-                        dtype=np.float32,
-                    )
-                ),
-            )
+        example = EmbeddingExample(
+            identity_id=hermann.id,
+            crop_path="hermann.jpg",
+            embedding=embedding_to_blob(
+                np.array(
+                    [1, 0, 0],
+                    dtype=np.float32,
+                )
+            ),
         )
 
+        session.add(example)
         session.commit()
 
         classifier = IdentityClassifier(session)
@@ -43,3 +42,4 @@ def test_classifier_finds_closest_identity(engine):
 
         assert result.identity == "Hermann"
         assert result.confidence > 0.9
+        assert result.matched_example_id == example.id

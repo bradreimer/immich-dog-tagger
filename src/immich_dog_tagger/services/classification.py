@@ -60,6 +60,7 @@ class ClassificationService:
                 crop=crop,
                 identity=result.identity,
                 confidence=result.confidence,
+                matched_example_id=result.matched_example_id,
             )
 
             self.session.add(classification)

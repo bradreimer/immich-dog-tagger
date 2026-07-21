@@ -15,6 +15,7 @@ from .models import EmbeddingExample
 class ClassificationResult:
     identity: str | None
     confidence: float
+    matched_example_id: int | None
 
 
 class IdentityClassifier:
@@ -32,6 +33,7 @@ class IdentityClassifier:
 
         best_identity = None
         best_score = -1.0
+        best_example_id = None
 
         examples = self.session.query(EmbeddingExample).all()
 
@@ -43,19 +45,22 @@ class IdentityClassifier:
                 known,
             )
 
-            if score > best_score:
-                best_score = score
-                best_identity = example.identity.name
+        if score > best_score:
+            best_score = score
+            best_identity = example.identity.name
+            best_example_id = example.id
 
         if best_score < threshold:
             return ClassificationResult(
                 identity=None,
                 confidence=best_score,
+                matched_example_id=best_example_id,
             )
 
         return ClassificationResult(
             identity=best_identity,
             confidence=best_score,
+            matched_example_id=best_example_id,
         )
 
     def _cosine_similarity(

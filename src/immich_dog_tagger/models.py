@@ -176,6 +176,13 @@ class CropClassification(Base):
         back_populates="classification",
     )
 
+    matched_example_id: Mapped[int | None] = mapped_column(
+        ForeignKey("embedding_examples.id"),
+        nullable=True,
+    )
+
+    matched_example: Mapped["EmbeddingExample | None"] = relationship()
+
 
 class Crop(Base):
     __tablename__ = "crops"

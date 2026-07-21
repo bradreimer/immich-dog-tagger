@@ -49,6 +49,7 @@ def test_classification_service_creates_classification(engine):
         classifier.classify.return_value = ClassificationResult(
             identity="Hermann",
             confidence=0.95,
+            matched_example_id=None,
         )
 
         service = ClassificationService(
@@ -107,6 +108,7 @@ def test_classification_service_handles_unknown_identity(engine):
         classifier.classify.return_value = ClassificationResult(
             identity=None,
             confidence=0.12,
+            matched_example_id=None,
         )
 
         service = ClassificationService(
