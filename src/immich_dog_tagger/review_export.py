@@ -59,6 +59,11 @@ class ReviewExporter:
                     destination,
                 )
 
+                self._write_metadata(
+                    destination,
+                    item,
+                )
+
                 writer.writerow(
                     {
                         "classification_id": item.classification_id,
@@ -71,3 +76,24 @@ class ReviewExporter:
                 )
 
         return len(items)
+
+    def _write_metadata(
+        self,
+        destination: Path,
+        item: ReviewItem,
+    ) -> None:
+        metadata = destination.with_suffix(".txt")
+
+        lines = [
+            f"Identity: {item.identity or 'Unknown'}",
+            f"Confidence: {item.confidence:.4f}",
+        ]
+
+        if item.matched_example_path:
+            lines.append(f"Matched example: {item.matched_example_path}")
+        else:
+            lines.append("Matched example: None")
+
+        metadata.write_text(
+            "\n".join(lines),
+        )
