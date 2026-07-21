@@ -244,3 +244,109 @@ def test_review_summary(engine):
             "0.80-0.90": 1,
             ">0.90": 1,
         }
+
+
+def test_review_filters_low_confidence(engine):
+    with Session(engine) as session:
+        low_crop = Crop(
+            detection_id=1,
+            path="low.jpg",
+        )
+
+        high_crop = Crop(
+            detection_id=2,
+            path="high.jpg",
+        )
+
+        session.add_all(
+            [
+                low_crop,
+                high_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=low_crop,
+                    identity="Hermann",
+                    confidence=0.70,
+                ),
+                CropClassification(
+                    crop=high_crop,
+                    identity="Fibs",
+                    confidence=0.95,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        results = ReviewService(session).classifications(
+            confidence_below=0.80,
+        )
+
+        assert len(results) == 1
+        assert results[0].identity == "Hermann"
+        assert results[0].confidence == 0.70
+
+
+def test_review_active_review_includes_unknown_and_low_confidence(engine):
+    with Session(engine) as session:
+        unknown_crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        low_crop = Crop(
+            detection_id=2,
+            path="low.jpg",
+        )
+
+        good_crop = Crop(
+            detection_id=3,
+            path="good.jpg",
+        )
+
+        session.add_all(
+            [
+                unknown_crop,
+                low_crop,
+                good_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=unknown_crop,
+                    identity=None,
+                    confidence=0.95,
+                ),
+                CropClassification(
+                    crop=low_crop,
+                    identity="Hermann",
+                    confidence=0.60,
+                ),
+                CropClassification(
+                    crop=good_crop,
+                    identity="Fibs",
+                    confidence=0.95,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        results = ReviewService(session).active_review(
+            threshold=0.80,
+        )
+
+        assert len(results) == 2
+
+        assert {item.path.name for item in results} == {
+            "unknown.jpg",
+            "low.jpg",
+        }

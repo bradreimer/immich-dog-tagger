@@ -68,3 +68,26 @@ def test_import_confirmed_empty_directory(tmp_path):
 
     assert summary.imported == 0
     assert summary.identities == {}
+
+
+def test_plan_import(tmp_path):
+    confirmed = tmp_path / "confirmed"
+
+    fibs = confirmed / "Fibs"
+    fibs.mkdir(parents=True)
+
+    (fibs / "one.jpg").write_bytes(b"test")
+    (fibs / "two.jpg").write_bytes(b"test")
+
+    learner = FakeLearner()
+
+    importer = ReviewImporter(learner)
+
+    plan = importer.plan_import(confirmed)
+
+    assert plan.total == 2
+    assert plan.identities == {
+        "Fibs": 2,
+    }
+
+    assert learner.calls == []

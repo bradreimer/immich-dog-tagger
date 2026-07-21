@@ -42,6 +42,7 @@ class ReviewService:
         limit: int | None = None,
         identity: str | None = None,
         unknown: bool = False,
+        confidence_below: float | None = None,
     ) -> list[ReviewItem]:
 
         if unknown and identity is not None:
@@ -54,6 +55,9 @@ class ReviewService:
 
         if identity is not None:
             query = query.where(CropClassification.identity == identity)
+
+        if confidence_below is not None:
+            query = query.where(CropClassification.confidence < confidence_below)
 
         if limit is not None:
             query = query.limit(limit)
@@ -106,3 +110,34 @@ class ReviewService:
             unknown=unknown,
             confidence_buckets=dict(confidence_buckets),
         )
+
+    def active_review(
+        self,
+        *,
+        threshold: float = 0.80,
+        limit: int | None = None,
+    ) -> list[ReviewItem]:
+        query = (
+            select(CropClassification)
+            .where(
+                (CropClassification.identity.is_(None))
+                | (CropClassification.confidence < threshold)
+            )
+            .order_by(CropClassification.confidence.asc())
+        )
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        classifications = self.session.scalars(query).all()
+
+        return [
+            ReviewItem(
+                classification_id=classification.id,
+                crop_id=classification.crop.id,
+                identity=classification.identity,
+                confidence=classification.confidence,
+                path=Path(classification.crop.path),
+            )
+            for classification in classifications
+        ]

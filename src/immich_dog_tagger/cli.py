@@ -129,6 +129,12 @@ def main() -> None:
         help="Show only unknown classifications",
     )
 
+    classify_list_parser.add_argument(
+        "--confidence-below",
+        type=float,
+        help="Show classifications below confidence threshold",
+    )
+
     subparsers.add_parser(
         "review-stats",
         help="Show classification statistics",
@@ -144,9 +150,26 @@ def main() -> None:
         type=int,
     )
 
-    subparsers.add_parser(
+    import_review_parser = subparsers.add_parser(
         "import-review",
         help="Import confirmed review images",
+    )
+
+    import_review_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show import plan without importing",
+    )
+
+    active_review_parser = subparsers.add_parser(
+        "active-review",
+        help="Export uncertain classifications for review",
+    )
+
+    active_review_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.80,
     )
 
     args = parser.parse_args()
@@ -415,14 +438,51 @@ def main() -> None:
                 learner,
             )
 
-            summary = importer.import_confirmed(
-                config.data_dir / "review" / "confirmed",
+            if args.dry_run:
+                plan = importer.plan_import(
+                    config.data_dir / "review" / "confirmed",
+                )
+
+                print("Would import:")
+
+                for identity, count in plan.identities.items():
+                    print(f"{identity}: {count}")
+
+                print()
+                print(f"Total: {plan.total}")
+
+            else:
+                summary = importer.import_confirmed(
+                    config.data_dir / "review" / "confirmed",
+                )
+
+                print(f"Imported: {summary.imported}")
+
+                for identity, count in summary.identities.items():
+                    print(f"{identity}: {count}")
+
+    elif args.command == "active-review":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        with Session(engine) as session:
+            review = ReviewService(session)
+
+            items = review.active_review(
+                threshold=args.threshold,
             )
 
-        print(f"Imported: {summary.imported}")
+        exporter = ReviewExporter()
 
-        for identity, count in summary.identities.items():
-            print(f"{identity}: {count}")
+        count = exporter.export(
+            items,
+            config.data_dir / "review" / "active",
+        )
+
+        print(f"Exported: {count}")
 
     else:
         parser.print_help()
