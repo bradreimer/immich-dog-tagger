@@ -1,5 +1,4 @@
 import numpy as np
-
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier

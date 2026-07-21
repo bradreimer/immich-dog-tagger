@@ -181,7 +181,9 @@ class CropClassification(Base):
         nullable=True,
     )
 
-    matched_example: Mapped["EmbeddingExample | None"] = relationship()
+    matched_example: Mapped["EmbeddingExample | None"] = relationship(
+        foreign_keys=[matched_example_id],
+    )
 
 
 class Crop(Base):

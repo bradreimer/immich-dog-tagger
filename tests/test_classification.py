@@ -49,7 +49,7 @@ def test_classification_service_creates_classification(engine):
         classifier.classify.return_value = ClassificationResult(
             identity="Hermann",
             confidence=0.95,
-            matched_example_id=None,
+            matched_example_id=42,
         )
 
         service = ClassificationService(
@@ -67,6 +67,7 @@ def test_classification_service_creates_classification(engine):
 
         assert result.identity == "Hermann"
         assert result.confidence == 0.95
+        assert result.matched_example_id == 42
         assert result.crop.id == crop.id
 
 
@@ -127,3 +128,4 @@ def test_classification_service_handles_unknown_identity(engine):
         assert result.identity is None
         assert result.confidence == 0.12
         assert result.crop.id == crop.id
+        assert result.matched_example_id is None
