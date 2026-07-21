@@ -198,52 +198,52 @@ def test_classification_service_uses_batch_embedding(engine):
         )
 
 
-# def test_classification_service_updates_existing_classification(engine):
-#     from unittest.mock import Mock
+def test_classification_service_reclassifies_existing_classification(engine):
+    from unittest.mock import Mock
 
-#     with Session(engine) as session:
-#         crop = Crop(
-#             detection_id=1,
-#             path="test.jpg",
-#         )
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
 
-#         session.add(crop)
-#         session.flush()
+        session.add(crop)
+        session.flush()
 
-#         existing = CropClassification(
-#             crop=crop,
-#             identity=None,
-#             confidence=0.2,
-#         )
+        existing = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.2,
+        )
 
-#         session.add(existing)
-#         session.commit()
+        session.add(existing)
+        session.commit()
 
-#         embedder = Mock()
-#         embedder.embed_batch.return_value = np.array(
-#             [[1, 0, 0]],
-#             dtype=np.float32,
-#         )
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.array(
+            [[1, 0, 0]],
+            dtype=np.float32,
+        )
 
-#         classifier = Mock()
-#         classifier.classify.return_value = ClassificationResult(
-#             identity="Hermann",
-#             confidence=0.95,
-#             matched_example_id=42,
-#         )
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Hermann",
+            confidence=0.95,
+            matched_example_id=42,
+        )
 
-#         service = ClassificationService(
-#             session,
-#             embedder,
-#             classifier,
-#         )
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
 
-#         service.reclassify_pending(
-#             threshold=0.80,
-#         )
+        service.reclassify_pending(
+            threshold=0.80,
+        )
 
-#         result = session.query(CropClassification).one()
+        result = session.query(CropClassification).one()
 
-#         assert result.identity == "Hermann"
-#         assert result.confidence == 0.95
-#         assert result.matched_example_id == 42
+        assert result.identity == "Hermann"
+        assert result.confidence == 0.95
+        assert result.matched_example_id == 42
