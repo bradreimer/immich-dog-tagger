@@ -382,3 +382,44 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
         low_result = next(item for item in results if item.path.name == "low.jpg")
 
         assert low_result.matched_example_path == Path("training/hermann/example.jpg")
+
+
+def test_review_includes_matched_example_path(engine):
+    with Session(engine) as session:
+        identity = Identity(name="Hermann")
+
+        example = EmbeddingExample(
+            identity=identity,
+            crop_path="training/hermann/example.jpg",
+            embedding=b"fake",
+        )
+
+        crop = Crop(
+            detection_id=1,
+            path="crop.jpg",
+        )
+
+        session.add_all(
+            [
+                identity,
+                example,
+                crop,
+            ]
+        )
+
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Hermann",
+            confidence=0.75,
+            matched_example=example,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewService(session).classifications()
+
+        assert len(results) == 1
+        assert results[0].matched_example_path == Path("training/hermann/example.jpg")
