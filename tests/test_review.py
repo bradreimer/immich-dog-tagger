@@ -268,6 +268,11 @@ def test_review_summary_empty(engine):
         assert summary.total == 0
         assert summary.identities == {}
         assert summary.unknown == 0
+        assert summary.confidence_buckets == {
+            "<0.80": 0,
+            "0.80-0.90": 0,
+            ">0.90": 0,
+        }
 
 
 def test_review_filters_low_confidence(engine):
