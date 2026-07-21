@@ -45,10 +45,10 @@ class IdentityClassifier:
                 known,
             )
 
-        if score > best_score:
-            best_score = score
-            best_identity = example.identity.name
-            best_example_id = example.id
+            if score > best_score:
+                best_score = score
+                best_identity = example.identity.name
+                best_example_id = example.id
 
         if best_score < threshold:
             return ClassificationResult(

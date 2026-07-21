@@ -42,11 +42,11 @@ class ClassificationService:
 
         counts = Counter()
 
-        for crop in crops:
-            embedding = self.embedder.embed(
-                crop.path,
-            )
+        embeddings = self.embedder.embed_batch(
+            [crop.path for crop in crops],
+        )
 
+        for crop, embedding in zip(crops, embeddings):
             result = self.classifier.classify(
                 embedding,
             )

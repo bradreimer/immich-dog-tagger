@@ -42,3 +42,55 @@ def test_classifier_finds_closest_identity(engine):
         assert result.identity == "Hermann"
         assert result.confidence > 0.9
         assert result.matched_example_id == example.id
+
+
+def test_classifier_selects_best_matching_example(engine):
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs")
+        hermann = Identity(name="Hermann")
+
+        session.add_all(
+            [
+                fibs,
+                hermann,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=fibs.id,
+                    crop_path="fibs.jpg",
+                    embedding=embedding_to_blob(
+                        np.array(
+                            [1, 0, 0],
+                            dtype=np.float32,
+                        )
+                    ),
+                ),
+                EmbeddingExample(
+                    identity_id=hermann.id,
+                    crop_path="hermann.jpg",
+                    embedding=embedding_to_blob(
+                        np.array(
+                            [0, 1, 0],
+                            dtype=np.float32,
+                        )
+                    ),
+                ),
+            ]
+        )
+
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+
+        result = classifier.classify(
+            np.array(
+                [0.9, 0.1, 0],
+                dtype=np.float32,
+            )
+        )
+
+        assert result.identity == "Fibs"

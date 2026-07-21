@@ -45,3 +45,23 @@ class OpenClipEmbedder:
         )
 
         return features[0].cpu().numpy().astype(np.float32)
+
+    def embed_batch(
+        self,
+        image_paths: list[Path],
+    ) -> np.ndarray:
+        images = [
+            self.preprocess(Image.open(path).convert("RGB")) for path in image_paths
+        ]
+
+        tensor = torch.stack(images).to(self.device)
+
+        with torch.no_grad():
+            features = self.model.encode_image(tensor)
+
+        features = features / features.norm(
+            dim=-1,
+            keepdim=True,
+        )
+
+        return features.cpu().numpy().astype(np.float32)

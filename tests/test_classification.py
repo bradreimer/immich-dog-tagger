@@ -1,14 +1,24 @@
 import numpy as np
-
+from sqlalchemy.orm import Session
 from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.services.classification import ClassificationService
-from sqlalchemy.orm import Session
 from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
     Detection,
 )
+
+
+class FakeBatchEmbedder:
+    def embed_batch(self, paths):
+        return np.array(
+            [
+                [1, 0, 0],
+                [0, 1, 0],
+            ],
+            dtype=np.float32,
+        )
 
 
 def test_classification_service_creates_classification(engine):
@@ -40,8 +50,8 @@ def test_classification_service_creates_classification(engine):
         session.commit()
 
         embedder = Mock()
-        embedder.embed.return_value = np.zeros(
-            512,
+        embedder.embed_batch.return_value = np.zeros(
+            (1, 512),
             dtype=np.float32,
         )
 
@@ -100,8 +110,8 @@ def test_classification_service_handles_unknown_identity(engine):
         session.commit()
 
         embedder = Mock()
-        embedder.embed.return_value = np.zeros(
-            512,
+        embedder.embed_batch.return_value = np.zeros(
+            (1, 512),
             dtype=np.float32,
         )
 
@@ -129,3 +139,60 @@ def test_classification_service_handles_unknown_identity(engine):
         assert result.confidence == 0.12
         assert result.crop.id == crop.id
         assert result.matched_example_id is None
+
+
+def test_classification_service_uses_batch_embedding(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop1 = Crop(
+            detection_id=1,
+            path="one.jpg",
+        )
+
+        crop2 = Crop(
+            detection_id=2,
+            path="two.jpg",
+        )
+
+        session.add_all(
+            [
+                crop1,
+                crop2,
+            ]
+        )
+        session.commit()
+
+        embedder = Mock()
+
+        embedder.embed_batch.return_value = np.array(
+            [
+                [1, 0, 0],
+                [0, 1, 0],
+            ],
+            dtype=np.float32,
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Fibs",
+            confidence=0.95,
+            matched_example_id=None,
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending()
+
+        assert summary.classified == 2
+
+        embedder.embed_batch.assert_called_once_with(
+            [
+                "one.jpg",
+                "two.jpg",
+            ]
+        )
