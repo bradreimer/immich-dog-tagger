@@ -3,7 +3,7 @@ Services for creating identity examples.
 """
 
 from pathlib import Path
-
+from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
@@ -12,6 +12,13 @@ from immich_dog_tagger.models import (
 )
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
+from immich_dog_tagger.media import is_supported_image
+
+
+@dataclass
+class LearnSummary:
+    imported: int
+    skipped_existing: int
 
 
 class Learner:
@@ -29,7 +36,7 @@ class Learner:
         image_dir: Path,
         *,
         source: str = "manual",
-    ) -> int:
+    ) -> LearnSummary:
         identity = (
             self.session.query(Identity).filter_by(name=identity_name).one_or_none()
         )
@@ -42,9 +49,13 @@ class Learner:
             self.session.flush()
 
         count = 0
+        skipped_existing = 0
 
         for image_path in sorted(image_dir.iterdir()):
             if not image_path.is_file():
+                continue
+
+            if not is_supported_image(image_path):
                 continue
 
             existing = (
@@ -57,6 +68,7 @@ class Learner:
             )
 
             if existing is not None:
+                skipped_existing += 1
                 continue
 
             embedding = self.embedder.embed(image_path)
@@ -74,4 +86,7 @@ class Learner:
 
         self.session.commit()
 
-        return count
+        return LearnSummary(
+            imported=count,
+            skipped_existing=skipped_existing,
+        )

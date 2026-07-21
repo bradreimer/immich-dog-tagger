@@ -1,3 +1,4 @@
+from immich_dog_tagger.services.learner import LearnSummary
 from immich_dog_tagger.review_import import ReviewImporter
 
 
@@ -20,14 +21,23 @@ class FakeLearner:
             )
         )
 
-        return 2
+        return LearnSummary(
+            imported=2,
+            skipped_existing=0,
+        )
 
 
 def test_import_confirmed(tmp_path):
     confirmed = tmp_path / "confirmed"
 
-    (confirmed / "Fibs").mkdir(parents=True)
-    (confirmed / "Hermann").mkdir()
+    fib_dir = confirmed / "Fibs"
+    hermann_dir = confirmed / "Hermann"
+
+    fib_dir.mkdir(parents=True)
+    hermann_dir.mkdir()
+
+    (fib_dir / "one.jpg").write_bytes(b"fake")
+    (hermann_dir / "one.jpg").write_bytes(b"fake")
 
     learner = FakeLearner()
 
@@ -68,6 +78,7 @@ def test_import_confirmed_empty_directory(tmp_path):
 
     assert summary.imported == 0
     assert summary.identities == {}
+    assert summary.skipped == 0
 
 
 def test_plan_import(tmp_path):

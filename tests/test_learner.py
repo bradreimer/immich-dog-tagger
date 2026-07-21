@@ -52,7 +52,8 @@ def test_learner_creates_identity_and_embedding(
             image_dir,
         )
 
-        assert count == 1
+        assert count.imported == 1
+        assert count.skipped_existing == 0
 
         result = session.query(EmbeddingExample).one()
 
@@ -85,8 +86,11 @@ def test_learner_skips_existing_examples(engine, tmp_path):
             image_dir,
         )
 
-    assert first == 1
-    assert second == 0
+    assert first.imported == 1
+    assert first.skipped_existing == 0
+
+    assert second.imported == 0
+    assert second.skipped_existing == 1
 
 
 def test_learner_records_source(engine, tmp_path):
@@ -111,3 +115,25 @@ def test_learner_records_source(engine, tmp_path):
         result = session.query(EmbeddingExample).one()
 
         assert result.source == "review-confirmed"
+
+
+def test_learner_skips_non_images(engine, tmp_path):
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+
+    (image_dir / "dog.jpg").write_bytes(b"fake")
+    (image_dir / "notes.txt").write_text("ignore")
+
+    with Session(engine) as session:
+        learner = Learner(
+            FakeEmbedder(),
+            session,
+        )
+
+        count = learner.learn(
+            "Fibs",
+            image_dir,
+        )
+
+    assert count.imported == 1
+    assert count.skipped_existing == 0
