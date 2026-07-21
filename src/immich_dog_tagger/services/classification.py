@@ -47,15 +47,40 @@ class ClassificationService:
         )
 
         for crop, embedding in zip(crops, embeddings):
-            result = self.classifier.classify(
+            classification = self._classify_crop(
+                crop,
                 embedding,
             )
 
-            if result.identity:
-                counts[result.identity] += 1
+            if classification.identity:
+                counts[classification.identity] += 1
             else:
                 counts["Unknown"] += 1
 
+        self.session.commit()
+
+        return ClassificationSummary(
+            classified=len(crops),
+            identities=dict(counts),
+        )
+
+    def _classify_crop(
+        self,
+        crop: Crop,
+        embedding,
+    ) -> CropClassification:
+        result = self.classifier.classify(
+            embedding,
+        )
+
+        if crop.classification:
+            classification = crop.classification
+
+            classification.identity = result.identity
+            classification.confidence = result.confidence
+            classification.matched_example_id = result.matched_example_id
+
+        else:
             classification = CropClassification(
                 crop=crop,
                 identity=result.identity,
@@ -65,9 +90,4 @@ class ClassificationService:
 
             self.session.add(classification)
 
-        self.session.commit()
-
-        return ClassificationSummary(
-            classified=len(crops),
-            identities=dict(counts),
-        )
+        return classification
