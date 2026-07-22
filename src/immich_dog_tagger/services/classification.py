@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.models import (
+    ClassificationSources,
     Crop,
     CropClassification,
-    ClassificationSources,
 )
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 

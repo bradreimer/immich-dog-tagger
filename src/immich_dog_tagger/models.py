@@ -71,8 +71,11 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
-    source: Mapped[ClassificationSources] = mapped_column(
-        String(64),
+    source: Mapped[EmbeddingSources] = mapped_column(
+        Enum(
+            EmbeddingSources,
+            native_enum=False,
+        ),
         nullable=False,
     )
 
@@ -194,7 +197,10 @@ class CropClassification(Base):
     )
 
     source: Mapped[ClassificationSources] = mapped_column(
-        String(64),
+        Enum(
+            ClassificationSources,
+            native_enum=False,
+        ),
         nullable=False,
         default=ClassificationSources.AUTO,
     )

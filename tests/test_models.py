@@ -5,7 +5,9 @@ from immich_dog_tagger.models import (
     ClassificationSources,
     Crop,
     Detection,
+    EmbeddingExample,
     EmbeddingSources,
+    Identity,
 )
 from immich_dog_tagger.status import AssetStatus
 
@@ -58,3 +60,24 @@ def test_embedding_sources():
 def test_classification_sources():
     assert ClassificationSources.AUTO == "auto"
     assert ClassificationSources.REVIEW == "review"
+
+
+def test_embedding_source_enum_round_trip(engine):
+    with Session(engine) as session:
+        identity = Identity(
+            name="Hermann",
+        )
+
+        example = EmbeddingExample(
+            identity=identity,
+            crop_path="example.jpg",
+            embedding=b"123",
+            source=EmbeddingSources.REVIEW,
+        )
+
+        session.add(example)
+        session.commit()
+
+        result = session.query(EmbeddingExample).one()
+
+        assert result.source == EmbeddingSources.REVIEW
