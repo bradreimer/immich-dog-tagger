@@ -21,6 +21,7 @@ from .services.classification import ClassificationService
 from .services.detection import DetectionService
 from .services.learner import Learner
 from .services.review import ReviewService
+from .services.status import StatusService
 from .yolo_detector import YOLODetector
 
 
@@ -191,6 +192,11 @@ def main() -> None:
 
     review_apply_parser.add_argument(
         "identity",
+    )
+
+    subparsers.add_parser(
+        "status",
+        help="Show pipeline status",
     )
 
     args = parser.parse_args()
@@ -534,10 +540,26 @@ def main() -> None:
 
             session.commit()
 
-        print(
-            f"Applied review: {args.classification_id} -> {args.identity}"
+        print(f"Applied review: {args.classification_id} -> {args.identity}")
+
+    elif args.command == "status":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
         )
-        
+
+        with Session(engine) as session:
+            service = StatusService(session)
+            summary = service.summary()
+
+        print(f"Assets:             {summary.assets}")
+        print(f"Detections:         {summary.detections}")
+        print(f"Crops:              {summary.crops}")
+        print(f"Classifications:    {summary.classifications}")
+        print(f"Identities:         {summary.identities}")
+        print(f"Embedding examples: {summary.examples}")
+
     else:
         parser.print_help()
 
