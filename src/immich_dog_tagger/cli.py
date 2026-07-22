@@ -224,6 +224,12 @@ def main() -> None:
         help="Maximum number of items processed per stage",
     )
 
+    pipeline_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show pipeline plan without running",
+    )
+
     args = parser.parse_args()
 
     if args.command == "config-check":
@@ -665,6 +671,20 @@ def main() -> None:
                 detection_service,
                 classifier,
             )
+
+            if args.dry_run:
+                print("Pipeline dry run")
+                print()
+                print("Would scan Immich")
+
+                if args.limit:
+                    print(f"Would process up to {args.limit} items per stage")
+                else:
+                    print("Would process all pending items")
+
+                print()
+                print("No changes made.")
+                return
 
             summary = pipeline.run(
                 progress=lambda message: print(f"{message}...", flush=True),
