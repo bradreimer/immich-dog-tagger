@@ -123,3 +123,25 @@ def test_pipeline_runs_steps_in_order():
         "detect",
         "classify",
     ]
+
+
+def test_pipeline_reports_progress():
+    messages = []
+
+    service = PipelineService(
+        FakeScanner(),
+        FakeDownloader(),
+        FakeDetector(),
+        FakeClassifier(),
+    )
+
+    service.run(
+        progress=messages.append,
+    )
+
+    assert messages == [
+        "Scanning Immich",
+        "Downloading assets",
+        "Detecting dogs",
+        "Classifying dogs",
+    ]

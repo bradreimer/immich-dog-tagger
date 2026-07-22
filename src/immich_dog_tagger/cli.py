@@ -666,10 +666,13 @@ def main() -> None:
 
         print("Pipeline complete")
         print()
-        print(f"Assets scanned: {summary.scanned}")
-        print(f"Downloaded: {summary.downloaded}")
-        print(f"Dogs detected: {summary.detected}")
-        print(f"Classified: {summary.classified}")
+
+        print("Summary")
+        print("-------")
+        print(f"Assets scanned:     {summary.scanned}")
+        print(f"Downloaded:         {summary.downloaded}")
+        print(f"Dogs detected:      {summary.detected}")
+        print(f"Classified:         {summary.classified}")
 
     else:
         parser.print_help()
