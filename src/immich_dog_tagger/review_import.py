@@ -1,7 +1,8 @@
 from pathlib import Path
 from dataclasses import dataclass
-from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.media import is_supported_image
+from immich_dog_tagger.models import EmbeddingSources
+from immich_dog_tagger.services.learner import Learner
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,7 @@ class ReviewImporter:
             summary = self.learner.learn(
                 identity_dir.name,
                 identity_dir,
-                source="review-confirmed",
+                source=EmbeddingSources.REVIEW,
             )
 
             total += summary.imported

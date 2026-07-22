@@ -6,13 +6,10 @@ from pathlib import Path
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import (
-    Identity,
-    EmbeddingExample,
-)
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.media import is_supported_image
+from immich_dog_tagger.models import Identity, EmbeddingExample, EmbeddingSources
 
 
 @dataclass
@@ -35,7 +32,7 @@ class Learner:
         identity_name: str,
         image_dir: Path,
         *,
-        source: str = "manual",
+        source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
     ) -> LearnSummary:
         identity = (
             self.session.query(Identity).filter_by(name=identity_name).one_or_none()

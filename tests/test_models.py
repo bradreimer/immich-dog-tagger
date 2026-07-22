@@ -45,3 +45,8 @@ def test_crop_relationship(engine):
 
         assert result.path == "crops/abc123_0.jpg"
         assert result.detection.asset.immich_asset_id == "abc123"
+
+def test_embedding_sources():
+    assert EmbeddingSources.BOOTSTRAP == "bootstrap"
+    assert EmbeddingSources.REVIEW == "review"
+    assert EmbeddingSources.IMPORT == "import"

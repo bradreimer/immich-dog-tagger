@@ -6,6 +6,7 @@ from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.models import (
     Identity,
     EmbeddingExample,
+    EmbeddingSources,
 )
 
 
@@ -25,6 +26,7 @@ def test_classifier_finds_closest_identity(engine):
                     dtype=np.float32,
                 )
             ),
+            source=EmbeddingSources.BOOTSTRAP,
         )
 
         session.add(example)
@@ -68,6 +70,7 @@ def test_classifier_selects_best_matching_example(engine):
                             dtype=np.float32,
                         )
                     ),
+                    source=EmbeddingSources.BOOTSTRAP,
                 ),
                 EmbeddingExample(
                     identity_id=hermann.id,
@@ -78,6 +81,7 @@ def test_classifier_selects_best_matching_example(engine):
                             dtype=np.float32,
                         )
                     ),
+                    source=EmbeddingSources.BOOTSTRAP,
                 ),
             ]
         )

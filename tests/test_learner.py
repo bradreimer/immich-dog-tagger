@@ -1,13 +1,10 @@
 from pathlib import Path
-
 import numpy as np
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.database import create_database
+from immich_dog_tagger.models import EmbeddingExample, EmbeddingSources
 from immich_dog_tagger.services.learner import Learner
-from immich_dog_tagger.models import (
-    EmbeddingExample,
-)
 
 
 class FakeEmbedder:
@@ -58,7 +55,7 @@ def test_learner_creates_identity_and_embedding(
         result = session.query(EmbeddingExample).one()
 
         assert result.crop_path == str(image)
-        assert result.source == "manual"
+        assert result.source == EmbeddingSources.BOOTSTRAP
 
 
 def test_learner_skips_existing_examples(engine, tmp_path):
@@ -109,12 +106,12 @@ def test_learner_records_source(engine, tmp_path):
         learner.learn(
             "Fibs",
             image_dir,
-            source="review-confirmed",
+            source=EmbeddingSources.REVIEW,
         )
 
         result = session.query(EmbeddingExample).one()
 
-        assert result.source == "review-confirmed"
+        assert result.source == EmbeddingSources.REVIEW
 
 
 def test_learner_skips_non_images(engine, tmp_path):

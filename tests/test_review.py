@@ -5,6 +5,7 @@ from immich_dog_tagger.models import (
     Crop,
     CropClassification,
     EmbeddingExample,
+    EmbeddingSources,
     Identity,
 )
 from immich_dog_tagger.services.review import ReviewService
@@ -25,6 +26,7 @@ def test_review_service_classifications(engine):
             identity=identity,
             crop_path="training/fibs/example.jpg",
             embedding=b"123",
+            source=EmbeddingSources.REVIEW,
         )
 
         classification = CropClassification(
@@ -331,6 +333,7 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
             identity=identity,
             crop_path="training/hermann/example.jpg",
             embedding=b"fake",
+            source=EmbeddingSources.REVIEW,
         )
 
         unknown_crop = Crop(
@@ -406,6 +409,7 @@ def test_review_includes_matched_example_path(engine):
             identity=identity,
             crop_path="training/hermann/example.jpg",
             embedding=b"fake",
+            source=EmbeddingSources.REVIEW,
         )
 
         crop = Crop(

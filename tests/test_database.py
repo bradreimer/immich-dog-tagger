@@ -1,10 +1,10 @@
 from pathlib import Path
-
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
     Asset,
     EmbeddingExample,
+    EmbeddingSources,
     Identity,
     Crop,
     CropClassification,
@@ -42,6 +42,7 @@ def test_database_creation(engine, tmp_path: Path):
             identity_id=identity.id,
             crop_path="crops/hermann_001.jpg",
             embedding=b"\x01\x02\x03",
+            source=EmbeddingSources.BOOTSTRAP,
         )
 
         session.add(embedding)

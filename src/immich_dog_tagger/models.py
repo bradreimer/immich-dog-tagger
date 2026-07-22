@@ -3,6 +3,7 @@ Database models.
 """
 
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from .status import AssetStatus
 
@@ -16,6 +17,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+
+
+class EmbeddingSources(StrEnum):
+    BOOTSTRAP = "bootstrap"
+    REVIEW = "review"
+    IMPORT = "import"
 
 
 class Base(DeclarativeBase):
@@ -59,10 +66,9 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
-    source: Mapped[str] = mapped_column(
+    source: Mapped[EmbeddingSources] = mapped_column(
         String(64),
         nullable=False,
-        default="unknown",
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -79,6 +85,15 @@ class EmbeddingExample(Base):
         back_populates="matched_example",
         foreign_keys="CropClassification.matched_example_id",
     )
+
+    def __repr__(self) -> str:
+        return (
+            f"EmbeddingExample("
+            f"id={self.id}, "
+            f"identity={self.identity_id}, "
+            f"source={self.source!r}, "
+            f"path={self.crop_path!r})"
+        )
 
 
 class Asset(Base):

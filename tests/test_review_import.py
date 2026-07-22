@@ -1,5 +1,6 @@
-from immich_dog_tagger.services.learner import LearnSummary
+from immich_dog_tagger.models import EmbeddingSources
 from immich_dog_tagger.review_import import ReviewImporter
+from immich_dog_tagger.services.learner import LearnSummary
 
 
 class FakeLearner:
@@ -11,7 +12,7 @@ class FakeLearner:
         identity,
         directory,
         *,
-        source="manual",
+        source=EmbeddingSources.BOOTSTRAP,
     ):
         self.calls.append(
             (
