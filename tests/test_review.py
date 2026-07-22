@@ -2,6 +2,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
+    ClassificationSources,
     Crop,
     CropClassification,
     EmbeddingExample,
@@ -441,3 +442,52 @@ def test_review_includes_matched_example_path(engine):
 
         assert len(results) == 1
         assert results[0].matched_example_path == Path("training/hermann/example.jpg")
+
+
+def test_apply_review_marks_classification_as_review(engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.4,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        service = ReviewService(session)
+
+        service.apply_review(
+            classification.id,
+            "Hermann",
+        )
+
+        session.commit()
+
+        result = session.get(
+            CropClassification,
+            classification.id,
+        )
+
+        assert result.identity == "Hermann"
+        assert result.source == ClassificationSources.REVIEW
+
+
+def test_apply_review_rejects_unknown_classification(engine):
+    with Session(engine) as session:
+        service = ReviewService(session)
+
+        try:
+            service.apply_review(
+                999,
+                "Hermann",
+            )
+        except ValueError as exc:
+            assert str(exc) == "Unknown classification: 999"
+        else:
+            raise AssertionError("Expected ValueError")

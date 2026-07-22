@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import CropClassification
+from immich_dog_tagger.models import CropClassification, ClassificationSources
 
 
 @dataclass(frozen=True)
@@ -152,3 +152,19 @@ class ReviewService:
             )
             for classification in classifications
         ]
+
+    def apply_review(
+        self,
+        classification_id: int,
+        identity: str,
+    ) -> None:
+        classification = self.session.get(
+            CropClassification,
+            classification_id,
+        )
+
+        if classification is None:
+            raise ValueError(f"Unknown classification: {classification_id}")
+
+        classification.identity = identity
+        classification.source = ClassificationSources.REVIEW
