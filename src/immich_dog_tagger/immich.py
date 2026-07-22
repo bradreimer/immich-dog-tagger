@@ -100,3 +100,41 @@ class ImmichClient:
         response.raise_for_status()
 
         return response.content
+
+    def list_albums(self) -> list[dict]:
+        response = self.client.get(
+            f"{self.url}/api/albums",
+        )
+
+        response.raise_for_status()
+
+        return response.json()
+
+    def create_album(
+        self,
+        name: str,
+    ) -> str:
+        response = self.client.post(
+            f"{self.url}/api/albums",
+            json={
+                "albumName": name,
+            },
+        )
+
+        response.raise_for_status()
+
+        return response.json()["id"]
+
+    def add_assets_to_album(
+        self,
+        album_id: str,
+        asset_ids: list[str],
+    ) -> None:
+        response = self.client.put(
+            f"{self.url}/api/albums/{album_id}/assets",
+            json={
+                "ids": asset_ids,
+            },
+        )
+
+        response.raise_for_status()
