@@ -76,12 +76,12 @@ def test_import_confirmed(tmp_path):
         (
             "Fibs",
             confirmed / "Fibs",
-            "review-confirmed",
+            EmbeddingSources.REVIEW,
         ),
         (
             "Hermann",
             confirmed / "Hermann",
-            "review-confirmed",
+            EmbeddingSources.REVIEW,
         ),
     ]
 
