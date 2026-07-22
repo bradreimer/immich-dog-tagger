@@ -134,3 +134,43 @@ def test_learner_skips_non_images(engine, tmp_path):
 
     assert count.imported == 1
     assert count.skipped_existing == 0
+
+
+def test_learn_image_creates_embedding_example(engine, tmp_path):
+    from unittest.mock import Mock
+    import numpy as np
+
+    from sqlalchemy.orm import Session
+
+    from immich_dog_tagger.models import (
+        EmbeddingExample,
+        EmbeddingSources,
+    )
+
+    image = tmp_path / "hermann.jpg"
+    image.write_bytes(b"fake")
+
+    embedder = Mock()
+    embedder.embed.return_value = np.array(
+        [1, 0, 0],
+        dtype=np.float32,
+    )
+
+    with Session(engine) as session:
+        learner = Learner(
+            embedder,
+            session,
+        )
+
+        result = learner.learn_image(
+            "Hermann",
+            image,
+            source=EmbeddingSources.REVIEW,
+        )
+
+        assert result is True
+
+        example = session.query(EmbeddingExample).one()
+
+        assert example.crop_path == str(image)
+        assert example.source == EmbeddingSources.REVIEW

@@ -27,6 +27,49 @@ class Learner:
         self.embedder = embedder
         self.session = session
 
+    def learn_image(
+        self,
+        identity_name: str,
+        image_path: Path,
+        *,
+        source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
+    ) -> bool:
+        identity = (
+            self.session.query(Identity).filter_by(name=identity_name).one_or_none()
+        )
+
+        if identity is None:
+            identity = Identity(name=identity_name)
+
+            self.session.add(identity)
+            self.session.flush()
+
+        existing = (
+            self.session.query(EmbeddingExample)
+            .filter_by(
+                identity_id=identity.id,
+                crop_path=str(image_path),
+            )
+            .one_or_none()
+        )
+
+        if existing is not None:
+            return False
+
+        embedding = self.embedder.embed(image_path)
+
+        example = EmbeddingExample(
+            identity_id=identity.id,
+            crop_path=str(image_path),
+            embedding=embedding_to_blob(embedding),
+            source=source,
+        )
+
+        self.session.add(example)
+        self.session.commit()
+
+        return True
+
     def learn(
         self,
         identity_name: str,
