@@ -213,9 +213,15 @@ def main() -> None:
         help="Show changes without modifying Immich",
     )
 
-    subparsers.add_parser(
+    pipeline_parser = subparsers.add_parser(
         "pipeline",
         help="Run complete processing pipeline",
+    )
+
+    pipeline_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of items processed per stage",
     )
 
     args = parser.parse_args()
@@ -662,6 +668,7 @@ def main() -> None:
 
             summary = pipeline.run(
                 progress=lambda message: print(f"{message}...", flush=True),
+                limit=args.limit,
             )
 
         print("Pipeline complete")

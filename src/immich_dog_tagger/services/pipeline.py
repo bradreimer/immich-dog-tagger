@@ -26,6 +26,7 @@ class PipelineService:
     def run(
         self,
         progress: Callable[[str], None] | None = None,
+        limit: int | None = None,
     ) -> PipelineSummary:
         if progress:
             progress("Scanning Immich")
@@ -35,17 +36,23 @@ class PipelineService:
         if progress:
             progress("Downloading assets")
 
-        downloaded = self.downloader.download_pending()
+        downloaded = self.downloader.download_pending(
+            limit=limit,
+        )
 
         if progress:
             progress("Detecting dogs")
 
-        detected = self.detector.run()
+        detected = self.detector.run(
+            limit=limit,
+        )
 
         if progress:
             progress("Classifying dogs")
 
-        classified = self.classifier.classify_pending()
+        classified = self.classifier.classify_pending(
+            limit=limit,
+        )
 
         return PipelineSummary(
             scanned=scanned,
