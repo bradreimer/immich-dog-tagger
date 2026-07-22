@@ -5,7 +5,12 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import CropClassification, ClassificationSources
+from immich_dog_tagger.models import (
+    ClassificationSources,
+    CropClassification,
+    EmbeddingSources,
+)
+from immich_dog_tagger.services.learner import Learner
 
 
 @dataclass(frozen=True)
@@ -34,8 +39,10 @@ class ReviewService:
     def __init__(
         self,
         session: Session,
+        learner: Learner | None = None,
     ):
         self.session = session
+        self.learner = learner
 
     def classifications(
         self,
@@ -168,5 +175,12 @@ class ReviewService:
 
         classification.identity = identity
         classification.source = ClassificationSources.REVIEW
+
+        if self.learner is not None:
+            self.learner.learn_image(
+                identity,
+                Path(classification.crop.path),
+                source=EmbeddingSources.REVIEW,
+            )
 
         return classification

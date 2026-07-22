@@ -12,6 +12,27 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.review import ReviewService
 
 
+class FakeLearner:
+    def __init__(self):
+        self.calls = []
+
+    def learn_image(
+        self,
+        identity,
+        path,
+        source,
+    ):
+        self.calls.append(
+            (
+                identity,
+                path,
+                source,
+            )
+        )
+
+        return True
+
+
 def test_review_service_classifications(engine):
     with Session(engine) as session:
         crop = Crop(
@@ -491,3 +512,43 @@ def test_apply_review_rejects_unknown_classification(engine):
             assert str(exc) == "Classification 999 not found"
         else:
             raise AssertionError("Expected ValueError")
+
+
+def test_apply_review_learns_from_review(engine):
+    from pathlib import Path
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="hermann.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.4,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        learner = FakeLearner()
+
+        service = ReviewService(
+            session,
+            learner,
+        )
+
+        service.apply_review(
+            classification.id,
+            "Hermann",
+        )
+
+        assert learner.calls == [
+            (
+                "Hermann",
+                Path("hermann.jpg"),
+                EmbeddingSources.REVIEW,
+            )
+        ]
