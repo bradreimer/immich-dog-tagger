@@ -159,9 +159,13 @@ def test_pipeline_reports_progress():
 
     assert messages == [
         "Scanning Immich",
+        "Scanned 10 assets",
         "Downloading assets",
+        "Downloaded 8 assets",
         "Detecting dogs",
+        "Detected 5 dogs",
         "Classifying dogs",
+        "Classified 5 crops",
     ]
 
 

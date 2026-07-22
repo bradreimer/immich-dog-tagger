@@ -28,11 +28,16 @@ class PipelineService:
         progress: Callable[[str], None] | None = None,
         limit: int | None = None,
     ) -> PipelineSummary:
+        # Scan Immich for new assets
         if progress:
             progress("Scanning Immich")
 
         scanned = self.scanner.scan()
 
+        if progress:
+            progress(f"Scanned {scanned} assets")
+
+        # Download pending assets
         if progress:
             progress("Downloading assets")
 
@@ -41,6 +46,10 @@ class PipelineService:
         )
 
         if progress:
+            progress(f"Downloaded {downloaded} assets")
+
+        # Detect dogs in downloaded assets
+        if progress:
             progress("Detecting dogs")
 
         detected = self.detector.run(
@@ -48,11 +57,18 @@ class PipelineService:
         )
 
         if progress:
+            progress(f"Detected {detected.dogs} dogs")
+
+        # Classify detected dogs
+        if progress:
             progress("Classifying dogs")
 
         classified = self.classifier.classify_pending(
             limit=limit,
         )
+
+        if progress:
+            progress(f"Classified {classified.classified} crops")
 
         return PipelineSummary(
             scanned=scanned,

@@ -687,7 +687,7 @@ def main() -> None:
                 return
 
             summary = pipeline.run(
-                progress=lambda message: print(f"{message}...", flush=True),
+                progress=lambda message: print(message, flush=True),
                 limit=args.limit,
             )
 
