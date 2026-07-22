@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, exists
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.crops import CropWriter
@@ -37,10 +37,20 @@ class DetectionService:
         force: bool = False,
     ) -> DetectionSummary:
 
-        query = select(Asset).where(Asset.status == AssetStatus.DOWNLOADED)
+        query = select(Asset).where(
+            Asset.status == AssetStatus.DOWNLOADED,
+            ~exists().where(Detection.asset_id == Asset.id),
+        )
 
         if force:
-            query = select(Asset).where(Asset.status != AssetStatus.PENDING)
+            query = select(Asset).where(
+                Asset.status.in_(
+                    [
+                        AssetStatus.DOWNLOADED,
+                        AssetStatus.DETECTED,
+                    ]
+                )
+            )
 
         if limit is not None:
             query = query.limit(limit)
@@ -56,6 +66,16 @@ class DetectionService:
 
             if not is_supported_image(image_path):
                 continue
+
+            if force:
+                existing = self.session.scalars(
+                    select(Detection).where(Detection.asset_id == asset.id)
+                ).all()
+
+                for detection in existing:
+                    self.session.delete(detection)
+
+                self.session.flush()
 
             detections = self.detector.detect(str(image_path))
 
