@@ -488,6 +488,6 @@ def test_apply_review_rejects_unknown_classification(engine):
                 "Hermann",
             )
         except ValueError as exc:
-            assert str(exc) == "Unknown classification: 999"
+            assert str(exc) == "Classification 999 not found"
         else:
             raise AssertionError("Expected ValueError")

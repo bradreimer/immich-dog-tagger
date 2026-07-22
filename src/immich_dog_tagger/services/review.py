@@ -157,14 +157,16 @@ class ReviewService:
         self,
         classification_id: int,
         identity: str,
-    ) -> None:
+    ) -> CropClassification:
         classification = self.session.get(
             CropClassification,
             classification_id,
         )
 
         if classification is None:
-            raise ValueError(f"Unknown classification: {classification_id}")
+            raise ValueError(f"Classification {classification_id} not found")
 
         classification.identity = identity
         classification.source = ClassificationSources.REVIEW
+
+        return classification
