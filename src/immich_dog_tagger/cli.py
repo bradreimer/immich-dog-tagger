@@ -17,11 +17,13 @@ from .openclip_embedder import OpenClipEmbedder
 from .review_export import ReviewExporter
 from .review_import import ReviewImporter
 from .scanner import Scanner
+from .services.albums import AlbumService
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
 from .services.learner import Learner
 from .services.review import ReviewService
 from .services.status import StatusService
+from .services.sync import SyncService
 from .yolo_detector import YOLODetector
 
 
@@ -197,6 +199,11 @@ def main() -> None:
     subparsers.add_parser(
         "status",
         help="Show pipeline status",
+    )
+
+    subparsers.add_parser(
+        "sync",
+        help="Synchronize classifications to Immich albums",
     )
 
     args = parser.parse_args()
@@ -559,6 +566,29 @@ def main() -> None:
         print(f"Classifications:    {summary.classifications}")
         print(f"Identities:         {summary.identities}")
         print(f"Embedding examples: {summary.examples}")
+
+    elif args.command == "sync":
+        config = load_config()
+
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
+        )
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        with Session(engine) as session:
+            service = SyncService(
+                session,
+                AlbumService(client),
+            )
+
+            summary = service.sync()
+
+        for identity, count in summary.items():
+            print(f"{identity}: {count}")
 
     else:
         parser.print_help()
