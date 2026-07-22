@@ -201,9 +201,15 @@ def main() -> None:
         help="Show pipeline status",
     )
 
-    subparsers.add_parser(
+    sync_parser = subparsers.add_parser(
         "sync",
         help="Synchronize classifications to Immich albums",
+    )
+
+    sync_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show changes without modifying Immich",
     )
 
     args = parser.parse_args()
@@ -585,7 +591,12 @@ def main() -> None:
                 AlbumService(client),
             )
 
-            summary = service.sync()
+            summary = service.sync(
+                dry_run=args.dry_run,
+            )
+
+        if args.dry_run:
+            print("Would sync:")
 
         for identity, count in summary.items():
             print(f"{identity}: {count}")

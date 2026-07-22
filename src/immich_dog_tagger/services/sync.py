@@ -15,7 +15,11 @@ class SyncService:
         self.session = session
         self.albums = albums
 
-    def sync(self) -> dict[str, int]:
+    def sync(
+        self,
+        *,
+        dry_run: bool = False,
+    ) -> dict[str, int]:
         assets: dict[str, list[str]] = defaultdict(list)
 
         classifications = self.session.query(CropClassification).all()
@@ -32,10 +36,11 @@ class SyncService:
         for identity, asset_ids in assets.items():
             unique_ids = list(set(asset_ids))
 
-            self.albums.sync_identity(
-                identity,
-                unique_ids,
-            )
+            if not dry_run:
+                self.albums.sync_identity(
+                    identity,
+                    unique_ids,
+                )
 
             summary[identity] = len(unique_ids)
 

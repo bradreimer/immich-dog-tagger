@@ -76,3 +76,51 @@ def test_sync_groups_assets(engine):
                 ["asset1"],
             )
         ]
+
+
+def test_sync_dry_run_does_not_update(engine):
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset1",
+            checksum="abc",
+            extension=".jpg",
+        )
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=1.0,
+            x1=0,
+            y1=0,
+            x2=10,
+            y2=10,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path="crop.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.95,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+
+        summary = SyncService(
+            session,
+            albums,
+        ).sync(
+            dry_run=True,
+        )
+
+        assert summary == {
+            "Fibs": 1,
+        }
+
+        assert albums.calls == []
