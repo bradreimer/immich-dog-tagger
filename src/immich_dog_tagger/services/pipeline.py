@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 
 
@@ -22,12 +23,27 @@ class PipelineService:
         self.detector = detector
         self.classifier = classifier
 
-    def run(self) -> PipelineSummary:
+    def run(
+        self,
+        progress: Callable[[str], None] | None = None,
+    ) -> PipelineSummary:
+        if progress:
+            progress("Scanning Immich")
+
         scanned = self.scanner.scan()
+
+        if progress:
+            progress("Downloading assets")
 
         downloaded = self.downloader.download_pending()
 
+        if progress:
+            progress("Detecting dogs")
+
         detected = self.detector.run()
+
+        if progress:
+            progress("Classifying dogs")
 
         classified = self.classifier.classify_pending()
 

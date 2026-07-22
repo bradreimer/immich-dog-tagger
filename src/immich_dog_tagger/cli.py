@@ -21,6 +21,7 @@ from .services.albums import AlbumService
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
 from .services.learner import Learner
+from .services.pipeline import PipelineService
 from .services.review import ReviewService
 from .services.status import StatusService
 from .services.sync import SyncService
@@ -210,6 +211,11 @@ def main() -> None:
         "--dry-run",
         action="store_true",
         help="Show changes without modifying Immich",
+    )
+
+    subparsers.add_parser(
+        "pipeline",
+        help="Run complete processing pipeline",
     )
 
     args = parser.parse_args()
@@ -600,6 +606,70 @@ def main() -> None:
 
         for identity, count in summary.items():
             print(f"{identity}: {count}")
+
+    elif args.command == "pipeline":
+        config = load_config()
+
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
+        )
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        detector = YOLODetector(
+            config.yolo_model,
+        )
+
+        embedder = OpenClipEmbedder()
+
+        with Session(engine) as session:
+            scanner = Scanner(
+                client,
+                session,
+            )
+
+            downloader = Downloader(
+                client,
+                session,
+                config.cache_dir,
+            )
+
+            detection_service = DetectionService(
+                detector,
+                session,
+                config.cache_dir,
+                CropWriter(
+                    config.crop_dir,
+                    config.crop_padding,
+                ),
+            )
+
+            classifier = ClassificationService(
+                session,
+                embedder,
+                IdentityClassifier(session),
+            )
+
+            pipeline = PipelineService(
+                scanner,
+                downloader,
+                detection_service,
+                classifier,
+            )
+
+            summary = pipeline.run(
+                progress=lambda message: print(f"{message}...", flush=True),
+            )
+
+        print("Pipeline complete")
+        print()
+        print(f"Assets scanned: {summary.scanned}")
+        print(f"Downloaded: {summary.downloaded}")
+        print(f"Dogs detected: {summary.detected}")
+        print(f"Classified: {summary.classified}")
 
     else:
         parser.print_help()
