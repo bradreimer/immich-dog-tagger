@@ -85,6 +85,13 @@ def main() -> None:
         help="Maximum number of crops to classify",
     )
 
+    classify_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.80,
+        help="Minimum confidence required for identity assignment",
+    )
+
     test_embedding_parser = subparsers.add_parser(
         "test-embedding",
         help="Generate an image embedding",
@@ -306,6 +313,7 @@ def main() -> None:
 
             summary = service.classify_pending(
                 limit=args.limit,
+                threshold=args.threshold,
             )
 
         print(f"Classified: {summary.classified}")
