@@ -8,6 +8,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     EmbeddingSources,
 )
+from immich_dog_tagger.services.classification import ClassificationService
 
 
 def test_classifier_finds_closest_identity(engine):
@@ -98,3 +99,47 @@ def test_classifier_selects_best_matching_example(engine):
         )
 
         assert result.identity == "Fibs"
+
+
+def test_classification_service_handles_no_pending_crops(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        embedder = Mock()
+        classifier = Mock()
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending()
+
+        assert summary.classified == 0
+        assert summary.identities == {}
+
+        embedder.embed_batch.assert_not_called()
+        classifier.classify.assert_not_called()
+
+
+def test_classification_service_handles_no_reclassification_candidates(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        embedder = Mock()
+        classifier = Mock()
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.reclassify_pending()
+
+        assert summary.classified == 0
+        assert summary.identities == {}
+
+        embedder.embed_batch.assert_not_called()
+        classifier.classify.assert_not_called()

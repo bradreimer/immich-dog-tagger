@@ -45,6 +45,12 @@ class ClassificationService:
 
         crops = query.all()
 
+        if not crops:
+            return ClassificationSummary(
+                classified=0,
+                identities={},
+            )
+
         counts = Counter()
 
         embeddings = self.embedder.embed_batch(
@@ -116,6 +122,12 @@ class ClassificationService:
         )
 
         crops = query.all()
+
+        if not crops:
+            return ClassificationSummary(
+                classified=0,
+                identities={},
+            )
 
         counts = Counter()
 
