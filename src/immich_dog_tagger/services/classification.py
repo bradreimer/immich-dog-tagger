@@ -36,6 +36,7 @@ class ClassificationService:
     def classify_pending(
         self,
         limit: int | None = None,
+        threshold: float = 0.80,
     ) -> ClassificationSummary:
         query = self.session.query(Crop).filter(~Crop.classification.has())
 
@@ -54,6 +55,7 @@ class ClassificationService:
             classification = self._classify_crop(
                 crop,
                 embedding,
+                threshold,
             )
 
             if classification.identity:
@@ -72,9 +74,11 @@ class ClassificationService:
         self,
         crop: Crop,
         embedding,
+        threshold: float,
     ) -> CropClassification:
         result = self.classifier.classify(
             embedding,
+            threshold=threshold,
         )
 
         if crop.classification:
@@ -123,6 +127,7 @@ class ClassificationService:
             classification = self._classify_crop(
                 crop,
                 embedding,
+                threshold,
             )
 
             if classification.identity:

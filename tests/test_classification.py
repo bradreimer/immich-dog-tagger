@@ -251,3 +251,43 @@ def test_classification_service_reclassifies_existing_classification(engine):
         assert result.confidence == 0.95
         assert result.matched_example_id == 42
         assert result.source == ClassificationSources.AUTO
+
+
+def test_classification_service_passes_threshold(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
+
+        session.add(crop)
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.zeros(
+            (1, 512),
+            dtype=np.float32,
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity=None,
+            confidence=0.5,
+            matched_example_id=None,
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        service.classify_pending(
+            threshold=0.65,
+        )
+
+        classifier.classify.assert_called_once()
+
+        assert classifier.classify.call_args.kwargs["threshold"] == 0.65
