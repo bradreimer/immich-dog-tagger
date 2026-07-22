@@ -179,6 +179,20 @@ def main() -> None:
         default=0.80,
     )
 
+    review_apply_parser = subparsers.add_parser(
+        "review-apply",
+        help="Apply a reviewed classification",
+    )
+
+    review_apply_parser.add_argument(
+        "classification_id",
+        type=int,
+    )
+
+    review_apply_parser.add_argument(
+        "identity",
+    )
+
     args = parser.parse_args()
 
     if args.command == "config-check":
@@ -493,6 +507,37 @@ def main() -> None:
 
         print(f"Exported: {count}")
 
+    elif args.command == "review-apply":
+        config = load_config()
+
+        engine = create_database(
+            config.data_dir,
+        )
+
+        embedder = OpenClipEmbedder()
+
+        with Session(engine) as session:
+            learner = Learner(
+                embedder,
+                session,
+            )
+
+            review = ReviewService(
+                session,
+                learner,
+            )
+
+            review.apply_review(
+                args.classification_id,
+                args.identity,
+            )
+
+            session.commit()
+
+        print(
+            f"Applied review: {args.classification_id} -> {args.identity}"
+        )
+        
     else:
         parser.print_help()
 
