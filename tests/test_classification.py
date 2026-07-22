@@ -4,6 +4,7 @@ from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.models import (
     Asset,
+    ClassificationSources,
     Crop,
     CropClassification,
     Detection,
@@ -77,8 +78,9 @@ def test_classification_service_creates_classification(engine):
 
         assert result.identity == "Hermann"
         assert result.confidence == 0.95
-        assert result.matched_example_id == 42
         assert result.crop.id == crop.id
+        assert result.matched_example_id == 42
+        assert result.source == ClassificationSources.AUTO
 
 
 def test_classification_service_handles_unknown_identity(engine):
@@ -139,6 +141,7 @@ def test_classification_service_handles_unknown_identity(engine):
         assert result.confidence == 0.12
         assert result.crop.id == crop.id
         assert result.matched_example_id is None
+        assert result.source == ClassificationSources.AUTO
 
 
 def test_classification_service_uses_batch_embedding(engine):
@@ -247,3 +250,4 @@ def test_classification_service_reclassifies_existing_classification(engine):
         assert result.identity == "Hermann"
         assert result.confidence == 0.95
         assert result.matched_example_id == 42
+        assert result.source == ClassificationSources.AUTO

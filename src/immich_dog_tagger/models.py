@@ -25,6 +25,11 @@ class EmbeddingSources(StrEnum):
     IMPORT = "import"
 
 
+class ClassificationSources(StrEnum):
+    AUTO = "auto"
+    REVIEW = "review"
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -66,7 +71,7 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
-    source: Mapped[EmbeddingSources] = mapped_column(
+    source: Mapped[ClassificationSources] = mapped_column(
         String(64),
         nullable=False,
     )
@@ -186,6 +191,12 @@ class CropClassification(Base):
     confidence: Mapped[float] = mapped_column(
         Float,
         nullable=False,
+    )
+
+    source: Mapped[ClassificationSources] = mapped_column(
+        String(64),
+        nullable=False,
+        default=ClassificationSources.AUTO,
     )
 
     created_at: Mapped[datetime] = mapped_column(

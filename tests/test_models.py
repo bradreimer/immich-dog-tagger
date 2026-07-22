@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
     Asset,
+    ClassificationSources,
     Crop,
     Detection,
     EmbeddingSources,
@@ -52,3 +53,8 @@ def test_embedding_sources():
     assert EmbeddingSources.BOOTSTRAP == "bootstrap"
     assert EmbeddingSources.REVIEW == "review"
     assert EmbeddingSources.IMPORT == "import"
+
+
+def test_classification_sources():
+    assert ClassificationSources.AUTO == "auto"
+    assert ClassificationSources.REVIEW == "review"

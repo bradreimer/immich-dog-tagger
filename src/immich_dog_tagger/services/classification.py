@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
-from immich_dog_tagger.models import Crop, CropClassification
+from immich_dog_tagger.models import (
+    Crop,
+    CropClassification,
+    ClassificationSources,
+)
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 
 
@@ -79,6 +83,7 @@ class ClassificationService:
             classification.identity = result.identity
             classification.confidence = result.confidence
             classification.matched_example_id = result.matched_example_id
+            classification.source = ClassificationSources.AUTO
 
         else:
             classification = CropClassification(
@@ -86,6 +91,7 @@ class ClassificationService:
                 identity=result.identity,
                 confidence=result.confidence,
                 matched_example_id=result.matched_example_id,
+                source=ClassificationSources.AUTO,
             )
 
             self.session.add(classification)
