@@ -34,9 +34,13 @@ class DetectionService:
     def run(
         self,
         limit: int | None = None,
+        force: bool = False,
     ) -> DetectionSummary:
 
         query = select(Asset).where(Asset.status == AssetStatus.DOWNLOADED)
+
+        if force:
+            query = select(Asset).where(Asset.status != AssetStatus.PENDING)
 
         if limit is not None:
             query = query.limit(limit)

@@ -14,7 +14,10 @@ class Scanner:
         self.client = client
         self.session = session
 
-    def scan(self) -> int:
+    def scan(
+        self,
+        limit: int | None = None,
+    ) -> int:
         """
         Discover new Immich assets.
 
@@ -22,6 +25,9 @@ class Scanner:
         """
 
         immich_assets = self.client.list_assets()
+
+        if limit is not None:
+            immich_assets = immich_assets[:limit]
 
         new_count = 0
 

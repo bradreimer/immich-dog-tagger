@@ -45,7 +45,9 @@ def test_downloader_marks_failed_asset_as_error(engine, tmp_path):
             tmp_path,
         )
 
-        count = downloader.download_pending()
+        count = downloader.download_pending(force=True)
+
+        assert client.download_asset.call_count == 2
 
         assert count == 1
 

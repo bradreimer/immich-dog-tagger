@@ -21,8 +21,14 @@ class Downloader:
     def download_pending(
         self,
         limit: int | None = None,
+        force: bool = False,
     ) -> int:
-        query = select(Asset).where(Asset.status == AssetStatus.PENDING)
+        query = select(Asset)
+
+        if not force:
+            query = query.where(
+                Asset.status == AssetStatus.PENDING,
+            )
 
         if limit is not None:
             query = query.limit(limit)

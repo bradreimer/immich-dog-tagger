@@ -230,6 +230,12 @@ def main() -> None:
         help="Show pipeline plan without running",
     )
 
+    pipeline_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reprocess existing assets",
+    )
+
     args = parser.parse_args()
 
     if args.command == "config-check":
@@ -689,6 +695,7 @@ def main() -> None:
             summary = pipeline.run(
                 progress=lambda message: print(message, flush=True),
                 limit=args.limit,
+                force=args.force,
             )
 
         print("Pipeline complete")

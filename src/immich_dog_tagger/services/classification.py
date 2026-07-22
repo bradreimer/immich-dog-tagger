@@ -37,8 +37,12 @@ class ClassificationService:
         self,
         limit: int | None = None,
         threshold: float = 0.80,
+        force: bool = False,
     ) -> ClassificationSummary:
-        query = self.session.query(Crop).filter(~Crop.classification.has())
+        query = self.session.query(Crop)
+
+        if not force:
+            query = query.filter(~Crop.classification.has())
 
         if limit is not None:
             query = query.limit(limit)
