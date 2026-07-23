@@ -20,11 +20,10 @@ from .scanner import Scanner
 from .services.albums import AlbumService
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
-from .services.health import HealthService
+from .services.status import StatusService
 from .services.learner import Learner
 from .services.pipeline import PipelineService
 from .services.review import ReviewService
-from .services.status import StatusService
 from .services.sync import SyncService
 from .yolo_detector import YOLODetector
 
@@ -720,7 +719,7 @@ def main(argv: list[str] | None = None) -> None:
         engine = create_database(config.state_dir)
 
         with Session(engine) as session:
-            summary = HealthService(session).summary()
+            summary = StatusService(session).summary()
 
         print(f"Assets:          {summary.assets}")
         print(f"Detections:      {summary.detections}")

@@ -2,14 +2,12 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
     Asset,
-    ClassificationSources,
     Crop,
     Detection,
     EmbeddingExample,
-    EmbeddingSources,
     Identity,
 )
-from immich_dog_tagger.status import AssetStatus
+from immich_dog_tagger.enums import AssetStatus, ClassificationSources, EmbeddingSources
 
 
 def test_crop_relationship(engine):

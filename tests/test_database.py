@@ -10,7 +10,7 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
 )
-from immich_dog_tagger.status import AssetStatus
+from immich_dog_tagger.enums import AssetStatus
 
 
 def test_database_creation(engine, tmp_path: Path):

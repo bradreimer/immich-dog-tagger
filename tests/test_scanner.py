@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.immich import ImmichAsset
 from immich_dog_tagger.models import Asset
 from immich_dog_tagger.scanner import Scanner
-from immich_dog_tagger.status import AssetStatus
+from immich_dog_tagger.enums import AssetStatus
 
 
 class FakeImmich:
@@ -142,11 +142,6 @@ def test_scan_force_resets_changed_asset(engine):
 def test_scan_force_preserves_status_when_checksum_unchanged(
     engine,
 ):
-    from sqlalchemy.orm import Session
-
-    from immich_dog_tagger.models import Asset
-    from immich_dog_tagger.status import AssetStatus
-
     class SameAssetClient:
         def list_assets(self):
             from immich_dog_tagger.immich import ImmichAsset
@@ -190,15 +185,8 @@ def test_scan_force_preserves_status_when_checksum_unchanged(
 def test_scan_force_resets_status_when_checksum_changes(
     engine,
 ):
-    from sqlalchemy.orm import Session
-
-    from immich_dog_tagger.models import Asset
-    from immich_dog_tagger.status import AssetStatus
-
     class ChangedAssetClient:
         def list_assets(self):
-            from immich_dog_tagger.immich import ImmichAsset
-
             return [
                 ImmichAsset(
                     id="abc123",

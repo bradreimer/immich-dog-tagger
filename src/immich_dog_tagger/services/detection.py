@@ -8,7 +8,7 @@ from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.detector import ObjectDetector
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import Asset, Crop, Detection
-from immich_dog_tagger.status import AssetStatus
+from immich_dog_tagger.enums import AssetStatus
 
 
 @dataclass

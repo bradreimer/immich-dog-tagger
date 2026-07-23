@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.models import Asset
-from immich_dog_tagger.status import AssetStatus
+from immich_dog_tagger.enums import AssetStatus
 
 
 def test_downloader_marks_failed_asset_as_error(engine, tmp_path):

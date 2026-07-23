@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .immich import ImmichClient
 from .models import Asset
-from .status import AssetStatus
+from .enums import AssetStatus
 
 
 class Downloader:

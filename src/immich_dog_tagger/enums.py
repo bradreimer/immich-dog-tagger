@@ -11,3 +11,15 @@ class AssetStatus(StrEnum):
     DOWNLOAD_FAILED = "download_failed"
     DETECTION_FAILED = "detection_failed"
     CLASSIFICATION_FAILED = "classification_failed"
+
+
+class EmbeddingSources(StrEnum):
+    BOOTSTRAP = "bootstrap"
+    REVIEW = "review"
+    IMPORT = "import"
+
+
+class ClassificationSources(StrEnum):
+    AUTO = "auto"
+    REVIEW = "review"
+    MANUAL = "manual"

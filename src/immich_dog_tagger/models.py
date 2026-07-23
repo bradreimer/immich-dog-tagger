@@ -3,9 +3,8 @@ Database models.
 """
 
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
-from .status import AssetStatus
+from .enums import AssetStatus, ClassificationSources, EmbeddingSources
 
 from sqlalchemy import (
     DateTime,
@@ -17,18 +16,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
-
-class EmbeddingSources(StrEnum):
-    BOOTSTRAP = "bootstrap"
-    REVIEW = "review"
-    IMPORT = "import"
-
-
-class ClassificationSources(StrEnum):
-    AUTO = "auto"
-    REVIEW = "review"
-    MANUAL = "manual"
 
 
 class Base(DeclarativeBase):
