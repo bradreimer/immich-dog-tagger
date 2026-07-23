@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 class Config:
     immich_url: str
     immich_api_key: str
-    data_dir: Path
+    state_dir: Path
     cache_dir: Path
     yolo_model: Path
     crop_padding: float
 
     @property
     def crop_dir(self) -> Path:
-        return self.data_dir / "cache" / "crops"
+        return self.cache_dir / "crops"
 
 
 def load_config(load_env_file: bool = True) -> Config:
@@ -31,7 +31,19 @@ def load_config(load_env_file: bool = True) -> Config:
     if load_env_file:
         load_dotenv()
 
-    data_dir = Path(os.environ.get("DATA_DIR", "./data"))
+    state_dir = Path(
+        os.environ.get(
+            "STATE_DIR",
+            "./state",
+        )
+    )
+
+    cache_dir = Path(
+        os.environ.get(
+            "CACHE_DIR",
+            "./cache",
+        )
+    )
 
     return Config(
         immich_url=os.environ.get(
@@ -42,8 +54,8 @@ def load_config(load_env_file: bool = True) -> Config:
             "IMMICH_API_KEY",
             "",
         ),
-        data_dir=data_dir,
-        cache_dir=data_dir / "cache" / "assets",
+        state_dir=state_dir,
+        cache_dir=cache_dir,
         yolo_model=Path(
             os.environ.get(
                 "YOLO_MODEL",

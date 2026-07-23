@@ -251,14 +251,14 @@ def main(argv: list[str] | None = None) -> None:
 
         print()
         print("Storage:")
-        print(f"  Data directory: {config.data_dir}")
+        print(f"  State directory: {config.state_dir}")
 
     elif args.command == "init-db":
         config = load_config()
 
-        create_database(config.data_dir)
+        create_database(config.state_dir)
 
-        print(f"Database initialized: {config.data_dir / 'state.db'}")
+        print(f"Database initialized: {config.state_dir / 'state.db'}")
 
     elif args.command == "test-immich":
         config = load_config()
@@ -280,7 +280,7 @@ def main(argv: list[str] | None = None) -> None:
             config.immich_api_key,
         )
 
-        engine = create_database(config.data_dir)
+        engine = create_database(config.state_dir)
 
         with Session(engine) as session:
             scanner = Scanner(
@@ -300,7 +300,7 @@ def main(argv: list[str] | None = None) -> None:
             config.immich_api_key,
         )
 
-        engine = create_database(config.data_dir)
+        engine = create_database(config.state_dir)
 
         with Session(engine) as session:
             downloader = Downloader(
@@ -328,7 +328,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         with Session(engine) as session:
@@ -354,7 +354,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         embedder = OpenClipEmbedder()
@@ -390,7 +390,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         embedder = OpenClipEmbedder()
@@ -412,7 +412,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         with Session(engine) as session:
@@ -439,7 +439,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         with Session(engine) as session:
@@ -467,7 +467,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "export-review":
         config = load_config()
 
-        engine = create_database(config.data_dir)
+        engine = create_database(config.state_dir)
 
         with Session(engine) as session:
             review = ReviewService(session)
@@ -480,7 +480,7 @@ def main(argv: list[str] | None = None) -> None:
 
         count = exporter.export(
             items,
-            config.data_dir / "review",
+            config.cache_dir / "review",
         )
 
         print(f"Exported: {count}")
@@ -489,7 +489,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         embedder = OpenClipEmbedder()
@@ -506,7 +506,7 @@ def main(argv: list[str] | None = None) -> None:
 
             if args.dry_run:
                 plan = importer.plan_import(
-                    config.data_dir / "review" / "confirmed",
+                    config.cache_dir / "review" / "confirmed",
                 )
 
                 print("Would import:")
@@ -519,7 +519,7 @@ def main(argv: list[str] | None = None) -> None:
 
             else:
                 summary = importer.import_confirmed(
-                    config.data_dir / "review" / "confirmed",
+                    config.cache_dir / "review" / "confirmed",
                 )
 
                 print(f"Imported: {summary.imported}")
@@ -531,7 +531,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         with Session(engine) as session:
@@ -545,7 +545,7 @@ def main(argv: list[str] | None = None) -> None:
 
         count = exporter.export(
             items,
-            config.data_dir / "review" / "active",
+            config.cache_dir / "review" / "active",
         )
 
         print(f"Exported: {count}")
@@ -554,7 +554,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         embedder = OpenClipEmbedder()
@@ -583,7 +583,7 @@ def main(argv: list[str] | None = None) -> None:
         config = load_config()
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         with Session(engine) as session:
@@ -606,7 +606,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         with Session(engine) as session:
@@ -634,7 +634,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
         engine = create_database(
-            config.data_dir,
+            config.state_dir,
         )
 
         detector = YOLODetector(

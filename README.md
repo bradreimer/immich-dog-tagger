@@ -150,10 +150,28 @@ Configuration includes:
 
 - Immich URL
 - Immich API key
-- Local data directory
-- Asset cache location
+- State directory
+- Cache directory
 - Crop storage location
 - YOLO model path
+
+The application separates persistent state from rebuildable cache data.
+
+Example storage layout:
+
+```plain
+data/breimer/
+├── state/
+│ └── state.db
+└── cache/
+  ├── assets/
+  ├── crops/
+  └── review/
+```
+
+The state directory contains the SQLite database and processing metadata.
+
+The cache directory contains downloaded assets, generated crops, and review artifacts. Cache contents can be deleted and regenerated if required.
 
 All generated data remains local.
 

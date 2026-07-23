@@ -10,17 +10,17 @@ from sqlalchemy.orm import Session
 from .models import Base
 
 
-def create_database(data_dir: Path):
+def create_database(state_dir: Path):
     """
     Create or open the application database.
     """
 
-    data_dir.mkdir(
+    state_dir.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    database_path = data_dir / "state.db"
+    database_path = state_dir / "state.db"
 
     engine = create_engine(
         f"sqlite:///{database_path}",
