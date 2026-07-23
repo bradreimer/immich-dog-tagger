@@ -17,6 +17,7 @@ class Scanner:
     def scan(
         self,
         limit: int | None = None,
+        force: bool = False,
     ) -> int:
         """
         Discover new Immich assets.
@@ -37,6 +38,11 @@ class Scanner:
             )
 
             if existing:
+                if not force:
+                    continue
+
+                existing.checksum = immich_asset.checksum
+                existing.extension = immich_asset.extension
                 continue
 
             self.session.add(
