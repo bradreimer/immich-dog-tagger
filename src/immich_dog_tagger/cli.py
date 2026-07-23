@@ -728,6 +728,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Classifications: {summary.classifications}")
         print(f"Unknown:         {summary.unknown}")
         print(f"Low confidence:  {summary.low_confidence}")
+        print()
+
+        print("Failures")
+        print("--------")
+        print(f"Download failures:       {summary.download_failed}")
+        print(f"Detection failures:      {summary.detection_failed}")
+        print(f"Classification failures: {summary.classification_failed}")
 
     else:
         parser.print_help()
