@@ -28,7 +28,7 @@ from .services.sync import SyncService
 from .yolo_detector import YOLODetector
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="immich-dog-tagger",
         description="AI-assisted dog detection and tagging for Immich",
@@ -236,7 +236,7 @@ def main() -> None:
         help="Reprocess existing assets",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.command == "config-check":
         config = load_config()
