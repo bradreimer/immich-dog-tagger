@@ -183,4 +183,6 @@ class ReviewService:
                 source=EmbeddingSources.REVIEW,
             )
 
+        self.session.commit()
+
         return classification

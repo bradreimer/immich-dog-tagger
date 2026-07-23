@@ -5,10 +5,11 @@ from immich_dog_tagger.models import (
     ClassificationSources,
     Crop,
     CropClassification,
-    EmbeddingExample,
     EmbeddingSources,
     Identity,
+    EmbeddingExample,
 )
+from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.review import ReviewService
 
 
@@ -552,3 +553,100 @@ def test_apply_review_learns_from_review(engine):
                 EmbeddingSources.REVIEW,
             )
         ]
+
+
+def test_apply_review_creates_embedding_example(
+    engine,
+):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="fib.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.2,
+            source=ClassificationSources.AUTO,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        learner = Mock()
+
+        service = ReviewService(
+            session,
+            learner,
+        )
+
+        service.apply_review(
+            classification.id,
+            "Fibs",
+        )
+
+        learner.learn_image.assert_called_once()
+
+        result = session.query(CropClassification).one()
+
+        assert result.identity == "Fibs"
+        assert result.source == ClassificationSources.REVIEW
+
+
+def test_apply_review_creates_review_embedding_example(
+    engine,
+):
+    import numpy as np
+
+    class FakeEmbedder:
+        def embed(self, path):
+            return np.array(
+                [1, 0, 0],
+                dtype=np.float32,
+            )
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="fib.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.2,
+            source=ClassificationSources.AUTO,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        learner = Learner(
+            FakeEmbedder(),
+            session,
+        )
+
+        service = ReviewService(
+            session,
+            learner,
+        )
+
+        service.apply_review(
+            classification.id,
+            "Fibs",
+        )
+
+        examples = session.query(EmbeddingExample).all()
+
+        assert len(examples) == 1
+        assert examples[0].crop_path == "fib.jpg"
+        assert examples[0].source == EmbeddingSources.REVIEW

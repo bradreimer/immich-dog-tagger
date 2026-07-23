@@ -66,7 +66,6 @@ class Learner:
         )
 
         self.session.add(example)
-        self.session.commit()
 
         return True
 
