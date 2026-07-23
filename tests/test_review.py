@@ -650,3 +650,74 @@ def test_apply_review_creates_review_embedding_example(
         assert len(examples) == 1
         assert examples[0].crop_path == "fib.jpg"
         assert examples[0].source == EmbeddingSources.REVIEW
+
+
+def test_review_apply_updates_classification(engine):
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.4,
+            source=ClassificationSources.AUTO,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        service = ReviewService(session)
+
+        result = service.apply_review(
+            classification.id,
+            "Hermann",
+        )
+
+        session.commit()
+
+        assert result.identity == "Hermann"
+        assert result.source == ClassificationSources.REVIEW
+
+
+def test_review_apply_teaches_learner(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.4,
+            source=ClassificationSources.AUTO,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        learner = Mock()
+
+        service = ReviewService(
+            session,
+            learner,
+        )
+
+        service.apply_review(
+            classification.id,
+            "Fibs",
+        )
+
+        learner.learn_image.assert_called_once()
