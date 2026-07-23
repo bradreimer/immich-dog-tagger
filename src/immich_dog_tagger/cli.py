@@ -20,6 +20,7 @@ from .scanner import Scanner
 from .services.albums import AlbumService
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
+from .services.health import HealthService
 from .services.learner import Learner
 from .services.pipeline import PipelineService
 from .services.review import ReviewService
@@ -234,6 +235,11 @@ def main(argv: list[str] | None = None) -> None:
         "--force",
         action="store_true",
         help="Reprocess existing assets",
+    )
+
+    subparsers.add_parser(
+        "doctor",
+        help="Show pipeline health",
     )
 
     args = parser.parse_args(argv)
@@ -707,6 +713,21 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Downloaded:         {summary.downloaded}")
         print(f"Dogs detected:      {summary.detected}")
         print(f"Classified:         {summary.classified}")
+
+    elif args.command == "doctor":
+        config = load_config()
+
+        engine = create_database(config.state_dir)
+
+        with Session(engine) as session:
+            summary = HealthService(session).summary()
+
+        print(f"Assets:          {summary.assets}")
+        print(f"Detections:      {summary.detections}")
+        print(f"Crops:           {summary.crops}")
+        print(f"Classifications: {summary.classifications}")
+        print(f"Unknown:         {summary.unknown}")
+        print(f"Low confidence:  {summary.low_confidence}")
 
     else:
         parser.print_help()
