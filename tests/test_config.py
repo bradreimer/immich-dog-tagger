@@ -56,17 +56,11 @@ def test_cache_dir(monkeypatch):
 
 
 def test_config_separates_state_and_cache(monkeypatch):
-    monkeypatch.setenv(
-        "STATE_DIR",
-        "/state",
-    )
-    monkeypatch.setenv(
-        "CACHE_DIR",
-        "/cache",
-    )
+    monkeypatch.setenv("STATE_DIR", "/tmp/state")
+    monkeypatch.setenv("CACHE_DIR", "/tmp/cache")
 
     config = load_config(load_env_file=False)
 
-    assert config.state_dir == Path("/state")
-    assert config.cache_dir == Path("/cache")
-    assert config.crop_dir == Path("/cache/crops")
+    assert config.state_dir == Path("/tmp/state")
+    assert config.cache_dir == Path("/tmp/cache")
+    assert config.crop_dir == Path("/tmp/cache/crops")
