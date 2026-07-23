@@ -28,6 +28,7 @@ class EmbeddingSources(StrEnum):
 class ClassificationSources(StrEnum):
     AUTO = "auto"
     REVIEW = "review"
+    MANUAL = "manual"
 
 
 class Base(DeclarativeBase):

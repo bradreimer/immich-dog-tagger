@@ -83,6 +83,159 @@ def test_classification_service_creates_classification(engine):
         assert result.source == ClassificationSources.AUTO
 
 
+def test_classification_service_skips_existing_classification_by_default(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        existing = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.95,
+            source=ClassificationSources.MANUAL,
+        )
+
+        session.add(existing)
+        session.commit()
+
+        embedder = Mock()
+        classifier = Mock()
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending()
+
+        assert summary.classified == 0
+
+        embedder.embed_batch.assert_not_called()
+        classifier.classify.assert_not_called()
+
+        result = session.query(CropClassification).one()
+
+        assert result.identity == "Fibs"
+        assert result.source == ClassificationSources.MANUAL
+
+
+def test_classification_service_force_updates_existing_classification(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="test.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        existing = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.60,
+            source=ClassificationSources.MANUAL,
+        )
+
+        session.add(existing)
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.array(
+            [[1, 0, 0]],
+            dtype=np.float32,
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Hermann",
+            confidence=0.95,
+            matched_example_id=42,
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending(
+            force=True,
+        )
+
+        assert summary.classified == 1
+
+        result = session.query(CropClassification).one()
+
+        assert result.identity == "Hermann"
+        assert result.confidence == 0.95
+        assert result.matched_example_id == 42
+        assert result.source == ClassificationSources.MANUAL
+
+        # Important: force should still update in-place
+        assert session.query(CropClassification).count() == 1
+
+
+def test_classification_service_respects_limit(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        session.add_all(
+            [
+                Crop(
+                    detection_id=1,
+                    path="one.jpg",
+                ),
+                Crop(
+                    detection_id=2,
+                    path="two.jpg",
+                ),
+                Crop(
+                    detection_id=3,
+                    path="three.jpg",
+                ),
+            ]
+        )
+
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.array(
+            [
+                [1, 0, 0],
+            ],
+            dtype=np.float32,
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Fibs",
+            confidence=0.95,
+            matched_example_id=None,
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending(
+            limit=1,
+        )
+
+        assert summary.classified == 1
+
+
 def test_classification_service_handles_unknown_identity(engine):
     from unittest.mock import Mock
 
