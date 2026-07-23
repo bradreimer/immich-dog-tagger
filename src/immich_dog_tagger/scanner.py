@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from .immich import ImmichClient
 from .models import Asset
+from .status import AssetStatus
 
 
 class Scanner:
@@ -38,11 +39,13 @@ class Scanner:
             )
 
             if existing:
-                if not force:
-                    continue
+                if force and existing.checksum != immich_asset.checksum:
+                    existing.checksum = immich_asset.checksum
+                    existing.extension = immich_asset.extension
+                    existing.status = AssetStatus.PENDING
 
-                existing.checksum = immich_asset.checksum
-                existing.extension = immich_asset.extension
+                    new_count += 1
+
                 continue
 
             self.session.add(

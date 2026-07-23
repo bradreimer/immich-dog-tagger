@@ -23,12 +23,10 @@ class Downloader:
         limit: int | None = None,
         force: bool = False,
     ) -> int:
-        query = select(Asset)
-
-        if not force:
-            query = query.where(
-                Asset.status == AssetStatus.PENDING,
-            )
+        if force:
+            query = select(Asset)
+        else:
+            query = select(Asset).where(Asset.status == AssetStatus.PENDING)
 
         if limit is not None:
             query = query.limit(limit)

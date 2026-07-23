@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import select, exists
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.crops import CropWriter
@@ -69,10 +69,18 @@ class DetectionService:
 
             if force:
                 existing = self.session.scalars(
-                    select(Detection).where(Detection.asset_id == asset.id)
+                    select(Detection).where(
+                        Detection.asset_id == asset.id,
+                    )
                 ).all()
 
                 for detection in existing:
+                    if detection.crop:
+                        crop_path = Path(detection.crop.path)
+
+                        if crop_path.exists():
+                            crop_path.unlink()
+
                     self.session.delete(detection)
 
                 self.session.flush()

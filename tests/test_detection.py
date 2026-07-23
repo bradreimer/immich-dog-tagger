@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.detector import DetectionResult
-from immich_dog_tagger.models import Asset, Detection
+from immich_dog_tagger.models import Asset, Crop, Detection
 from immich_dog_tagger.status import AssetStatus
 
 
@@ -207,3 +207,79 @@ def test_detection_respects_limit(
         detections = session.query(Detection).all()
 
         assert len(detections) == 2
+
+
+def test_detection_force_replaces_existing_crop(
+    engine,
+    tmp_path,
+):
+    class FakeCropWriter:
+        def write(
+            self,
+            image_path,
+            asset_id,
+            detections,
+        ):
+            new_crop = tmp_path / "new-crop.jpg"
+            new_crop.write_bytes(b"new crop")
+
+            return [
+                (0, new_crop),
+            ]
+
+    old_crop = tmp_path / "old-crop.jpg"
+    old_crop.write_bytes(b"old crop")
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="abc123",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DETECTED,
+        )
+
+        session.add(asset)
+        session.commit()
+
+        detection = Detection(
+            asset_id=asset.id,
+            label="cat",
+            confidence=0.9,
+            x1=1,
+            y1=2,
+            x2=50,
+            y2=60,
+        )
+
+        session.add(detection)
+        session.flush()
+
+        session.add(
+            Crop(
+                detection_id=detection.id,
+                path=str(old_crop),
+            )
+        )
+
+        session.commit()
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+            crop_writer=FakeCropWriter(),
+        )
+
+        summary = service.run(
+            force=True,
+        )
+
+        assert summary.processed == 1
+        assert summary.detections == 1
+
+        assert not old_crop.exists()
+
+        crops = session.query(Crop).all()
+
+        assert len(crops) == 1
+        assert crops[0].path != str(old_crop)
