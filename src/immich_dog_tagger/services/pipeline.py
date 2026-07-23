@@ -35,6 +35,7 @@ class PipelineService:
 
         scanned = self.scanner.scan(
             limit=limit,
+            force=force,
         )
 
         if progress:

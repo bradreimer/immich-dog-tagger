@@ -16,12 +16,17 @@ class FakeClassificationSummary:
 class FakeScanner:
     def __init__(self):
         self.called = False
+        self.limit = None
+        self.force = None
 
     def scan(
         self,
         limit=None,
+        force=False,
     ):
         self.called = True
+        self.limit = limit
+        self.force = force
         return 10
 
 
@@ -98,7 +103,7 @@ def test_pipeline_runs_steps_in_order():
     calls = []
 
     class OrderedScanner:
-        def scan(self, limit=None):
+        def scan(self, limit=None, force=False):
             calls.append("scan")
             return 1
 
@@ -184,14 +189,18 @@ def test_pipeline_passes_limit_to_steps():
             received["classify"] = limit
             return FakeClassificationSummary(classified=0)
 
+    scanner = FakeScanner()
+
     service = PipelineService(
-        FakeScanner(),
+        scanner,
         LimitedDownloader(),
         LimitedDetector(),
         LimitedClassifier(),
     )
 
-    service.run(limit=25, force=False)
+    service.run(limit=25)
+
+    assert scanner.limit == 25
 
     assert received == {
         "download": 25,
@@ -202,6 +211,11 @@ def test_pipeline_passes_limit_to_steps():
 
 def test_pipeline_passes_force_to_steps():
     received = {}
+
+    class ForcedScanner:
+        def scan(self, limit=None, force=False):
+            received["scan"] = force
+            return 0
 
     class ForcedDownloader:
         def download_pending(self, limit=None, force=False):
@@ -219,7 +233,7 @@ def test_pipeline_passes_force_to_steps():
             return FakeClassificationSummary(classified=0)
 
     service = PipelineService(
-        FakeScanner(),
+        ForcedScanner(),
         ForcedDownloader(),
         ForcedDetector(),
         ForcedClassifier(),
@@ -228,6 +242,7 @@ def test_pipeline_passes_force_to_steps():
     service.run(force=True)
 
     assert received == {
+        "scan": True,
         "download": True,
         "detect": True,
         "classify": True,
