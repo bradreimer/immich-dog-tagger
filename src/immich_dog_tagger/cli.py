@@ -160,8 +160,7 @@ def classify_command(args) -> None:
         )
 
         summary = service.classify_pending(
-            limit=args.limit,
-            threshold=args.threshold,
+            limit=args.limit, threshold=args.threshold, force=args.force
         )
 
     print(f"Classified: {summary.classified}")
@@ -612,6 +611,12 @@ def main(argv: list[str] | None = None) -> None:
         type=float,
         default=0.80,
         help="Minimum confidence required for identity assignment",
+    )
+
+    classify_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reclassify already classified crops",
     )
 
     test_embedding_parser = subparsers.add_parser(

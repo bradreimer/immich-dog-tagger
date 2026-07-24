@@ -444,3 +444,54 @@ def test_classification_service_passes_threshold(engine):
         classifier.classify.assert_called_once()
 
         assert classifier.classify.call_args.kwargs["threshold"] == 0.65
+
+
+def test_classify_pending_force_includes_classified_crops(engine):
+    from unittest.mock import Mock
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="dog.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        session.add(
+            CropClassification(
+                crop=crop,
+                identity="Fibs",
+                confidence=0.50,
+                source=ClassificationSources.MANUAL,
+            )
+        )
+
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.array(
+            [
+                [1, 0, 0],
+            ],
+            dtype=np.float32,
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Hermann",
+            confidence=0.95,
+            matched_example_id=42,
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending(
+            force=True,
+        )
+
+    assert summary.classified == 1
