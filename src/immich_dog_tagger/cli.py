@@ -28,6 +28,512 @@ from .services.sync import SyncService
 from .yolo_detector import YOLODetector
 
 
+def config_check_command(args) -> None:
+    config = load_config()
+
+    print("Immich:")
+    print(f"  URL: {config.immich_url}")
+
+    if config.immich_api_key:
+        print("  API key: configured")
+    else:
+        print("  API key: missing")
+
+    print()
+    print("Storage:")
+    print(f"  State directory: {config.state_dir}")
+
+
+def init_db_command(args) -> None:
+    config = load_config()
+
+    create_database(config.state_dir)
+
+    print(f"Database initialized: {config.state_dir / 'state.db'}")
+
+
+def test_immich_command(args) -> None:
+    config = load_config()
+
+    client = ImmichClient(
+        config.immich_url,
+        config.immich_api_key,
+    )
+
+    assets = client.list_assets()
+
+    print(f"Found {len(assets)} assets")
+
+
+def scan_command(args) -> None:
+    config = load_config()
+
+    client = ImmichClient(
+        config.immich_url,
+        config.immich_api_key,
+    )
+
+    engine = create_database(config.state_dir)
+
+    with Session(engine) as session:
+        scanner = Scanner(
+            client,
+            session,
+        )
+
+        count = scanner.scan()
+
+    print(f"New assets: {count}")
+
+
+def download_command(args) -> None:
+    config = load_config()
+
+    client = ImmichClient(
+        config.immich_url,
+        config.immich_api_key,
+    )
+
+    engine = create_database(config.state_dir)
+
+    with Session(engine) as session:
+        downloader = Downloader(
+            client,
+            session,
+            config.cache_dir,
+        )
+
+        count = downloader.download_pending(
+            limit=args.limit,
+        )
+
+    print(f"Downloaded: {count}")
+
+
+def detect_command(args) -> None:
+    config = load_config()
+
+    detector = YOLODetector(
+        config.yolo_model,
+    )
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        service = DetectionService(
+            detector,
+            session,
+            config.cache_dir,
+            CropWriter(
+                config.crop_dir,
+                config.crop_padding,
+            ),
+        )
+
+        summary = service.run(
+            limit=args.limit,
+        )
+
+        print(f"Processed: {summary.processed}")
+        print(f"Detections: {summary.detections}")
+        print(f"Dogs: {summary.dogs}")
+
+
+def classify_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    embedder = OpenClipEmbedder()
+
+    with Session(engine) as session:
+        classifier = IdentityClassifier(session)
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify_pending(
+            limit=args.limit,
+            threshold=args.threshold,
+        )
+
+    print(f"Classified: {summary.classified}")
+
+    for identity, count in summary.identities.items():
+        print(f"{identity}: {count}")
+
+
+def test_embedding_command(args) -> None:
+    embedder = OpenClipEmbedder()
+
+    embedding = embedder.embed(Path(args.image))
+
+    print(f"Dimensions: {embedding.shape[0]}")
+    print(f"First values: {embedding[:5]}")
+
+
+def learn_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    embedder = OpenClipEmbedder()
+
+    with Session(engine) as session:
+        learner = Learner(
+            embedder,
+            session,
+        )
+
+        count = learner.learn(
+            args.identity,
+            Path(args.directory),
+        )
+
+    print(f"Learned examples: {count}")
+
+
+def classify_list_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        service = ReviewService(session)
+
+        classifications = service.classifications(
+            limit=args.limit,
+            identity=args.identity,
+            unknown=args.unknown,
+        )
+
+    print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}{'File':<40}Match")
+
+    for item in classifications:
+        print(
+            f"{item.classification_id:<8}"
+            f"{str(item.identity):<12}"
+            f"{item.confidence:<14.4f}"
+            f"{item.filename:<40}"
+            f"{item.matched_example_path or ''}"
+        )
+
+
+def review_stats_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        service = ReviewService(session)
+        summary = service.summary()
+
+    print(f"Total classifications: {summary.total}")
+    print()
+
+    print("Identity")
+    print("--------")
+
+    for identity, count in sorted(summary.identities.items()):
+        print(f"{identity:<12}{count}")
+
+    print(f"{'Unknown':<12}{summary.unknown}")
+
+    print()
+    print("Confidence")
+    print("----------")
+
+    for bucket, count in summary.confidence_buckets.items():
+        print(f"{bucket:<12}{count}")
+
+
+def export_review_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(config.state_dir)
+
+    with Session(engine) as session:
+        review = ReviewService(session)
+
+        items = review.classifications(
+            limit=args.limit,
+        )
+
+    exporter = ReviewExporter()
+
+    count = exporter.export(
+        items,
+        config.cache_dir / "review",
+    )
+
+    print(f"Exported: {count}")
+
+
+def import_review_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    embedder = OpenClipEmbedder()
+
+    with Session(engine) as session:
+        learner = Learner(
+            embedder,
+            session,
+        )
+
+        importer = ReviewImporter(
+            learner,
+        )
+
+        if args.dry_run:
+            plan = importer.plan_import(
+                config.cache_dir / "review" / "confirmed",
+            )
+
+            print("Would import:")
+
+            for identity, count in plan.identities.items():
+                print(f"{identity}: {count}")
+
+            print()
+            print(f"Total: {plan.total}")
+
+        else:
+            summary = importer.import_confirmed(
+                config.cache_dir / "review" / "confirmed",
+            )
+
+            print(f"Imported: {summary.imported}")
+
+            for identity, count in summary.identities.items():
+                print(f"{identity}: {count}")
+
+
+def active_review_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        review = ReviewService(session)
+
+        items = review.active_review(
+            threshold=args.threshold,
+        )
+
+    exporter = ReviewExporter()
+
+    count = exporter.export(
+        items,
+        config.cache_dir / "review" / "active",
+    )
+
+    print(f"Exported: {count}")
+
+
+def review_apply_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    embedder = OpenClipEmbedder()
+
+    with Session(engine) as session:
+        learner = Learner(
+            embedder,
+            session,
+        )
+
+        review = ReviewService(
+            session,
+            learner,
+        )
+
+        review.apply_review(
+            args.classification_id,
+            args.identity,
+        )
+
+        session.commit()
+
+    print(f"Applied review: {args.classification_id} -> {args.identity}")
+
+
+def status_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        service = StatusService(session)
+        summary = service.summary()
+
+    print(f"Assets:             {summary.assets}")
+    print(f"Detections:         {summary.detections}")
+    print(f"Crops:              {summary.crops}")
+    print(f"Classifications:    {summary.classifications}")
+    print(f"Identities:         {summary.identities}")
+    print(f"Embedding examples: {summary.examples}")
+
+
+def sync_command(args) -> None:
+    config = load_config()
+
+    client = ImmichClient(
+        config.immich_url,
+        config.immich_api_key,
+    )
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        service = SyncService(
+            session,
+            AlbumService(client),
+        )
+
+        summary = service.sync(
+            dry_run=args.dry_run,
+        )
+
+    if args.dry_run:
+        print("Would sync:")
+
+    for identity, count in summary.items():
+        print(f"{identity}: {count}")
+
+
+def pipeline_command(args) -> None:
+    config = load_config()
+
+    client = ImmichClient(
+        config.immich_url,
+        config.immich_api_key,
+    )
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    detector = YOLODetector(
+        config.yolo_model,
+    )
+
+    embedder = OpenClipEmbedder()
+
+    with Session(engine) as session:
+        scanner = Scanner(
+            client,
+            session,
+        )
+
+        downloader = Downloader(
+            client,
+            session,
+            config.cache_dir,
+        )
+
+        detection_service = DetectionService(
+            detector,
+            session,
+            config.cache_dir,
+            CropWriter(
+                config.crop_dir,
+                config.crop_padding,
+            ),
+        )
+
+        classifier = ClassificationService(
+            session,
+            embedder,
+            IdentityClassifier(session),
+        )
+
+        pipeline = PipelineService(
+            scanner,
+            downloader,
+            detection_service,
+            classifier,
+        )
+
+        if args.dry_run:
+            print("Pipeline dry run")
+            print()
+            print("Would scan Immich")
+
+            if args.limit:
+                print(f"Would process up to {args.limit} items per stage")
+            else:
+                print("Would process all pending items")
+
+            print()
+            print("No changes made.")
+            return
+
+        summary = pipeline.run(
+            progress=lambda message: print(message, flush=True),
+            limit=args.limit,
+            force=args.force,
+        )
+
+    print("Pipeline complete")
+    print()
+
+    print("Summary")
+    print("-------")
+    print(f"Assets scanned:     {summary.scanned}")
+    print(f"Downloaded:         {summary.downloaded}")
+    print(f"Dogs detected:      {summary.detected}")
+    print(f"Classified:         {summary.classified}")
+
+
+def doctor_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(config.state_dir)
+
+    with Session(engine) as session:
+        summary = StatusService(session).summary()
+
+    print(f"Assets:          {summary.assets}")
+    print(f"Detections:      {summary.detections}")
+    print(f"Crops:           {summary.crops}")
+    print(f"Classifications: {summary.classifications}")
+    print(f"Unknown:         {summary.unknown}")
+    print(f"Low confidence:  {summary.low_confidence}")
+    print()
+
+    print("Failures")
+    print("--------")
+    print(f"Download failures:       {summary.download_failed}")
+    print(f"Detection failures:      {summary.detection_failed}")
+    print(f"Classification failures: {summary.classification_failed}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="immich-dog-tagger",
@@ -244,496 +750,61 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command == "config-check":
-        config = load_config()
-
-        print("Immich:")
-        print(f"  URL: {config.immich_url}")
-
-        if config.immich_api_key:
-            print("  API key: configured")
-        else:
-            print("  API key: missing")
-
-        print()
-        print("Storage:")
-        print(f"  State directory: {config.state_dir}")
+        config_check_command(args)
 
     elif args.command == "init-db":
-        config = load_config()
-
-        create_database(config.state_dir)
-
-        print(f"Database initialized: {config.state_dir / 'state.db'}")
+        init_db_command(args)
 
     elif args.command == "test-immich":
-        config = load_config()
-
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-        )
-
-        assets = client.list_assets()
-
-        print(f"Found {len(assets)} assets")
+        test_immich_command(args)
 
     elif args.command == "scan":
-        config = load_config()
-
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-        )
-
-        engine = create_database(config.state_dir)
-
-        with Session(engine) as session:
-            scanner = Scanner(
-                client,
-                session,
-            )
-
-            count = scanner.scan()
-
-        print(f"New assets: {count}")
+        scan_command(args)
 
     elif args.command == "download":
-        config = load_config()
-
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-        )
-
-        engine = create_database(config.state_dir)
-
-        with Session(engine) as session:
-            downloader = Downloader(
-                client,
-                session,
-                config.cache_dir,
-            )
-
-            count = downloader.download_pending(
-                limit=args.limit,
-            )
-
-        print(f"Downloaded: {count}")
+        download_command(args)
 
     elif args.command == "detect":
-        config = load_config()
-
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-        )
-
-        detector = YOLODetector(
-            config.yolo_model,
-        )
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            service = DetectionService(
-                detector,
-                session,
-                config.cache_dir,
-                CropWriter(
-                    config.crop_dir,
-                    config.crop_padding,
-                ),
-            )
-
-            summary = service.run(
-                limit=args.limit,
-            )
-
-            print(f"Processed: {summary.processed}")
-            print(f"Detections: {summary.detections}")
-            print(f"Dogs: {summary.dogs}")
+        detect_command(args)
 
     elif args.command == "classify":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        embedder = OpenClipEmbedder()
-
-        with Session(engine) as session:
-            classifier = IdentityClassifier(session)
-
-            service = ClassificationService(
-                session,
-                embedder,
-                classifier,
-            )
-
-            summary = service.classify_pending(
-                limit=args.limit,
-                threshold=args.threshold,
-            )
-
-        print(f"Classified: {summary.classified}")
-
-        for identity, count in summary.identities.items():
-            print(f"{identity}: {count}")
+        classify_command(args)
 
     elif args.command == "test-embedding":
-        embedder = OpenClipEmbedder()
-
-        embedding = embedder.embed(Path(args.image))
-
-        print(f"Dimensions: {embedding.shape[0]}")
-        print(f"First values: {embedding[:5]}")
+        test_embedding_command(args)
 
     elif args.command == "learn":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        embedder = OpenClipEmbedder()
-
-        with Session(engine) as session:
-            learner = Learner(
-                embedder,
-                session,
-            )
-
-            count = learner.learn(
-                args.identity,
-                Path(args.directory),
-            )
-
-        print(f"Learned examples: {count}")
+        learn_command(args)
 
     elif args.command == "classify-list":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            service = ReviewService(session)
-
-            classifications = service.classifications(
-                limit=args.limit,
-                identity=args.identity,
-                unknown=args.unknown,
-            )
-
-        print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}{'File':<40}Match")
-
-        for item in classifications:
-            print(
-                f"{item.classification_id:<8}"
-                f"{str(item.identity):<12}"
-                f"{item.confidence:<14.4f}"
-                f"{item.filename:<40}"
-                f"{item.matched_example_path or ''}"
-            )
+        classify_list_command(args)
 
     elif args.command == "review-stats":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            service = ReviewService(session)
-            summary = service.summary()
-
-        print(f"Total classifications: {summary.total}")
-        print()
-
-        print("Identity")
-        print("--------")
-
-        for identity, count in sorted(summary.identities.items()):
-            print(f"{identity:<12}{count}")
-
-        print(f"{'Unknown':<12}{summary.unknown}")
-
-        print()
-        print("Confidence")
-        print("----------")
-
-        for bucket, count in summary.confidence_buckets.items():
-            print(f"{bucket:<12}{count}")
+        review_stats_command(args)
 
     elif args.command == "export-review":
-        config = load_config()
-
-        engine = create_database(config.state_dir)
-
-        with Session(engine) as session:
-            review = ReviewService(session)
-
-            items = review.classifications(
-                limit=args.limit,
-            )
-
-        exporter = ReviewExporter()
-
-        count = exporter.export(
-            items,
-            config.cache_dir / "review",
-        )
-
-        print(f"Exported: {count}")
+        export_review_command(args)
 
     elif args.command == "import-review":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        embedder = OpenClipEmbedder()
-
-        with Session(engine) as session:
-            learner = Learner(
-                embedder,
-                session,
-            )
-
-            importer = ReviewImporter(
-                learner,
-            )
-
-            if args.dry_run:
-                plan = importer.plan_import(
-                    config.cache_dir / "review" / "confirmed",
-                )
-
-                print("Would import:")
-
-                for identity, count in plan.identities.items():
-                    print(f"{identity}: {count}")
-
-                print()
-                print(f"Total: {plan.total}")
-
-            else:
-                summary = importer.import_confirmed(
-                    config.cache_dir / "review" / "confirmed",
-                )
-
-                print(f"Imported: {summary.imported}")
-
-                for identity, count in summary.identities.items():
-                    print(f"{identity}: {count}")
+        import_review_command(args)
 
     elif args.command == "active-review":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            review = ReviewService(session)
-
-            items = review.active_review(
-                threshold=args.threshold,
-            )
-
-        exporter = ReviewExporter()
-
-        count = exporter.export(
-            items,
-            config.cache_dir / "review" / "active",
-        )
-
-        print(f"Exported: {count}")
+        active_review_command(args)
 
     elif args.command == "review-apply":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        embedder = OpenClipEmbedder()
-
-        with Session(engine) as session:
-            learner = Learner(
-                embedder,
-                session,
-            )
-
-            review = ReviewService(
-                session,
-                learner,
-            )
-
-            review.apply_review(
-                args.classification_id,
-                args.identity,
-            )
-
-            session.commit()
-
-        print(f"Applied review: {args.classification_id} -> {args.identity}")
+        review_apply_command(args)
 
     elif args.command == "status":
-        config = load_config()
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            service = StatusService(session)
-            summary = service.summary()
-
-        print(f"Assets:             {summary.assets}")
-        print(f"Detections:         {summary.detections}")
-        print(f"Crops:              {summary.crops}")
-        print(f"Classifications:    {summary.classifications}")
-        print(f"Identities:         {summary.identities}")
-        print(f"Embedding examples: {summary.examples}")
+        status_command(args)
 
     elif args.command == "sync":
-        config = load_config()
-
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-        )
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            service = SyncService(
-                session,
-                AlbumService(client),
-            )
-
-            summary = service.sync(
-                dry_run=args.dry_run,
-            )
-
-        if args.dry_run:
-            print("Would sync:")
-
-        for identity, count in summary.items():
-            print(f"{identity}: {count}")
+        sync_command(args)
 
     elif args.command == "pipeline":
-        config = load_config()
-
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-        )
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        detector = YOLODetector(
-            config.yolo_model,
-        )
-
-        embedder = OpenClipEmbedder()
-
-        with Session(engine) as session:
-            scanner = Scanner(
-                client,
-                session,
-            )
-
-            downloader = Downloader(
-                client,
-                session,
-                config.cache_dir,
-            )
-
-            detection_service = DetectionService(
-                detector,
-                session,
-                config.cache_dir,
-                CropWriter(
-                    config.crop_dir,
-                    config.crop_padding,
-                ),
-            )
-
-            classifier = ClassificationService(
-                session,
-                embedder,
-                IdentityClassifier(session),
-            )
-
-            pipeline = PipelineService(
-                scanner,
-                downloader,
-                detection_service,
-                classifier,
-            )
-
-            if args.dry_run:
-                print("Pipeline dry run")
-                print()
-                print("Would scan Immich")
-
-                if args.limit:
-                    print(f"Would process up to {args.limit} items per stage")
-                else:
-                    print("Would process all pending items")
-
-                print()
-                print("No changes made.")
-                return
-
-            summary = pipeline.run(
-                progress=lambda message: print(message, flush=True),
-                limit=args.limit,
-                force=args.force,
-            )
-
-        print("Pipeline complete")
-        print()
-
-        print("Summary")
-        print("-------")
-        print(f"Assets scanned:     {summary.scanned}")
-        print(f"Downloaded:         {summary.downloaded}")
-        print(f"Dogs detected:      {summary.detected}")
-        print(f"Classified:         {summary.classified}")
+        pipeline_command(args)
 
     elif args.command == "doctor":
-        config = load_config()
-
-        engine = create_database(config.state_dir)
-
-        with Session(engine) as session:
-            summary = StatusService(session).summary()
-
-        print(f"Assets:          {summary.assets}")
-        print(f"Detections:      {summary.detections}")
-        print(f"Crops:           {summary.crops}")
-        print(f"Classifications: {summary.classifications}")
-        print(f"Unknown:         {summary.unknown}")
-        print(f"Low confidence:  {summary.low_confidence}")
-        print()
-
-        print("Failures")
-        print("--------")
-        print(f"Download failures:       {summary.download_failed}")
-        print(f"Detection failures:      {summary.detection_failed}")
-        print(f"Classification failures: {summary.classification_failed}")
+        doctor_command(args)
 
     else:
         parser.print_help()
