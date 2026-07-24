@@ -394,8 +394,9 @@ def test_classification_service_reclassifies_existing_classification(engine):
             classifier,
         )
 
-        service.reclassify_pending(
+        service.classify_pending(
             threshold=0.80,
+            low_confidence=True,
         )
 
         result = session.query(CropClassification).one()

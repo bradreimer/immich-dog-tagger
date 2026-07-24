@@ -38,10 +38,16 @@ class ClassificationService:
         limit: int | None = None,
         threshold: float = 0.80,
         force: bool = False,
+        low_confidence: bool = False,
     ) -> ClassificationSummary:
         query = self.session.query(Crop)
 
-        if not force:
+        if low_confidence:
+            query = query.join(CropClassification).filter(
+                (CropClassification.identity.is_(None))
+                | (CropClassification.confidence < threshold)
+            )
+        elif not force:
             query = query.filter(~Crop.classification.has())
 
         if limit is not None:
@@ -110,49 +116,3 @@ class ClassificationService:
             self.session.add(classification)
 
         return classification
-
-    def reclassify_pending(
-        self,
-        threshold: float = 0.80,
-    ) -> ClassificationSummary:
-        query = (
-            self.session.query(Crop)
-            .join(CropClassification)
-            .filter(
-                (CropClassification.identity.is_(None))
-                | (CropClassification.confidence < threshold)
-            )
-        )
-
-        crops = query.all()
-
-        if not crops:
-            return ClassificationSummary(
-                classified=0,
-                identities={},
-            )
-
-        counts = Counter()
-
-        embeddings = self.embedder.embed_batch(
-            [crop.path for crop in crops],
-        )
-
-        for crop, embedding in zip(crops, embeddings):
-            classification = self._classify_crop(
-                crop,
-                embedding,
-                threshold,
-            )
-
-            if classification.identity:
-                counts[classification.identity] += 1
-            else:
-                counts["Unknown"] += 1
-
-        self.session.commit()
-
-        return ClassificationSummary(
-            classified=len(crops),
-            identities=dict(counts),
-        )

@@ -136,7 +136,9 @@ def test_classification_service_handles_no_reclassification_candidates(engine):
             classifier,
         )
 
-        summary = service.reclassify_pending()
+        summary = service.classify_pending(
+            low_confidence=True,
+        )
 
         assert summary.classified == 0
         assert summary.identities == {}
