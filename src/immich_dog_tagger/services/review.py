@@ -6,11 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
-    ClassificationSources,
     CropClassification,
-    EmbeddingSources,
 )
-from immich_dog_tagger.services.learner import Learner
 
 
 @dataclass(frozen=True)
@@ -39,10 +36,8 @@ class ReviewService:
     def __init__(
         self,
         session: Session,
-        learner: Learner | None = None,
     ):
         self.session = session
-        self.learner = learner
 
     def classifications(
         self,
@@ -159,30 +154,3 @@ class ReviewService:
             )
             for classification in classifications
         ]
-
-    def apply_review(
-        self,
-        classification_id: int,
-        identity: str,
-    ) -> CropClassification:
-        classification = self.session.get(
-            CropClassification,
-            classification_id,
-        )
-
-        if classification is None:
-            raise ValueError(f"Classification {classification_id} not found")
-
-        classification.identity = identity
-        classification.source = ClassificationSources.REVIEW
-
-        if self.learner is not None:
-            self.learner.learn_image(
-                identity,
-                Path(classification.crop.path),
-                source=EmbeddingSources.REVIEW,
-            )
-
-        self.session.commit()
-
-        return classification

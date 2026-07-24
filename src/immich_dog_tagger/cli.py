@@ -20,6 +20,7 @@ from .review_import import ReviewImporter
 from .scanner import Scanner
 from .services.albums import AlbumService
 from .services.classification import ClassificationService
+from .services.correction import ClassificationCorrectionService
 from .services.detection import DetectionService
 from .services.learner import Learner
 from .services.pipeline import PipelineService
@@ -368,12 +369,12 @@ def review_apply_command(args) -> None:
             session,
         )
 
-        review = ReviewService(
+        correction = ClassificationCorrectionService(
             session,
             learner,
         )
 
-        review.apply_review(
+        correction.correct(
             args.classification_id,
             args.identity,
         )
