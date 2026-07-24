@@ -194,3 +194,14 @@ def test_health_reports_asset_status_counts(engine):
         assert summary.download_failed == 1
         assert summary.detection_failed == 1
         assert summary.classification_failed == 1
+
+
+def test_pipeline_plan_empty_database(engine):
+    with Session(engine) as session:
+        service = StatusService(session)
+
+        plan = service.pipeline_plan()
+
+    assert plan.pending_download == 0
+    assert plan.pending_detection == 0
+    assert plan.pending_classification == 0

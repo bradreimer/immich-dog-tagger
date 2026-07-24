@@ -45,6 +45,13 @@ class StatusSummary:
     low_confidence: int
 
 
+@dataclass(frozen=True)
+class PipelinePlan:
+    pending_download: int
+    pending_detection: int
+    pending_classification: int
+
+
 class StatusService:
     def __init__(
         self,
@@ -62,32 +69,27 @@ class StatusService:
             statuses=self._asset_status_counts(),
             identities=self._count(Identity),
             examples=self._count(EmbeddingExample),
-            pending_download=self._count_assets(
-                AssetStatus.PENDING,
-            ),
-            downloaded=self._count_assets(
-                AssetStatus.DOWNLOADED,
-            ),
-            download_failed=self._count_assets(
-                AssetStatus.DOWNLOAD_FAILED,
-            ),
+            pending_download=self._count_pending_download(),
+            downloaded=self._count_downloaded(),
+            download_failed=self._count_download_failed(),
             detections=self._count(Detection),
-            pending_detection=self._count_assets(
-                AssetStatus.DOWNLOADED,
-            ),
-            detection_failed=self._count_assets(
-                AssetStatus.DETECTION_FAILED,
-            ),
+            pending_detection=self._count_pending_detection(),
+            detection_failed=self._count_detection_failed(),
             crops=self._count(Crop),
             classifications=self._count(CropClassification),
             pending_classification=self._count_pending_classification(),
-            classification_failed=self._count_assets(
-                AssetStatus.CLASSIFICATION_FAILED,
-            ),
+            classification_failed=self._count_classification_failed(),
             unknown=self._count_unknown(),
             low_confidence=self._count_low_confidence(
                 confidence_threshold,
             ),
+        )
+
+    def pipeline_plan(self) -> PipelinePlan:
+        return PipelinePlan(
+            pending_download=self._count_pending_download(),
+            pending_detection=self._count_pending_detection(),
+            pending_classification=self._count_pending_classification(),
         )
 
     def _count(
@@ -105,17 +107,6 @@ class StatusService:
             counts[asset.status.value] += 1
 
         return dict(counts)
-
-    def _count_assets(
-        self,
-        status: AssetStatus,
-    ) -> int:
-        return (
-            self.session.scalar(
-                select(func.count()).select_from(Asset).where(Asset.status == status)
-            )
-            or 0
-        )
 
     def _count_unknown(self) -> int:
         return (
@@ -148,7 +139,55 @@ class StatusService:
                 select(func.count())
                 .select_from(Asset)
                 .where(
-                    Asset.status == AssetStatus.NEW,
+                    Asset.status == AssetStatus.PENDING,
+                )
+            )
+            or 0
+        )
+
+    def _count_downloaded(self) -> int:
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Asset)
+                .where(
+                    Asset.status == AssetStatus.DOWNLOADED,
+                )
+            )
+            or 0
+        )
+
+    def _count_download_failed(self) -> int:
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Asset)
+                .where(
+                    Asset.status == AssetStatus.DOWNLOAD_FAILED,
+                )
+            )
+            or 0
+        )
+
+    def _count_detection_failed(self) -> int:
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Asset)
+                .where(
+                    Asset.status == AssetStatus.DETECTION_FAILED,
+                )
+            )
+            or 0
+        )
+
+    def _count_classification_failed(self) -> int:
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(Asset)
+                .where(
+                    Asset.status == AssetStatus.CLASSIFICATION_FAILED,
                 )
             )
             or 0

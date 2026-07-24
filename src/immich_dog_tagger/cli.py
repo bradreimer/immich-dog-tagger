@@ -20,10 +20,10 @@ from .scanner import Scanner
 from .services.albums import AlbumService
 from .services.classification import ClassificationService
 from .services.detection import DetectionService
-from .services.status import StatusService
 from .services.learner import Learner
 from .services.pipeline import PipelineService
 from .services.review import ReviewService
+from .services.status import PipelinePlan, StatusService
 from .services.sync import SyncService
 from .yolo_detector import YOLODetector
 
@@ -497,14 +497,33 @@ def pipeline_command(args) -> None:
         )
 
         if args.dry_run:
+            status = StatusService(session)
+            plan = status.pipeline_plan()
+
             print("Pipeline dry run")
             print()
-            print("Would scan Immich")
 
-            if args.limit:
-                print(f"Would process up to {args.limit} items per stage")
-            else:
-                print("Would process all pending items")
+            def print_pipeline_plan(plan: PipelinePlan, limit: int | None) -> None:
+                if plan.pending_download:
+                    print(f"Would download {plan.pending_download} assets")
+                else:
+                    print("No pending downloads")
+
+                if plan.pending_detection:
+                    print(f"Would detect dogs in {plan.pending_detection} assets")
+                else:
+                    print("No pending detections")
+
+                if plan.pending_classification:
+                    print(f"Would classify {plan.pending_classification} crops")
+                else:
+                    print("No pending classifications")
+
+                if limit:
+                    print()
+                    print(f"Limit: {limit} items per stage")
+
+            print_pipeline_plan(plan, args.limit)
 
             print()
             print("No changes made.")

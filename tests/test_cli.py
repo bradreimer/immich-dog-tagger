@@ -21,7 +21,6 @@ def test_pipeline_dry_run_prints_plan(capsys):
     output = capsys.readouterr().out
 
     assert "Pipeline dry run" in output
-    assert "Would scan Immich" in output
     assert "No changes made." in output
 
 
@@ -44,4 +43,4 @@ def test_pipeline_dry_run_with_limit(capsys):
 
     output = capsys.readouterr().out
 
-    assert "25 items per stage" in output
+    assert "Limit: 25 items per stage" in output
