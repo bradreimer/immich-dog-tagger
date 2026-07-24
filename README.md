@@ -4,13 +4,14 @@ AI-assisted dog detection and identity classification pipeline for [Immich](http
 
 Immich Dog Tagger scans an Immich photo library, detects dogs, creates crops, generates image embeddings, and classifies individual dogs using a locally trained identity model.
 
-The workflow is designed around human-in-the-loop learning:
+The system is designed around human-in-the-loop learning:
 
 1. Detect dogs
 2. Classify predictions
 3. Review uncertain results
-4. Confirm correct identities
-5. Feed confirmed examples back into training
+4. Correct mistakes
+5. Learn from confirmed examples
+6. Improve future classifications
 
 The goal is to identify individual dogs such as:
 
@@ -22,88 +23,223 @@ while keeping all processing local.
 
 ---
 
-## Features
+# Project Status
 
-Current capabilities:
+Current release:
+
+```
+
+v0.2.0
+
+```
+
+The v0.2.0 milestone completes the core machine learning pipeline, review workflow, learning loop, and Immich synchronization.
+
+The next milestone:
+
+```
+
+v0.3.0 Web API
+
+```
+
+introduces a FastAPI service layer and browser-based workflows built on top of the existing architecture.
+
+---
+
+# Architecture
+
+The central design principle is:
+
+> `state.db` is the source of truth.
+
+Immich is treated as a photo source and presentation target. The local database owns processing state, classifications, review history, and learned examples.
+
+Current architecture:
+
+```
+
+```
+         CLI
+          |
+          v
+    Application Services
+          |
+          v
+       state.db
+
+          |
+  +-------+-------+
+  |               |
+  v               v
+```
+
+ML Pipeline     Immich Sync
+
+```
+
+Future web architecture:
+
+```
+
+```
+         Browser
+            |
+            v
+        FastAPI API
+            |
+            v
+    Application Services
+            |
+            v
+         state.db
+
+            |
+    +-------+-------+
+    |               |
+    v               v
+
+ ML Pipeline    Immich Sync
+```
+
+```
+
+The CLI remains an operator and maintenance interface. The Web API becomes the primary human interaction layer.
+
+---
+
+# Features
+
+## Completed in v0.2.0
 
 - Scan an Immich library through the Immich API
-- Maintain local processing state in SQLite
+- Maintain persistent local processing state
 - Download and cache assets
 - Detect dogs using YOLO
 - Generate dog crops
-- Generate image embeddings using OpenCLIP
+- Generate embeddings using OpenCLIP
 - Classify dogs using embedding similarity
 - Track classification confidence
 - Track classification provenance:
   - automatic predictions
-  - human review corrections
+  - human corrections
 - Review uncertain classifications
-- Create new training examples from reviewed results
+- Correct classifications
+- Generate training examples from reviewed results
 - Incrementally build a local identity dataset
-- Sync identified dogs back into Immich albums
+- Explain classifications using matched examples
+- Synchronize identified dogs back into Immich albums
+
+Supported identities include:
+
+- Hermann
+- Fibonacci (Fibs)
+- Henri
 
 ---
 
-## Architecture
-
-The processing pipeline:
+# Processing Pipeline
 
 ```
+
 Immich
-  |
-  v
+|
+v
 Scanner
-  |
-  v
+|
+v
 Downloader
-  |
-  v
+|
+v
 YOLO Dog Detection
-  |
-  v
+|
+v
 Crop Generation
-  |
-  v
+|
+v
 OpenCLIP Embeddings
-  |
-  v
+|
+v
 Identity Classification
-  |
-  v
+|
+v
 Human Review
-  |
-  v
+|
+v
 Learning Examples
-  |
-  v
+|
+v
 Improved Classification
-```
-
-Processing is split into independent stages:
 
 ```
+
+Processing stages:
+
+```
+
 scan
-  Discover assets from Immich
+Discover assets from Immich
 
 download
-  Cache local copies
+Cache local copies
 
 detect
-  Locate dogs and create crops
+Locate dogs and create crops
 
 classify
-  Identify individual dogs
+Identify individual dogs
 
 review
-  Validate uncertain predictions
+Inspect and correct predictions
+
+learn
+Add confirmed examples
 
 sync
-  Update Immich albums
+Update Immich albums
+
 ```
 
 ---
 
-## Requirements
+# Database
+
+The SQLite database is the system of record.
+
+It stores:
+
+- discovered assets
+- detections
+- crops
+- classifications
+- identities
+- embedding examples
+- review corrections
+- provenance metadata
+
+Example:
+
+```
+
+data/breimer/
+
+├── state/
+│   └── state.db
+│
+└── cache/
+├── assets/
+├── crops/
+└── review/
+
+````
+
+The cache contains rebuildable artifacts.
+
+The database contains knowledge.
+
+---
+
+# Requirements
 
 - Python 3.14+
 - `uv`
@@ -117,18 +253,18 @@ Tested development environment:
 - NVIDIA CUDA
 - RTX-class GPU
 
-CPU execution is possible but will be significantly slower.
+CPU execution is possible but significantly slower.
 
 ---
 
-## Installation
+# Installation
 
 Clone the repository:
 
 ```bash
 git clone <repository-url>
 cd immich-dog-tagger
-```
+````
 
 Install dependencies:
 
@@ -138,9 +274,9 @@ uv sync
 
 ---
 
-## Configuration
+# Configuration
 
-Create your configuration file:
+Create your configuration:
 
 ```bash
 immich-dog-tagger config-check
@@ -148,197 +284,89 @@ immich-dog-tagger config-check
 
 Configuration includes:
 
-- Immich URL
-- Immich API key
-- State directory
-- Cache directory
-- Crop storage location
-- YOLO model path
-
-The application separates persistent state from rebuildable cache data.
-
-Example storage layout:
-
-```plain
-data/breimer/
-├── state/
-│ └── state.db
-└── cache/
-  ├── assets/
-  ├── crops/
-  └── review/
-```
-
-The state directory contains the SQLite database and processing metadata.
-
-The cache directory contains downloaded assets, generated crops, and review artifacts. Cache contents can be deleted and regenerated if required.
-
-All generated data remains local.
+* Immich URL
+* Immich API key
+* State directory
+* Cache directory
+* Crop storage location
+* YOLO model path
 
 ---
 
-## Initialize the Database
+# Processing
 
-Create the local SQLite database:
-
-```bash
-immich-dog-tagger init-db
-```
-
-The database stores:
-
-- discovered assets
-- detections
-- crops
-- classifications
-- identities
-- embedding examples
-
----
-
-# First Processing Run
-
-The complete pipeline can be executed with:
+Run the complete pipeline:
 
 ```bash
 immich-dog-tagger pipeline
 ```
 
-The pipeline runs:
-
-1. Scan Immich assets
-2. Download new images
-3. Detect dogs
-4. Create crops
-5. Classify identities
-
-Example output:
-
-```
-Scanning Immich
-Scanned 250 assets
-
-Downloading assets
-Downloaded 250 assets
-
-Detecting dogs
-Detected 87 dogs
-
-Classifying dogs
-Classified 87 crops
-
-Pipeline complete
-```
-
----
-
-## Dry Run
-
-Preview pipeline actions without processing:
+Preview processing:
 
 ```bash
 immich-dog-tagger pipeline --dry-run
 ```
 
----
-
-## Processing Limits
-
-For testing:
+Limit processing:
 
 ```bash
 immich-dog-tagger pipeline --limit 25
 ```
 
-The limit applies independently to each pipeline stage.
-
----
-
-## Reprocessing
-
-To rebuild existing detections or classifications:
-
-```bash
-immich-dog-tagger pipeline --force
-```
-
-Use this when:
-
-- changing detection models
-- changing crop settings
-- rebuilding embeddings
-- correcting processing state
-
 ---
 
 # Review Workflow
 
-Classification improves through review.
+Review is how the system improves.
 
-View uncertain classifications:
-
-```bash
-immich-dog-tagger active-review
-```
-
-Review items are ranked by confidence so the least certain predictions appear first.
-
-Example:
-
-```
-ID   Identity    Confidence   Image
-42   Unknown     0.42         crop_0042.jpg
-43   Hermann     0.67         crop_0043.jpg
-44   Fibs        0.73         crop_0044.jpg
-```
-
-Apply a correction:
+View items requiring attention:
 
 ```bash
-immich-dog-tagger review-apply 42 Hermann
+immich-dog-tagger review
 ```
 
-A reviewed classification:
+Corrections become training data.
 
-- changes the predicted identity
-- records the correction source
-- creates a new embedding example
+A correction:
 
-These examples improve future classification accuracy.
+* updates the classification
+* records human provenance
+* creates a new embedding example
+
+Future predictions use these examples.
 
 ---
 
 # Learning
 
-Training examples are built incrementally.
-
-A confirmed review creates an identity example:
+The learning system uses incremental examples rather than retraining a large neural network.
 
 ```
-Crop image
-   |
-   v
-Embedding generation
-   |
-   v
-Identity example
+Confirmed Crop
+      |
+      v
+Embedding
+      |
+      v
+Identity Example
+      |
+      v
+Future Classification
 ```
 
-Future classifications compare new crops against these examples.
-
-This avoids retraining a large model and allows the system to improve gradually as more photos are reviewed.
+The model improves gradually as more photos are reviewed.
 
 ---
 
-# Syncing Results
+# Immich Synchronization
 
-After classifications are confirmed:
+After classification:
 
 ```bash
 immich-dog-tagger sync
 ```
 
-The sync stage updates Immich albums:
+The sync service projects classifications into Immich albums:
 
 ```
 Dog - Hermann
@@ -346,11 +374,30 @@ Dog - Fibonacci
 Dog - Henri
 ```
 
+Immich remains a presentation layer.
+
+---
+
+# v0.3.0 Web API Roadmap
+
+The next milestone exposes the existing system through FastAPI.
+
+Planned:
+
+* REST API foundation
+* Browser-based review workflow
+* Review queue endpoint
+* Dog browsing endpoint
+* Classification correction endpoint
+* Improved human interaction workflows
+
+The API will sit above the existing services rather than replacing them.
+
 ---
 
 # Development
 
-Install development dependencies:
+Install dependencies:
 
 ```bash
 uv sync
@@ -362,7 +409,7 @@ Run tests:
 uv run pytest
 ```
 
-Run formatting and validation:
+Run validation:
 
 ```bash
 uv run ruff check --fix .
@@ -370,29 +417,11 @@ uv run ruff format
 uv run pytest -q
 ```
 
----
+Current validation:
 
-# Project Status
-
-Current status:
-
-✅ Immich asset discovery  
-✅ Asset downloading and caching  
-✅ YOLO dog detection  
-✅ Crop generation  
-✅ OpenCLIP embeddings  
-✅ Identity classification  
-✅ Confidence-based review workflow  
-✅ Human feedback learning loop  
-✅ Immich album synchronization  
-
-Future improvements:
-
-- Automatic background processing
-- Better review UI
-- More advanced identity models
-- Improved duplicate detection
-- Scheduled Immich synchronization
+```
+92 passed
+```
 
 ---
 
@@ -400,9 +429,13 @@ Future improvements:
 
 The project intentionally avoids:
 
-- cloud AI services
-- uploading personal photos externally
-- retraining large neural networks
-- modifying Immich internals
+* cloud AI services
+* uploading personal photos externally
+* modifying Immich internals
+* retraining large neural networks
 
 The goal is a small local assistant that gradually learns the identities of the dogs in a personal photo library.
+
+The database is the brain.
+Immich is the gallery.
+The Web API is the leash.
