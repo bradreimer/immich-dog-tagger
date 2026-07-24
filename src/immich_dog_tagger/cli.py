@@ -230,7 +230,7 @@ def classify_list_command(args) -> None:
         )
 
 
-def review_stats_command(args) -> None:
+def review_command(args) -> None:
     config = load_config()
 
     engine = create_database(
@@ -382,9 +382,7 @@ def review_apply_command(args) -> None:
 def status_command(args) -> None:
     config = load_config()
 
-    engine = create_database(
-        config.state_dir,
-    )
+    engine = create_database(config.state_dir)
 
     with Session(engine) as session:
         service = StatusService(session)
@@ -396,6 +394,24 @@ def status_command(args) -> None:
     print(f"Classifications:    {summary.classifications}")
     print(f"Identities:         {summary.identities}")
     print(f"Embedding examples: {summary.examples}")
+    print(f"Unknown:            {summary.unknown}")
+    print(f"Low confidence:     {summary.low_confidence}")
+
+    if args.verbose:
+        print()
+
+        print("Failures")
+        print("--------")
+        print(f"Download failures:          {summary.download_failed}")
+        print(f"Detection failures:         {summary.detection_failed}")
+        print(f"Classification failures:    {summary.classification_failed}")
+
+        diagnostics = service.diagnostics()
+        print()
+        print("Diagnostics")
+        print("-----------")
+        for key, value in diagnostics.items():
+            print(f"{key}:\t{value}")
 
 
 def sync_command(args) -> None:
@@ -509,29 +525,6 @@ def pipeline_command(args) -> None:
     print(f"Downloaded:         {summary.downloaded}")
     print(f"Dogs detected:      {summary.detected}")
     print(f"Classified:         {summary.classified}")
-
-
-def doctor_command(args) -> None:
-    config = load_config()
-
-    engine = create_database(config.state_dir)
-
-    with Session(engine) as session:
-        summary = StatusService(session).summary()
-
-    print(f"Assets:          {summary.assets}")
-    print(f"Detections:      {summary.detections}")
-    print(f"Crops:           {summary.crops}")
-    print(f"Classifications: {summary.classifications}")
-    print(f"Unknown:         {summary.unknown}")
-    print(f"Low confidence:  {summary.low_confidence}")
-    print()
-
-    print("Failures")
-    print("--------")
-    print(f"Download failures:       {summary.download_failed}")
-    print(f"Detection failures:      {summary.detection_failed}")
-    print(f"Classification failures: {summary.classification_failed}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -653,7 +646,7 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     subparsers.add_parser(
-        "review-stats",
+        "review",
         help="Show classification statistics",
     )
 
@@ -703,9 +696,15 @@ def main(argv: list[str] | None = None) -> None:
         "identity",
     )
 
-    subparsers.add_parser(
+    status_parser = subparsers.add_parser(
         "status",
         help="Show pipeline status",
+    )
+
+    status_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show diagnostic information",
     )
 
     sync_parser = subparsers.add_parser(
@@ -742,11 +741,6 @@ def main(argv: list[str] | None = None) -> None:
         help="Reprocess existing assets",
     )
 
-    subparsers.add_parser(
-        "doctor",
-        help="Show pipeline health",
-    )
-
     args = parser.parse_args(argv)
 
     if args.command == "config-check":
@@ -779,8 +773,8 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "classify-list":
         classify_list_command(args)
 
-    elif args.command == "review-stats":
-        review_stats_command(args)
+    elif args.command == "review":
+        review_command(args)
 
     elif args.command == "export-review":
         export_review_command(args)
@@ -802,9 +796,6 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "pipeline":
         pipeline_command(args)
-
-    elif args.command == "doctor":
-        doctor_command(args)
 
     else:
         parser.print_help()
