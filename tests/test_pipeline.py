@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.services.pipeline import PipelineService
 
 
@@ -62,10 +63,10 @@ class FakeClassifier:
     def __init__(self):
         self.called = False
 
-    def classify_pending(
+    def classify(
         self,
         limit=None,
-        force=False,
+        mode=None,
     ):
         self.called = True
         return FakeClassificationSummary(
@@ -121,7 +122,7 @@ def test_pipeline_runs_steps_in_order():
             )
 
     class OrderedClassifier:
-        def classify_pending(self, limit=None, force=False):
+        def classify(self, limit=None, mode=None):
             calls.append("classify")
 
             return FakeClassificationSummary(
@@ -185,7 +186,7 @@ def test_pipeline_passes_limit_to_steps():
             return FakeDetectionSummary(dogs=0)
 
     class LimitedClassifier:
-        def classify_pending(self, limit=None, force=False):
+        def classify(self, limit=None, mode=None):
             received["classify"] = limit
             return FakeClassificationSummary(classified=0)
 
@@ -228,8 +229,8 @@ def test_pipeline_passes_force_to_steps():
             return FakeDetectionSummary(dogs=0)
 
     class ForcedClassifier:
-        def classify_pending(self, limit=None, force=False):
-            received["classify"] = force
+        def classify(self, limit=None, mode=None):
+            received["classify"] = mode == ClassificationMode.ALL
             return FakeClassificationSummary(classified=0)
 
     service = PipelineService(

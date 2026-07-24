@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum, StrEnum
 
 
 class AssetStatus(StrEnum):
@@ -17,6 +17,12 @@ class EmbeddingSources(StrEnum):
     BOOTSTRAP = "bootstrap"
     REVIEW = "review"
     IMPORT = "import"
+
+
+class ClassificationMode(str, Enum):
+    PENDING = "pending"
+    LOW_CONFIDENCE = "low_confidence"
+    ALL = "all"
 
 
 class ClassificationSources(StrEnum):

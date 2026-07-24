@@ -46,14 +46,14 @@ def test_pipeline_dry_run_with_limit(capsys):
     assert "Limit: 25 items per stage" in output
 
 
-def test_classify_accepts_force(capsys):
+def test_classify_accepts_all(capsys):
     with (
         patch(
             "sys.argv",
             [
                 "immich-dog-tagger",
                 "classify",
-                "--force",
+                "--all",
             ],
         ),
         patch("immich_dog_tagger.cli.OpenClipEmbedder"),

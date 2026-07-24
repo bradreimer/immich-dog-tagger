@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from immich_dog_tagger.enums import ClassificationMode
 
 
 @dataclass
@@ -69,9 +70,11 @@ class PipelineService:
         if progress:
             progress("Classifying dogs")
 
-        classified = self.classifier.classify_pending(
+        mode = ClassificationMode.ALL if force else ClassificationMode.PENDING
+
+        classified = self.classifier.classify(
             limit=limit,
-            force=force,
+            mode=mode,
         )
 
         if progress:

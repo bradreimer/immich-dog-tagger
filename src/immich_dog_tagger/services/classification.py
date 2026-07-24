@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
+from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.models import (
     ClassificationSources,
     Crop,
@@ -33,22 +34,16 @@ class ClassificationService:
         self.embedder = embedder
         self.classifier = classifier
 
-    def classify_pending(
+    def classify(
         self,
+        mode: ClassificationMode = ClassificationMode.PENDING,
         limit: int | None = None,
         threshold: float = 0.80,
-        force: bool = False,
-        low_confidence: bool = False,
     ) -> ClassificationSummary:
-        query = self.session.query(Crop)
-
-        if low_confidence:
-            query = query.join(CropClassification).filter(
-                (CropClassification.identity.is_(None))
-                | (CropClassification.confidence < threshold)
-            )
-        elif not force:
-            query = query.filter(~Crop.classification.has())
+        query = self._classification_query(
+            mode,
+            threshold,
+        )
 
         if limit is not None:
             query = query.limit(limit)
@@ -116,3 +111,24 @@ class ClassificationService:
             self.session.add(classification)
 
         return classification
+
+    def _classification_query(
+        self,
+        mode: ClassificationMode,
+        threshold: float,
+    ):
+        query = self.session.query(Crop)
+
+        if mode == ClassificationMode.LOW_CONFIDENCE:
+            return query.join(CropClassification).filter(
+                (CropClassification.identity.is_(None))
+                | (CropClassification.confidence < threshold)
+            )
+
+        if mode == ClassificationMode.PENDING:
+            return query.filter(~Crop.classification.has())
+
+        if mode == ClassificationMode.ALL:
+            return query
+
+        raise ValueError(f"Unknown classification mode: {mode}")

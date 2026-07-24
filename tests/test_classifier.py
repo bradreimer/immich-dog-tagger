@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import embedding_to_blob
+from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.models import (
     Identity,
     EmbeddingExample,
@@ -114,7 +115,7 @@ def test_classification_service_handles_no_pending_crops(engine):
             classifier,
         )
 
-        summary = service.classify_pending()
+        summary = service.classify()
 
         assert summary.classified == 0
         assert summary.identities == {}
@@ -136,8 +137,8 @@ def test_classification_service_handles_no_reclassification_candidates(engine):
             classifier,
         )
 
-        summary = service.classify_pending(
-            low_confidence=True,
+        summary = service.classify(
+            mode=ClassificationMode.LOW_CONFIDENCE,
         )
 
         assert summary.classified == 0

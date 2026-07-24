@@ -1,6 +1,7 @@
 import numpy as np
 from sqlalchemy.orm import Session
 from immich_dog_tagger.classifier import ClassificationResult
+from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.models import (
     Asset,
@@ -69,7 +70,7 @@ def test_classification_service_creates_classification(engine):
             classifier,
         )
 
-        summary = service.classify_pending()
+        summary = service.classify()
 
         assert summary.classified == 1
         assert summary.identities["Hermann"] == 1
@@ -114,7 +115,7 @@ def test_classification_service_skips_existing_classification_by_default(engine)
             classifier,
         )
 
-        summary = service.classify_pending()
+        summary = service.classify()
 
         assert summary.classified == 0
 
@@ -168,8 +169,8 @@ def test_classification_service_force_updates_existing_classification(engine):
             classifier,
         )
 
-        summary = service.classify_pending(
-            force=True,
+        summary = service.classify(
+            mode=ClassificationMode.ALL,
         )
 
         assert summary.classified == 1
@@ -229,7 +230,7 @@ def test_classification_service_respects_limit(engine):
             classifier,
         )
 
-        summary = service.classify_pending(
+        summary = service.classify(
             limit=1,
         )
 
@@ -283,7 +284,7 @@ def test_classification_service_handles_unknown_identity(engine):
             classifier,
         )
 
-        summary = service.classify_pending()
+        summary = service.classify()
 
         assert summary.classified == 1
         assert summary.identities["Unknown"] == 1
@@ -342,7 +343,7 @@ def test_classification_service_uses_batch_embedding(engine):
             classifier,
         )
 
-        summary = service.classify_pending()
+        summary = service.classify()
 
         assert summary.classified == 2
 
@@ -394,10 +395,7 @@ def test_classification_service_reclassifies_existing_classification(engine):
             classifier,
         )
 
-        service.classify_pending(
-            threshold=0.80,
-            low_confidence=True,
-        )
+        service.classify(threshold=0.80, mode=ClassificationMode.LOW_CONFIDENCE)
 
         result = session.query(CropClassification).one()
 
@@ -438,7 +436,7 @@ def test_classification_service_passes_threshold(engine):
             classifier,
         )
 
-        service.classify_pending(
+        service.classify(
             threshold=0.65,
         )
 
@@ -447,7 +445,7 @@ def test_classification_service_passes_threshold(engine):
         assert classifier.classify.call_args.kwargs["threshold"] == 0.65
 
 
-def test_classify_pending_force_includes_classified_crops(engine):
+def test_classify_all_includes_classified_crops(engine):
     from unittest.mock import Mock
 
     with Session(engine) as session:
@@ -491,8 +489,8 @@ def test_classify_pending_force_includes_classified_crops(engine):
             classifier,
         )
 
-        summary = service.classify_pending(
-            force=True,
+        summary = service.classify(
+            mode=ClassificationMode.ALL,
         )
 
     assert summary.classified == 1

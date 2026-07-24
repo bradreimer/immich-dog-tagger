@@ -12,6 +12,7 @@ from .config import load_config
 from .crops import CropWriter
 from .database import create_database
 from .downloader import Downloader
+from .enums import ClassificationMode
 from .immich import ImmichClient
 from .openclip_embedder import OpenClipEmbedder
 from .review_export import ReviewExporter
@@ -159,8 +160,12 @@ def classify_command(args) -> None:
             classifier,
         )
 
-        summary = service.classify_pending(
-            limit=args.limit, threshold=args.threshold, force=args.force
+        mode = ClassificationMode.ALL if args.all else ClassificationMode.PENDING
+
+        summary = service.classify(
+            limit=args.limit,
+            threshold=args.threshold,
+            mode=mode,
         )
 
     print(f"Classified: {summary.classified}")
@@ -614,7 +619,7 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     classify_parser.add_argument(
-        "--force",
+        "--all",
         action="store_true",
         help="Reclassify already classified crops",
     )
