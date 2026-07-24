@@ -24,7 +24,7 @@ from .services.correction import ClassificationCorrectionService
 from .services.detection import DetectionService
 from .services.learner import Learner
 from .services.pipeline import PipelineService
-from .services.review import ReviewService
+from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
 from .services.sync import SyncService
 from .yolo_detector import YOLODetector
@@ -215,7 +215,7 @@ def classify_list_command(args) -> None:
     )
 
     with Session(engine) as session:
-        service = ReviewService(session)
+        service = ReviewQueryService(session)
 
         classifications = service.classifications(
             limit=args.limit,
@@ -243,7 +243,7 @@ def review_command(args) -> None:
     )
 
     with Session(engine) as session:
-        service = ReviewService(session)
+        service = ReviewQueryService(session)
         summary = service.summary()
 
     print(f"Total classifications: {summary.total}")
@@ -271,7 +271,7 @@ def export_review_command(args) -> None:
     engine = create_database(config.state_dir)
 
     with Session(engine) as session:
-        review = ReviewService(session)
+        review = ReviewQueryService(session)
 
         items = review.classifications(
             limit=args.limit,
@@ -338,7 +338,7 @@ def active_review_command(args) -> None:
     )
 
     with Session(engine) as session:
-        review = ReviewService(session)
+        review = ReviewQueryService(session)
 
         items = review.active_review(
             threshold=args.threshold,

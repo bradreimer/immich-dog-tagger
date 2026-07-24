@@ -8,7 +8,7 @@ from immich_dog_tagger.models import (
     Identity,
     EmbeddingExample,
 )
-from immich_dog_tagger.services.review import ReviewService
+from immich_dog_tagger.services.review_query import ReviewQueryService
 
 
 class FakeLearner:
@@ -32,7 +32,7 @@ class FakeLearner:
         return True
 
 
-def test_review_service_classifications(engine):
+def test_review_query_service_classifications(engine):
     with Session(engine) as session:
         crop = Crop(
             detection_id=1,
@@ -60,7 +60,7 @@ def test_review_service_classifications(engine):
         session.add(classification)
         session.commit()
 
-        results = ReviewService(session).classifications()
+        results = ReviewQueryService(session).classifications()
 
         assert len(results) == 1
         assert results[0].identity == "Fibs"
@@ -72,7 +72,7 @@ def test_review_service_classifications(engine):
         assert results[0].matched_example_path == Path("training/fibs/example.jpg")
 
 
-def test_review_filters_by_identity(engine):
+def test_review_query_filters_by_identity(engine):
     with Session(engine) as session:
         fibs_crop = Crop(
             detection_id=1,
@@ -109,7 +109,7 @@ def test_review_filters_by_identity(engine):
 
         session.commit()
 
-        results = ReviewService(session).classifications(
+        results = ReviewQueryService(session).classifications(
             identity="Fibs",
         )
 
@@ -118,7 +118,7 @@ def test_review_filters_by_identity(engine):
         assert results[0].path.name == "fibs.jpg"
 
 
-def test_review_filters_unknown(engine):
+def test_review_query_filters_unknown(engine):
     with Session(engine) as session:
         unknown_crop = Crop(
             detection_id=1,
@@ -155,7 +155,7 @@ def test_review_filters_unknown(engine):
 
         session.commit()
 
-        results = ReviewService(session).classifications(
+        results = ReviewQueryService(session).classifications(
             unknown=True,
         )
 
@@ -164,7 +164,7 @@ def test_review_filters_unknown(engine):
         assert results[0].path.name == "unknown.jpg"
 
 
-def test_review_orders_by_lowest_confidence_first(engine):
+def test_review_query_orders_by_lowest_confidence_first(engine):
     with Session(engine) as session:
         low_crop = Crop(
             detection_id=1,
@@ -201,13 +201,13 @@ def test_review_orders_by_lowest_confidence_first(engine):
 
         session.commit()
 
-        results = ReviewService(session).classifications()
+        results = ReviewQueryService(session).classifications()
 
         assert results[0].confidence == 0.70
         assert results[1].confidence == 0.99
 
 
-def test_review_summary(engine):
+def test_review_query_summary(engine):
     with Session(engine) as session:
         fibs_crop_1 = Crop(
             detection_id=1,
@@ -266,7 +266,7 @@ def test_review_summary(engine):
 
         session.commit()
 
-        summary = ReviewService(session).summary()
+        summary = ReviewQueryService(session).summary()
 
         assert summary.total == 4
 
@@ -284,9 +284,9 @@ def test_review_summary(engine):
         }
 
 
-def test_review_summary_empty(engine):
+def test_review_query_summary_empty(engine):
     with Session(engine) as session:
-        summary = ReviewService(session).summary()
+        summary = ReviewQueryService(session).summary()
 
         assert summary.total == 0
         assert summary.identities == {}
@@ -298,7 +298,7 @@ def test_review_summary_empty(engine):
         }
 
 
-def test_review_filters_low_confidence(engine):
+def test_review_query_filters_low_confidence(engine):
     with Session(engine) as session:
         low_crop = Crop(
             detection_id=1,
@@ -335,7 +335,7 @@ def test_review_filters_low_confidence(engine):
 
         session.commit()
 
-        results = ReviewService(session).classifications(
+        results = ReviewQueryService(session).classifications(
             confidence_below=0.80,
         )
 
@@ -344,7 +344,7 @@ def test_review_filters_low_confidence(engine):
         assert results[0].confidence == 0.70
 
 
-def test_review_active_review_includes_unknown_and_low_confidence(engine):
+def test_review_query_active_review_includes_unknown_and_low_confidence(engine):
     with Session(engine) as session:
         identity = Identity(
             name="Hermann",
@@ -406,7 +406,7 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
 
         session.commit()
 
-        results = ReviewService(session).active_review(
+        results = ReviewQueryService(session).active_review(
             threshold=0.80,
         )
 
@@ -422,7 +422,7 @@ def test_review_active_review_includes_unknown_and_low_confidence(engine):
         assert low_result.matched_example_path == Path("training/hermann/example.jpg")
 
 
-def test_review_includes_matched_example_path(engine):
+def test_review_query_includes_matched_example_path(engine):
     with Session(engine) as session:
         identity = Identity(name="Hermann")
 
@@ -458,7 +458,7 @@ def test_review_includes_matched_example_path(engine):
         session.add(classification)
         session.commit()
 
-        results = ReviewService(session).classifications()
+        results = ReviewQueryService(session).classifications()
 
         assert len(results) == 1
         assert results[0].matched_example_path == Path("training/hermann/example.jpg")

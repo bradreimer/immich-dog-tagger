@@ -32,7 +32,7 @@ class ReviewSummary:
     confidence_buckets: dict[str, int]
 
 
-class ReviewService:
+class ReviewQueryService:
     def __init__(
         self,
         session: Session,

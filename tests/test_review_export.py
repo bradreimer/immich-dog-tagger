@@ -1,5 +1,5 @@
 import csv
-from immich_dog_tagger.services.review import ReviewItem
+from immich_dog_tagger.services.review_query import ReviewItem
 from immich_dog_tagger.review_export import ReviewExporter
 
 
