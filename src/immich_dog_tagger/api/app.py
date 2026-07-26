@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from immich_dog_tagger.api.routes import (
     classifications,
@@ -13,6 +14,15 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Immich Dog Tagger API",
         version="0.3.0",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+        ],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     app.include_router(classifications.router)
