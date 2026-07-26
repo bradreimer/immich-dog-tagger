@@ -14,7 +14,7 @@ def get_session() -> Generator[Session, None, None]:
     config = load_config()
 
     engine = create_database(
-        config.data_dir,
+        config.state_dir,
     )
 
     with Session(engine) as session:
