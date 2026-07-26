@@ -32,6 +32,7 @@ class ClassificationCorrectionService:
             raise ValueError(f"Classification {classification_id} not found")
 
         classification.identity = identity
+        classification.confidence = 1.0
         classification.source = ClassificationSources.REVIEW
 
         if self.learner is not None:

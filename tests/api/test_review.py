@@ -1,6 +1,6 @@
-def test_pending_review(api_client):
+def test_review_queue(api_client):
     response = api_client.get(
-        "/review/pending",
+        "/review",
         params={
             "limit": 5,
         },

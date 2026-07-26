@@ -6,9 +6,7 @@ from immich_dog_tagger.api.dependencies import (
     get_review_query_service,
     get_session,
 )
-from immich_dog_tagger.api.schemas import (
-    ReviewItemResponse,
-)
+from immich_dog_tagger.api.schemas import ReviewItemResponse
 
 
 router = APIRouter(
@@ -17,10 +15,10 @@ router = APIRouter(
 
 
 @router.get(
-    "/pending",
+    "",
     response_model=list[ReviewItemResponse],
 )
-def pending(
+def review_queue(
     threshold: float = Query(0.80),
     limit: int | None = Query(None),
     session: Session = Depends(get_session),
