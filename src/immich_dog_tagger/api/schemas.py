@@ -1,6 +1,14 @@
 from pydantic import BaseModel
 
 
+class ClassificationResponse(BaseModel):
+    classification_id: int
+    crop_id: int
+    identity: str | None
+    confidence: float
+    filename: str
+
+
 class ReviewItemResponse(BaseModel):
     classification_id: int
     crop_id: int
@@ -24,3 +32,7 @@ class ReviewItemResponse(BaseModel):
                 str(item.matched_example_path) if item.matched_example_path else None
             ),
         )
+
+
+class CorrectionRequest(BaseModel):
+    identity: str

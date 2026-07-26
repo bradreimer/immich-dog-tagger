@@ -1,11 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from sqlalchemy.orm import Session
-
-from immich_dog_tagger.api.dependencies import (
-    get_correction_service,
-    get_session,
-)
+from immich_dog_tagger.api.dependencies import get_correction_service
+from immich_dog_tagger.api.schemas import CorrectionRequest
+from immich_dog_tagger.services.correction import ClassificationCorrectionService
 
 
 router = APIRouter(
@@ -16,12 +13,10 @@ router = APIRouter(
 @router.post("/{classification_id}/correct")
 def correct(
     classification_id: int,
-    identity: str,
-    session: Session = Depends(get_session),
+    request: CorrectionRequest,
+    service: ClassificationCorrectionService = Depends(get_correction_service),
 ):
-    service = get_correction_service(session)
-
     return service.correct(
         classification_id,
-        identity,
+        request.identity,
     )

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from sqlalchemy.orm import Session
 
@@ -21,10 +21,15 @@ router = APIRouter(
     response_model=list[ReviewItemResponse],
 )
 def pending(
+    threshold: float = Query(0.80),
+    limit: int | None = Query(None),
     session: Session = Depends(get_session),
 ):
     service = get_review_query_service(session)
 
-    items = service.active_review()
+    items = service.active_review(
+        threshold=threshold,
+        limit=limit,
+    )
 
     return [ReviewItemResponse.from_item(item) for item in items]

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import CropClassification
 from immich_dog_tagger.services.albums import AlbumService
+from immich_dog_tagger.services.sync_policy import SyncPolicy
 
 
 @dataclass(frozen=True)
@@ -24,9 +25,11 @@ class SyncService:
         self,
         session: Session,
         albums: AlbumService,
+        policy: SyncPolicy | None = None,
     ):
         self.session = session
         self.albums = albums
+        self.policy = policy or SyncPolicy()
 
     def sync(
         self,
@@ -38,7 +41,16 @@ class SyncService:
         classifications = self.session.scalars(select(CropClassification)).all()
 
         for classification in classifications:
-            identity = classification.identity or "Unknown"
+            if classification.confidence < self.policy.minimum_confidence:
+                continue
+
+            if classification.identity is None:
+                if not self.policy.include_unknown:
+                    continue
+
+                identity = "Unknown"
+            else:
+                identity = classification.identity
 
             asset_id = classification.crop.detection.asset.immich_asset_id
 

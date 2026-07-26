@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.config import load_config
@@ -27,14 +28,15 @@ def get_review_query_service(
 
 
 def get_correction_service(
-    session: Session,
+    session: Session = Depends(get_session),
+    embedder=Depends(get_embedder),
 ) -> ClassificationCorrectionService:
     learner = Learner(
-        get_embedder(),
-        session,
+        embedder=embedder,
+        session=session,
     )
 
     return ClassificationCorrectionService(
-        session,
-        learner,
+        session=session,
+        learner=learner,
     )
