@@ -66,9 +66,8 @@ def test_sync_groups_assets(engine):
             albums,
         ).sync()
 
-        assert summary == {
-            "Hermann": 1,
-        }
+        assert summary.identities[0].identity == "Hermann"
+        assert summary.identities[0].assets == 1
 
         assert albums.calls == [
             (
@@ -119,8 +118,7 @@ def test_sync_dry_run_does_not_update(engine):
             dry_run=True,
         )
 
-        assert summary == {
-            "Fibs": 1,
-        }
+        assert summary.identities[0].identity == "Fibs"
+        assert summary.identities[0].assets == 1
 
         assert albums.calls == []

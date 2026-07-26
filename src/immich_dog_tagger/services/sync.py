@@ -1,9 +1,22 @@
 from collections import defaultdict
+from dataclasses import dataclass
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import CropClassification
 from immich_dog_tagger.services.albums import AlbumService
+
+
+@dataclass(frozen=True)
+class SyncIdentitySummary:
+    identity: str
+    assets: int
+
+
+@dataclass(frozen=True)
+class SyncSummary:
+    identities: list[SyncIdentitySummary]
 
 
 class SyncService:
@@ -19,29 +32,34 @@ class SyncService:
         self,
         *,
         dry_run: bool = False,
-    ) -> dict[str, int]:
-        assets: dict[str, list[str]] = defaultdict(list)
+    ) -> SyncSummary:
+        assets: dict[str, set[str]] = defaultdict(set)
 
-        classifications = self.session.query(CropClassification).all()
+        classifications = self.session.scalars(select(CropClassification)).all()
 
         for classification in classifications:
             identity = classification.identity or "Unknown"
 
             asset_id = classification.crop.detection.asset.immich_asset_id
 
-            assets[identity].append(asset_id)
+            assets[identity].add(asset_id)
 
-        summary = {}
+        summary: list[SyncIdentitySummary] = []
 
         for identity, asset_ids in assets.items():
-            unique_ids = list(set(asset_ids))
-
             if not dry_run:
                 self.albums.sync_identity(
                     identity,
-                    unique_ids,
+                    sorted(asset_ids),
                 )
 
-            summary[identity] = len(unique_ids)
+            summary.append(
+                SyncIdentitySummary(
+                    identity=identity,
+                    assets=len(asset_ids),
+                )
+            )
 
-        return summary
+        return SyncSummary(
+            identities=summary,
+        )

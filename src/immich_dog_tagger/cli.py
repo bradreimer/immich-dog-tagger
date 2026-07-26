@@ -444,8 +444,8 @@ def sync_command(args) -> None:
     if args.dry_run:
         print("Would sync:")
 
-    for identity, count in summary.items():
-        print(f"{identity}: {count}")
+    for item in summary.identities:
+        print(f"{item.identity}: {item.assets}")
 
 
 def pipeline_command(args) -> None:

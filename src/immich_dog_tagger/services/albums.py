@@ -1,14 +1,6 @@
 from immich_dog_tagger.immich import ImmichClient
 
 
-IDENTITY_ALBUMS = {
-    "Fibs": "Dog - Fibs",
-    "Hermann": "Dog - Hermann",
-    "Henri": "Dog - Henri",
-    "Unknown": "Dog - Unknown",
-}
-
-
 class AlbumService:
     def __init__(
         self,
@@ -33,7 +25,7 @@ class AlbumService:
         identity: str,
         asset_ids: list[str],
     ) -> None:
-        album_name = IDENTITY_ALBUMS[identity]
+        album_name = f"Dog - {identity}"
 
         album_id = self.ensure_album(
             album_name,
