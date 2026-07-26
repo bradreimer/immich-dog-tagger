@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from immich_dog_tagger.api.dependencies import get_correction_service
 from immich_dog_tagger.api.schemas import CorrectionRequest
@@ -16,7 +16,13 @@ def correct(
     request: CorrectionRequest,
     service: ClassificationCorrectionService = Depends(get_correction_service),
 ):
-    return service.correct(
-        classification_id,
-        request.identity,
-    )
+    try:
+        return service.correct(
+            classification_id,
+            request.identity,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        ) from e

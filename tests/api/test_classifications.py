@@ -29,3 +29,17 @@ def test_correct_classification(api_client, engine):
     )
 
     assert response.status_code == 200
+
+
+def test_correct_classification_not_found(api_client):
+    response = api_client.post(
+        "/classifications/999999/correct",
+        json={
+            "identity": "Hermann",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Classification 999999 not found",
+    }

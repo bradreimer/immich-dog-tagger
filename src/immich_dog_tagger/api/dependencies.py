@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.config import load_config
 from immich_dog_tagger.database import create_database
+from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.learner import Learner
@@ -29,7 +30,7 @@ def get_review_query_service(
 
 def get_correction_service(
     session: Session = Depends(get_session),
-    embedder=Depends(get_embedder),
+    embedder: Embedder = Depends(get_embedder),
 ) -> ClassificationCorrectionService:
     learner = Learner(
         embedder=embedder,
