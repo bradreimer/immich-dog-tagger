@@ -2,8 +2,10 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import ClassificationSources
-from immich_dog_tagger.models import CropClassification
+from immich_dog_tagger.enums import ClassificationSources, EmbeddingSources
+from immich_dog_tagger.models import (
+    CropClassification,
+)
 from immich_dog_tagger.services.learner import Learner
 
 
@@ -36,7 +38,7 @@ class ClassificationCorrectionService:
             self.learner.learn_image(
                 identity,
                 Path(classification.crop.path),
-                source=ClassificationSources.REVIEW,
+                source=EmbeddingSources.REVIEW,
             )
 
         self.session.commit()

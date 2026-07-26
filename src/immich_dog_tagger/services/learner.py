@@ -5,6 +5,7 @@ Services for creating identity examples.
 from pathlib import Path
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
@@ -34,8 +35,8 @@ class Learner:
         *,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
     ) -> bool:
-        identity = (
-            self.session.query(Identity).filter_by(name=identity_name).one_or_none()
+        identity = self.session.scalar(
+            select(Identity).where(Identity.name == identity_name)
         )
 
         if identity is None:
@@ -44,13 +45,11 @@ class Learner:
             self.session.add(identity)
             self.session.flush()
 
-        existing = (
-            self.session.query(EmbeddingExample)
-            .filter_by(
-                identity_id=identity.id,
-                crop_path=str(image_path),
+        existing = self.session.scalar(
+            select(EmbeddingExample).where(
+                EmbeddingExample.identity_id == identity.id,
+                EmbeddingExample.crop_path == str(image_path),
             )
-            .one_or_none()
         )
 
         if existing is not None:
@@ -76,8 +75,8 @@ class Learner:
         *,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
     ) -> LearnSummary:
-        identity = (
-            self.session.query(Identity).filter_by(name=identity_name).one_or_none()
+        identity = self.session.scalar(
+            select(Identity).where(Identity.name == identity_name)
         )
 
         if identity is None:
@@ -97,13 +96,11 @@ class Learner:
             if not is_supported_image(image_path):
                 continue
 
-            existing = (
-                self.session.query(EmbeddingExample)
-                .filter_by(
-                    identity_id=identity.id,
-                    crop_path=str(image_path),
+            existing = self.session.scalar(
+                select(EmbeddingExample).where(
+                    EmbeddingExample.identity_id == identity.id,
+                    EmbeddingExample.crop_path == str(image_path),
                 )
-                .one_or_none()
             )
 
             if existing is not None:

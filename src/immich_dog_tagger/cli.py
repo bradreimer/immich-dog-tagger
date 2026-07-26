@@ -14,9 +14,9 @@ from .database import create_database
 from .downloader import Downloader
 from .enums import ClassificationMode
 from .immich import ImmichClient
-from .openclip_embedder import OpenClipEmbedder
 from .review_export import ReviewExporter
 from .review_import import ReviewImporter
+from .runtime import get_embedder
 from .scanner import Scanner
 from .services.albums import AlbumService
 from .services.classification import ClassificationService
@@ -150,7 +150,7 @@ def classify_command(args) -> None:
         config.state_dir,
     )
 
-    embedder = OpenClipEmbedder()
+    embedder = get_embedder()
 
     with Session(engine) as session:
         classifier = IdentityClassifier(session)
@@ -176,7 +176,7 @@ def classify_command(args) -> None:
 
 
 def test_embedding_command(args) -> None:
-    embedder = OpenClipEmbedder()
+    embedder = get_embedder()
 
     embedding = embedder.embed(Path(args.image))
 
@@ -191,7 +191,7 @@ def learn_command(args) -> None:
         config.state_dir,
     )
 
-    embedder = OpenClipEmbedder()
+    embedder = get_embedder()
 
     with Session(engine) as session:
         learner = Learner(
@@ -294,7 +294,7 @@ def import_review_command(args) -> None:
         config.state_dir,
     )
 
-    embedder = OpenClipEmbedder()
+    embedder = get_embedder()
 
     with Session(engine) as session:
         learner = Learner(
@@ -361,7 +361,7 @@ def review_apply_command(args) -> None:
         config.state_dir,
     )
 
-    embedder = OpenClipEmbedder()
+    embedder = get_embedder()
 
     with Session(engine) as session:
         learner = Learner(
@@ -464,7 +464,7 @@ def pipeline_command(args) -> None:
         config.yolo_model,
     )
 
-    embedder = OpenClipEmbedder()
+    embedder = get_embedder()
 
     with Session(engine) as session:
         scanner = Scanner(

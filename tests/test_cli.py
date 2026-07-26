@@ -14,7 +14,7 @@ def test_pipeline_dry_run_prints_plan(capsys):
             ],
         ),
         patch("immich_dog_tagger.cli.YOLODetector"),
-        patch("immich_dog_tagger.cli.OpenClipEmbedder"),
+        patch("immich_dog_tagger.cli.get_embedder"),
     ):
         main()
 
@@ -37,7 +37,7 @@ def test_pipeline_dry_run_with_limit(capsys):
             ],
         ),
         patch("immich_dog_tagger.cli.YOLODetector"),
-        patch("immich_dog_tagger.cli.OpenClipEmbedder"),
+        patch("immich_dog_tagger.cli.get_embedder"),
     ):
         main()
 
@@ -56,7 +56,7 @@ def test_classify_accepts_all(capsys):
                 "--all",
             ],
         ),
-        patch("immich_dog_tagger.cli.OpenClipEmbedder"),
+        patch("immich_dog_tagger.cli.get_embedder"),
     ):
         main()
 

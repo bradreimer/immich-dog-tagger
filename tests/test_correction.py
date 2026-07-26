@@ -1,11 +1,10 @@
 from pathlib import Path
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import ClassificationSources, EmbeddingSources
 from immich_dog_tagger.models import (
-    ClassificationSources,
     Crop,
     CropClassification,
-    EmbeddingSources,
     EmbeddingExample,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
