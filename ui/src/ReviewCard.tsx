@@ -25,14 +25,32 @@ export function ReviewCard({
       />
 
       <p>
-        Prediction: {item.identity ?? "Unknown"}
+        Prediction: {item.prediction.identity ?? "Unknown"}
       </p>
 
       <p>
-        Confidence: {(item.confidence * 100).toFixed(1)}%
+        Similarity: {item.prediction.similarity.toFixed(3)}
+        {item.suggestion && (
+          <div>
+            <p>
+              Suggested: {item.suggestion.identity}
+            </p>
+
+            <p>
+              Similarity: {item.suggestion.similarity.toFixed(3)}
+            </p>
+
+            <img
+              src={`/api/examples/${item.suggestion.example_path}`}
+              alt="suggested example"
+              width={200}
+            />
+          </div>
+        )}
       </p>
 
       <div>
+        
         {identities.map((identity) => (
           <button
             key={identity}

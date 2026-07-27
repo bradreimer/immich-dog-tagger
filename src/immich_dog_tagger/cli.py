@@ -223,13 +223,13 @@ def classify_list_command(args) -> None:
             unknown=args.unknown,
         )
 
-    print(f"{'ID':<8}{'Identity':<12}{'Confidence':<14}{'File':<40}Match")
+    print(f"{'ID':<8}{'Identity':<12}{'Similarity':<14}{'File':<40}Match")
 
     for item in classifications:
         print(
             f"{item.classification_id:<8}"
-            f"{str(item.identity):<12}"
-            f"{item.confidence:<14.4f}"
+            f"{str(item.prediction.identity or 'Unknown'):<12}"
+            f"{item.prediction.similarity:<14.4f}"
             f"{item.filename:<40}"
             f"{item.matched_example_path or ''}"
         )

@@ -1,5 +1,9 @@
 import csv
-from immich_dog_tagger.services.review_query import ReviewItem
+from immich_dog_tagger.services.review_query import (
+    ReviewItem,
+    ReviewPrediction,
+    ReviewSuggestion,
+)
 from immich_dog_tagger.review_export import ReviewExporter
 
 
@@ -10,10 +14,12 @@ def test_export_review(tmp_path):
     item = ReviewItem(
         classification_id=1,
         crop_id=2,
-        identity="Fibs",
-        confidence=0.95,
         path=source,
-        matched_example_path=None,
+        prediction=ReviewPrediction(
+            identity="Fibs",
+            similarity=0.95,
+        ),
+        suggestion=None,
     )
 
     output = tmp_path / "review"
@@ -45,10 +51,16 @@ def test_export_review_writes_metadata(tmp_path):
     item = ReviewItem(
         classification_id=1,
         crop_id=2,
-        identity="Fibs",
-        confidence=0.95,
         path=source,
-        matched_example_path=example,
+        prediction=ReviewPrediction(
+            identity="Fibs",
+            similarity=0.95,
+        ),
+        suggestion=ReviewSuggestion(
+            identity="Fibs",
+            similarity=0.95,
+            example_path=example,
+        ),
     )
 
     output = tmp_path / "review"

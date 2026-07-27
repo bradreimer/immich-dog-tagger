@@ -11,13 +11,25 @@ from immich_dog_tagger.models import (
 
 
 @dataclass(frozen=True)
+class ReviewPrediction:
+    identity: str | None
+    similarity: float
+
+
+@dataclass(frozen=True)
+class ReviewSuggestion:
+    identity: str
+    similarity: float
+    example_path: Path
+
+
+@dataclass(frozen=True)
 class ReviewItem:
     classification_id: int
     crop_id: int
-    identity: str | None
-    confidence: float
     path: Path
-    matched_example_path: Path | None
+    prediction: ReviewPrediction
+    suggestion: ReviewSuggestion | None
 
     @property
     def filename(self) -> str:
@@ -68,19 +80,7 @@ class ReviewQueryService:
         classifications = self.session.scalars(query).all()
 
         return [
-            ReviewItem(
-                classification_id=classification.id,
-                crop_id=classification.crop.id,
-                identity=classification.identity,
-                confidence=classification.confidence,
-                path=Path(classification.crop.path),
-                matched_example_path=(
-                    Path(classification.matched_example.crop_path)
-                    if classification.matched_example
-                    else None
-                ),
-            )
-            for classification in classifications
+            self._to_review_item(classification) for classification in classifications
         ]
 
     def summary(self) -> ReviewSummary:
@@ -152,17 +152,55 @@ class ReviewQueryService:
         classifications = self.session.scalars(query).all()
 
         return [
-            ReviewItem(
-                classification_id=classification.id,
-                crop_id=classification.crop.id,
-                identity=classification.identity,
-                confidence=classification.confidence,
-                path=Path(classification.crop.path),
-                matched_example_path=(
-                    Path(classification.matched_example.crop_path)
-                    if classification.matched_example
-                    else None
+            self._to_review_item(classification) for classification in classifications
+        ]
+
+    def _prediction(
+        self,
+        classification: CropClassification,
+    ) -> ReviewPrediction:
+        return ReviewPrediction(
+            identity=classification.identity,
+            similarity=classification.confidence,
+        )
+
+    def _suggestion(
+        self,
+        classification: CropClassification,
+    ) -> ReviewSuggestion | None:
+        example = classification.matched_example
+
+        if example is None:
+            return None
+
+        return ReviewSuggestion(
+            identity=example.identity.name,
+            similarity=classification.confidence,
+            example_path=Path(example.crop_path),
+        )
+
+    def _to_review_item(
+        self,
+        classification: CropClassification,
+    ) -> ReviewItem:
+        suggestion = None
+
+        if classification.matched_example:
+            suggestion = ReviewSuggestion(
+                identity=classification.matched_example.identity.name,
+                similarity=classification.confidence,
+                example_path=Path(
+                    classification.matched_example.crop_path,
                 ),
             )
-            for classification in classifications
-        ]
+
+        return ReviewItem(
+            classification_id=classification.id,
+            crop_id=classification.crop.id,
+            path=Path(classification.crop.path),
+            prediction=ReviewPrediction(
+                identity=classification.identity,
+                similarity=classification.confidence,
+            ),
+            suggestion=suggestion,
+        )

@@ -63,13 +63,13 @@ def test_review_query_service_classifications(engine):
         results = ReviewQueryService(session).classifications()
 
         assert len(results) == 1
-        assert results[0].identity == "Fibs"
+        assert results[0].prediction.identity == "Fibs"
         assert results[0].crop_id == crop.id
         assert results[0].classification_id == classification.id
         assert results[0].path == Path("test.jpg")
         assert results[0].filename == "test.jpg"
 
-        assert results[0].matched_example_path == Path("training/fibs/example.jpg")
+        assert results[0].suggestion.example_path == Path("training/fibs/example.jpg")
 
 
 def test_review_query_filters_by_identity(engine):
@@ -114,7 +114,7 @@ def test_review_query_filters_by_identity(engine):
         )
 
         assert len(results) == 1
-        assert results[0].identity == "Fibs"
+        assert results[0].prediction.identity == "Fibs"
         assert results[0].path.name == "fibs.jpg"
 
 
@@ -160,7 +160,7 @@ def test_review_query_filters_unknown(engine):
         )
 
         assert len(results) == 1
-        assert results[0].identity is None
+        assert results[0].prediction.identity is None
         assert results[0].path.name == "unknown.jpg"
 
 
@@ -203,8 +203,8 @@ def test_review_query_orders_by_lowest_confidence_first(engine):
 
         results = ReviewQueryService(session).classifications()
 
-        assert results[0].confidence == 0.70
-        assert results[1].confidence == 0.99
+        assert results[0].prediction.similarity == 0.70
+        assert results[1].prediction.similarity == 0.99
 
 
 def test_review_query_summary(engine):
@@ -340,8 +340,8 @@ def test_review_query_filters_low_confidence(engine):
         )
 
         assert len(results) == 1
-        assert results[0].identity == "Hermann"
-        assert results[0].confidence == 0.70
+        assert results[0].prediction.identity == "Hermann"
+        assert results[0].prediction.similarity == 0.70
 
 
 def test_review_query_active_review_includes_unknown_and_low_confidence(engine):
@@ -419,7 +419,10 @@ def test_review_query_active_review_includes_unknown_and_low_confidence(engine):
 
         low_result = next(item for item in results if item.path.name == "low.jpg")
 
-        assert low_result.matched_example_path == Path("training/hermann/example.jpg")
+        assert low_result.suggestion is not None
+        assert low_result.suggestion.example_path == Path(
+            "training/hermann/example.jpg"
+        )
 
 
 def test_review_query_includes_matched_example_path(engine):
@@ -461,13 +464,14 @@ def test_review_query_includes_matched_example_path(engine):
         results = ReviewQueryService(session).classifications()
 
         assert len(results) == 1
-        assert results[0].matched_example_path == Path("training/hermann/example.jpg")
+        assert results[0].suggestion.example_path == Path(
+            "training/hermann/example.jpg"
+        )
 
 
 def test_review_returns_queue(api_client, engine):
     from sqlalchemy.orm import Session
 
-    from immich_dog_tagger.enums import ClassificationSources
     from immich_dog_tagger.models import Crop, CropClassification
 
     with Session(engine) as session:
@@ -476,11 +480,18 @@ def test_review_returns_queue(api_client, engine):
             path="fib.jpg",
         )
 
+        example = EmbeddingExample(
+            identity=Identity(name="Hermann"),
+            crop_path="training/hermann/example.jpg",
+            embedding=b"fake",
+            source=EmbeddingSources.REVIEW,
+        )
+
         classification = CropClassification(
             crop=crop,
             identity=None,
             confidence=-1.0,
-            source=ClassificationSources.AUTO,
+            matched_example=example,
         )
 
         session.add(classification)
@@ -498,3 +509,8 @@ def test_review_returns_queue(api_client, engine):
 
     assert len(items) == 1
     assert items[0]["crop_id"] == crop_id
+
+    assert items[0]["prediction"]["identity"] is None
+    assert items[0]["prediction"]["similarity"] == -1.0
+    assert items[0]["suggestion"]["identity"] == "Hermann"
+    assert items[0]["suggestion"]["example_path"] == "training/hermann/example.jpg"

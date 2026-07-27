@@ -5,6 +5,7 @@ from immich_dog_tagger.api.routes import (
     classifications,
     crops,
     dogs,
+    examples,
     health,
     review,
 )
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(classifications.router)
     app.include_router(crops.router)
     app.include_router(dogs.router)
+    app.include_router(examples.router)
     app.include_router(health.router)
     app.include_router(review.router)
 

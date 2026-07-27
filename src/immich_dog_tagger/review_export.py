@@ -50,7 +50,7 @@ class ReviewExporter:
             writer.writeheader()
 
             for item in items:
-                identity = item.identity or "Unknown"
+                identity = item.prediction.identity or "Unknown"
 
                 destination = predicted / identity / item.filename
 
@@ -68,8 +68,8 @@ class ReviewExporter:
                     {
                         "classification_id": item.classification_id,
                         "crop_id": item.crop_id,
-                        "identity": item.identity,
-                        "confidence": item.confidence,
+                        "identity": item.prediction.identity or "Unknown",
+                        "confidence": item.prediction.similarity,
                         "filename": item.filename,
                         "source_path": str(item.path),
                     }
@@ -85,12 +85,12 @@ class ReviewExporter:
         metadata = destination.with_suffix(".txt")
 
         lines = [
-            f"Identity: {item.identity or 'Unknown'}",
-            f"Confidence: {item.confidence:.4f}",
+            f"Identity: {item.prediction.identity or 'Unknown'}",
+            f"Similarity: {item.prediction.similarity:.4f}",
         ]
 
-        if item.matched_example_path:
-            lines.append(f"Matched example: {item.matched_example_path}")
+        if item.suggestion and item.suggestion.example_path:
+            lines.append(f"Matched example: {item.suggestion.example_path}")
         else:
             lines.append("Matched example: None")
 
