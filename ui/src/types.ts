@@ -11,6 +11,6 @@ export interface ReviewItem {
   suggestion: {
     identity: string;
     similarity: number;
-    example_path: string;
+    example_id: string;
   } | null;
 }
