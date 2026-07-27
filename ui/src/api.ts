@@ -1,7 +1,7 @@
 import type { ReviewItem } from "./types";
 
 export async function getReview(): Promise<ReviewItem[]> {
-  const response = await fetch("/api/review?limit=1");
+  const response = await fetch("/api/review?limit=50");
 
   if (!response.ok) {
     throw new Error("Failed to load review queue");

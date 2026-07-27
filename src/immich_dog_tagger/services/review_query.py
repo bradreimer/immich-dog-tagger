@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from collections import Counter
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
@@ -125,13 +125,25 @@ class ReviewQueryService:
         threshold: float = 0.80,
         limit: int | None = None,
     ) -> list[ReviewItem]:
+        priority = case(
+            (
+                CropClassification.identity.is_(None),
+                0,
+            ),
+            else_=1,
+        )
+
         query = (
             select(CropClassification)
             .where(
                 (CropClassification.identity.is_(None))
                 | (CropClassification.confidence < threshold)
             )
-            .order_by(CropClassification.confidence.asc())
+            .order_by(
+                priority.asc(),
+                CropClassification.confidence.asc(),
+                CropClassification.created_at.asc(),
+            )
         )
 
         if limit is not None:

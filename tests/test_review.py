@@ -462,3 +462,39 @@ def test_review_query_includes_matched_example_path(engine):
 
         assert len(results) == 1
         assert results[0].matched_example_path == Path("training/hermann/example.jpg")
+
+
+def test_review_returns_queue(api_client, engine):
+    from sqlalchemy.orm import Session
+
+    from immich_dog_tagger.enums import ClassificationSources
+    from immich_dog_tagger.models import Crop, CropClassification
+
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="fib.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=-1.0,
+            source=ClassificationSources.AUTO,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        crop_id = crop.id
+
+    response = api_client.get(
+        "/review",
+    )
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["crop_id"] == crop_id

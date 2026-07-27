@@ -18,9 +18,9 @@ router = APIRouter(
     "",
     response_model=list[ReviewItemResponse],
 )
-def review_queue(
+def review(
     threshold: float = Query(0.80),
-    limit: int | None = Query(None),
+    limit: int = Query(50),
     session: Session = Depends(get_session),
 ):
     service = get_review_query_service(session)
