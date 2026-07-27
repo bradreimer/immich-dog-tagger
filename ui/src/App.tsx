@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   correctClassification,
@@ -23,25 +23,66 @@ function App() {
   }
 
 
-  async function correct(identity: string) {
-    const item = items[index];
+  const correct = useCallback(
+    async (identity: string) => {
+      const item = items[index];
 
-    if (!item) {
-      return;
-    }
+      if (!item) {
+        return;
+      }
 
-    await correctClassification(
-      item.classification_id,
-      identity,
-    );
+      await correctClassification(
+        item.classification_id,
+        identity,
+      );
 
-    setIndex(index + 1);
-  }
+      setIndex(index + 1);
+    },
+    [items, index],
+  );
 
 
   useEffect(() => {
     loadReview();
   }, []);
+
+
+  useEffect(() => {
+    function handleKey(
+      event: KeyboardEvent,
+    ) {
+      switch (event.key) {
+        case "1":
+          correct("Fibs");
+          break;
+
+        case "2":
+          correct("Hermann");
+          break;
+
+        case "3":
+          correct("Henri");
+          break;
+
+        case "u":
+        case "U":
+          correct("Unknown");
+          break;
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      handleKey,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleKey,
+      );
+    };
+  }, [correct]);
 
 
   const item = items[index];
@@ -50,7 +91,9 @@ function App() {
   if (!item) {
     return (
       <main>
-        <h1>No review items</h1>
+        <h1>
+          No review items
+        </h1>
       </main>
     );
   }
@@ -64,6 +107,10 @@ function App() {
 
       <p>
         {index + 1} / {items.length}
+      </p>
+
+      <p>
+        1: Fibs | 2: Hermann | 3: Henri | U: Unknown
       </p>
 
       <ReviewCard
