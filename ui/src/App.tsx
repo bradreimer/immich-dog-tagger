@@ -13,13 +13,18 @@ import type { ReviewItem } from "./types";
 function App() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [index, setIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
 
 
   async function loadReview() {
+    setLoading(true);
+
     const queue = await getReview();
 
     setItems(queue);
     setIndex(0);
+
+    setLoading(false);
   }
 
 
@@ -36,7 +41,7 @@ function App() {
         identity,
       );
 
-      setIndex(index + 1);
+      setIndex((current) => current + 1);
     },
     [items, index],
   );
@@ -48,24 +53,25 @@ function App() {
 
 
   useEffect(() => {
-    function handleKey(
-      event: KeyboardEvent,
-    ) {
-      switch (event.key) {
-        case "1":
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.target instanceof HTMLInputElement) {
+        return;
+      }
+
+      switch (event.key.toLowerCase()) {
+        case "f":
           correct("Fibs");
           break;
 
-        case "2":
+        case "h":
           correct("Hermann");
           break;
 
-        case "3":
+        case "n":
           correct("Henri");
           break;
 
         case "u":
-        case "U":
           correct("Unknown");
           break;
       }
@@ -73,13 +79,13 @@ function App() {
 
     window.addEventListener(
       "keydown",
-      handleKey,
+      handleKeyDown,
     );
 
     return () => {
       window.removeEventListener(
         "keydown",
-        handleKey,
+        handleKeyDown,
       );
     };
   }, [correct]);
@@ -88,12 +94,23 @@ function App() {
   const item = items[index];
 
 
+  if (loading) {
+    return (
+      <main>
+        <h1>Loading review queue...</h1>
+      </main>
+    );
+  }
+
+
   if (!item) {
     return (
       <main>
-        <h1>
-          No review items
-        </h1>
+        <h1>No review items</h1>
+
+        <button onClick={loadReview}>
+          Refresh
+        </button>
       </main>
     );
   }
@@ -110,7 +127,15 @@ function App() {
       </p>
 
       <p>
-        1: Fibs | 2: Hermann | 3: Henri | U: Unknown
+        Keyboard:
+        {" "}
+        F = Fibs,
+        {" "}
+        H = Hermann,
+        {" "}
+        N = Henri,
+        {" "}
+        U = Unknown
       </p>
 
       <ReviewCard
