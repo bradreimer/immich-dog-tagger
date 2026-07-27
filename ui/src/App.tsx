@@ -9,20 +9,23 @@ import { ReviewCard } from "./ReviewCard";
 
 import type { ReviewItem } from "./types";
 
+
 function App() {
-  const [item, setItem] = useState<ReviewItem | null>(null);
+  const [items, setItems] = useState<ReviewItem[]>([]);
+  const [index, setIndex] = useState(0);
+
 
   async function loadReview() {
-    const items = await getReview();
+    const queue = await getReview();
 
-    setItem(
-      items.length > 0
-        ? items[0]
-        : null,
-    );
+    setItems(queue);
+    setIndex(0);
   }
 
+
   async function correct(identity: string) {
+    const item = items[index];
+
     if (!item) {
       return;
     }
@@ -32,12 +35,17 @@ function App() {
       identity,
     );
 
-    await loadReview();
+    setIndex(index + 1);
   }
+
 
   useEffect(() => {
     loadReview();
   }, []);
+
+
+  const item = items[index];
+
 
   if (!item) {
     return (
@@ -47,9 +55,16 @@ function App() {
     );
   }
 
+
   return (
     <main>
-      <h1>Dog Review</h1>
+      <h1>
+        Dog Review
+      </h1>
+
+      <p>
+        {index + 1} / {items.length}
+      </p>
 
       <ReviewCard
         item={item}
@@ -58,5 +73,6 @@ function App() {
     </main>
   );
 }
+
 
 export default App;
