@@ -17,22 +17,11 @@ class ReviewPredictionResponse(BaseModel):
 class ReviewSuggestionResponse(BaseModel):
     identity: str
     similarity: float
-    example_path: str
-
-
-class PredictionResponse(BaseModel):
-    identity: str | None
-    similarity: float
+    example_id: int
 
 
 class CorrectionRequest(BaseModel):
     identity: str
-
-
-class SuggestionResponse(BaseModel):
-    identity: str
-    similarity: float
-    example_path: str
 
 
 class ReviewItemResponse(BaseModel):
@@ -40,8 +29,8 @@ class ReviewItemResponse(BaseModel):
     crop_id: int
     path: str
 
-    prediction: PredictionResponse
-    suggestion: SuggestionResponse | None
+    prediction: ReviewPredictionResponse
+    suggestion: ReviewSuggestionResponse | None
 
     @classmethod
     def from_item(cls, item):
@@ -49,15 +38,15 @@ class ReviewItemResponse(BaseModel):
             classification_id=item.classification_id,
             crop_id=item.crop_id,
             path=str(item.path),
-            prediction=PredictionResponse(
+            prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
                 similarity=item.prediction.similarity,
             ),
             suggestion=(
-                SuggestionResponse(
+                ReviewSuggestionResponse(
                     identity=item.suggestion.identity,
                     similarity=item.suggestion.similarity,
-                    example_path=str(item.suggestion.example_path),
+                    example_id=item.suggestion.example_id,
                 )
                 if item.suggestion
                 else None

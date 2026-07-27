@@ -59,6 +59,7 @@ def test_export_review_writes_metadata(tmp_path):
         suggestion=ReviewSuggestion(
             identity="Fibs",
             similarity=0.95,
+            example_id=1,
             example_path=example,
         ),
     )

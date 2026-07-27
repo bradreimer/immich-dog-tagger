@@ -420,9 +420,7 @@ def test_review_query_active_review_includes_unknown_and_low_confidence(engine):
         low_result = next(item for item in results if item.path.name == "low.jpg")
 
         assert low_result.suggestion is not None
-        assert low_result.suggestion.example_path == Path(
-            "training/hermann/example.jpg"
-        )
+        assert low_result.suggestion.example_id == example.id
 
 
 def test_review_query_includes_matched_example_path(engine):
@@ -464,27 +462,35 @@ def test_review_query_includes_matched_example_path(engine):
         results = ReviewQueryService(session).classifications()
 
         assert len(results) == 1
-        assert results[0].suggestion.example_path == Path(
-            "training/hermann/example.jpg"
-        )
+        assert results[0].suggestion.example_id == example.id
 
 
 def test_review_returns_queue(api_client, engine):
     from sqlalchemy.orm import Session
 
-    from immich_dog_tagger.models import Crop, CropClassification
+    from immich_dog_tagger.enums import ClassificationSources, EmbeddingSources
+    from immich_dog_tagger.models import (
+        Crop,
+        CropClassification,
+        EmbeddingExample,
+        Identity,
+    )
 
     with Session(engine) as session:
-        crop = Crop(
-            detection_id=1,
-            path="fib.jpg",
+        identity = Identity(
+            name="Hermann",
         )
 
         example = EmbeddingExample(
-            identity=Identity(name="Hermann"),
+            identity=identity,
             crop_path="training/hermann/example.jpg",
             embedding=b"fake",
             source=EmbeddingSources.REVIEW,
+        )
+
+        crop = Crop(
+            detection_id=1,
+            path="fib.jpg",
         )
 
         classification = CropClassification(
@@ -492,12 +498,21 @@ def test_review_returns_queue(api_client, engine):
             identity=None,
             confidence=-1.0,
             matched_example=example,
+            source=ClassificationSources.AUTO,
         )
 
-        session.add(classification)
+        session.add_all(
+            [
+                identity,
+                example,
+                classification,
+            ]
+        )
+
         session.commit()
 
         crop_id = crop.id
+        example_id = example.id
 
     response = api_client.get(
         "/review",
@@ -508,9 +523,15 @@ def test_review_returns_queue(api_client, engine):
     items = response.json()
 
     assert len(items) == 1
-    assert items[0]["crop_id"] == crop_id
 
-    assert items[0]["prediction"]["identity"] is None
-    assert items[0]["prediction"]["similarity"] == -1.0
-    assert items[0]["suggestion"]["identity"] == "Hermann"
-    assert items[0]["suggestion"]["example_path"] == "training/hermann/example.jpg"
+    item = items[0]
+
+    assert item["crop_id"] == crop_id
+
+    assert item["prediction"] == {
+        "identity": None,
+        "similarity": -1.0,
+    }
+
+    assert item["suggestion"]["identity"] == "Hermann"
+    assert item["suggestion"]["example_id"] == example_id

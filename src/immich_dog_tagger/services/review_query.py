@@ -20,6 +20,7 @@ class ReviewPrediction:
 class ReviewSuggestion:
     identity: str
     similarity: float
+    example_id: int
     example_path: Path
 
 
@@ -176,6 +177,7 @@ class ReviewQueryService:
         return ReviewSuggestion(
             identity=example.identity.name,
             similarity=classification.confidence,
+            example_id=example.id,
             example_path=Path(example.crop_path),
         )
 
@@ -189,9 +191,8 @@ class ReviewQueryService:
             suggestion = ReviewSuggestion(
                 identity=classification.matched_example.identity.name,
                 similarity=classification.confidence,
-                example_path=Path(
-                    classification.matched_example.crop_path,
-                ),
+                example_id=classification.matched_example.id,
+                example_path=Path(classification.matched_example.crop_path),
             )
 
         return ReviewItem(
