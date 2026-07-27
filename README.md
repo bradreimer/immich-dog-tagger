@@ -2,6 +2,8 @@
 
 AI-assisted dog detection and identity classification pipeline for [Immich](https://immich.app/).
 
+![immich-dog-tagger project banner](banner.png)
+
 Immich Dog Tagger scans an Immich photo library, detects dogs, creates crops, generates image embeddings, and classifies individual dogs using a locally trained identity model.
 
 The system is designed around human-in-the-loop learning:
