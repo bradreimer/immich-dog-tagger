@@ -198,6 +198,11 @@ class CropClassification(Base):
         default=ClassificationSources.AUTO,
     )
 
+    review_skipped: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),

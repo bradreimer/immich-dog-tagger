@@ -168,6 +168,9 @@ class ReviewQueryService:
         query = (
             select(CropClassification)
             .where(
+                CropClassification.review_skipped.is_(False),
+            )
+            .where(
                 (CropClassification.identity.is_(None))
                 | (CropClassification.confidence < threshold)
             )

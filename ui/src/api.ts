@@ -44,3 +44,18 @@ export async function correctClassification(
     throw new Error("Failed to correct classification");
   }
 }
+
+export async function skipClassification(
+  classificationId: number,
+): Promise<void> {
+  const response = await fetch(
+    `/api/review/${classificationId}/skip`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to skip classification");
+  }
+}

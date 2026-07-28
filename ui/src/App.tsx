@@ -4,6 +4,7 @@ import {
   correctClassification,
   getReview,
   getReviewStats,
+  skipClassification,
 } from "./api";
 
 import { ReviewCard } from "./ReviewCard";
@@ -61,6 +62,29 @@ function App() {
     [items, index],
   );
 
+
+  const skip = useCallback(
+    async () => {
+      const item = items[index];
+
+      if (!item) {
+        return;
+      }
+
+      await skipClassification(
+        item.classification_id,
+      );
+
+      const queueStats = await getReviewStats();
+
+      setStats(queueStats);
+      setIndex((current) =>
+        Math.min(current, items.length - 2),
+      );
+    },
+    [items, index],
+  );
+
   
   const previous = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
@@ -93,6 +117,10 @@ function App() {
           next();
           break;
 
+        case "s":
+          skip();
+          break;
+
         case "f":
           correct("Fibs");
           break;
@@ -122,7 +150,7 @@ function App() {
         handleKeyDown,
       );
     };
-  }, [correct, next, previous]);
+  }, [correct, next, previous, skip]);
 
   const item = items[index];
 
@@ -180,6 +208,12 @@ function App() {
           disabled={index === items.length - 1}
         >
           Next
+        </button>
+
+        <button
+          onClick={skip}
+        >
+          Skip
         </button>
       </div>
 
