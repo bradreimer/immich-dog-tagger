@@ -4,6 +4,7 @@ Immich API client.
 
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime
 
 import httpx
 import truststore
@@ -20,10 +21,18 @@ class ImmichAsset:
     id: str
     filename: str
     checksum: str | None
+    captured_at: datetime | None = None
 
     @property
     def extension(self) -> str:
         return Path(self.filename).suffix.lower()
+
+
+def parse_immich_datetime(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 class ImmichClient:
@@ -81,6 +90,7 @@ class ImmichClient:
                 checksum=item.get(
                     "checksum",
                 ),
+                captured_at=parse_immich_datetime(item.get("fileCreatedAt")),
             )
             for item in items
         ]

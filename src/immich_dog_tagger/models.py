@@ -130,6 +130,11 @@ class Asset(Base):
         cascade="all, delete-orphan",
     )
 
+    captured_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
     def cache_path(
         self,
         cache_dir: Path,

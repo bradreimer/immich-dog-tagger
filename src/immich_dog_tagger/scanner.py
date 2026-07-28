@@ -53,6 +53,7 @@ class Scanner:
                     immich_asset_id=immich_asset.id,
                     checksum=immich_asset.checksum,
                     extension=immich_asset.extension,
+                    captured_at=immich_asset.captured_at,
                 )
             )
 
