@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from collections import Counter
 from pathlib import Path
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
@@ -43,6 +43,20 @@ class ReviewSummary:
     identities: dict[str, int]
     unknown: int
     confidence_buckets: dict[str, int]
+
+
+@dataclass(frozen=True)
+class QueueStats:
+    total: int
+    reviewed: int
+    remaining: int
+
+
+@dataclass(frozen=True)
+class ReviewQueueStats:
+    total: int
+    reviewed: int
+    remaining: int
 
 
 class ReviewQueryService:
@@ -120,6 +134,23 @@ class ReviewQueryService:
             confidence_buckets=dict(confidence_buckets),
         )
 
+    def review_queue_stats(self) -> ReviewQueueStats:
+        total = self.session.scalar(
+            select(func.count()).select_from(CropClassification)
+        )
+
+        reviewed = self.session.scalar(
+            select(func.count())
+            .select_from(CropClassification)
+            .where(CropClassification.identity.is_not(None))
+        )
+
+        return ReviewQueueStats(
+            total=total or 0,
+            reviewed=reviewed or 0,
+            remaining=(total or 0) - (reviewed or 0),
+        )
+
     def active_review(
         self,
         *,
@@ -185,23 +216,10 @@ class ReviewQueryService:
         self,
         classification: CropClassification,
     ) -> ReviewItem:
-        suggestion = None
-
-        if classification.matched_example:
-            suggestion = ReviewSuggestion(
-                identity=classification.matched_example.identity.name,
-                similarity=classification.confidence,
-                example_id=classification.matched_example.id,
-                example_path=Path(classification.matched_example.crop_path),
-            )
-
         return ReviewItem(
             classification_id=classification.id,
             crop_id=classification.crop.id,
             path=Path(classification.crop.path),
-            prediction=ReviewPrediction(
-                identity=classification.identity,
-                similarity=classification.confidence,
-            ),
-            suggestion=suggestion,
+            prediction=self._prediction(classification),
+            suggestion=self._suggestion(classification),
         )

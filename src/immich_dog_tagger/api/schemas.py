@@ -52,3 +52,9 @@ class ReviewItemResponse(BaseModel):
                 else None
             ),
         )
+
+
+class ReviewQueueStatsResponse(BaseModel):
+    total: int
+    reviewed: int
+    remaining: int

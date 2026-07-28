@@ -1,10 +1,23 @@
-import type { ReviewItem } from "./types";
+import type {
+  ReviewItem,
+  ReviewQueueStats,
+} from "./types";
 
 export async function getReview(): Promise<ReviewItem[]> {
   const response = await fetch("/api/review?limit=50");
 
   if (!response.ok) {
     throw new Error("Failed to load review queue");
+  }
+
+  return response.json();
+}
+
+export async function getReviewStats(): Promise<ReviewQueueStats> {
+  const response = await fetch("/api/review/stats");
+
+  if (!response.ok) {
+    throw new Error("Failed to load review stats");
   }
 
   return response.json();

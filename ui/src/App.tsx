@@ -3,15 +3,20 @@ import { useCallback, useEffect, useState } from "react";
 import {
   correctClassification,
   getReview,
+  getReviewStats,
 } from "./api";
 
 import { ReviewCard } from "./ReviewCard";
 
-import type { ReviewItem } from "./types";
+import type {
+  ReviewItem,
+  ReviewQueueStats
+} from "./types";
 
 
 function App() {
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -19,9 +24,13 @@ function App() {
   async function loadReview() {
     setLoading(true);
 
-    const queue = await getReview();
+    const [queue, queueStats] = await Promise.all([
+      getReview(),
+      getReviewStats(),
+    ]);
 
     setItems(queue);
+    setStats(queueStats);
     setIndex(0);
 
     setLoading(false);
@@ -41,6 +50,9 @@ function App() {
         identity,
       );
 
+      const queueStats = await getReviewStats();
+
+      setStats(queueStats);
       setIndex((current) => current + 1);
     },
     [items, index],
@@ -123,8 +135,16 @@ function App() {
       </h1>
 
       <p>
-        {index + 1} / {items.length}
+        Current batch: {index + 1} / {items.length}
       </p>
+
+      {stats && (
+        <p>
+          Reviewed: {stats.reviewed} / {stats.total}
+          {" "}
+          ({stats.remaining} remaining)
+        </p>
+      )}
 
       <p>
         Keyboard:

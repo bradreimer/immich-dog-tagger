@@ -14,3 +14,9 @@ export interface ReviewItem {
     example_id: string;
   } | null;
 }
+
+export interface ReviewQueueStats {
+  total: number;
+  reviewed: number;
+  remaining: number;
+}
