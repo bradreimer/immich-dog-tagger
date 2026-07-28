@@ -53,10 +53,24 @@ function App() {
       const queueStats = await getReviewStats();
 
       setStats(queueStats);
-      setIndex((current) => current + 1);
+
+      setIndex((current) =>
+        Math.min(items.length - 1, current + 1),
+      );
     },
     [items, index],
   );
+
+  
+  const previous = useCallback(() => {
+    setIndex((current) => Math.max(0, current - 1));
+  }, []);
+
+  const next = useCallback(() => {
+    setIndex((current) =>
+      Math.min(items.length - 1, current + 1),
+    );
+  }, [items.length]);
 
 
   useEffect(() => {
@@ -71,6 +85,14 @@ function App() {
       }
 
       switch (event.key.toLowerCase()) {
+        case "arrowleft":
+          previous();
+          break;
+
+        case "arrowright":
+          next();
+          break;
+
         case "f":
           correct("Fibs");
           break;
@@ -100,8 +122,7 @@ function App() {
         handleKeyDown,
       );
     };
-  }, [correct]);
-
+  }, [correct, next, previous]);
 
   const item = items[index];
 
@@ -146,8 +167,28 @@ function App() {
         </p>
       )}
 
+      <div>
+        <button
+          onClick={previous}
+          disabled={index === 0}
+        >
+          Previous
+        </button>
+
+        <button
+          onClick={next}
+          disabled={index === items.length - 1}
+        >
+          Next
+        </button>
+      </div>
+
       <p>
         Keyboard:
+        {" "}
+        ← = Previous,
+        {" "}
+        → = Next,
         {" "}
         F = Fibs,
         {" "}
