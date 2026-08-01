@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import (
     AssetStatus,
+    EmbeddingSources,
     ReviewActions,
 )
 from immich_dog_tagger.models import (
@@ -30,7 +31,9 @@ class StatusSummary:
 
     identities: int
     examples: int
+
     examples_by_source: dict[str, int]
+    review_actions_by_type: dict[str, int]
 
     pending_download: int
     downloaded: int
@@ -48,9 +51,6 @@ class StatusSummary:
 
     unknown: int
     low_confidence: int
-
-    review_corrections: int
-    review_skips: int
 
 
 @dataclass(frozen=True)
@@ -77,7 +77,8 @@ class StatusService:
             statuses=self._asset_status_counts(),
             identities=self._count(Identity),
             examples=self._count(EmbeddingExample),
-            examples_by_source=self._examples_by_source(),
+            examples_by_source=self._count_examples_by_source(),
+            review_actions_by_type=self._count_review_actions_by_type(),
             pending_download=self._count_pending_download(),
             downloaded=self._count_downloaded(),
             download_failed=self._count_download_failed(),
@@ -91,12 +92,6 @@ class StatusService:
             unknown=self._count_unknown(),
             low_confidence=self._count_low_confidence(
                 confidence_threshold,
-            ),
-            review_corrections=self._count_review_actions(
-                ReviewActions.CORRECT,
-            ),
-            review_skips=self._count_review_actions(
-                ReviewActions.SKIP,
             ),
         )
 
@@ -232,27 +227,32 @@ class StatusService:
             or 0
         )
 
-    def _examples_by_source(self) -> dict[str, int]:
-        examples = self.session.scalars(select(EmbeddingExample)).all()
-
-        counts = Counter()
-
-        for example in examples:
-            counts[example.source.value] += 1
-
-        return dict(counts)
-
-    def _count_review_actions(
-        self,
-        action: ReviewActions,
-    ) -> int:
-        return (
-            self.session.scalar(
-                select(func.count())
-                .select_from(ReviewAction)
-                .where(
-                    ReviewAction.action == action,
-                )
+    def _count_examples_by_source(self) -> dict[str, int]:
+        rows = self.session.execute(
+            select(
+                EmbeddingExample.source,
+                func.count(),
+            ).group_by(
+                EmbeddingExample.source,
             )
-            or 0
         )
+
+        counts = {source.value: count for source, count in rows}
+
+        return {
+            source.value: counts.get(source.value, 0) for source in EmbeddingSources
+        }
+
+    def _count_review_actions_by_type(self) -> dict[str, int]:
+        rows = self.session.execute(
+            select(
+                ReviewAction.action,
+                func.count(),
+            ).group_by(
+                ReviewAction.action,
+            )
+        )
+
+        counts = {action.value: count for action, count in rows}
+
+        return {action.value: counts.get(action.value, 0) for action in ReviewActions}
