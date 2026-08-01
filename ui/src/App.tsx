@@ -75,20 +75,16 @@ function App() {
         item.classification_id,
       );
 
-      const queueStats = await getReviewStats();
-
-      setStats(queueStats);
-      setIndex((current) =>
-        Math.min(current, items.length - 2),
-      );
+      await loadReview();
     },
     [items, index],
   );
-
   
+
   const previous = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
   }, []);
+
 
   const next = useCallback(() => {
     setIndex((current) =>
@@ -236,6 +232,7 @@ function App() {
       <ReviewCard
         item={item}
         onCorrect={correct}
+        onSkip={skip}
       />
     </main>
   );

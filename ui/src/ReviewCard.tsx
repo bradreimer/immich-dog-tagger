@@ -3,6 +3,7 @@ import type { ReviewItem } from "./types";
 interface Props {
   item: ReviewItem;
   onCorrect: (identity: string) => void;
+  onSkip: () => void;
 }
 
 const identities = [
@@ -15,6 +16,7 @@ const identities = [
 export function ReviewCard({
   item,
   onCorrect,
+  onSkip,
 }: Props) {
   return (
     <section>
@@ -59,6 +61,9 @@ export function ReviewCard({
             {identity}
           </button>
         ))}
+        <button onClick={onSkip}>
+          Skip
+        </button>
       </div>
     </section>
   );
