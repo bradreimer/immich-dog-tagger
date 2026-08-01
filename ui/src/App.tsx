@@ -205,12 +205,6 @@ function App() {
         >
           Next
         </button>
-
-        <button
-          onClick={skip}
-        >
-          Skip
-        </button>
       </div>
 
       <p>

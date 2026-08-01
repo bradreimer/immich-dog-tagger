@@ -23,34 +23,43 @@ export function ReviewCard({
       <img
         src={`/api/crops/${item.crop_id}`}
         alt="dog crop"
-        width={400}
+        width={500}
       />
 
+      <h2>Prediction</h2>
+
       <p>
-        Prediction: {item.prediction.identity ?? "Unknown"}
+        Identity:{" "}
+        {item.prediction.identity ?? "Unknown"}
       </p>
 
       <p>
-        Similarity: {item.prediction.similarity.toFixed(3)}
+        Similarity:{" "}
+        {item.prediction.similarity.toFixed(3)}
       </p>
 
       {item.suggestion && (
-        <div>
+        <>
+          <h2>Suggested Match</h2>
+
           <p>
-            Suggested: {item.suggestion.identity}
+            Identity: {item.suggestion.identity}
           </p>
 
           <p>
-            Similarity: {item.suggestion.similarity.toFixed(3)}
+            Similarity:{" "}
+            {item.suggestion.similarity.toFixed(3)}
           </p>
 
           <img
             src={`/api/embedding-examples/${item.suggestion.example_id}/image`}
             alt="matched example"
-            width={200}
+            width={250}
           />
-        </div>
+        </>
       )}
+
+      <h2>Correct Identity</h2>
 
       <div>
         {identities.map((identity) => (
@@ -61,10 +70,11 @@ export function ReviewCard({
             {identity}
           </button>
         ))}
-        <button onClick={onSkip}>
-          Skip
-        </button>
       </div>
+
+      <button onClick={onSkip}>
+        Skip
+      </button>
     </section>
   );
 }
