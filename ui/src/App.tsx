@@ -21,11 +21,13 @@ function App() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
 
   async function loadReview() {
     setLoading(true);
     setError(null);
+    setActionError(null);
 
     try {
       const [queue, queueStats] = await Promise.all([
@@ -69,14 +71,24 @@ function App() {
         return;
       }
 
-      await correctClassification(
-        item.classification_id,
-        identity,
-      );
+      setActionError(null);
 
-      removeCurrentItem();
+      try {
+        await correctClassification(
+          item.classification_id,
+          identity,
+        );
 
-      setStats(await getReviewStats());
+        removeCurrentItem();
+
+        setStats(await getReviewStats());
+      } catch (err) {
+        setActionError(
+          err instanceof Error
+            ? err.message
+            : "Failed to save correction",
+        );
+      }
     },
     [items, index, removeCurrentItem],
   );
@@ -90,13 +102,23 @@ function App() {
         return;
       }
 
-      await skipClassification(
-        item.classification_id,
-      );
+      setActionError(null);
 
-      removeCurrentItem();
+      try {
+        await skipClassification(
+          item.classification_id,
+        );
 
-      setStats(await getReviewStats());
+        removeCurrentItem();
+
+        setStats(await getReviewStats());
+      } catch (err) {
+        setActionError(
+          err instanceof Error
+            ? err.message
+            : "Failed to save skip action",
+        );
+      }
     },
     [items, index, removeCurrentItem],
   );
@@ -250,6 +272,12 @@ function App() {
           Next
         </button>
       </div>
+
+      {actionError && (
+        <p>
+          {actionError}
+        </p>
+      )}
 
       <p>
         Keyboard:
