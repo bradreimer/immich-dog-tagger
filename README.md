@@ -178,6 +178,35 @@ The API sits above the application layer rather than replacing the CLI or pipeli
 
 ---
 
+# Running Locally
+
+The review API is served by FastAPI via Uvicorn, and the browser UI is served by Vite.
+
+## Backend API
+
+From the repository root, install the Python dependencies and start the API:
+
+```bash
+uv sync
+uv run uvicorn immich_dog_tagger.api.app:app --reload --host 0.0.0.0 --port 8000
+```
+
+The API will be available at http://localhost:8000 and the interactive docs are at http://localhost:8000/docs.
+
+## Web UI
+
+In a second terminal, install the frontend dependencies and start the Vite dev server:
+
+```bash
+cd ui
+npm install
+npm run dev
+```
+
+The UI will be available at http://localhost:5173. The Vite dev server proxies requests under /api to the backend on port 8000.
+
+---
+
 # Processing Pipeline
 
 ```

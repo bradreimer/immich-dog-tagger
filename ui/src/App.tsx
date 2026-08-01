@@ -20,22 +20,38 @@ function App() {
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
 
   async function loadReview() {
     setLoading(true);
+    setError(null);
 
-    const [queue, queueStats] = await Promise.all([
-      getReview(),
-      getReviewStats(),
-    ]);
+    try {
+      const [queue, queueStats] = await Promise.all([
+        getReview(),
+        getReviewStats(),
+      ]);
 
-    setItems(queue);
-    setStats(queueStats);
-    setIndex(0);
-
-    setLoading(false);
+      setItems(queue);
+      setStats(queueStats);
+      setIndex(0);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load review queue",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
+  
+
+  const removeCurrentItem = useCallback(() => {
+    setItems((current) => current.filter((_, i) => i !== index));
+    setIndex((current) => Math.min(current, items.length - 2));
+  }, [index, items.length]);
 
 
   const correct = useCallback(
@@ -55,7 +71,7 @@ function App() {
 
       getReviewStats().then(setStats);
     },
-    [items, index],
+    [items, index, removeCurrentItem],
   );
 
 
@@ -75,7 +91,7 @@ function App() {
 
       getReviewStats().then(setStats);
     },
-    [items, index],
+    [items, index, removeCurrentItem],
   );
   
 
@@ -89,21 +105,6 @@ function App() {
       Math.min(items.length - 1, current + 1),
     );
   }, [items.length]);
-
-
-  const removeCurrentItem = useCallback(() => {
-    setItems((current) => {
-      const remaining = current.filter(
-        (_, itemIndex) => itemIndex !== index,
-      );
-
-      return remaining;
-    });
-
-    setIndex((current) =>
-      Math.min(current, items.length - 2),
-    );
-  }, [index, items.length]);
 
 
   useEffect(() => {
@@ -176,7 +177,20 @@ function App() {
   if (!item) {
     return (
       <main>
-        <h1>No review items</h1>
+        <h1>Review Complete</h1>
+
+        {stats && (
+          <p>
+            Reviewed {stats.reviewed} of {stats.total}
+            {" "}
+            classifications.
+          </p>
+        )}
+
+        <p>
+          New detections will appear here after
+          classification.
+        </p>
 
         <button onClick={loadReview}>
           Refresh
@@ -185,6 +199,18 @@ function App() {
     );
   }
 
+  if (error) {
+    return (
+      <main>
+        <h1>Review Error</h1>
+        <p>{error}</p>
+
+        <button onClick={loadReview}>
+          Retry
+        </button>
+      </main>
+    );
+  }
 
   return (
     <main>
