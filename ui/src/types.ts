@@ -1,18 +1,22 @@
+export interface ReviewSuggestion {
+  identity: string;
+  similarity: number;
+  example_id: number;
+  example_path: string;
+}
+
 export interface ReviewItem {
   classification_id: number;
   crop_id: number;
   path: string;
+  filename: string;
 
   prediction: {
     identity: string | null;
     similarity: number;
   };
 
-  suggestion: {
-    identity: string;
-    similarity: number;
-    example_id: string;
-  } | null;
+  suggestion: ReviewSuggestion | null;
 }
 
 export interface ReviewQueueStats {
