@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from collections import Counter
 from pathlib import Path
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, exists
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import ReviewActions
@@ -144,7 +144,9 @@ class ReviewQueryService:
         reviewed = self.session.scalar(
             select(func.count())
             .select_from(CropClassification)
-            .where(CropClassification.identity.is_not(None))
+            .where(
+                self._has_review_action(),
+            )
         )
 
         return ReviewQueueStats(
@@ -170,9 +172,7 @@ class ReviewQueryService:
         query = (
             select(CropClassification)
             .where(
-                ~CropClassification.review_actions.any(
-                    ReviewAction.action == ReviewActions.SKIP,
-                ),
+                ~self._has_review_action(),
             )
             .where(
                 (CropClassification.identity.is_(None))
@@ -229,4 +229,21 @@ class ReviewQueryService:
             path=Path(classification.crop.path),
             prediction=self._prediction(classification),
             suggestion=self._suggestion(classification),
+        )
+
+    def _has_completed_review(self):
+        return CropClassification.review_actions.any(
+            ReviewAction.action.in_(
+                [
+                    ReviewActions.SKIP,
+                    ReviewActions.CORRECT,
+                ],
+            ),
+        )
+
+    def _has_review_action(self):
+        return exists(
+            select(ReviewAction.id).where(
+                ReviewAction.classification_id == CropClassification.id,
+            )
         )

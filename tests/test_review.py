@@ -567,6 +567,54 @@ def test_review_query_active_review_excludes_skipped(engine):
         assert len(results) == 0
 
 
+def test_review_query_active_review_excludes_corrected(engine):
+    with Session(engine) as session:
+        classification = create_test_classification(session)
+
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.CORRECT,
+                identity="Hermann",
+            )
+        )
+
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert classification.id not in [item.classification_id for item in results]
+
+
+def test_review_query_stats_counts_review_actions(engine):
+    with Session(engine) as session:
+        skipped = create_test_classification(session)
+
+        corrected = create_test_classification(session)
+
+        session.add_all(
+            [
+                ReviewAction(
+                    classification_id=skipped.id,
+                    action=ReviewActions.SKIP,
+                ),
+                ReviewAction(
+                    classification_id=corrected.id,
+                    action=ReviewActions.CORRECT,
+                    identity="Hermann",
+                ),
+            ]
+        )
+
+        session.commit()
+
+        stats = ReviewQueryService(session).review_queue_stats()
+
+        assert stats.total == 2
+        assert stats.reviewed == 2
+        assert stats.remaining == 0
+
+
 def test_skip_review_endpoint(api_client, engine):
     with Session(engine) as session:
         crop = Crop(
