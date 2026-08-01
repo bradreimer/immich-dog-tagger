@@ -49,9 +49,16 @@ function App() {
   
 
   const removeCurrentItem = useCallback(() => {
-    setItems((current) => current.filter((_, i) => i !== index));
-    setIndex((current) => Math.min(current, items.length - 2));
-  }, [index, items.length]);
+    setItems((current) => {
+      const next = current.filter((_, i) => i !== index);
+
+      setIndex((currentIndex) =>
+        Math.min(currentIndex, next.length - 1),
+      );
+
+      return next;
+    });
+  }, [index]);
 
 
   const correct = useCallback(
@@ -69,7 +76,7 @@ function App() {
 
       removeCurrentItem();
 
-      getReviewStats().then(setStats);
+      setStats(await getReviewStats());
     },
     [items, index, removeCurrentItem],
   );
@@ -89,7 +96,7 @@ function App() {
 
       removeCurrentItem();
 
-      getReviewStats().then(setStats);
+      setStats(await getReviewStats());
     },
     [items, index, removeCurrentItem],
   );
@@ -164,7 +171,6 @@ function App() {
 
   const item = items[index];
 
-
   if (loading) {
     return (
       <main>
@@ -173,6 +179,18 @@ function App() {
     );
   }
 
+  if (error) {
+    return (
+      <main>
+        <h1>Review Error</h1>
+        <p>{error}</p>
+
+        <button onClick={loadReview}>
+          Retry
+        </button>
+      </main>
+    );
+  }
 
   if (!item) {
     return (
@@ -194,19 +212,6 @@ function App() {
 
         <button onClick={loadReview}>
           Refresh
-        </button>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main>
-        <h1>Review Error</h1>
-        <p>{error}</p>
-
-        <button onClick={loadReview}>
-          Retry
         </button>
       </main>
     );
