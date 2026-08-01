@@ -29,3 +29,8 @@ class ClassificationSources(StrEnum):
     AUTO = "auto"
     REVIEW = "review"
     MANUAL = "manual"
+
+
+class ReviewActions(StrEnum):
+    SKIP = "skip"
+    CORRECT = "correct"

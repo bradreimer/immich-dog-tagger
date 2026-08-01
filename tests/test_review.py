@@ -1,12 +1,17 @@
 from pathlib import Path
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import (
+    ClassificationSources,
+    EmbeddingSources,
+    ReviewActions,
+)
 from immich_dog_tagger.models import (
     Crop,
     CropClassification,
-    EmbeddingSources,
     Identity,
     EmbeddingExample,
+    ReviewAction,
 )
 from immich_dog_tagger.services.review_query import ReviewQueryService
 
@@ -466,16 +471,6 @@ def test_review_query_includes_matched_example_path(engine):
 
 
 def test_review_returns_queue(api_client, engine):
-    from sqlalchemy.orm import Session
-
-    from immich_dog_tagger.enums import ClassificationSources, EmbeddingSources
-    from immich_dog_tagger.models import (
-        Crop,
-        CropClassification,
-        EmbeddingExample,
-        Identity,
-    )
-
     with Session(engine) as session:
         identity = Identity(
             name="Hermann",
@@ -535,3 +530,72 @@ def test_review_returns_queue(api_client, engine):
 
     assert item["suggestion"]["identity"] == "Hermann"
     assert item["suggestion"]["example_id"] == example_id
+
+
+def test_review_query_active_review_excludes_skipped(engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="skipped.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.50,
+        )
+
+        session.add(classification)
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.SKIP,
+            )
+        )
+
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 0
+
+
+def test_skip_review_endpoint(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="skip.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.50,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        classification_id = classification.id
+
+    response = api_client.post(
+        f"/review/{classification_id}/skip",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "skipped",
+    }
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+    assert response.json() == []

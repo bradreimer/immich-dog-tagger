@@ -1,6 +1,7 @@
 from immich_dog_tagger.api.app import create_app
 from immich_dog_tagger.api.dependencies import get_embedder, get_session
 from immich_dog_tagger.database import create_database
+from immich_dog_tagger.models import Crop, CropClassification
 from pathlib import Path
 
 import pytest
@@ -36,3 +37,30 @@ def api_client(engine):
 @pytest.fixture
 def engine(tmp_path: Path):
     return create_database(tmp_path)
+
+
+@pytest.fixture
+def session(engine):
+    with Session(engine) as session:
+        yield session
+
+
+def create_test_classification(session: Session) -> CropClassification:
+    crop = Crop(
+        detection_id=1,
+        path="test.jpg",
+    )
+
+    session.add(crop)
+    session.flush()
+
+    classification = CropClassification(
+        crop=crop,
+        identity=None,
+        confidence=0.50,
+    )
+
+    session.add(classification)
+    session.commit()
+
+    return classification

@@ -2,9 +2,14 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import ClassificationSources, EmbeddingSources
+from immich_dog_tagger.enums import (
+    ClassificationSources,
+    EmbeddingSources,
+    ReviewActions,
+)
 from immich_dog_tagger.models import (
     CropClassification,
+    ReviewAction,
 )
 from immich_dog_tagger.services.learner import Learner
 
@@ -34,6 +39,14 @@ class ClassificationCorrectionService:
         classification.identity = identity
         classification.confidence = 1.0
         classification.source = ClassificationSources.REVIEW
+
+        self.session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.CORRECT,
+                identity=identity,
+            )
+        )
 
         if self.learner is not None:
             self.learner.learn_image(

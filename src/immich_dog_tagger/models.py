@@ -4,7 +4,7 @@ Database models.
 
 from datetime import datetime
 from pathlib import Path
-from .enums import AssetStatus, ClassificationSources, EmbeddingSources
+from .enums import AssetStatus, ClassificationSources, EmbeddingSources, ReviewActions
 
 from sqlalchemy import (
     DateTime,
@@ -198,11 +198,6 @@ class CropClassification(Base):
         default=ClassificationSources.AUTO,
     )
 
-    review_skipped: Mapped[bool] = mapped_column(
-        default=False,
-        nullable=False,
-    )
-
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
@@ -221,6 +216,10 @@ class CropClassification(Base):
     matched_example: Mapped["EmbeddingExample | None"] = relationship(
         back_populates="matched_classifications",
         foreign_keys=[matched_example_id],
+    )
+
+    review_actions: Mapped[list["ReviewAction"]] = relationship(
+        cascade="all, delete-orphan",
     )
 
 
@@ -244,4 +243,34 @@ class Crop(Base):
     classification: Mapped["CropClassification | None"] = relationship(
         back_populates="crop",
         cascade="all, delete-orphan",
+    )
+
+
+class ReviewAction(Base):
+    __tablename__ = "review_actions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    classification_id: Mapped[int] = mapped_column(
+        ForeignKey("crop_classifications.id"),
+        index=True,
+    )
+
+    action: Mapped[ReviewActions] = mapped_column(
+        Enum(
+            ReviewActions,
+            native_enum=False,
+        ),
+        nullable=False,
+    )
+
+    identity: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
     )

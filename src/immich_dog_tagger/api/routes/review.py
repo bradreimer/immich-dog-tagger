@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import (
@@ -6,7 +7,8 @@ from immich_dog_tagger.api.dependencies import (
     get_session,
 )
 from immich_dog_tagger.api.schemas import ReviewItemResponse, ReviewQueueStatsResponse
-from immich_dog_tagger.models import CropClassification
+from immich_dog_tagger.enums import ReviewActions
+from immich_dog_tagger.models import CropClassification, ReviewAction
 
 
 router = APIRouter(
@@ -67,7 +69,20 @@ def skip_review(
             detail="Classification not found",
         )
 
-    classification.review_skipped = True
+    existing_skip = session.scalar(
+        select(ReviewAction).where(
+            ReviewAction.classification_id == classification.id,
+            ReviewAction.action == ReviewActions.SKIP,
+        )
+    )
+
+    if existing_skip is None:
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.SKIP,
+            )
+        )
 
     session.commit()
 

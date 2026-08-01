@@ -5,8 +5,10 @@ from pathlib import Path
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import ReviewActions
 from immich_dog_tagger.models import (
     CropClassification,
+    ReviewAction,
 )
 
 
@@ -168,7 +170,9 @@ class ReviewQueryService:
         query = (
             select(CropClassification)
             .where(
-                CropClassification.review_skipped.is_(False),
+                ~CropClassification.review_actions.any(
+                    ReviewAction.action == ReviewActions.SKIP,
+                ),
             )
             .where(
                 (CropClassification.identity.is_(None))

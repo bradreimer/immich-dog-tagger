@@ -1,14 +1,21 @@
 from pathlib import Path
 from sqlalchemy.orm import Session
+from tests.conftest import create_test_classification
 
-from immich_dog_tagger.enums import ClassificationSources, EmbeddingSources
+from immich_dog_tagger.enums import (
+    ClassificationSources,
+    EmbeddingSources,
+    ReviewActions,
+)
 from immich_dog_tagger.models import (
     Crop,
     CropClassification,
     EmbeddingExample,
+    ReviewAction,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.learner import Learner
+from immich_dog_tagger.services.review_query import ReviewQueryService
 
 
 class FakeLearner:
@@ -333,3 +340,39 @@ def test_duplicate_correction_does_not_duplicate_embedding_example(
         examples = session.query(EmbeddingExample).all()
 
         assert len(examples) == 1
+
+
+def test_correction_creates_review_action(session):
+    service = ClassificationCorrectionService(session)
+
+    classification = create_test_classification(session)
+
+    service.correct(
+        classification.id,
+        "Hermann",
+    )
+
+    action = session.query(ReviewAction).one()
+
+    assert action.classification_id == classification.id
+    assert action.action == ReviewActions.CORRECT
+    assert action.identity == "Hermann"
+
+
+def test_skipped_review_item_not_returned(session):
+    classification = create_test_classification(session)
+
+    session.add(
+        ReviewAction(
+            classification_id=classification.id,
+            action=ReviewActions.SKIP,
+        )
+    )
+
+    session.commit()
+
+    service = ReviewQueryService(session)
+
+    items = service.active_review()
+
+    assert classification.id not in [item.classification_id for item in items]
