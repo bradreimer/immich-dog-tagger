@@ -23,6 +23,35 @@ The goal is to identify individual dogs such as:
 
 while keeping all processing local.
 
+## Quick Start
+
+```bash
+uv sync
+
+immich-dog-tagger scan
+immich-dog-tagger download
+immich-dog-tagger detect
+immich-dog-tagger classify
+
+uv run uvicorn immich_dog_tagger.api.app:app --reload
+```
+
+Open
+
+```
+http://localhost:5173
+```
+
+Review images.
+
+Run
+
+```bash
+immich-dog-tagger sync
+```
+
+to publish results back to Immich.
+
 ---
 
 # Project Status
@@ -30,10 +59,11 @@ while keeping all processing local.
 Current release:
 
 ```
-v0.4.0
+v0.5.0
 ```
 
-The v0.4.0 milestone introduces the Web API and browser-based review workflow built on top of the existing machine learning pipeline.
+v0.5.0 completes the active learning review workflow. Human corrections are now immediately incorporated into the local identity model, allowing future classifications to improve over time.
+
 
 Completed:
 
@@ -45,19 +75,15 @@ Completed:
 - Explicit prediction and suggestion models
 - Matched example visualization
 - Human correction workflow integration
-
-The next milestone focuses on improving active learning:
-
-```
-v0.5.0 Active Learning Improvements
-```
-
-Planned:
-
-- On-demand nearest-example suggestions
-- Improved review assistance
-- Cleaner image-serving API
-- Faster review workflows
+- Immediate learning from corrections
+- Review audit history
+- Review skip workflow
+- Optimistic browser review queue
+- Review statistics
+- Pipeline health metrics
+- Suggested example visualization
+- Review filtering
+- Browser error handling
 
 ---
 
@@ -132,6 +158,8 @@ Supported identities include:
 
 ## Human Review Workflow
 
+![Review UI](docs/images/review-ui.png)
+
 The review workflow allows the system to improve through human feedback.
 
 Features:
@@ -167,12 +195,17 @@ Corrections:
 
 The Web API exposes existing application services through FastAPI.
 
-Current endpoints support:
+Current endpoints include:
 
-- Review queue retrieval
-- Classification correction
-- Crop access
-- Browser-based workflows
+```plain
+GET  /review
+GET  /review/stats
+POST /classifications/{id}/correct
+POST /review/{id}/skip
+GET  /crops/{id}
+GET  /embedding-examples/{id}/image
+GET  /health
+```
 
 The API sits above the application layer rather than replacing the CLI or pipeline.
 
@@ -331,8 +364,6 @@ As more photos are reviewed, the local identity dataset grows.
 
 The current system uses embedding similarity against learned examples.
 
-Future improvements will make suggestions more independent from previous classification runs.
-
 ---
 
 # Immich Synchronization
@@ -449,7 +480,7 @@ A correction:
 * records human provenance
 * creates a learning example
 
-Future classifications use these examples.
+immediately updates the local embedding database so future classifications can benefit without requiring an offline retraining step.
 
 ---
 
@@ -486,7 +517,7 @@ npm run lint
 Current validation:
 
 ```
-Python tests: 102 passed
+Python tests: 112 passed
 UI build: passing
 UI lint: passing
 ```
@@ -495,19 +526,17 @@ UI lint: passing
 
 # Roadmap
 
-## v0.5.0 Active Learning Improvements
+## Next: v0.6.0
 
-The next milestone focuses on making review smarter.
+The next milestone focuses on improving classification quality.
 
-Planned:
+Planned areas include:
 
-* On-demand nearest-neighbor suggestions
-* Better review evidence
-* Improved suggestion ranking
-* Cleaner image-serving API
-* Faster correction workflows
-
-The long-term goal is a system that does not just classify dogs, but actively assists the human doing the labeling.
+- richer nearest-neighbor ranking
+- temporal context during classification
+- improved training example management
+- browser UX improvements
+- Immich synchronization enhancements
 
 ---
 
@@ -522,6 +551,7 @@ The project intentionally avoids:
 
 The goal is a small local assistant that gradually learns the identities of the dogs in a personal photo library.
 
-The database is the brain.
-Immich is the gallery.
-The Web API is the leash.
+> **The database is the brain.  
+> The ML pipeline is the nose.  
+> Immich is the gallery.  
+> The review UI is the trainer.**
