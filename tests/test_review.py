@@ -1,5 +1,7 @@
 from pathlib import Path
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from tests.conftest import create_test_classification
 
 from immich_dog_tagger.enums import (
     ClassificationSources,
@@ -599,3 +601,58 @@ def test_skip_review_endpoint(api_client, engine):
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_skip_review(api_client, session):
+    classification = create_test_classification(session)
+
+    response = api_client.post(
+        f"/review/{classification.id}/skip",
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "skipped"
+
+    action = session.scalar(
+        select(ReviewAction).where(
+            ReviewAction.classification_id == classification.id,
+            ReviewAction.action == ReviewActions.SKIP,
+        )
+    )
+
+    assert action is not None
+
+
+def test_skip_review_is_idempotent(api_client, session):
+    classification = create_test_classification(session)
+
+    response1 = api_client.post(
+        f"/review/{classification.id}/skip",
+    )
+
+    response2 = api_client.post(
+        f"/review/{classification.id}/skip",
+    )
+
+    assert response1.status_code == 200
+    assert response2.status_code == 200
+
+    actions = session.scalars(
+        select(ReviewAction).where(
+            ReviewAction.classification_id == classification.id,
+            ReviewAction.action == ReviewActions.SKIP,
+        )
+    ).all()
+
+    assert len(actions) == 1
+
+
+def test_skip_review_missing_classification(api_client):
+    response = api_client.post(
+        "/review/99999/skip",
+    )
+
+    assert response.status_code == 404
