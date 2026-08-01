@@ -13,6 +13,10 @@ const identities = [
   "Unknown",
 ];
 
+function formatSimilarity(value: number): string {
+  return value.toFixed(3);
+}
+
 export function ReviewCard({
   item,
   onCorrect,
@@ -20,46 +24,71 @@ export function ReviewCard({
 }: Props) {
   return (
     <section>
+      <h2>
+        Review Classification #{item.classification_id}
+      </h2>
+
       <img
         src={`/api/crops/${item.crop_id}`}
         alt="dog crop"
-        width={500}
+        width={400}
       />
 
-      <h2>Prediction</h2>
-
       <p>
-        Identity:{" "}
-        {item.prediction.identity ?? "Unknown"}
+        Crop ID: {item.crop_id}
       </p>
 
       <p>
-        Similarity:{" "}
-        {item.prediction.similarity.toFixed(3)}
+        Prediction:
+        {" "}
+        <strong>
+          {item.prediction.identity ?? "Unknown"}
+        </strong>
+      </p>
+
+      <p>
+        Prediction similarity:
+        {" "}
+        {formatSimilarity(item.prediction.similarity)}
       </p>
 
       {item.suggestion && (
-        <>
-          <h2>Suggested Match</h2>
+        <aside>
+          <h3>
+            Model suggestion
+          </h3>
 
           <p>
-            Identity: {item.suggestion.identity}
+            Identity:
+            {" "}
+            <strong>
+              {item.suggestion.identity}
+            </strong>
           </p>
 
           <p>
-            Similarity:{" "}
-            {item.suggestion.similarity.toFixed(3)}
+            Similarity:
+            {" "}
+            {formatSimilarity(item.suggestion.similarity)}
+          </p>
+
+          <p>
+            Example ID:
+            {" "}
+            {item.suggestion.example_id}
           </p>
 
           <img
             src={`/api/embedding-examples/${item.suggestion.example_id}/image`}
             alt="matched example"
-            width={250}
+            width={200}
           />
-        </>
+        </aside>
       )}
 
-      <h2>Correct Identity</h2>
+      <h3>
+        Choose identity
+      </h3>
 
       <div>
         {identities.map((identity) => (
@@ -70,11 +99,11 @@ export function ReviewCard({
             {identity}
           </button>
         ))}
-      </div>
 
-      <button onClick={onSkip}>
-        Skip
-      </button>
+        <button onClick={onSkip}>
+          Skip
+        </button>
+      </div>
     </section>
   );
 }
