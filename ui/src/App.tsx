@@ -51,13 +51,9 @@ function App() {
         identity,
       );
 
-      const queueStats = await getReviewStats();
+      removeCurrentItem();
 
-      setStats(queueStats);
-
-      setIndex((current) =>
-        Math.min(items.length - 1, current + 1),
-      );
+      getReviewStats().then(setStats);
     },
     [items, index],
   );
@@ -75,7 +71,9 @@ function App() {
         item.classification_id,
       );
 
-      await loadReview();
+      removeCurrentItem();
+
+      getReviewStats().then(setStats);
     },
     [items, index],
   );
@@ -91,6 +89,21 @@ function App() {
       Math.min(items.length - 1, current + 1),
     );
   }, [items.length]);
+
+
+  const removeCurrentItem = useCallback(() => {
+    setItems((current) => {
+      const remaining = current.filter(
+        (_, itemIndex) => itemIndex !== index,
+      );
+
+      return remaining;
+    });
+
+    setIndex((current) =>
+      Math.min(current, items.length - 2),
+    );
+  }, [index, items.length]);
 
 
   useEffect(() => {
