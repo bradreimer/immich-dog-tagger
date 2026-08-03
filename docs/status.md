@@ -8,6 +8,7 @@
 - Correction workflow
 - Skip workflow
 - Review action tracking
+- API hardening and review service-boundary cleanup
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization
@@ -27,3 +28,4 @@ v0.5.0 Review Workflow Stabilization
 ## Known Issues
 - Some pipeline status counters may need future cleanup.
 - Detection/classification status ownership needs review.
+- Endpoint-level API auth is not implemented yet.

@@ -5,7 +5,6 @@ from pathlib import Path
 from sqlalchemy import case, exists, func, select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import ReviewActions
 from immich_dog_tagger.models import (
     CropClassification,
     ReviewAction,
@@ -45,13 +44,6 @@ class ReviewSummary:
     identities: dict[str, int]
     unknown: int
     confidence_buckets: dict[str, int]
-
-
-@dataclass(frozen=True)
-class QueueStats:
-    total: int
-    reviewed: int
-    remaining: int
 
 
 @dataclass(frozen=True)
@@ -229,16 +221,6 @@ class ReviewQueryService:
             path=Path(classification.crop.path),
             prediction=self._prediction(classification),
             suggestion=self._suggestion(classification),
-        )
-
-    def _has_completed_review(self):
-        return CropClassification.review_actions.any(
-            ReviewAction.action.in_(
-                [
-                    ReviewActions.SKIP,
-                    ReviewActions.CORRECT,
-                ],
-            ),
         )
 
     def _has_review_action(self):

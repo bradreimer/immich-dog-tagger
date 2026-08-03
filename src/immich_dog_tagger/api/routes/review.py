@@ -1,16 +1,15 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import (
+    get_review_action_service,
     get_review_query_service,
     get_session,
 )
 from immich_dog_tagger.api.schemas import ReviewItemResponse, ReviewQueueStatsResponse
-from immich_dog_tagger.enums import ReviewActions
-from immich_dog_tagger.models import CropClassification, ReviewAction
+from immich_dog_tagger.services.review_actions import ReviewActionService
 
 router = APIRouter(
     prefix="/review",
@@ -57,35 +56,17 @@ def review_stats(
 @router.post("/{classification_id}/skip")
 def skip_review(
     classification_id: int,
-    session: Annotated[Session, Depends(get_session)],
+    service: Annotated[ReviewActionService, Depends(get_review_action_service)],
 ):
-    classification = session.get(
-        CropClassification,
-        classification_id,
-    )
-
-    if classification is None:
+    try:
+        service.skip(
+            classification_id,
+        )
+    except ValueError as e:
         raise HTTPException(
             status_code=404,
-            detail="Classification not found",
-        )
-
-    existing_skip = session.scalar(
-        select(ReviewAction).where(
-            ReviewAction.classification_id == classification.id,
-            ReviewAction.action == ReviewActions.SKIP,
-        )
-    )
-
-    if existing_skip is None:
-        session.add(
-            ReviewAction(
-                classification_id=classification.id,
-                action=ReviewActions.SKIP,
-            )
-        )
-
-    session.commit()
+            detail=str(e),
+        ) from e
 
     return {
         "status": "skipped",

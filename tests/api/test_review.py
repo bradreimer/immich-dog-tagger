@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import Crop, CropClassification
+from immich_dog_tagger.enums import ReviewActions
+from immich_dog_tagger.models import Crop, CropClassification, ReviewAction
 
 
 def test_review_queue(api_client):
@@ -67,3 +68,49 @@ def test_review_item_returns_image_url(api_client, engine):
 
     assert "path" not in item
     assert "/some/internal/storage/path" not in response.text
+
+
+def test_review_skip_creates_single_action(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="to-skip.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.45,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        classification_id = classification.id
+
+    first = api_client.post(f"/review/{classification_id}/skip")
+    second = api_client.post(f"/review/{classification_id}/skip")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    with Session(engine) as session:
+        actions = (
+            session.query(ReviewAction)
+            .filter(
+                ReviewAction.classification_id == classification_id,
+                ReviewAction.action == ReviewActions.SKIP,
+            )
+            .all()
+        )
+
+        assert len(actions) == 1
+
+
+def test_review_skip_not_found(api_client):
+    response = api_client.post("/review/999999/skip")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Classification 999999 not found",
+    }
