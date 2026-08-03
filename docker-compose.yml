@@ -2,15 +2,18 @@ services:
   dog-tagger:
     build:
       context: .
+      network: host
     image: immich-dog-tagger:latest
     container_name: immich-dog-tagger
+    restart: unless-stopped
 
     env_file:
       - .env
 
+    entrypoint: ["uvicorn"]
+
     command:
       [
-        "uvicorn",
         "immich_dog_tagger.api.app:app",
         "--host",
         "0.0.0.0",
@@ -34,6 +37,18 @@ services:
               count: 1
               capabilities:
                 - gpu
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   proxy:
