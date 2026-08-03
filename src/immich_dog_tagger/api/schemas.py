@@ -27,7 +27,7 @@ class CorrectionRequest(BaseModel):
 class ReviewItemResponse(BaseModel):
     classification_id: int
     crop_id: int
-    path: str
+    image_url: str
 
     prediction: ReviewPredictionResponse
     suggestion: ReviewSuggestionResponse | None
@@ -37,7 +37,7 @@ class ReviewItemResponse(BaseModel):
         return cls(
             classification_id=item.classification_id,
             crop_id=item.crop_id,
-            path=str(item.path),
+            image_url=f"/crops/{item.crop_id}",
             prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
                 similarity=item.prediction.similarity,
