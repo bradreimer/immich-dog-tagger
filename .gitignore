@@ -11,6 +11,9 @@ env/
 # uv
 .uv/
 
+# SSL certificates
+certs/
+
 # Test / coverage
 .pytest_cache/
 .coverage
