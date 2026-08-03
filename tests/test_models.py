@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import AssetStatus, ClassificationSources, EmbeddingSources
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -7,7 +8,6 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     Identity,
 )
-from immich_dog_tagger.enums import AssetStatus, ClassificationSources, EmbeddingSources
 
 
 def test_crop_relationship(engine):

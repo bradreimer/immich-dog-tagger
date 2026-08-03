@@ -1,13 +1,13 @@
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
 from immich_dog_tagger.api.app import create_app
 from immich_dog_tagger.api.dependencies import get_embedder, get_session
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.models import Crop, CropClassification
-from pathlib import Path
-
-import pytest
-
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 
 class FakeEmbedder:

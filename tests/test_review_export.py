@@ -1,10 +1,11 @@
 import csv
+
+from immich_dog_tagger.review_export import ReviewExporter
 from immich_dog_tagger.services.review_query import (
     ReviewItem,
     ReviewPrediction,
     ReviewSuggestion,
 )
-from immich_dog_tagger.review_export import ReviewExporter
 
 
 def test_export_review(tmp_path):

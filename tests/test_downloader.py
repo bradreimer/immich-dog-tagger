@@ -1,9 +1,11 @@
 from unittest.mock import Mock
+
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.downloader import Downloader
-from immich_dog_tagger.models import Asset
 from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.immich import ImmichDownloadError
+from immich_dog_tagger.models import Asset
 
 
 def test_downloader_marks_failed_asset_as_error(engine, tmp_path):
@@ -33,7 +35,7 @@ def test_downloader_marks_failed_asset_as_error(engine, tmp_path):
 
         def download_asset(asset_id):
             if asset_id == "failed-asset":
-                raise Exception("Asset not found")
+                raise ImmichDownloadError("Asset not found")
 
             return b"image data"
 

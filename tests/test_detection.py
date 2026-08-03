@@ -1,9 +1,11 @@
-from sqlalchemy.orm import Session
 from pathlib import Path
-from immich_dog_tagger.services.detection import DetectionService
+
+from sqlalchemy.orm import Session
+
 from immich_dog_tagger.detector import DetectionResult
-from immich_dog_tagger.models import Asset, Crop, Detection
 from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.models import Asset, Crop, Detection
+from immich_dog_tagger.services.detection import DetectionService
 
 
 class FakeDetector:

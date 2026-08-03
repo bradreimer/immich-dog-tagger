@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
+from typing import Annotated
 
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import get_session
 from immich_dog_tagger.api.schemas import ClassificationResponse
 from immich_dog_tagger.services.review_query import ReviewQueryService
-
 
 router = APIRouter(
     prefix="/dogs",
@@ -18,7 +18,7 @@ router = APIRouter(
 )
 def dog(
     identity: str,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     service = ReviewQueryService(session)
 

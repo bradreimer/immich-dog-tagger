@@ -1,6 +1,6 @@
 from pathlib import Path
+
 from sqlalchemy.orm import Session
-from tests.conftest import create_test_classification
 
 from immich_dog_tagger.enums import (
     ClassificationSources,
@@ -16,6 +16,7 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.review_query import ReviewQueryService
+from tests.conftest import create_test_classification
 
 
 class FakeLearner:

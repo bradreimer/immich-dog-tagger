@@ -1,10 +1,11 @@
 from pathlib import Path
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .immich import ImmichClient
-from .models import Asset
 from .enums import AssetStatus
+from .immich import ImmichClient, ImmichDownloadError
+from .models import Asset
 
 
 class Downloader:
@@ -45,7 +46,7 @@ class Downloader:
 
             try:
                 data = self.client.download_asset(asset.immich_asset_id)
-            except Exception:
+            except ImmichDownloadError:
                 asset.status = AssetStatus.DOWNLOAD_FAILED
                 continue
 

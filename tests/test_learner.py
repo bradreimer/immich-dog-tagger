@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import numpy as np
 from sqlalchemy.orm import Session
 
@@ -138,8 +139,8 @@ def test_learner_skips_non_images(engine, tmp_path):
 
 def test_learn_image_creates_embedding_example(engine, tmp_path):
     from unittest.mock import Mock
-    import numpy as np
 
+    import numpy as np
     from sqlalchemy.orm import Session
 
     from immich_dog_tagger.models import (

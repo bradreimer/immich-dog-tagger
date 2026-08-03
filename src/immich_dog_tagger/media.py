@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 SUPPORTED_IMAGE_EXTENSIONS = {
     ".jpg",
     ".jpeg",

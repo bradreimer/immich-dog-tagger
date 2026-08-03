@@ -1,8 +1,8 @@
-from dataclasses import dataclass
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import case, func, select, exists
+from sqlalchemy import case, exists, func, select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import ReviewActions

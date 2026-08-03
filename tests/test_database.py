@@ -1,16 +1,17 @@
 from pathlib import Path
+
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import (
     Asset,
-    EmbeddingExample,
-    EmbeddingSources,
-    Identity,
     Crop,
     CropClassification,
     Detection,
+    EmbeddingExample,
+    EmbeddingSources,
+    Identity,
 )
-from immich_dog_tagger.enums import AssetStatus
 
 
 def test_database_creation(engine, tmp_path: Path):

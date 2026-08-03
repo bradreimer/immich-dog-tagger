@@ -3,13 +3,33 @@ Immich API client.
 """
 
 from dataclasses import dataclass
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import httpx
 import truststore
 
 truststore.inject_into_ssl()
+
+
+class ImmichDownloadError(Exception):
+    pass
+
+
+class ImmichListAssetsError(Exception):
+    pass
+
+
+class ImmichListAlbumsError(Exception):
+    pass
+
+
+class ImmichCreateAlbumError(Exception):
+    pass
+
+
+class ImmichAddAssetsToAlbumError(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -32,7 +52,7 @@ def parse_immich_datetime(value: str | None) -> datetime | None:
     if value is None:
         return None
 
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
 
 
 class ImmichClient:
@@ -72,7 +92,7 @@ class ImmichClient:
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            raise RuntimeError(
+            raise ImmichListAssetsError(
                 f"Immich API error {response.status_code}: {response.text}"
             ) from exc
 
@@ -107,7 +127,12 @@ class ImmichClient:
             f"{self.url}/api/assets/{asset_id}/original",
         )
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichDownloadError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
 
         return response.content
 
@@ -116,7 +141,12 @@ class ImmichClient:
             f"{self.url}/api/albums",
         )
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichListAlbumsError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
 
         return response.json()
 
@@ -131,7 +161,12 @@ class ImmichClient:
             },
         )
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichCreateAlbumError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
 
         return response.json()["id"]
 
@@ -147,4 +182,9 @@ class ImmichClient:
             },
         )
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichAddAssetsToAlbumError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc

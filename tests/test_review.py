@@ -1,7 +1,7 @@
 from pathlib import Path
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from tests.conftest import create_test_classification
 
 from immich_dog_tagger.enums import (
     ClassificationSources,
@@ -11,11 +11,12 @@ from immich_dog_tagger.enums import (
 from immich_dog_tagger.models import (
     Crop,
     CropClassification,
-    Identity,
     EmbeddingExample,
+    Identity,
     ReviewAction,
 )
 from immich_dog_tagger.services.review_query import ReviewQueryService
+from tests.conftest import create_test_classification
 
 
 class FakeLearner:

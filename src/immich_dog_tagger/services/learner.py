@@ -2,15 +2,16 @@
 Services for creating identity examples.
 """
 
-from pathlib import Path
 from dataclasses import dataclass
-from sqlalchemy.orm import Session
+from pathlib import Path
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.media import is_supported_image
-from immich_dog_tagger.models import Identity, EmbeddingExample, EmbeddingSources
+from immich_dog_tagger.models import EmbeddingExample, EmbeddingSources, Identity
 
 
 @dataclass

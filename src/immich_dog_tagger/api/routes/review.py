@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,7 +12,6 @@ from immich_dog_tagger.api.schemas import ReviewItemResponse, ReviewQueueStatsRe
 from immich_dog_tagger.enums import ReviewActions
 from immich_dog_tagger.models import CropClassification, ReviewAction
 
-
 router = APIRouter(
     prefix="/review",
 )
@@ -21,9 +22,9 @@ router = APIRouter(
     response_model=list[ReviewItemResponse],
 )
 def review(
+    session: Annotated[Session, Depends(get_session)],
     threshold: float = Query(0.80),
     limit: int = Query(50),
-    session: Session = Depends(get_session),
 ):
     service = get_review_query_service(session)
 
@@ -40,7 +41,7 @@ def review(
     response_model=ReviewQueueStatsResponse,
 )
 def review_stats(
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     service = get_review_query_service(session)
 
@@ -56,7 +57,7 @@ def review_stats(
 @router.post("/{classification_id}/skip")
 def skip_review(
     classification_id: int,
-    session: Session = Depends(get_session),
+    session: Annotated[Session, Depends(get_session)],
 ):
     classification = session.get(
         CropClassification,

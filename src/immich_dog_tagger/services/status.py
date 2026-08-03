@@ -2,8 +2,8 @@
 Pipeline health and status reporting.
 """
 
-from dataclasses import dataclass
 from collections import Counter
+from dataclasses import dataclass
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session

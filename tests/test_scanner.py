@@ -1,10 +1,10 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.immich import ImmichAsset
 from immich_dog_tagger.models import Asset
 from immich_dog_tagger.scanner import Scanner
-from immich_dog_tagger.enums import AssetStatus
 
 
 class FakeImmich:

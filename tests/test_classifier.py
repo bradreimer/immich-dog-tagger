@@ -5,9 +5,9 @@ from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.models import (
-    Identity,
     EmbeddingExample,
     EmbeddingSources,
+    Identity,
 )
 from immich_dog_tagger.services.classification import ClassificationService
 

@@ -1,6 +1,7 @@
 import csv
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import EmbeddingSources
 from immich_dog_tagger.services.learner import Learner

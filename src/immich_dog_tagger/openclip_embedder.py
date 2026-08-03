@@ -5,8 +5,8 @@ OpenCLIP image embedding implementation.
 from pathlib import Path
 
 import numpy as np
-import torch
 import open_clip
+import torch
 from PIL import Image
 
 

@@ -4,18 +4,19 @@ Database models.
 
 from datetime import datetime
 from pathlib import Path
-from .enums import AssetStatus, ClassificationSources, EmbeddingSources, ReviewActions
 
 from sqlalchemy import (
     DateTime,
     Enum,
-    ForeignKey,
     Float,
+    ForeignKey,
     LargeBinary,
     String,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+
+from .enums import AssetStatus, ClassificationSources, EmbeddingSources, ReviewActions
 
 
 class Base(DeclarativeBase):
@@ -33,7 +34,7 @@ class Identity(Base):
         nullable=False,
     )
 
-    embeddings: Mapped[list["EmbeddingExample"]] = relationship(
+    embeddings: Mapped[list[EmbeddingExample]] = relationship(
         back_populates="identity",
         cascade="all, delete-orphan",
     )
@@ -73,11 +74,11 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
-    identity: Mapped["Identity"] = relationship(
+    identity: Mapped[Identity] = relationship(
         back_populates="embeddings",
     )
 
-    matched_classifications: Mapped[list["CropClassification"]] = relationship(
+    matched_classifications: Mapped[list[CropClassification]] = relationship(
         back_populates="matched_example",
         foreign_keys="CropClassification.matched_example_id",
     )
@@ -125,7 +126,7 @@ class Asset(Base):
         nullable=False,
     )
 
-    detections: Mapped[list["Detection"]] = relationship(
+    detections: Mapped[list[Detection]] = relationship(
         back_populates="asset",
         cascade="all, delete-orphan",
     )
@@ -161,9 +162,9 @@ class Detection(Base):
     x2: Mapped[int]
     y2: Mapped[int]
 
-    asset: Mapped["Asset"] = relationship(back_populates="detections")
+    asset: Mapped[Asset] = relationship(back_populates="detections")
 
-    crop: Mapped["Crop"] = relationship(
+    crop: Mapped[Crop] = relationship(
         back_populates="detection",
         cascade="all, delete-orphan",
     )
@@ -204,7 +205,7 @@ class CropClassification(Base):
         nullable=False,
     )
 
-    crop: Mapped["Crop"] = relationship(
+    crop: Mapped[Crop] = relationship(
         back_populates="classification",
     )
 
@@ -213,12 +214,12 @@ class CropClassification(Base):
         nullable=True,
     )
 
-    matched_example: Mapped["EmbeddingExample | None"] = relationship(
+    matched_example: Mapped[EmbeddingExample | None] = relationship(
         back_populates="matched_classifications",
         foreign_keys=[matched_example_id],
     )
 
-    review_actions: Mapped[list["ReviewAction"]] = relationship(
+    review_actions: Mapped[list[ReviewAction]] = relationship(
         cascade="all, delete-orphan",
     )
 
@@ -238,9 +239,9 @@ class Crop(Base):
         nullable=False,
     )
 
-    detection: Mapped["Detection"] = relationship(back_populates="crop")
+    detection: Mapped[Detection] = relationship(back_populates="crop")
 
-    classification: Mapped["CropClassification | None"] = relationship(
+    classification: Mapped[CropClassification | None] = relationship(
         back_populates="crop",
         cascade="all, delete-orphan",
     )

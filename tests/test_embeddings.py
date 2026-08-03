@@ -1,8 +1,8 @@
 import numpy as np
 
 from immich_dog_tagger.embeddings import (
-    embedding_to_blob,
     blob_to_embedding,
+    embedding_to_blob,
 )
 
 

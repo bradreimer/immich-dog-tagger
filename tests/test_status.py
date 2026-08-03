@@ -1,15 +1,15 @@
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
     Detection,
-    Identity,
     EmbeddingExample,
     EmbeddingSources,
+    Identity,
 )
-from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.services.status import StatusService
 
 
@@ -132,9 +132,9 @@ def test_health_summary(engine):
 def test_health_reports_asset_status_counts(engine):
     from sqlalchemy.orm import Session
 
+    from immich_dog_tagger.enums import AssetStatus
     from immich_dog_tagger.models import Asset
     from immich_dog_tagger.services.status import StatusService
-    from immich_dog_tagger.enums import AssetStatus
 
     with Session(engine) as session:
         session.add_all(

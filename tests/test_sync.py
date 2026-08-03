@@ -6,7 +6,6 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
 )
-
 from immich_dog_tagger.services.sync import SyncService
 
 

@@ -1,8 +1,8 @@
 import numpy as np
 from sqlalchemy.orm import Session
+
 from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.enums import ClassificationMode
-from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.models import (
     Asset,
     ClassificationSources,
@@ -10,6 +10,7 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
 )
+from immich_dog_tagger.services.classification import ClassificationService
 
 
 class FakeBatchEmbedder:

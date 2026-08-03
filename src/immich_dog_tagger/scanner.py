@@ -1,9 +1,9 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .enums import AssetStatus
 from .immich import ImmichClient
 from .models import Asset
-from .enums import AssetStatus
 
 
 class Scanner:

@@ -1,6 +1,6 @@
+import shutil
 from csv import DictWriter
 from pathlib import Path
-import shutil
 
 from immich_dog_tagger.services.review_query import ReviewItem
 

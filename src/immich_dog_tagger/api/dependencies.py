@@ -1,4 +1,6 @@
 from collections.abc import Generator
+from typing import Annotated
+
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -11,7 +13,7 @@ from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.review_query import ReviewQueryService
 
 
-def get_session() -> Generator[Session, None, None]:
+def get_session() -> Generator[Annotated[Session, Depends(get_session)]]:
     config = load_config()
 
     engine = create_database(
@@ -23,14 +25,14 @@ def get_session() -> Generator[Session, None, None]:
 
 
 def get_review_query_service(
-    session: Session,
+    session: Annotated[Session, Depends(get_session)],
 ) -> ReviewQueryService:
     return ReviewQueryService(session)
 
 
 def get_correction_service(
-    session: Session = Depends(get_session),
-    embedder: Embedder = Depends(get_embedder),
+    session: Annotated[Session, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
 ) -> ClassificationCorrectionService:
     learner = Learner(
         embedder=embedder,
