@@ -1,0 +1,40 @@
+services:
+  dog-tagger:
+    build:
+      context: .
+    image: immich-dog-tagger:latest
+    container_name: immich-dog-tagger
+
+    env_file:
+      - .env
+
+    command:
+      [
+        "uvicorn",
+        "immich_dog_tagger.api.app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+
+    volumes:
+      - ${DOG_TAGGER_STATE_DIR}:${STATE_DIR}
+      - ${DOG_TAGGER_CACHE_DIR}:${CACHE_DIR}
+      - ${DOG_TAGGER_MODEL_PATH}:${YOLO_MODEL}
+
+    networks:
+      - proxy
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities:
+                - gpu
+
+networks:
+  proxy:
+    external: true
