@@ -50,6 +50,20 @@ services:
       timeout: 5s
       retries: 3
 
+  dog-tagger-ui:
+    build:
+      context: ./ui
+      network: host
+
+    image: immich-dog-tagger-ui:latest
+    container_name: immich-dog-tagger-ui
+
+    depends_on:
+      - dog-tagger
+
+    networks:
+      - proxy
+
 networks:
   proxy:
     external: true
