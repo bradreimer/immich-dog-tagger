@@ -35,7 +35,7 @@ def test_configuration_from_environment(monkeypatch):
         "/tmp/cache",
     )
 
-    config = load_config()
+    config = load_config(load_env_file=False)
 
     assert config.immich_url == "https://immich.example.com"
     assert config.immich_api_key == "secret"
