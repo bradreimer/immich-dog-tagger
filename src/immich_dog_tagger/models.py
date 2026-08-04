@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import (
+    JSON,
     DateTime,
     Enum,
     Float,
@@ -188,6 +189,12 @@ class CropClassification(Base):
     confidence: Mapped[float] = mapped_column(
         Float,
         nullable=False,
+    )
+
+    candidates: Mapped[list[dict]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
     )
 
     source: Mapped[ClassificationSources] = mapped_column(

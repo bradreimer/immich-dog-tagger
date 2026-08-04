@@ -98,12 +98,28 @@ class ClassificationService:
             classification.identity = result.identity
             classification.confidence = result.similarity
             classification.matched_example_id = result.matched_example_id
+            classification.candidates = [
+                {
+                    "identity": candidate.identity,
+                    "similarity": candidate.similarity,
+                    "matched_example_id": candidate.matched_example_id,
+                }
+                for candidate in result.candidates
+            ]
 
         else:
             classification = CropClassification(
                 crop=crop,
                 identity=result.identity,
                 confidence=result.similarity,
+                candidates=[
+                    {
+                        "identity": candidate.identity,
+                        "similarity": candidate.similarity,
+                        "matched_example_id": candidate.matched_example_id,
+                    }
+                    for candidate in result.candidates
+                ],
                 matched_example_id=result.matched_example_id,
                 source=ClassificationSources.AUTO,
             )

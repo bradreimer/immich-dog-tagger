@@ -22,9 +22,9 @@ services:
       ]
 
     volumes:
-      - ${DOG_TAGGER_STATE_DIR}:${STATE_DIR}
-      - ${DOG_TAGGER_CACHE_DIR}:${CACHE_DIR}
-      - ${DOG_TAGGER_MODEL_PATH}:${YOLO_MODEL}
+      - ${DOG_TAGGER_STATE_DIR}:/app/state
+      - ${DOG_TAGGER_CACHE_DIR}:/app/cache
+      - ${DOG_TAGGER_MODEL_PATH}:/models/yolo11n.pt
 
     networks:
       - proxy
