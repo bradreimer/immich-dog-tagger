@@ -17,7 +17,7 @@ export function ReviewCard({
   onSkip,
 }: Props) {
   return (
-    <section className="space-y-6">
+    <section className="space-y-8">
       <ReviewImage cropId={item.crop_id} />
 
       <div className="grid gap-6 lg:grid-cols-2">

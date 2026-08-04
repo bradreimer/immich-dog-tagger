@@ -10,7 +10,14 @@ export function ReviewImage({ cropId }: Props) {
       <img
         src={`/api/crops/${cropId}`}
         alt="dog crop"
-        className="max-h-[70vh] max-w-full rounded-lg object-contain"
+        className="
+          max-h-[70vh]
+          w-full
+          rounded-xl
+          object-contain
+          transition-all
+          duration-300
+        "
       />
     </Card>
   );
