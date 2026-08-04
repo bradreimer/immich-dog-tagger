@@ -96,14 +96,14 @@ class ClassificationService:
             classification = crop.classification
 
             classification.identity = result.identity
-            classification.confidence = result.confidence
+            classification.confidence = result.similarity
             classification.matched_example_id = result.matched_example_id
 
         else:
             classification = CropClassification(
                 crop=crop,
                 identity=result.identity,
-                confidence=result.confidence,
+                confidence=result.similarity,
                 matched_example_id=result.matched_example_id,
                 source=ClassificationSources.AUTO,
             )

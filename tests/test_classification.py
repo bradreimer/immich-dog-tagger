@@ -61,8 +61,9 @@ def test_classification_service_creates_classification(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity="Hermann",
-            confidence=0.95,
+            similarity=0.95,
             matched_example_id=42,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -160,8 +161,9 @@ def test_classification_service_force_updates_existing_classification(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity="Hermann",
-            confidence=0.95,
+            similarity=0.95,
             matched_example_id=42,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -221,8 +223,9 @@ def test_classification_service_respects_limit(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity="Fibs",
-            confidence=0.95,
+            similarity=0.95,
             matched_example_id=None,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -275,8 +278,9 @@ def test_classification_service_handles_unknown_identity(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity=None,
-            confidence=0.12,
+            similarity=0.12,
             matched_example_id=None,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -334,8 +338,9 @@ def test_classification_service_uses_batch_embedding(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity="Fibs",
-            confidence=0.95,
+            similarity=0.95,
             matched_example_id=None,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -386,8 +391,9 @@ def test_classification_service_reclassifies_existing_classification(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity="Hermann",
-            confidence=0.95,
+            similarity=0.95,
             matched_example_id=42,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -427,8 +433,9 @@ def test_classification_service_passes_threshold(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity=None,
-            confidence=0.5,
+            similarity=0.5,
             matched_example_id=None,
+            candidates=[],
         )
 
         service = ClassificationService(
@@ -480,8 +487,9 @@ def test_classify_all_includes_classified_crops(engine):
         classifier = Mock()
         classifier.classify.return_value = ClassificationResult(
             identity="Hermann",
-            confidence=0.95,
+            similarity=0.95,
             matched_example_id=42,
+            candidates=[],
         )
 
         service = ClassificationService(

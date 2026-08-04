@@ -44,7 +44,7 @@ def test_classifier_finds_closest_identity(engine):
         )
 
         assert result.identity == "Hermann"
-        assert result.confidence > 0.9
+        assert result.similarity > 0.9
         assert result.matched_example_id == example.id
 
 
@@ -100,6 +100,9 @@ def test_classifier_selects_best_matching_example(engine):
         )
 
         assert result.identity == "Fibs"
+        assert len(result.candidates) == 2
+        assert result.candidates[0].identity == "Fibs"
+        assert result.candidates[0].similarity > result.candidates[1].similarity
 
 
 def test_classification_service_handles_no_pending_crops(engine):

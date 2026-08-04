@@ -12,10 +12,18 @@ from .models import EmbeddingExample
 
 
 @dataclass(frozen=True)
+class ClassificationCandidate:
+    identity: str
+    similarity: float
+    matched_example_id: int
+
+
+@dataclass(frozen=True)
 class ClassificationResult:
     identity: str | None
-    confidence: float
+    similarity: float
     matched_example_id: int | None
+    candidates: list[ClassificationCandidate]
 
 
 class IdentityClassifier:
@@ -29,11 +37,10 @@ class IdentityClassifier:
         self,
         embedding: np.ndarray,
         threshold: float = 0.80,
+        candidate_limit: int = 3,
     ) -> ClassificationResult:
 
-        best_identity = None
-        best_score = -1.0
-        best_example_id = None
+        candidates = []
 
         examples = self.session.query(EmbeddingExample).all()
 
@@ -45,22 +52,44 @@ class IdentityClassifier:
                 known,
             )
 
-            if score > best_score:
-                best_score = score
-                best_identity = example.identity.name
-                best_example_id = example.id
+            candidates.append(
+                ClassificationCandidate(
+                    identity=example.identity.name,
+                    similarity=score,
+                    matched_example_id=example.id,
+                )
+            )
 
-        if best_score < threshold:
+        candidates.sort(
+            key=lambda candidate: candidate.similarity,
+            reverse=True,
+        )
+
+        top_candidates = candidates[:candidate_limit]
+
+        if not top_candidates:
             return ClassificationResult(
                 identity=None,
-                confidence=best_score,
-                matched_example_id=best_example_id,
+                similarity=-1.0,
+                matched_example_id=None,
+                candidates=[],
+            )
+
+        best = top_candidates[0]
+
+        if best.similarity < threshold:
+            return ClassificationResult(
+                identity=None,
+                similarity=best.similarity,
+                matched_example_id=best.matched_example_id,
+                candidates=top_candidates,
             )
 
         return ClassificationResult(
-            identity=best_identity,
-            confidence=best_score,
-            matched_example_id=best_example_id,
+            identity=best.identity,
+            similarity=best.similarity,
+            matched_example_id=best.matched_example_id,
+            candidates=top_candidates,
         )
 
     def _cosine_similarity(
