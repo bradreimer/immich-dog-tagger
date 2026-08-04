@@ -1,20 +1,14 @@
 import type { ReviewItem } from "../../types/review";
 
+import { ReviewImage } from "./components/ReviewImage";
+import { PredictionCard } from "./components/PredictionCard";
+import { SimilarExample } from "./components/SimilarExample";
+import { ReviewActions } from "./components/ReviewActions";
+
 interface Props {
   item: ReviewItem;
   onCorrect: (identity: string) => void;
   onSkip: () => void;
-}
-
-const identities = [
-  "Fibs",
-  "Hermann",
-  "Henri",
-  "Unknown",
-];
-
-function formatSimilarity(value: number): string {
-  return value.toFixed(3);
 }
 
 export function ReviewCard({
@@ -23,87 +17,28 @@ export function ReviewCard({
   onSkip,
 }: Props) {
   return (
-    <section>
-      <h2>
-        Review Classification #{item.classification_id}
-      </h2>
+    <section className="space-y-6">
 
-      <img
-        src={`/api/crops/${item.crop_id}`}
-        alt="dog crop"
-        width={400}
+      <ReviewImage cropId={item.crop_id} />
+
+      <PredictionCard
+        identity={item.prediction.identity}
+        similarity={item.prediction.similarity}
       />
 
-      <p>
-        Crop ID: {item.crop_id}
-      </p>
-
-      <p>
-        Prediction:
-        {" "}
-        <strong>
-          {item.prediction.identity ?? "Unknown"}
-        </strong>
-      </p>
-
-      <p>
-        Prediction similarity:
-        {" "}
-        {formatSimilarity(item.prediction.similarity)}
-      </p>
-
       {item.suggestion && (
-        <aside>
-          <h3>
-            Model suggestion
-          </h3>
-
-          <p>
-            Identity:
-            {" "}
-            <strong>
-              {item.suggestion.identity}
-            </strong>
-          </p>
-
-          <p>
-            Similarity:
-            {" "}
-            {formatSimilarity(item.suggestion.similarity)}
-          </p>
-
-          <p>
-            Example ID:
-            {" "}
-            {item.suggestion.example_id}
-          </p>
-
-          <img
-            src={`/api/embedding-examples/${item.suggestion.example_id}/image`}
-            alt="matched example"
-            width={200}
-          />
-        </aside>
+        <SimilarExample
+          exampleId={item.suggestion.example_id}
+          identity={item.suggestion.identity}
+          similarity={item.suggestion.similarity}
+        />
       )}
 
-      <h3>
-        Choose identity
-      </h3>
+      <ReviewActions
+        onCorrect={onCorrect}
+        onSkip={onSkip}
+      />
 
-      <div>
-        {identities.map((identity) => (
-          <button
-            key={identity}
-            onClick={() => onCorrect(identity)}
-          >
-            {identity}
-          </button>
-        ))}
-
-        <button onClick={onSkip}>
-          Skip
-        </button>
-      </div>
     </section>
   );
 }
