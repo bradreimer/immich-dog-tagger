@@ -81,10 +81,25 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v0.6.0
+v0.7.0
 ```
 
-The project now includes a complete human review workflow:
+Release v0.7.0 introduces a modern review UI foundation and workflow experience:
+
+* Tailwind CSS foundation
+* shadcn/ui component system
+* Theme infrastructure
+* Feature-oriented UI architecture
+* Application shell
+* Premium review workspace
+* Review workflow controls
+* Progress visualization
+* Keyboard-friendly workflow
+* Loading skeletons
+* Empty states
+* Responsive polish
+
+The project includes a complete human review workflow:
 
 * FastAPI service layer
 * Browser-based review interface
@@ -96,6 +111,14 @@ The project now includes a complete human review workflow:
 
 Completed:
 
+* Tailwind CSS UI foundation
+* shadcn/ui component system integration
+* Theme infrastructure for consistent styling
+* Feature-oriented UI architecture
+* Application shell and premium review workspace
+* Review workflow controls and progress visualization
+* Keyboard-friendly review workflow
+* Loading skeletons, empty states, and responsive polish
 * FastAPI service layer
 * Review queue API
 * Prioritized review workflow
@@ -195,7 +218,11 @@ Features:
 
 * Prioritized review queue
 * Unknown and low-confidence prioritization
-* Browser-based review interface
+* Modern browser-based review workspace
+* Review workflow controls and progress visualization
+* Keyboard-friendly rapid correction workflow
+* Loading skeletons and empty states
+* Responsive UI behavior across desktop and mobile
 * Keyboard shortcuts for rapid correction:
 
 ```
