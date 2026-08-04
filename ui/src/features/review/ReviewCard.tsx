@@ -18,27 +18,27 @@ export function ReviewCard({
 }: Props) {
   return (
     <section className="space-y-6">
-
       <ReviewImage cropId={item.crop_id} />
 
-      <PredictionCard
-        identity={item.prediction.identity}
-        similarity={item.prediction.similarity}
-      />
-
-      {item.suggestion && (
-        <SimilarExample
-          exampleId={item.suggestion.example_id}
-          identity={item.suggestion.identity}
-          similarity={item.suggestion.similarity}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PredictionCard
+          identity={item.prediction.identity}
+          similarity={item.prediction.similarity}
         />
-      )}
+
+        {item.suggestion && (
+          <SimilarExample
+            exampleId={item.suggestion.example_id}
+            identity={item.suggestion.identity}
+            similarity={item.suggestion.similarity}
+          />
+        )}
+      </div>
 
       <ReviewActions
         onCorrect={onCorrect}
         onSkip={onSkip}
       />
-
     </section>
   );
 }

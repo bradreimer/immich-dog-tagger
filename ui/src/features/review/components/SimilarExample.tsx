@@ -1,3 +1,6 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
 interface Props {
   exampleId: number;
   identity: string;
@@ -10,23 +13,30 @@ export function SimilarExample({
   similarity,
 }: Props) {
   return (
-    <aside>
-      <h3>
-        Similar example
-      </h3>
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          Similar memory
+        </CardTitle>
+      </CardHeader>
 
-      <p>
-        {identity}
-        {" "}
-        ({similarity.toFixed(3)})
-      </p>
+      <CardContent className="space-y-3">
+        <img
+          src={`/api/embedding-examples/${exampleId}/image`}
+          alt={`Similar example of ${identity}`}
+          className="w-full rounded-lg object-contain"
+        />
 
-      <img
-        src={`/api/embedding-examples/${exampleId}/image`}
-        alt="similar example"
-        width={200}
-        className="rounded-lg"
-      />
-    </aside>
+        <div className="flex items-center justify-between">
+          <span className="font-medium">
+            {identity}
+          </span>
+
+          <Badge variant="secondary">
+            {(similarity * 100).toFixed(1)}%
+          </Badge>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

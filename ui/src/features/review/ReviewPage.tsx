@@ -239,69 +239,65 @@ export function ReviewPage() {
     );
   }
 
-  return (
-    <main>
-      <h1>
-        Dog Review
-      </h1>
+    return (
+    <main className="container mx-auto max-w-6xl space-y-6 p-6">
+        <header className="space-y-2">
+        <h1 className="text-3xl font-bold">
+            Dog Review
+        </h1>
 
-      <p>
-        Current batch: {index + 1} / {items.length}
-      </p>
+        <div className="text-muted-foreground">
+            {index + 1} of {items.length} in current queue
+        </div>
 
-      {stats && (
-        <p>
-          Reviewed: {stats.reviewed} / {stats.total}
-          {" "}
-          ({stats.remaining} remaining)
+        {stats && (
+            <div className="text-sm text-muted-foreground">
+            Reviewed {stats.reviewed} of {stats.total}
+            {" "}
+            · {stats.remaining} remaining
+            </div>
+        )}
+        </header>
+
+        {actionError && (
+        <p className="text-sm text-destructive">
+            {actionError}
         </p>
-      )}
+        )}
 
-      <div>
-        <button
-          onClick={previous}
-          disabled={index === 0}
-        >
-          Previous
-        </button>
-
-        <button
-          onClick={next}
-          disabled={index === items.length - 1}
-        >
-          Next
-        </button>
-      </div>
-
-      {actionError && (
-        <p>
-          {actionError}
-        </p>
-      )}
-
-      <p>
-        Keyboard:
-        {" "}
-        ← = Previous,
-        {" "}
-        → = Next,
-        {" "}
-        F = Fibs,
-        {" "}
-        H = Hermann,
-        {" "}
-        N = Henri,
-        {" "}
-        U = Unknown
-      </p>
-
-      <ReviewCard
+        <ReviewCard
         item={item}
         onCorrect={correct}
         onSkip={skip}
-      />
+        />
+
+        <footer className="flex flex-col gap-3 text-sm text-muted-foreground">
+        <div className="flex gap-2">
+            <button
+            className="rounded-md border px-3 py-1"
+            onClick={previous}
+            disabled={index === 0}
+            >
+            Previous
+            </button>
+
+            <button
+            className="rounded-md border px-3 py-1"
+            onClick={next}
+            disabled={index === items.length - 1}
+            >
+            Next
+            </button>
+        </div>
+
+        <p>
+            Keyboard:
+            {" "}
+            ← Previous · → Next · F Fibs · H Hermann · N Henri · U Unknown
+        </p>
+        </footer>
     </main>
-  );
+    );
 }
 
 
