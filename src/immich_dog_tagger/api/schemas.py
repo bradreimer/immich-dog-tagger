@@ -18,6 +18,7 @@ class ReviewSuggestionResponse(BaseModel):
     identity: str
     similarity: float
     example_id: int
+    example_path: str
 
 
 class CorrectionRequest(BaseModel):
@@ -47,6 +48,7 @@ class ReviewItemResponse(BaseModel):
                     identity=item.suggestion.identity,
                     similarity=item.suggestion.similarity,
                     example_id=item.suggestion.example_id,
+                    example_path=str(item.suggestion.example_path),
                 )
                 if item.suggestion
                 else None

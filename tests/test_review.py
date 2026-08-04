@@ -78,7 +78,6 @@ def test_review_query_service_classifications(engine):
         assert results[0].classification_id == classification.id
         assert results[0].path == Path("test.jpg")
         assert results[0].filename == "test.jpg"
-
         assert results[0].suggestion.example_path == Path("training/fibs/example.jpg")
 
 
@@ -535,6 +534,7 @@ def test_review_returns_queue(api_client, engine):
 
     assert item["suggestion"]["identity"] == "Hermann"
     assert item["suggestion"]["example_id"] == example_id
+    assert item["suggestion"]["example_path"] == "training/hermann/example.jpg"
 
 
 def test_review_query_active_review_excludes_skipped(engine):
