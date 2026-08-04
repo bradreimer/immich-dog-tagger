@@ -233,7 +233,9 @@ export function ReviewPage() {
       </h1>
       
       <div className="text-muted-foreground">
-      {index + 1} of {items.length} in current queue
+        {items.length > 0
+          ? `${index + 1} of ${items.length} in current queue`
+          : "Queue empty"}
       </div>
 
       <div className="flex flex-wrap gap-2">
