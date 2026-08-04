@@ -1,7 +1,7 @@
 import type {
   ReviewItem,
   ReviewQueueStats,
-} from "./types";
+} from "../types/review";
 
 export async function getReview(): Promise<ReviewItem[]> {
   const response = await fetch("/api/review?limit=50");

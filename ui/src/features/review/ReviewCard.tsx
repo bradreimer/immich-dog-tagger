@@ -1,4 +1,4 @@
-import type { ReviewItem } from "./types";
+import type { ReviewItem } from "../../types/review";
 
 interface Props {
   item: ReviewItem;
