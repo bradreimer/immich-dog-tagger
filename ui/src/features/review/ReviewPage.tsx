@@ -8,6 +8,9 @@ import {
 } from "../../lib/api";
 
 import { ReviewCard } from "./ReviewCard";
+import { ReviewProgress } from "./components/ReviewProgress";
+import { KeyboardHints } from "./components/KeyboardHints";
+import { Button } from "@/components/ui/button";
 
 import type {
   ReviewItem,
@@ -207,9 +210,9 @@ export function ReviewPage() {
         <h1>Review Error</h1>
         <p>{error}</p>
 
-        <button onClick={loadReview}>
+        <Button onClick={loadReview}>
           Retry
-        </button>
+        </Button>
       </main>
     );
   }
@@ -220,11 +223,11 @@ export function ReviewPage() {
         <h1>Review Complete</h1>
 
         {stats && (
-          <p>
-            Reviewed {stats.reviewed} of {stats.total}
-            {" "}
-            classifications.
-          </p>
+          <ReviewProgress
+            reviewed={stats.reviewed}
+            total={stats.total}
+            remaining={stats.remaining}
+          />
         )}
 
         <p>
@@ -232,9 +235,9 @@ export function ReviewPage() {
           classification.
         </p>
 
-        <button onClick={loadReview}>
+        <Button onClick={loadReview}>
           Refresh
-        </button>
+        </Button>
       </main>
     );
   }
@@ -273,28 +276,24 @@ export function ReviewPage() {
 
         <footer className="flex flex-col gap-3 text-sm text-muted-foreground">
         <div className="flex gap-2">
-            <button
-            className="rounded-md border px-3 py-1"
+          <Button
+            variant="outline"
             onClick={previous}
             disabled={index === 0}
-            >
+          >
             Previous
-            </button>
+          </Button>
 
-            <button
-            className="rounded-md border px-3 py-1"
+          <Button
+            variant="outline"
             onClick={next}
             disabled={index === items.length - 1}
-            >
+          >
             Next
-            </button>
+          </Button>
         </div>
 
-        <p>
-            Keyboard:
-            {" "}
-            ← Previous · → Next · F Fibs · H Hermann · N Henri · U Unknown
-        </p>
+        <KeyboardHints />
         </footer>
     </main>
     );
