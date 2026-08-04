@@ -10,7 +10,6 @@ uv run pytest -q
 echo "==> UI checks"
 (
   cd ui
-  npm ci
   npm run build
   npm run lint
 )
