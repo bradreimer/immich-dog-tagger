@@ -1,7 +1,12 @@
+import { AppShell } from "./components/layout/AppShell";
 import { ReviewPage } from "./features/review/ReviewPage";
 
 function App() {
-  return <ReviewPage />;
+  return (
+    <AppShell>
+      <ReviewPage />
+    </AppShell>
+  );
 }
 
 export default App;
