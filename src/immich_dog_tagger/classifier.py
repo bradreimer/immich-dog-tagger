@@ -40,7 +40,7 @@ class IdentityClassifier:
         candidate_limit: int = 3,
     ) -> ClassificationResult:
 
-        candidates = []
+        identity_scores: dict[str, ClassificationCandidate] = {}
 
         examples = self.session.query(EmbeddingExample).all()
 
@@ -52,13 +52,18 @@ class IdentityClassifier:
                 known,
             )
 
-            candidates.append(
-                ClassificationCandidate(
-                    identity=example.identity.name,
-                    similarity=score,
-                    matched_example_id=example.id,
-                )
+            candidate = ClassificationCandidate(
+                identity=example.identity.name,
+                similarity=score,
+                matched_example_id=example.id,
             )
+
+            existing = identity_scores.get(candidate.identity)
+
+            if existing is None or candidate.similarity > existing.similarity:
+                identity_scores[candidate.identity] = candidate
+
+        candidates = list(identity_scores.values())
 
         candidates.sort(
             key=lambda candidate: candidate.similarity,

@@ -149,3 +149,39 @@ def test_classification_service_handles_no_reclassification_candidates(engine):
 
         embedder.embed_batch.assert_not_called()
         classifier.classify.assert_not_called()
+
+
+def test_classifier_returns_one_candidate_per_identity(engine):
+    with Session(engine) as session:
+        hermann = Identity(name="Hermann")
+
+        session.add(hermann)
+        session.flush()
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=hermann.id,
+                    crop_path="hermann1.jpg",
+                    embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+                EmbeddingExample(
+                    identity_id=hermann.id,
+                    crop_path="hermann2.jpg",
+                    embedding=embedding_to_blob(
+                        np.array([0.99, 0.01, 0], dtype=np.float32)
+                    ),
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+
+        result = classifier.classify(np.array([1, 0, 0], dtype=np.float32))
+
+        assert len(result.candidates) == 1
+        assert result.candidates[0].identity == "Hermann"
