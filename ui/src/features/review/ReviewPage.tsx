@@ -14,11 +14,32 @@ import { ReviewEmptyState } from "./components/ReviewEmptyState";
 import { ReviewProgress } from "./components/ReviewProgress";
 import { ReviewSkeleton } from "./components/ReviewSkeleton";
 import { useReviewKeyboard } from "./hooks/useReviewKeyboard";
+import type { ReviewFilter } from "./types";
 
 import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../../types/review";
+
+
+function getReviewQuery(
+  filter: ReviewFilter,
+) {
+  switch (filter) {
+    case "unknown":
+      return {
+        unknown: true,
+      };
+
+    case "low-confidence":
+      return {
+        confidence_below: 0.5,
+      };
+
+    default:
+      return {};
+  }
+}
 
 
 export function ReviewPage() {
@@ -28,16 +49,21 @@ export function ReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ReviewFilter>("all");
   
   
-  async function loadReview() {
+  async function loadReview(
+    selectedFilter = filter,
+  ) {
     setLoading(true);
     setError(null);
     setActionError(null);
     
     try {
       const [queue, queueStats] = await Promise.all([
-        getReview(),
+        getReview(
+          getReviewQuery(selectedFilter),
+        ),
         getReviewStats(),
       ]);
       
@@ -143,8 +169,8 @@ const next = useCallback(() => {
 
 
 useEffect(() => {
-  loadReview();
-}, []);
+  loadReview(filter);
+}, [filter]);
 
 useReviewKeyboard({
   correct,
@@ -219,7 +245,7 @@ if (error) {
       <h1>Review Error</h1>
       <p>{error}</p>
       
-      <Button onClick={loadReview}>
+      <Button onClick={() => loadReview(filter)}>
       Retry
       </Button>
     </main>
@@ -230,7 +256,7 @@ if (!item) {
   return (
     <main className="mx-auto max-w-5xl p-6">
       <ReviewEmptyState
-        onRefresh={loadReview}
+        onRefresh={() => loadReview(filter)}
       />
     </main>
   );
@@ -245,6 +271,35 @@ return (
     
     <div className="text-muted-foreground">
     {index + 1} of {items.length} in current queue
+    </div>
+
+    <div className="flex flex-wrap gap-2">
+      <Button
+        variant={filter === "all" ? "default" : "outline"}
+        onClick={() => setFilter("all")}
+      >
+        All
+      </Button>
+
+      <Button
+        variant={filter === "unknown" ? "default" : "outline"}
+        onClick={() => setFilter("unknown")}
+      >
+        Unknown
+      </Button>
+
+      <Button
+        variant={
+          filter === "low-confidence"
+            ? "default"
+            : "outline"
+        }
+        onClick={() =>
+          setFilter("low-confidence")
+        }
+      >
+        Low Confidence
+      </Button>
     </div>
     
     {stats && (

@@ -3,8 +3,31 @@ import type {
   ReviewQueueStats,
 } from "../types/review";
 
-export async function getReview(): Promise<ReviewItem[]> {
-  const response = await fetch("/api/review?limit=50");
+export type ReviewQuery = {
+  unknown?: boolean;
+  confidence_below?: number;
+};
+
+export async function getReview(
+  query: ReviewQuery = {},
+): Promise<ReviewItem[]> {
+  const params = new URLSearchParams();
+  params.set("limit", "50");
+
+  if (query.unknown) {
+    params.set("unknown", "true");
+  }
+
+  if (query.confidence_below !== undefined) {
+    params.set(
+      "confidence_below",
+      query.confidence_below.toString(),
+    );
+  }
+
+  const response = await fetch(
+    `/api/review?${params.toString()}`,
+  );
 
   if (!response.ok) {
     throw new Error("Failed to load review queue");

@@ -24,3 +24,8 @@ export interface ReviewQueueStats {
   reviewed: number;
   remaining: number;
 }
+
+export type ReviewFilter =
+  | "all"
+  | "unknown"
+  | "low-confidence";
