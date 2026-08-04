@@ -182,6 +182,12 @@ class ReviewQueryService:
         if limit is not None:
             query = query.limit(limit)
 
+        if unknown:
+            query = query.where(CropClassification.identity.is_(None))
+
+        if confidence_below is not None:
+            query = query.where(CropClassification.confidence < confidence_below)
+
         classifications = self.session.scalars(query).all()
 
         return [

@@ -707,3 +707,111 @@ def test_skip_review_missing_classification(api_client):
     )
 
     assert response.status_code == 404
+
+
+def test_review_unknown_filter(api_client, engine):
+    with Session(engine) as session:
+        unknown_crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        known_crop = Crop(
+            detection_id=1,
+            path="known.jpg",
+        )
+
+        session.add_all(
+            [
+                unknown_crop,
+                known_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=unknown_crop,
+                    identity=None,
+                    confidence=0.4,
+                ),
+                CropClassification(
+                    crop=known_crop,
+                    identity="Hermann",
+                    confidence=1.0,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        unknown_crop_id = unknown_crop.id
+
+    response = api_client.get(
+        "/review",
+        params={
+            "unknown": True,
+        },
+    )
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["crop_id"] == unknown_crop_id
+
+
+def test_review_confidence_filter(api_client, engine):
+    with Session(engine) as session:
+        low_crop = Crop(
+            detection_id=1,
+            path="low.jpg",
+        )
+
+        high_crop = Crop(
+            detection_id=1,
+            path="high.jpg",
+        )
+
+        session.add_all(
+            [
+                low_crop,
+                high_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=low_crop,
+                    identity=None,
+                    confidence=0.2,
+                ),
+                CropClassification(
+                    crop=high_crop,
+                    identity=None,
+                    confidence=0.9,
+                ),
+            ]
+        )
+
+        session.commit()
+
+        low_crop_id = low_crop.id
+
+    response = api_client.get(
+        "/review",
+        params={
+            "confidence_below": 0.5,
+        },
+    )
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["crop_id"] == low_crop_id
