@@ -1,23 +1,9 @@
 repos:
   - repo: local
     hooks:
-      - id: ruff-check
-        name: Ruff Check and Fix
-        entry: uv run ruff check --fix
+      - id: project-check
+        name: Project Check
+        entry: ./scripts/check.sh
         language: system
-        types: [python]
-        require_serial: true
-
-      - id: ruff-format
-        name: Ruff Format
-        entry: uv run ruff format
-        language: system
-        types: [python]
-
-      - id: pytest
-        name: Pytest Quick Check
-        entry: uv run pytest -q
-        language: system
-        types: [python]
         pass_filenames: false
         always_run: true
