@@ -26,15 +26,17 @@ class FakeLearner:
     def learn_image(
         self,
         identity,
-        path,
+        image_path,
         source,
+        captured_at=None,
     ):
         self.calls.append(
-            (
-                identity,
-                path,
-                source,
-            )
+            {
+                "identity": identity,
+                "image_path": image_path,
+                "source": source,
+                "captured_at": captured_at,
+            }
         )
 
         return True

@@ -23,8 +23,15 @@ class FakeLearner:
     def __init__(self):
         self.calls = []
 
-    def learn_image(self, identity, path, source):
-        self.calls.append((identity, path, source))
+    def learn_image(self, identity, image_path, source, captured_at=None):
+        self.calls.append(
+            {
+                "identity": identity,
+                "image_path": image_path,
+                "source": source,
+                "captured_at": captured_at,
+            }
+        )
 
 
 def test_correction_marks_classification_as_review(engine):
@@ -106,11 +113,12 @@ def test_correction_learns_from_review(engine):
         )
 
         assert learner.calls == [
-            (
-                "Hermann",
-                Path("hermann.jpg"),
-                EmbeddingSources.REVIEW,
-            )
+            {
+                "identity": "Hermann",
+                "image_path": Path("hermann.jpg"),
+                "source": EmbeddingSources.REVIEW,
+                "captured_at": None,
+            }
         ]
 
 

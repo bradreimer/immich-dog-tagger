@@ -48,11 +48,20 @@ class ClassificationCorrectionService:
             )
         )
 
-        if self.learner is not None:
+        if self.learner is not None and identity is not None:
+            captured_at = None
+
+            if (
+                classification.crop.detection is not None
+                and classification.crop.detection.asset is not None
+            ):
+                captured_at = classification.crop.detection.asset.captured_at
+
             self.learner.learn_image(
                 identity,
                 Path(classification.crop.path),
                 source=EmbeddingSources.REVIEW,
+                captured_at=captured_at,
             )
 
         self.session.commit()
