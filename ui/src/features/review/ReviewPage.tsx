@@ -31,11 +31,10 @@ export function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>("all");
+  const [saving, setSaving] = useState(false);
   
   
-  async function loadReview(
-    selectedFilter = filter,
-  ) {
+  const loadReview = useCallback(async () => {
     setLoading(true);
     setError(null);
     setActionError(null);
@@ -43,7 +42,7 @@ export function ReviewPage() {
     try {
       const [queue, queueStats] = await Promise.all([
         getReview(
-          getReviewQuery(selectedFilter),
+          getReviewQuery(filter),
         ),
         getReviewStats(),
       ]);
@@ -60,7 +59,7 @@ export function ReviewPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filter]);
 
   const correct = useCallback(
     async (identity: string) => {
@@ -73,21 +72,35 @@ export function ReviewPage() {
       setActionError(null);
       
       try {
+        setSaving(true);
+
         await correctClassification(
           item.classification_id,
           identity,
         );
         
-        await loadReview(filter);
+        setItems((current) => {
+          const next = current.filter((_, i) => i !== index);
+
+          setIndex((currentIndex) =>
+            Math.min(currentIndex, next.length - 1),
+          );
+
+          return next;
+        });
+
+        setStats(await getReviewStats());
       } catch (err) {
         setActionError(
           err instanceof Error
           ? err.message
           : "Failed to save correction",
         );
+      } finally {
+        setSaving(false);
       }
     },
-    [items, index, filter],
+    [items, index],
   );
 
 
@@ -102,20 +115,34 @@ export function ReviewPage() {
       setActionError(null);
       
       try {
+        setSaving(true);
+
         await skipClassification(
           item.classification_id,
         );
         
-        await loadReview(filter);
+        setItems((current) => {
+          const next = current.filter((_, i) => i !== index);
+
+          setIndex((currentIndex) =>
+            Math.min(currentIndex, next.length - 1),
+          );
+
+          return next;
+        });
+
+        setStats(await getReviewStats());
       } catch (err) {
         setActionError(
           err instanceof Error
           ? err.message
           : "Failed to save skip action",
         );
+      } finally {
+        setSaving(false);
       }
     },
-    [items, index, filter],
+    [items, index],
   );
 
 
@@ -132,8 +159,8 @@ export function ReviewPage() {
 
 
   useEffect(() => {
-    loadReview(filter);
-  }, [filter]);
+    loadReview();
+  }, [loadReview]);
 
   useReviewKeyboard({
     correct,
@@ -208,7 +235,7 @@ export function ReviewPage() {
         <h1>Review Error</h1>
         <p>{error}</p>
         
-        <Button onClick={() => loadReview(filter)}>
+        <Button onClick={() => loadReview()}>
         Retry
         </Button>
       </main>
@@ -219,7 +246,7 @@ export function ReviewPage() {
     return (
       <main className="mx-auto max-w-5xl p-6">
         <ReviewEmptyState
-          onRefresh={() => loadReview(filter)}
+          onRefresh={() => loadReview()}
         />
       </main>
     );
@@ -283,17 +310,18 @@ export function ReviewPage() {
     )}
     
     <ReviewCard
-    item={item}
-    onCorrect={correct}
-    onSkip={skip}
+      item={item}
+      onCorrect={correct}
+      onSkip={skip}
+      disabled={saving}
     />
     
     <footer className="flex flex-col gap-3 text-sm text-muted-foreground">
     <div className="flex gap-2">
     <Button
-    variant="outline"
-    onClick={previous}
-    disabled={index === 0}
+      variant="outline"
+      onClick={previous}
+      disabled={index === 0}
     >
     Previous
     </Button>

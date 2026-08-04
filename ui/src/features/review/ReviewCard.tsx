@@ -9,12 +9,14 @@ interface Props {
   item: ReviewItem;
   onCorrect: (identity: string) => void;
   onSkip: () => void;
+  disabled: boolean;
 }
 
 export function ReviewCard({
   item,
   onCorrect,
   onSkip,
+  disabled,
 }: Props) {
   return (
     <section className="space-y-8">
@@ -38,6 +40,7 @@ export function ReviewCard({
       <ReviewActions
         onCorrect={onCorrect}
         onSkip={onSkip}
+        disabled={disabled}
       />
     </section>
   );
