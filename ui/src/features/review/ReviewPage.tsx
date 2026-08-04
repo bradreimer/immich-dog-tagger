@@ -15,31 +15,12 @@ import { ReviewProgress } from "./components/ReviewProgress";
 import { ReviewSkeleton } from "./components/ReviewSkeleton";
 import { useReviewKeyboard } from "./hooks/useReviewKeyboard";
 import type { ReviewFilter } from "./types";
+import { getReviewQuery } from "./reviewFilters";
 
 import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../../types/review";
-
-
-function getReviewQuery(
-  filter: ReviewFilter,
-) {
-  switch (filter) {
-    case "unknown":
-      return {
-        unknown: true,
-      };
-
-    case "low-confidence":
-      return {
-        confidence_below: 0.5,
-      };
-
-    default:
-      return {};
-  }
-}
 
 
 export function ReviewPage() {
