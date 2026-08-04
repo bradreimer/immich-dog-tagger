@@ -75,6 +75,11 @@ class EmbeddingExample(Base):
         nullable=False,
     )
 
+    captured_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
     identity: Mapped[Identity] = relationship(
         back_populates="embeddings",
     )

@@ -3,6 +3,7 @@ Services for creating identity examples.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -35,6 +36,7 @@ class Learner:
         image_path: Path,
         *,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
+        captured_at: datetime | None = None,
     ) -> bool:
         identity = self.session.scalar(
             select(Identity).where(Identity.name == identity_name)
@@ -63,6 +65,7 @@ class Learner:
             crop_path=str(image_path),
             embedding=embedding_to_blob(embedding),
             source=source,
+            captured_at=captured_at,
         )
 
         self.session.add(example)
@@ -75,6 +78,7 @@ class Learner:
         image_dir: Path,
         *,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
+        captured_at: datetime | None = None,
     ) -> LearnSummary:
         identity = self.session.scalar(
             select(Identity).where(Identity.name == identity_name)
@@ -115,6 +119,7 @@ class Learner:
                 crop_path=str(image_path),
                 embedding=embedding_to_blob(embedding),
                 source=source,
+                captured_at=captured_at,
             )
 
             self.session.add(example)
