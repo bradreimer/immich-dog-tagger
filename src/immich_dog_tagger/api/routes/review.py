@@ -24,12 +24,16 @@ def review(
     session: Annotated[Session, Depends(get_session)],
     threshold: float = Query(0.80),
     limit: int = Query(50),
+    unknown: bool = Query(False),
+    confidence_below: float | None = Query(None),
 ):
     service = get_review_query_service(session)
 
     items = service.active_review(
         threshold=threshold,
         limit=limit,
+        unknown=unknown,
+        confidence_below=confidence_below,
     )
 
     return [ReviewItemResponse.from_item(item) for item in items]

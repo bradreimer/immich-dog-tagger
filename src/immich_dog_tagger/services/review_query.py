@@ -152,6 +152,8 @@ class ReviewQueryService:
         *,
         threshold: float = 0.80,
         limit: int | None = None,
+        unknown: bool = False,
+        confidence_below: float | None = None,
     ) -> list[ReviewItem]:
         priority = case(
             (
