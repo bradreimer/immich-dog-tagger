@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .embeddings import blob_to_embedding
 from .models import EmbeddingExample
+from .scoring import SimilarityScorer
 
 
 @dataclass(frozen=True)
@@ -30,8 +31,10 @@ class IdentityClassifier:
     def __init__(
         self,
         session: Session,
+        scorer: SimilarityScorer | None = None,
     ):
         self.session = session
+        self.scorer = scorer or SimilarityScorer()
 
     def classify(
         self,
@@ -47,14 +50,18 @@ class IdentityClassifier:
         for example in examples:
             known = blob_to_embedding(example.embedding)
 
-            score = self._cosine_similarity(
+            similarity = self._cosine_similarity(
                 embedding,
                 known,
             )
 
+            score = self.scorer.score(
+                similarity,
+            )
+
             candidate = ClassificationCandidate(
                 identity=example.identity.name,
-                similarity=score,
+                similarity=score.similarity,
                 matched_example_id=example.id,
             )
 
