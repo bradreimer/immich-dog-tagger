@@ -13,6 +13,7 @@ import { ReviewCard } from "./ReviewCard";
 import { ReviewEmptyState } from "./components/ReviewEmptyState";
 import { ReviewProgress } from "./components/ReviewProgress";
 import { ReviewSkeleton } from "./components/ReviewSkeleton";
+import { useReviewKeyboard } from "./hooks/useReviewKeyboard";
 
 import type {
   ReviewItem,
@@ -145,6 +146,12 @@ useEffect(() => {
   loadReview();
 }, []);
 
+useReviewKeyboard({
+  correct,
+  skip,
+  next,
+  previous,
+});
 
 useEffect(() => {
   function handleKeyDown(event: KeyboardEvent) {
