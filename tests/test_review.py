@@ -837,3 +837,53 @@ def test_review_query_sets_reason_for_unknown(engine):
         result = ReviewQueryService(session).active_review()
 
         assert result[0].reason == "unknown"
+
+
+def test_review_query_active_review_reason_unknown(engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.95,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 1
+        assert results[0].reason == "unknown"
+
+
+def test_review_query_active_review_reason_low_confidence(engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="low-confidence.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Hermann",
+            confidence=0.50,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 1
+        assert results[0].reason == "low-confidence"
