@@ -355,9 +355,12 @@ def test_duplicate_correction_does_not_duplicate_embedding_example(
 
 
 def test_correction_creates_review_action(session):
-    service = ClassificationCorrectionService(session)
-
     classification = create_test_classification(session)
+
+    classification.identity = "Fibs"
+    session.commit()
+
+    service = ClassificationCorrectionService(session)
 
     service.correct(
         classification.id,
@@ -368,6 +371,7 @@ def test_correction_creates_review_action(session):
 
     assert action.classification_id == classification.id
     assert action.action == ReviewActions.CORRECT
+    assert action.original_identity == "Fibs"
     assert action.identity == "Hermann"
 
 

@@ -36,17 +36,18 @@ class ClassificationCorrectionService:
         if classification is None:
             raise ValueError(f"Classification {classification_id} not found")
 
-        classification.identity = identity
-        classification.confidence = 1.0
-        classification.source = ClassificationSources.REVIEW
-
         self.session.add(
             ReviewAction(
                 classification_id=classification.id,
                 action=ReviewActions.CORRECT,
+                original_identity=classification.identity,
                 identity=identity,
             )
         )
+
+        classification.identity = identity
+        classification.confidence = 1.0
+        classification.source = ClassificationSources.REVIEW
 
         if self.learner is not None and identity is not None and identity != "Unknown":
             captured_at = None

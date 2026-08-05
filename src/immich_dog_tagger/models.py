@@ -282,6 +282,11 @@ class ReviewAction(Base):
         nullable=True,
     )
 
+    original_identity: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
