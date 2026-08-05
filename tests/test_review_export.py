@@ -1,4 +1,5 @@
 import csv
+from datetime import UTC, datetime
 
 from immich_dog_tagger.review_export import ReviewExporter
 from immich_dog_tagger.services.review_query import (
@@ -62,6 +63,7 @@ def test_export_review_writes_metadata(tmp_path):
             similarity=0.95,
             example_id=1,
             example_path=example,
+            captured_at=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC),
         ),
     )
 
@@ -81,3 +83,4 @@ def test_export_review_writes_metadata(tmp_path):
     assert "Fibs" in contents
     assert "0.9500" in contents
     assert "example.jpg" in contents
+    assert "2024-06-01T12:00:00+00:00" in contents

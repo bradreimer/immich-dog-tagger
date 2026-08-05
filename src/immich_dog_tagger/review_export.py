@@ -94,6 +94,9 @@ class ReviewExporter:
         else:
             lines.append("Matched example: None")
 
+        if item.suggestion and item.suggestion.captured_at:
+            lines.append(f"Captured at: {item.suggestion.captured_at.isoformat()}")
+
         metadata.write_text(
             "\n".join(lines),
         )

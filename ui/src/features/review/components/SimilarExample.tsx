@@ -5,12 +5,14 @@ interface Props {
   exampleId: number;
   identity: string;
   similarity: number;
+  capturedAt: string | null;
 }
 
 export function SimilarExample({
   exampleId,
   identity,
   similarity,
+  capturedAt,
 }: Props) {
   return (
     <Card>
@@ -35,6 +37,13 @@ export function SimilarExample({
           <Badge variant="secondary">
             {(similarity * 100).toFixed(1)}%
           </Badge>
+
+          {capturedAt && (
+            <div className="text-sm text-muted-foreground">
+              Captured{" "}
+              {new Date(capturedAt).toLocaleDateString()}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

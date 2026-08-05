@@ -33,6 +33,7 @@ export function ReviewCard({
             exampleId={item.suggestion.example_id}
             identity={item.suggestion.identity}
             similarity={item.suggestion.similarity}
+            capturedAt={item.suggestion.captured_at}
           />
         )}
       </div>

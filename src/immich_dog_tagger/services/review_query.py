@@ -1,5 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import case, exists, func, select
@@ -23,6 +24,7 @@ class ReviewSuggestion:
     similarity: float
     example_id: int
     example_path: Path
+    captured_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -217,6 +219,7 @@ class ReviewQueryService:
             similarity=classification.confidence,
             example_id=example.id,
             example_path=Path(example.crop_path),
+            captured_at=example.captured_at,
         )
 
     def _to_review_item(

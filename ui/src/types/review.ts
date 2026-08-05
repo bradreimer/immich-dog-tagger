@@ -3,6 +3,7 @@ export interface ReviewSuggestion {
   similarity: number;
   example_id: number;
   example_path: string;
+  captured_at: string | null;
 }
 
 export interface ReviewItem {

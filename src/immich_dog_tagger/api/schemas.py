@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -19,6 +21,7 @@ class ReviewSuggestionResponse(BaseModel):
     similarity: float
     example_id: int
     example_path: str
+    captured_at: datetime | None
 
 
 class CorrectionRequest(BaseModel):
@@ -49,6 +52,7 @@ class ReviewItemResponse(BaseModel):
                     similarity=item.suggestion.similarity,
                     example_id=item.suggestion.example_id,
                     example_path=str(item.suggestion.example_path),
+                    captured_at=item.suggestion.captured_at,
                 )
                 if item.suggestion
                 else None
