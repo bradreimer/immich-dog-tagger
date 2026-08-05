@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface Props {
   onCorrect: (identity: string) => void;
   onSkip: () => void;
+  disabled?: boolean;
 }
 
 const identities = [
@@ -16,6 +17,7 @@ const identities = [
 export function IdentityChooser({
   onCorrect,
   onSkip,
+  disabled,
 }: Props) {
   return (
     <Card>
@@ -30,6 +32,7 @@ export function IdentityChooser({
           <Button
             key={identity}
             onClick={() => onCorrect(identity)}
+            disabled={disabled}
           >
             {identity}
           </Button>
@@ -38,6 +41,7 @@ export function IdentityChooser({
         <Button
           variant="outline"
           onClick={onSkip}
+          disabled={disabled}
         >
           Skip
         </Button>
