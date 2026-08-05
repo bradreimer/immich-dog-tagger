@@ -59,21 +59,29 @@ export function PredictionCard({
             </div>
 
             {candidates.map((candidate) => (
-              <button
+              <div
                 key={candidate.identity}
-                type="button"
-                className="flex w-full items-center justify-between text-sm hover:underline"
-                onClick={() => onCorrect(candidate.identity)}
-                disabled={disabled}
+                className="flex items-center justify-between text-sm"
               >
-                <span>
-                  {candidate.identity}
-                </span>
+                <div>
+                  <span>
+                    {candidate.identity}
+                  </span>
 
-                <span className="text-muted-foreground">
-                  {(candidate.similarity * 100).toFixed(1)}%
-                </span>
-              </button>
+                  <span className="ml-2 text-muted-foreground">
+                    {(candidate.similarity * 100).toFixed(1)}%
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="hover:underline"
+                  onClick={() => onCorrect(candidate.identity)}
+                  disabled={disabled}
+                >
+                  Correct
+                </button>
+              </div>
             ))}
           </div>
         )}
