@@ -6,6 +6,8 @@ interface Props {
   identity: string | null;
   similarity: number;
   candidates: ReviewCandidate[];
+  onCorrect: (identity: string) => void;
+  disabled?: boolean;
 }
 
 function confidenceLabel(similarity: number): string {
@@ -24,6 +26,8 @@ export function PredictionCard({
   identity,
   similarity,
   candidates,
+  onCorrect,
+  disabled,
 }: Props) {
   return (
     <Card>
@@ -55,9 +59,12 @@ export function PredictionCard({
             </div>
 
             {candidates.map((candidate) => (
-              <div
+              <button
                 key={candidate.identity}
-                className="flex items-center justify-between text-sm"
+                type="button"
+                className="flex w-full items-center justify-between text-sm hover:underline"
+                onClick={() => onCorrect(candidate.identity)}
+                disabled={disabled}
               >
                 <span>
                   {candidate.identity}
@@ -66,7 +73,7 @@ export function PredictionCard({
                 <span className="text-muted-foreground">
                   {(candidate.similarity * 100).toFixed(1)}%
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         )}

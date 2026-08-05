@@ -27,6 +27,8 @@ export function ReviewCard({
           identity={item.prediction.identity}
           similarity={item.prediction.similarity}
           candidates={item.prediction.candidates}
+          onCorrect={onCorrect}
+          disabled={disabled}
         />
 
         {item.suggestion && (
