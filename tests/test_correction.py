@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -8,8 +9,10 @@ from immich_dog_tagger.enums import (
     ReviewActions,
 )
 from immich_dog_tagger.models import (
+    Asset,
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     ReviewAction,
 )
@@ -385,3 +388,85 @@ def test_skipped_review_item_not_returned(session):
     items = service.active_review()
 
     assert classification.id not in [item.classification_id for item in items]
+
+
+def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
+    class FakeLearner:
+        def __init__(self):
+            self.calls = []
+
+        def learn_image(
+            self,
+            identity,
+            image_path,
+            *,
+            source,
+            captured_at=None,
+        ):
+            self.calls.append(
+                {
+                    "identity": identity,
+                    "image_path": image_path,
+                    "source": source,
+                    "captured_at": captured_at,
+                }
+            )
+
+    image_path = tmp_path / "fibs.jpg"
+    image_path.write_bytes(b"fake image")
+
+    captured_at = datetime(2025, 1, 15, 12, 30, tzinfo=UTC)
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-1",
+            checksum="checksum",
+            extension=".jpg",
+            captured_at=captured_at,
+        )
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path=str(image_path),
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+            candidates=[],
+        )
+
+        session.add(classification)
+        session.commit()
+
+        learner = FakeLearner()
+
+        service = ClassificationCorrectionService(
+            session,
+            learner=learner,
+        )
+
+        service.correct(
+            classification.id,
+            "Fibs",
+        )
+
+        assert learner.calls == [
+            {
+                "identity": "Fibs",
+                "image_path": image_path,
+                "source": EmbeddingSources.REVIEW,
+                "captured_at": captured_at.replace(tzinfo=None),
+            }
+        ]

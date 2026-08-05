@@ -48,7 +48,7 @@ class ClassificationCorrectionService:
             )
         )
 
-        if self.learner is not None and identity is not None:
+        if self.learner is not None and identity is not None and identity != "Unknown":
             captured_at = None
 
             if (
