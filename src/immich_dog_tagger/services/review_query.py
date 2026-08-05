@@ -35,6 +35,7 @@ class ReviewItem:
     path: Path
     prediction: ReviewPrediction
     suggestion: ReviewSuggestion | None
+    reason: str = "review"
 
     @property
     def filename(self) -> str:
@@ -234,6 +235,7 @@ class ReviewQueryService:
             path=Path(classification.crop.path),
             prediction=self._prediction(classification),
             suggestion=self._suggestion(classification),
+            reason=self._review_reason(classification),
         )
 
     def _has_review_action(self):
@@ -242,3 +244,16 @@ class ReviewQueryService:
                 ReviewAction.classification_id == CropClassification.id,
             )
         )
+
+    def _review_reason(
+        self,
+        classification: CropClassification,
+        threshold: float = 0.80,
+    ) -> str:
+        if classification.identity is None:
+            return "unknown"
+
+        if classification.confidence < threshold:
+            return "low-confidence"
+
+        return "review"
