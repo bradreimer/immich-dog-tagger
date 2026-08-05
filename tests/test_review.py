@@ -816,3 +816,24 @@ def test_review_confidence_filter(api_client, engine):
 
     assert len(items) == 1
     assert items[0]["crop_id"] == low_crop_id
+
+
+def test_review_query_sets_reason_for_unknown(engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.9,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        result = ReviewQueryService(session).active_review()
+
+        assert result[0].reason == "unknown"

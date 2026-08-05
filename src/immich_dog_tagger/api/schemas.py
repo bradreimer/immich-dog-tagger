@@ -36,6 +36,7 @@ class ReviewItemResponse(BaseModel):
 
     prediction: ReviewPredictionResponse
     suggestion: ReviewSuggestionResponse | None
+    reason: str
 
     @classmethod
     def from_item(cls, item):
@@ -66,6 +67,7 @@ class ReviewItemResponse(BaseModel):
                 if item.suggestion
                 else None
             ),
+            reason=item.reason,
         )
 
 

@@ -16,6 +16,31 @@ def test_review_queue(api_client):
     assert isinstance(response.json(), list)
 
 
+def test_review_item_returns_reason(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+
+    item = response.json()[0]
+
+    assert item["reason"] == "unknown"
+
+
 def test_review_stats(api_client):
     response = api_client.get("/review/stats")
 
