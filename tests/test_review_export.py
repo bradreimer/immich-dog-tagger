@@ -20,6 +20,7 @@ def test_export_review(tmp_path):
         prediction=ReviewPrediction(
             identity="Fibs",
             similarity=0.95,
+            candidates=[],
         ),
         suggestion=None,
     )
@@ -57,6 +58,7 @@ def test_export_review_writes_metadata(tmp_path):
         prediction=ReviewPrediction(
             identity="Fibs",
             similarity=0.95,
+            candidates=[],
         ),
         suggestion=ReviewSuggestion(
             identity="Fibs",

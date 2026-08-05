@@ -15,6 +15,7 @@ export interface ReviewItem {
   prediction: {
     identity: string | null;
     similarity: number;
+    candidates: ReviewCandidate[];
   };
 
   suggestion: ReviewSuggestion | null;
@@ -24,4 +25,10 @@ export interface ReviewQueueStats {
   total: number;
   reviewed: number;
   remaining: number;
+}
+
+export interface ReviewCandidate {
+  identity: string;
+  similarity: number;
+  matched_example_id: number;
 }

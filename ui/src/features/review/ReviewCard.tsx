@@ -26,6 +26,7 @@ export function ReviewCard({
         <PredictionCard
           identity={item.prediction.identity}
           similarity={item.prediction.similarity}
+          candidates={item.prediction.candidates}
         />
 
         {item.suggestion && (

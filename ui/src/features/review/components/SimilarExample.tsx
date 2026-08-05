@@ -37,6 +37,7 @@ export function SimilarExample({
           <Badge variant="secondary">
             {(similarity * 100).toFixed(1)}%
           </Badge>
+        </div>
 
           {capturedAt && (
             <div className="text-sm text-muted-foreground">
@@ -44,7 +45,6 @@ export function SimilarExample({
               {new Date(capturedAt).toLocaleDateString()}
             </div>
           )}
-        </div>
       </CardContent>
     </Card>
   );

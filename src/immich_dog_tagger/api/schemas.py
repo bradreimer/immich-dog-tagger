@@ -14,6 +14,7 @@ class ClassificationResponse(BaseModel):
 class ReviewPredictionResponse(BaseModel):
     identity: str | None
     similarity: float
+    candidates: list[ReviewCandidateResponse]
 
 
 class ReviewSuggestionResponse(BaseModel):
@@ -45,6 +46,14 @@ class ReviewItemResponse(BaseModel):
             prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
                 similarity=item.prediction.similarity,
+                candidates=[
+                    ReviewCandidateResponse(
+                        identity=candidate.identity,
+                        similarity=candidate.similarity,
+                        matched_example_id=candidate.matched_example_id,
+                    )
+                    for candidate in item.prediction.candidates
+                ],
             ),
             suggestion=(
                 ReviewSuggestionResponse(
@@ -64,3 +73,9 @@ class ReviewQueueStatsResponse(BaseModel):
     total: int
     reviewed: int
     remaining: int
+
+
+class ReviewCandidateResponse(BaseModel):
+    identity: str
+    similarity: float
+    matched_example_id: int

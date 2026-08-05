@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ReviewCandidate } from "@/types/review";
 
 interface Props {
   identity: string | null;
   similarity: number;
+  candidates: ReviewCandidate[];
 }
 
 function confidenceLabel(similarity: number): string {
@@ -21,6 +23,7 @@ function confidenceLabel(similarity: number): string {
 export function PredictionCard({
   identity,
   similarity,
+  candidates,
 }: Props) {
   return (
     <Card>
@@ -44,6 +47,29 @@ export function PredictionCard({
             {(similarity * 100).toFixed(1)}%
           </span>
         </div>
+
+        {candidates.length > 1 && (
+          <div className="space-y-2 pt-3">
+            <div className="text-sm font-medium">
+              Alternatives
+            </div>
+
+            {candidates.map((candidate) => (
+              <div
+                key={candidate.identity}
+                className="flex items-center justify-between text-sm"
+              >
+                <span>
+                  {candidate.identity}
+                </span>
+
+                <span className="text-muted-foreground">
+                  {(candidate.similarity * 100).toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

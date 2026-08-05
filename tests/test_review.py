@@ -530,6 +530,7 @@ def test_review_returns_queue(api_client, engine):
     assert item["prediction"] == {
         "identity": None,
         "similarity": -1.0,
+        "candidates": [],
     }
 
     assert item["suggestion"]["identity"] == "Hermann"

@@ -16,6 +16,7 @@ from immich_dog_tagger.models import (
 class ReviewPrediction:
     identity: str | None
     similarity: float
+    candidates: list[dict]
 
 
 @dataclass(frozen=True)
@@ -203,6 +204,7 @@ class ReviewQueryService:
         return ReviewPrediction(
             identity=classification.identity,
             similarity=classification.confidence,
+            candidates=classification.candidates,
         )
 
     def _suggestion(
