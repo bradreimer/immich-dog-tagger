@@ -248,12 +248,14 @@ class ReviewQueryService:
     def _review_reason(
         self,
         classification: CropClassification,
-        threshold: float = 0.80,
     ) -> str:
         if classification.identity is None:
             return "unknown"
 
-        if classification.confidence < threshold:
+        if classification.candidates:
+            return "candidate-conflict"
+
+        if classification.confidence < 0.80:
             return "low-confidence"
 
         return "review"
