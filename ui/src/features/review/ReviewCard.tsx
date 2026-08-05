@@ -4,6 +4,7 @@ import { ReviewImage } from "./components/ReviewImage";
 import { PredictionCard } from "./components/PredictionCard";
 import { SimilarExample } from "./components/SimilarExample";
 import { ReviewActions } from "./components/ReviewActions";
+import { ReviewReason } from "./components/ReviewReason";
 
 interface Props {
   item: ReviewItem;
@@ -21,6 +22,8 @@ export function ReviewCard({
   return (
     <section className="space-y-8">
       <ReviewImage cropId={item.crop_id} />
+
+      <ReviewReason reason={item.reason} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PredictionCard

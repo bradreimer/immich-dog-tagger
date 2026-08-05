@@ -11,6 +11,7 @@ export interface ReviewItem {
   crop_id: number;
   path: string;
   filename: string;
+  reason: string;
 
   prediction: {
     identity: string | null;

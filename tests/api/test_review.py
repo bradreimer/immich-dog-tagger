@@ -89,6 +89,7 @@ def test_review_item_returns_image_url(api_client, engine):
 
     assert item["classification_id"] == classification_id
     assert item["crop_id"] == crop_id
+    assert item["reason"] == "unknown"
     assert item["image_url"] == f"/crops/{crop.id}"
 
     assert "path" not in item
