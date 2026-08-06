@@ -243,7 +243,20 @@ export function ReviewPage() {
           Low Confidence
         </Button>
       </div>
-      
+
+      <Button
+        variant={
+          filter === "candidate-conflict"
+            ? "default"
+            : "outline"
+        }
+        onClick={() =>
+          setFilter("candidate-conflict")
+        }
+      >
+        Candidate Conflict
+      </Button>
+
       {stats && (
         <ReviewProgress
           reviewed={stats.reviewed}

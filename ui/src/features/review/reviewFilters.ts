@@ -12,6 +12,11 @@ export function getReviewQuery(filter: ReviewFilter) {
         confidence_below: 0.5,
       };
 
+    case "candidate-conflict":
+      return {
+        candidate_conflict: true,
+      };
+
     case "all":
     default:
       return {};

@@ -1,4 +1,5 @@
 export type ReviewFilter =
   | "all"
   | "unknown"
-  | "low-confidence";
+  | "low-confidence"
+  | "candidate-conflict";

@@ -6,6 +6,7 @@ import type {
 export type ReviewQuery = {
   unknown?: boolean;
   confidence_below?: number;
+  candidate_conflict?: boolean;
 };
 
 export async function getReview(
@@ -22,6 +23,13 @@ export async function getReview(
     params.set(
       "confidence_below",
       query.confidence_below.toString(),
+    );
+  }
+
+  if (query.candidate_conflict) {
+    params.set(
+      "candidate_conflict",
+      "true",
     );
   }
 
