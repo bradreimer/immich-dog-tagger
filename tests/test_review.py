@@ -818,6 +818,48 @@ def test_review_confidence_filter(api_client, engine):
     assert items[0]["crop_id"] == low_crop_id
 
 
+def test_review_candidate_conflict_filter(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="conflict.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Hermann",
+            confidence=0.50,
+            candidates=[
+                {
+                    "identity": "Fibs",
+                    "similarity": 0.85,
+                }
+            ],
+        )
+
+        session.add(classification)
+        session.commit()
+
+        crop_id = crop.id
+
+    response = api_client.get(
+        "/review",
+        params={
+            "candidate_conflict": True,
+        },
+    )
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["crop_id"] == crop_id
+
+
 def test_review_query_sets_reason_for_unknown(engine):
     with Session(engine) as session:
         crop = Crop(
@@ -918,3 +960,55 @@ def test_review_query_active_review_reason_candidate_conflict(engine):
 
         assert len(results) == 1
         assert results[0].reason == "candidate-conflict"
+
+
+def test_review_query_filters_candidate_conflict(engine):
+    with Session(engine) as session:
+        conflict_crop = Crop(
+            detection_id=1,
+            path="conflict.jpg",
+        )
+
+        normal_crop = Crop(
+            detection_id=2,
+            path="normal.jpg",
+        )
+
+        session.add_all(
+            [
+                conflict_crop,
+                normal_crop,
+            ]
+        )
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=conflict_crop,
+                    identity="Hermann",
+                    confidence=0.50,
+                    candidates=[
+                        {
+                            "identity": "Fibs",
+                            "similarity": 0.9,
+                        }
+                    ],
+                ),
+                CropClassification(
+                    crop=normal_crop,
+                    identity="Fibs",
+                    confidence=0.95,
+                    candidates=[],
+                ),
+            ]
+        )
+
+        session.commit()
+
+        results = ReviewQueryService(session).active_review(
+            candidate_conflict=True,
+        )
+
+        assert len(results) == 1
+        assert results[0].path.name == "conflict.jpg"

@@ -26,6 +26,7 @@ def review(
     limit: int = Query(50),
     unknown: bool = Query(False),
     confidence_below: float | None = Query(None),
+    candidate_conflict: bool = Query(False),
 ):
     service = get_review_query_service(session)
 
@@ -34,6 +35,7 @@ def review(
         limit=limit,
         unknown=unknown,
         confidence_below=confidence_below,
+        candidate_conflict=candidate_conflict,
     )
 
     return [ReviewItemResponse.from_item(item) for item in items]

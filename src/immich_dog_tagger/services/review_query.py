@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import case, exists, func, select
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.classifier import ClassificationCandidate
 from immich_dog_tagger.models import (
     CropClassification,
     ReviewAction,
@@ -16,7 +17,7 @@ from immich_dog_tagger.models import (
 class ReviewPrediction:
     identity: str | None
     similarity: float
-    candidates: list[dict]
+    candidates: list[ClassificationCandidate]
 
 
 @dataclass(frozen=True)
@@ -158,6 +159,7 @@ class ReviewQueryService:
         limit: int | None = None,
         unknown: bool = False,
         confidence_below: float | None = None,
+        candidate_conflict: bool = False,
     ) -> list[ReviewItem]:
         priority = case(
             (
@@ -192,10 +194,29 @@ class ReviewQueryService:
         if confidence_below is not None:
             query = query.where(CropClassification.confidence < confidence_below)
 
+        if candidate_conflict:
+            query = query.where(CropClassification.candidates != [])
+
         classifications = self.session.scalars(query).all()
 
         return [
             self._to_review_item(classification) for classification in classifications
+        ]
+
+    def _candidates(
+        self,
+        classification: CropClassification,
+    ) -> list[ClassificationCandidate]:
+        return [
+            ClassificationCandidate(
+                identity=candidate["identity"],
+                similarity=candidate["similarity"],
+                matched_example_id=candidate.get(
+                    "matched_example_id",
+                    -1,
+                ),
+            )
+            for candidate in classification.candidates
         ]
 
     def _prediction(
@@ -205,7 +226,7 @@ class ReviewQueryService:
         return ReviewPrediction(
             identity=classification.identity,
             similarity=classification.confidence,
-            candidates=classification.candidates,
+            candidates=self._candidates(classification),
         )
 
     def _suggestion(
