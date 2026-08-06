@@ -655,6 +655,42 @@ def test_skip_review_endpoint(api_client, engine):
     assert response.json() == []
 
 
+def test_correct_review_removes_item_from_queue(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="correct.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.50,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        classification_id = classification.id
+
+    response = api_client.post(
+        f"/review/{classification_id}/correct",
+        json={
+            "identity": "Hermann",
+        },
+    )
+
+    assert response.status_code == 200
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_skip_review(api_client, session):
     classification = create_test_classification(session)
 

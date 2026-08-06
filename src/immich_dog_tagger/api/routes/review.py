@@ -4,11 +4,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import (
+    get_correction_service,
     get_review_action_service,
     get_review_query_service,
     get_session,
 )
-from immich_dog_tagger.api.schemas import ReviewItemResponse, ReviewQueueStatsResponse
+from immich_dog_tagger.api.schemas import (
+    CorrectionRequest,
+    ReviewItemResponse,
+    ReviewQueueStatsResponse,
+)
+from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.review_actions import ReviewActionService
 
 router = APIRouter(
@@ -76,4 +82,29 @@ def skip_review(
 
     return {
         "status": "skipped",
+    }
+
+
+@router.post("/{classification_id}/correct")
+def correct_review(
+    classification_id: int,
+    request: CorrectionRequest,
+    service: Annotated[
+        ClassificationCorrectionService,
+        Depends(get_correction_service),
+    ],
+):
+    try:
+        service.correct(
+            classification_id,
+            request.identity,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        ) from e
+
+    return {
+        "status": "corrected",
     }
