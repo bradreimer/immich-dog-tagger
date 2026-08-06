@@ -887,3 +887,34 @@ def test_review_query_active_review_reason_low_confidence(engine):
 
         assert len(results) == 1
         assert results[0].reason == "low-confidence"
+
+
+def test_review_query_active_review_reason_candidate_conflict(engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="candidate-conflict.jpg",
+        )
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Hermann",
+            confidence=0.50,
+            candidates=[
+                {
+                    "identity": "Fibs",
+                    "similarity": 0.94,
+                }
+            ],
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 1
+        assert results[0].reason == "candidate-conflict"
