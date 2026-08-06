@@ -27,6 +27,12 @@ while keeping all processing local.
 
 # Quick Start
 
+For a fresh machine, bootstrap both Python and UI dependencies:
+
+```bash
+./scripts/bootstrap.sh
+```
+
 Install dependencies:
 
 ```bash
@@ -81,25 +87,20 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v0.7.0
+v0.8.0
 ```
 
-Release v0.7.0 introduces a modern review UI foundation and workflow experience:
+Release v0.8.0 expands classification context and makes the review loop more explicit:
 
-* Tailwind CSS foundation
-* shadcn/ui component system
-* Theme infrastructure
-* Feature-oriented UI architecture
-* Application shell
-* Premium review workspace
-* Review workflow controls
-* Progress visualization
-* Keyboard-friendly workflow
-* Loading skeletons
-* Empty states
-* Responsive polish
+* Ranked identity candidates for each prediction
+* Temporal metadata attached to matched examples
+* Candidate-aware classification and review support
+* Review queue reasons exposed through the API and UI
+* Candidate-conflict review filtering
+* Explicit correction actions in the review workspace
+* Unified bootstrap and validation scripts for local development
 
-The project includes a complete human review workflow:
+The project now includes a richer human review and active-learning workflow:
 
 * FastAPI service layer
 * Browser-based review interface
@@ -108,36 +109,21 @@ The project includes a complete human review workflow:
 * Human correction workflow integration
 * Immediate learning from corrections
 * Review audit history
+* Ranked correction candidates
+* Review reason labeling
+* Similar-example capture dates
 
 Completed:
 
-* Tailwind CSS UI foundation
-* shadcn/ui component system integration
-* Theme infrastructure for consistent styling
-* Feature-oriented UI architecture
-* Application shell and premium review workspace
-* Review workflow controls and progress visualization
-* Keyboard-friendly review workflow
-* Loading skeletons, empty states, and responsive polish
-* FastAPI service layer
-* Review queue API
-* Prioritized review workflow
-* Browser-based classification review
-* Keyboard-driven corrections
-* Explicit prediction and suggestion models
-* Matched example visualization
-* Human correction workflow integration
-* Immediate learning from corrections
-* Review audit history
-* Review skip workflow
-* Optimistic browser review queue
-* Review statistics
-* Pipeline health metrics
-* Review filtering
-* Browser error handling
-* Docker frontend container
-* nginx frontend/API proxy
-* Traefik deployment support
+* End-to-end dog detection, embedding, and identity classification pipeline
+* Ranked candidate suggestions persisted with classifications
+* Temporal metadata on embedding examples and review suggestions
+* Browser review workspace with keyboard shortcuts and explicit correction buttons
+* Review queue reasons, filtering, and candidate-conflict triage
+* Immediate learning from review corrections with preserved capture metadata
+* Review statistics, audit history, and skip workflow
+* Dockerized FastAPI and React deployment behind Traefik
+* Unified bootstrap and project-wide validation scripts
 
 ---
 
@@ -193,12 +179,14 @@ The Web API provides the human interaction layer for review and correction workf
 * Generate dog crops
 * Generate embeddings using OpenCLIP
 * Classify dogs using embedding similarity
+* Retain ranked identity candidates for each classification
 * Track classification confidence
+* Add temporal metadata to matched examples
 * Track classification provenance:
 
   * automatic predictions
   * human corrections
-* Explain classifications using matched examples
+* Explain classifications using matched examples and capture dates
 
 Supported identities include:
 
@@ -218,11 +206,13 @@ Features:
 
 * Prioritized review queue
 * Unknown and low-confidence prioritization
+* Candidate-conflict prioritization
 * Modern browser-based review workspace
 * Review workflow controls and progress visualization
 * Keyboard-friendly rapid correction workflow
 * Loading skeletons and empty states
 * Responsive UI behavior across desktop and mobile
+* Review filter buttons for all, unknown, low-confidence, and candidate-conflict queues
 * Keyboard shortcuts for rapid correction:
 
 ```
@@ -236,14 +226,17 @@ Each review item can display:
 
 * Current prediction
 * Similarity score
-* Supporting example when available
-* Correction actions
+* Ranked identity candidates
+* Review reason
+* Supporting example path and capture date when available
+* Explicit correction actions
 
 Corrections:
 
 * Update the classification
 * Record human provenance
 * Create future training examples
+* Apply candidate suggestions directly from the review UI
 
 ---
 
@@ -256,12 +249,14 @@ Current endpoints include:
 ```plain
 GET  /review
 GET  /review/stats
-POST /classifications/{id}/correct
+POST /review/{id}/correct
 POST /review/{id}/skip
 GET  /crops/{id}
 GET  /embedding-examples/{id}/image
 GET  /health
 ```
+
+The review queue endpoint supports query filters for unknown items, low-confidence items, and candidate conflicts.
 
 The API sits above the application layer rather than replacing the CLI or pipeline.
 
@@ -505,6 +500,12 @@ CPU execution is possible but significantly slower.
 
 # Development
 
+Bootstrap a fresh environment:
+
+```bash
+./scripts/bootstrap.sh
+```
+
 Install dependencies:
 
 ```bash
@@ -520,9 +521,7 @@ uv run pytest
 Run validation:
 
 ```bash
-uv run ruff check --fix .
-uv run ruff format
-uv run pytest -q
+./scripts/check.sh
 ```
 
 UI validation:
@@ -545,17 +544,17 @@ UI lint: passing
 
 # Roadmap
 
-## Next: v0.7.0
+## Next: v0.9.0
 
 Future milestones focus on improving classification quality and workflow efficiency.
 
 Planned areas include:
 
-* richer nearest-neighbor ranking
-* temporal context during classification
 * improved training example management
+* active-learning workflow refinements
 * browser UX improvements
 * Immich synchronization enhancements
+* deployment and release automation
 
 ---
 
