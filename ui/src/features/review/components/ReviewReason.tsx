@@ -1,11 +1,29 @@
+import { Badge } from "@/components/ui/badge";
+
 interface Props {
   reason: string;
 }
 
+function formatReason(reason: string): string {
+  switch (reason) {
+    case "unknown":
+      return "Unknown identity";
+
+    case "low-confidence":
+      return "Low confidence";
+
+    case "candidate-conflict":
+      return "Candidate conflict";
+
+    default:
+      return "Needs review";
+  }
+}
+
 export function ReviewReason({ reason }: Props) {
   return (
-    <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-      Review reason: {reason}
-    </div>
+    <Badge variant="outline">
+      {formatReason(reason)}
+    </Badge>
   );
 }
