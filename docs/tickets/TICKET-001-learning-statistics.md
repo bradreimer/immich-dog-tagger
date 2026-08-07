@@ -6,7 +6,7 @@ Related Spec: Learning System
 
 Priority: High
 
-Status: Planned
+Status: Complete
 
 ## Goal
 Expose how much the system has learned.

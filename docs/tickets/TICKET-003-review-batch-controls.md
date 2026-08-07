@@ -6,7 +6,7 @@ Related Spec: Review Workflow
 
 Priority: Medium
 
-Status: Planned
+Status: Complete
 
 ## Goal
 Improve control over review sessions.
