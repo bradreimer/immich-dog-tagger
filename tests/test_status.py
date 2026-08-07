@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.enums import AssetStatus, ReviewActions
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -9,6 +9,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     EmbeddingSources,
     Identity,
+    ReviewAction,
 )
 from immich_dog_tagger.services.status import StatusService
 
@@ -64,6 +65,16 @@ def test_status_summary(engine):
             ]
         )
 
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.CORRECT,
+                identity="Fibs",
+            )
+        )
+
         session.commit()
 
         summary = StatusService(session).summary()
@@ -74,6 +85,15 @@ def test_status_summary(engine):
         assert summary.classifications == 1
         assert summary.identities == 1
         assert summary.examples == 1
+        assert summary.examples_by_source == {
+            "bootstrap": 0,
+            "review": 1,
+            "import": 0,
+        }
+        assert summary.review_actions_by_type == {
+            "skip": 0,
+            "correct": 1,
+        }
 
 
 def test_health_summary(engine):

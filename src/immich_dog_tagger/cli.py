@@ -401,6 +401,15 @@ def status_command(args) -> None:
     print(f"Embedding examples: {summary.examples}")
     print(f"Unknown:            {summary.unknown}")
     print(f"Low confidence:     {summary.low_confidence}")
+    print()
+    print("Learning")
+    print("--------")
+    print("Examples by source:")
+    for source, count in summary.examples_by_source.items():
+        print(f"  {source}: {count}")
+    print("Review actions by type:")
+    for action, count in summary.review_actions_by_type.items():
+        print(f"  {action}: {count}")
 
     if args.verbose:
         print()

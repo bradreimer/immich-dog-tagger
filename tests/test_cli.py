@@ -63,3 +63,27 @@ def test_classify_accepts_all(capsys):
     output = capsys.readouterr().out
 
     assert "Classified:" in output
+
+
+def test_status_outputs_learning_metrics(capsys, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    with patch(
+        "sys.argv",
+        [
+            "immich-dog-tagger",
+            "status",
+        ],
+    ):
+        main()
+
+    output = capsys.readouterr().out
+
+    assert "Learning" in output
+    assert "Examples by source:" in output
+    assert "bootstrap:" in output
+    assert "review:" in output
+    assert "import:" in output
+    assert "Review actions by type:" in output
+    assert "skip:" in output
+    assert "correct:" in output

@@ -9,16 +9,16 @@
 - Skip workflow
 - Review action tracking
 - API hardening and review service-boundary cleanup
+- Learning and review statistics
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization
 
 ## Next Work
-1. Add learning and review statistics.
-2. Display learning progress in UI.
-3. Improve review batch controls.
-4. Improve embedding example management.
-5. Document release workflow.
+1. Display learning progress in UI.
+2. Improve review batch controls.
+3. Improve embedding example management.
+4. Document release workflow.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.
