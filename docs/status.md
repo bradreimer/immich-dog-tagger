@@ -10,6 +10,7 @@
 - Review action tracking
 - API hardening and review service-boundary cleanup
 - Learning and review statistics
+- DT-0901 persistent pipeline job model
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization
