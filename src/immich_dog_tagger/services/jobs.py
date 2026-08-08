@@ -45,6 +45,30 @@ class PipelineJobRepository:
             select(PipelineJob).order_by(PipelineJob.id.desc()).limit(limit)
         ).all()
 
+    def next_pending(
+        self,
+    ) -> PipelineJob | None:
+        return self.session.scalar(
+            select(PipelineJob)
+            .where(PipelineJob.status == PipelineJobStatus.PENDING)
+            .order_by(PipelineJob.id.asc())
+            .limit(1)
+        )
+
+    def has_running_job(
+        self,
+        *,
+        exclude_job_id: int | None = None,
+    ) -> bool:
+        query = select(PipelineJob).where(
+            PipelineJob.status == PipelineJobStatus.RUNNING,
+        )
+
+        if exclude_job_id is not None:
+            query = query.where(PipelineJob.id != exclude_job_id)
+
+        return self.session.scalar(query.limit(1)) is not None
+
 
 class PipelineJobService:
     def __init__(

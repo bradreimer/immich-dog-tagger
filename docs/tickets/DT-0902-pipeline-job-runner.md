@@ -10,7 +10,7 @@ v0.9.0 Mission Control Foundation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Create the shared service that executes pipeline jobs and records their lifecycle.
