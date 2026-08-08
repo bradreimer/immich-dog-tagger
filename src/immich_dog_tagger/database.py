@@ -5,7 +5,6 @@ Database initialization and access.
 from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
 from .models import Base
 
@@ -29,11 +28,3 @@ def create_database(state_dir: Path):
     Base.metadata.create_all(engine)
 
     return engine
-
-
-def create_session(engine) -> Session:
-    """
-    Create a database session.
-    """
-
-    return Session(engine)

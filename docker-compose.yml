@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
 
     environment:
+      - IMMICH_URL=${IMMICH_URL}
+      - IMMICH_API_KEY=${IMMICH_API_KEY}
       # Pass internal paths to app (overrides host .env if necessary)
       - STATE_DIR=/app/state
       - CACHE_DIR=/app/cache

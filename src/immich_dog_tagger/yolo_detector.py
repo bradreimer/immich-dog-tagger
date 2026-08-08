@@ -51,13 +51,3 @@ class YOLODetector(ObjectDetector):
                 )
 
         return detections
-
-    def detect_dogs(
-        self,
-        image_path: str,
-    ) -> list[DetectionResult]:
-        return [
-            detection
-            for detection in self.detect(image_path)
-            if detection.label == "dog"
-        ]

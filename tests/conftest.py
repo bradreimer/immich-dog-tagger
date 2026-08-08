@@ -33,22 +33,6 @@ class FakeJobDispatcher:
 
 
 @pytest.fixture(autouse=True)
-def clean_environment(monkeypatch):
-    for key in [
-        "IMMICH_URL",
-        "IMMICH_API_KEY",
-        "STATE_DIR",
-        "CACHE_DIR",
-        "YOLO_MODEL",
-        "CROP_PADDING",
-        "DOG_TAGGER_STATE_DIR",
-        "DOG_TAGGER_CACHE_DIR",
-        "DOG_TAGGER_MODEL_PATH",
-    ]:
-        monkeypatch.delenv(key, raising=False)
-
-
-@pytest.fixture(autouse=True)
 def test_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("CACHE_DIR", str(tmp_path / "cache"))

@@ -164,7 +164,7 @@ def test_correct_review_removes_item_from_queue(api_client, engine):
         classification_id = classification.id
 
     response = api_client.post(
-        f"/review/{classification_id}/correct",
+        f"/classifications/{classification_id}/correct",
         json={
             "identity": "Hermann",
         },
@@ -176,3 +176,14 @@ def test_correct_review_removes_item_from_queue(api_client, engine):
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_review_correct_endpoint_removed(api_client):
+    response = api_client.post(
+        "/review/1/correct",
+        json={
+            "identity": "Hermann",
+        },
+    )
+
+    assert response.status_code == 404
