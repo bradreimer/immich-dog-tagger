@@ -10,7 +10,7 @@ v0.9.0 Mission Control Foundation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Expose persistent jobs and job execution through FastAPI.

@@ -135,6 +135,19 @@ class PipelineJobService:
         self.session.refresh(job)
         return job
 
+    def cancel_job(
+        self,
+        job: PipelineJob,
+    ) -> PipelineJob:
+        if job.status is not PipelineJobStatus.PENDING:
+            raise ValueError("Only pending jobs can be canceled")
+
+        job.transition_to(PipelineJobStatus.CANCELED)
+
+        self.session.commit()
+        self.session.refresh(job)
+        return job
+
     def update_progress(
         self,
         job: PipelineJob,

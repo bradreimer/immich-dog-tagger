@@ -5,7 +5,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.app import create_app
-from immich_dog_tagger.api.dependencies import get_embedder, get_session
+from immich_dog_tagger.api.dependencies import (
+    get_embedder,
+    get_job_dispatcher,
+    get_session,
+)
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.models import Crop, CropClassification
 
@@ -18,6 +22,14 @@ class FakeEmbedder:
             [1, 0, 0],
             dtype=np.float32,
         )
+
+
+class FakeJobDispatcher:
+    def __init__(self):
+        self.triggers = 0
+
+    def trigger(self):
+        self.triggers += 1
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +58,7 @@ def test_environment(monkeypatch, tmp_path):
 @pytest.fixture
 def api_client(engine):
     app = create_app()
+    dispatcher = FakeJobDispatcher()
 
     def override_get_session():
         with Session(engine) as session:
@@ -53,6 +66,7 @@ def api_client(engine):
 
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
+    app.dependency_overrides[get_job_dispatcher] = lambda: dispatcher
 
     return TestClient(app)
 

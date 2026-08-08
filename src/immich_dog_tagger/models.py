@@ -367,6 +367,7 @@ class PipelineJob(Base):
         transitions = {
             PipelineJobStatus.PENDING: {
                 PipelineJobStatus.RUNNING,
+                PipelineJobStatus.CANCELED,
             },
             PipelineJobStatus.RUNNING: {
                 PipelineJobStatus.COMPLETED,
@@ -374,6 +375,7 @@ class PipelineJob(Base):
             },
             PipelineJobStatus.COMPLETED: set(),
             PipelineJobStatus.FAILED: set(),
+            PipelineJobStatus.CANCELED: set(),
         }
 
         return next_status in transitions[self.status]
@@ -399,5 +401,6 @@ class PipelineJob(Base):
         if next_status in {
             PipelineJobStatus.COMPLETED,
             PipelineJobStatus.FAILED,
+            PipelineJobStatus.CANCELED,
         }:
             self.completed_at = timestamp

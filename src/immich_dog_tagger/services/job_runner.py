@@ -116,4 +116,4 @@ class PipelineJobRunner:
                     job,
                     error_message=str(exc) or exc.__class__.__name__,
                 )
-                raise
+                raise RuntimeError(str(exc) or exc.__class__.__name__) from exc
