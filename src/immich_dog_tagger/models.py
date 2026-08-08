@@ -2,7 +2,7 @@
 Database models.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import (
@@ -17,7 +17,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from .enums import AssetStatus, ClassificationSources, EmbeddingSources, ReviewActions
+from .enums import (
+    AssetStatus,
+    ClassificationSources,
+    EmbeddingSources,
+    PipelineJobStatus,
+    PipelineOperation,
+    ReviewActions,
+)
 
 
 class Base(DeclarativeBase):
@@ -292,3 +299,105 @@ class ReviewAction(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class PipelineJob(Base):
+    __tablename__ = "pipeline_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    operation: Mapped[PipelineOperation] = mapped_column(
+        Enum(
+            PipelineOperation,
+            native_enum=False,
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    status: Mapped[PipelineJobStatus] = mapped_column(
+        Enum(
+            PipelineJobStatus,
+            native_enum=False,
+        ),
+        nullable=False,
+        default=PipelineJobStatus.PENDING,
+        index=True,
+    )
+
+    progress_current: Mapped[int] = mapped_column(
+        default=0,
+        nullable=False,
+    )
+
+    progress_total: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
+    progress_message: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    def can_transition_to(
+        self,
+        next_status: PipelineJobStatus,
+    ) -> bool:
+        transitions = {
+            PipelineJobStatus.PENDING: {
+                PipelineJobStatus.RUNNING,
+            },
+            PipelineJobStatus.RUNNING: {
+                PipelineJobStatus.COMPLETED,
+                PipelineJobStatus.FAILED,
+            },
+            PipelineJobStatus.COMPLETED: set(),
+            PipelineJobStatus.FAILED: set(),
+        }
+
+        return next_status in transitions[self.status]
+
+    def transition_to(
+        self,
+        next_status: PipelineJobStatus,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        if not self.can_transition_to(next_status):
+            raise ValueError(
+                f"Invalid pipeline job transition: {self.status.value} -> {next_status.value}"
+            )
+
+        timestamp = now or datetime.now(UTC).replace(tzinfo=None)
+
+        self.status = next_status
+
+        if next_status is PipelineJobStatus.RUNNING:
+            self.started_at = timestamp
+
+        if next_status in {
+            PipelineJobStatus.COMPLETED,
+            PipelineJobStatus.FAILED,
+        }:
+            self.completed_at = timestamp

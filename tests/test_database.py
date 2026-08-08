@@ -2,7 +2,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.enums import AssetStatus, PipelineOperation
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -11,6 +11,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     EmbeddingSources,
     Identity,
+    PipelineJob,
 )
 
 
@@ -95,3 +96,25 @@ def test_crop_classification_persistence(engine):
         assert result.identity == "Hermann"
         assert result.crop.path == "test.jpg"
         assert result.crop.detection.label == "dog"
+
+
+def test_database_existing_models_unchanged_with_pipeline_jobs(engine):
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-existing-model",
+            checksum="checksum",
+            extension=".jpg",
+        )
+        session.add(asset)
+
+        job = PipelineJob(operation=PipelineOperation.SCAN)
+        session.add(job)
+
+        session.commit()
+
+        persisted_asset = session.query(Asset).one()
+        persisted_job = session.query(PipelineJob).one()
+
+        assert persisted_asset.immich_asset_id == "asset-existing-model"
+        assert persisted_asset.status is AssetStatus.PENDING
+        assert persisted_job.operation is PipelineOperation.SCAN

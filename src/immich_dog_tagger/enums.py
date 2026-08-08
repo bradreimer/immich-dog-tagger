@@ -34,3 +34,20 @@ class ClassificationSources(StrEnum):
 class ReviewActions(StrEnum):
     SKIP = "skip"
     CORRECT = "correct"
+
+
+class PipelineOperation(StrEnum):
+    SCAN = "scan"
+    DETECT = "detect"
+    EMBED = "embed"
+    CLASSIFY = "classify"
+    LEARN = "learn"
+    SYNC = "sync"
+    FULL_PIPELINE = "full_pipeline"
+
+
+class PipelineJobStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
