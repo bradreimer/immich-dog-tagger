@@ -79,46 +79,22 @@ export function MissionControlPage() {
     note: string;
   }> = [
     {
-      operation: "scan",
-      label: "Scan",
-      description: "Find new assets in Immich.",
-      note: "Step 1",
-    },
-    {
-      operation: "detect",
-      label: "Detect",
-      description: "Run dog detection over downloaded assets.",
-      note: "Step 2",
-    },
-    {
-      operation: "embed",
-      label: "Embed",
-      description: "Compute embeddings for pending crops.",
-      note: "Step 3",
-    },
-    {
-      operation: "classify",
-      label: "Classify",
-      description: "Assign identities to pending crops.",
-      note: "Step 4",
+      operation: "full_pipeline",
+      label: "Full Pipeline",
+      description: "Run the complete end-to-end pipeline.",
+      note: "Primary",
     },
     {
       operation: "learn",
       label: "Learn",
       description: "Import training examples from training directories.",
-      note: "Step 5",
+      note: "Training",
     },
     {
       operation: "sync",
       label: "Sync",
       description: "Sync confident labels to Immich albums.",
-      note: "Step 6",
-    },
-    {
-      operation: "full_pipeline",
-      label: "Full Pipeline",
-      description: "Run scan, download, detect, and classify.",
-      note: "Shortcut",
+      note: "Publishing",
     },
   ];
 
@@ -222,26 +198,6 @@ export function MissionControlPage() {
           </Button>
         </div>
       </header>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recommended Order</CardTitle>
-          <CardDescription>
-            If you want to step through the pipeline manually, press the buttons in this order: Scan, Detect, Embed, Classify, Learn, then Sync. Use Full Pipeline when you want one button to run the core processing stages.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {operations.map((item) => (
-            <div key={item.operation} className="rounded-lg border border-dashed p-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.note}</span>
-                <span className="text-muted-foreground">{item.label}</span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
 
       {error && (
         <Card>
