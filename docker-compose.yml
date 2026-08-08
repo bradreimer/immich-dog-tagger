@@ -7,6 +7,19 @@ services:
     container_name: immich-dog-tagger
     restart: unless-stopped
 
+    environment:
+      # Pass internal paths to app (overrides host .env if necessary)
+      - STATE_DIR=/app/state
+      - CACHE_DIR=/app/cache
+      - YOLO_MODEL=/app/models/yolo11n.pt
+      - CROP_PADDING=${CROP_PADDING:-0.15}
+
+    volumes:
+      # Host Path : Container Path
+      - ${HOST_STATE_DIR:-./data/state}:/app/state
+      - ${HOST_CACHE_DIR:-./data/cache}:/app/cache
+      - ${HOST_MODEL_DIR:-./data/models}:/app/models
+
     env_file:
       - .env
 
@@ -20,11 +33,6 @@ services:
         "--port",
         "8000",
       ]
-
-    volumes:
-      - ${DOG_TAGGER_STATE_DIR}:/app/state
-      - ${DOG_TAGGER_CACHE_DIR}:/app/cache
-      - ${DOG_TAGGER_MODEL_PATH}:/models/yolo11n.pt
 
     networks:
       - proxy
