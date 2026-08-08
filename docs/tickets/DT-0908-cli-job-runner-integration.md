@@ -10,7 +10,7 @@ v0.9.0 Mission Control Foundation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Make CLI pipeline operations use the same shared job runner as Mission Control.

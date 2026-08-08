@@ -7,27 +7,56 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from .classifier import IdentityClassifier
 from .config import load_config
-from .crops import CropWriter
 from .database import create_database
 from .downloader import Downloader
-from .enums import ClassificationMode
+from .enums import ClassificationMode, PipelineOperation
 from .immich import ImmichClient
 from .review_export import ReviewExporter
 from .review_import import ReviewImporter
 from .runtime import get_embedder
-from .scanner import Scanner
 from .services.albums import AlbumService
-from .services.classification import ClassificationService
 from .services.correction import ClassificationCorrectionService
-from .services.detection import DetectionService
+from .services.job_execution import create_pipeline_job_runner
+from .services.jobs import PipelineJobService
 from .services.learner import Learner
-from .services.pipeline import PipelineService
 from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
 from .services.sync import SyncService
-from .yolo_detector import YOLODetector
+
+
+def run_operation_job(
+    session: Session,
+    config,
+    operation: PipelineOperation,
+    *,
+    options: dict | None = None,
+) -> dict:
+    operation_options = {}
+
+    if options is not None:
+        operation_options[operation] = options
+
+    runner = create_pipeline_job_runner(
+        session,
+        config,
+        operation_options=operation_options,
+    )
+
+    service = PipelineJobService(
+        session,
+        repository=runner.repository,
+    )
+
+    job = service.create_job(operation=operation)
+
+    try:
+        result = runner.run_job(job.id)
+    except (RuntimeError, ValueError) as exc:
+        print(f"Job {job.id} failed: {exc}")
+        raise SystemExit(1) from exc
+
+    return result if isinstance(result, dict) else {}
 
 
 def config_check_command(args) -> None:
@@ -70,22 +99,16 @@ def test_immich_command(args) -> None:
 def scan_command(args) -> None:
     config = load_config()
 
-    client = ImmichClient(
-        config.immich_url,
-        config.immich_api_key,
-    )
-
     engine = create_database(config.state_dir)
 
     with Session(engine) as session:
-        scanner = Scanner(
-            client,
+        result = run_operation_job(
             session,
+            config,
+            PipelineOperation.SCAN,
         )
 
-        count = scanner.scan()
-
-    print(f"New assets: {count}")
+    print(f"New assets: {result.get('scanned', 0)}")
 
 
 def download_command(args) -> None:
@@ -115,32 +138,23 @@ def download_command(args) -> None:
 def detect_command(args) -> None:
     config = load_config()
 
-    detector = YOLODetector(
-        config.yolo_model,
-    )
-
     engine = create_database(
         config.state_dir,
     )
 
     with Session(engine) as session:
-        service = DetectionService(
-            detector,
+        result = run_operation_job(
             session,
-            config.cache_dir,
-            CropWriter(
-                config.crop_dir,
-                config.crop_padding,
-            ),
+            config,
+            PipelineOperation.DETECT,
+            options={
+                "limit": args.limit,
+            },
         )
 
-        summary = service.run(
-            limit=args.limit,
-        )
-
-        print(f"Processed: {summary.processed}")
-        print(f"Detections: {summary.detections}")
-        print(f"Dogs: {summary.dogs}")
+        print(f"Processed: {result.get('processed', 0)}")
+        print(f"Detections: {result.get('detections', 0)}")
+        print(f"Dogs: {result.get('dogs', 0)}")
 
 
 def classify_command(args) -> None:
@@ -150,28 +164,23 @@ def classify_command(args) -> None:
         config.state_dir,
     )
 
-    embedder = get_embedder()
-
     with Session(engine) as session:
-        classifier = IdentityClassifier(session)
-
-        service = ClassificationService(
-            session,
-            embedder,
-            classifier,
-        )
-
         mode = ClassificationMode.ALL if args.all else ClassificationMode.PENDING
 
-        summary = service.classify(
-            limit=args.limit,
-            threshold=args.threshold,
-            mode=mode,
+        result = run_operation_job(
+            session,
+            config,
+            PipelineOperation.CLASSIFY,
+            options={
+                "limit": args.limit,
+                "threshold": args.threshold,
+                "mode": mode,
+            },
         )
 
-    print(f"Classified: {summary.classified}")
+    print(f"Classified: {result.get('classified', 0)}")
 
-    for identity, count in summary.identities.items():
+    for identity, count in result.get("identities", {}).items():
         print(f"{identity}: {count}")
 
 
@@ -191,20 +200,18 @@ def learn_command(args) -> None:
         config.state_dir,
     )
 
-    embedder = get_embedder()
-
     with Session(engine) as session:
-        learner = Learner(
-            embedder,
+        result = run_operation_job(
             session,
+            config,
+            PipelineOperation.LEARN,
+            options={
+                "identity": args.identity,
+                "directory": args.directory,
+            },
         )
 
-        count = learner.learn(
-            args.identity,
-            Path(args.directory),
-        )
-
-    print(f"Learned examples: {count}")
+    print(f"Learned examples: {result.get('imported', 0)}")
 
 
 def classify_list_command(args) -> None:
@@ -431,85 +438,56 @@ def status_command(args) -> None:
 def sync_command(args) -> None:
     config = load_config()
 
-    client = ImmichClient(
-        config.immich_url,
-        config.immich_api_key,
-    )
+    if args.dry_run:
+        client = ImmichClient(
+            config.immich_url,
+            config.immich_api_key,
+        )
+
+        engine = create_database(
+            config.state_dir,
+        )
+
+        with Session(engine) as session:
+            service = SyncService(
+                session,
+                AlbumService(client),
+            )
+
+            summary = service.sync(
+                dry_run=True,
+            )
+
+        print("Would sync:")
+
+        for item in summary.identities:
+            print(f"{item.identity}: {item.assets}")
+
+        return
 
     engine = create_database(
         config.state_dir,
     )
 
     with Session(engine) as session:
-        service = SyncService(
+        result = run_operation_job(
             session,
-            AlbumService(client),
+            config,
+            PipelineOperation.SYNC,
         )
 
-        summary = service.sync(
-            dry_run=args.dry_run,
-        )
-
-    if args.dry_run:
-        print("Would sync:")
-
-    for item in summary.identities:
-        print(f"{item.identity}: {item.assets}")
+    for item in result.get("items", []):
+        print(f"{item['identity']}: {item['assets']}")
 
 
 def pipeline_command(args) -> None:
     config = load_config()
 
-    client = ImmichClient(
-        config.immich_url,
-        config.immich_api_key,
-    )
-
     engine = create_database(
         config.state_dir,
     )
 
-    detector = YOLODetector(
-        config.yolo_model,
-    )
-
-    embedder = get_embedder()
-
     with Session(engine) as session:
-        scanner = Scanner(
-            client,
-            session,
-        )
-
-        downloader = Downloader(
-            client,
-            session,
-            config.cache_dir,
-        )
-
-        detection_service = DetectionService(
-            detector,
-            session,
-            config.cache_dir,
-            CropWriter(
-                config.crop_dir,
-                config.crop_padding,
-            ),
-        )
-
-        classifier = ClassificationService(
-            session,
-            embedder,
-            IdentityClassifier(session),
-        )
-
-        pipeline = PipelineService(
-            scanner,
-            downloader,
-            detection_service,
-            classifier,
-        )
-
         if args.dry_run:
             status = StatusService(session)
             plan = status.pipeline_plan()
@@ -543,10 +521,15 @@ def pipeline_command(args) -> None:
             print("No changes made.")
             return
 
-        summary = pipeline.run(
-            progress=lambda message: print(message, flush=True),
-            limit=args.limit,
-            force=args.force,
+        result = run_operation_job(
+            session,
+            config,
+            PipelineOperation.FULL_PIPELINE,
+            options={
+                "limit": args.limit,
+                "force": args.force,
+                "progress_callback": lambda message: print(message, flush=True),
+            },
         )
 
     print("Pipeline complete")
@@ -554,10 +537,10 @@ def pipeline_command(args) -> None:
 
     print("Summary")
     print("-------")
-    print(f"Assets scanned:     {summary.scanned}")
-    print(f"Downloaded:         {summary.downloaded}")
-    print(f"Dogs detected:      {summary.detected}")
-    print(f"Classified:         {summary.classified}")
+    print(f"Assets scanned:     {result.get('scanned', 0)}")
+    print(f"Downloaded:         {result.get('downloaded', 0)}")
+    print(f"Dogs detected:      {result.get('detected', 0)}")
+    print(f"Classified:         {result.get('classified', 0)}")
 
 
 def main(argv: list[str] | None = None) -> None:

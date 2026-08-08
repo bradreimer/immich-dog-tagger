@@ -17,6 +17,7 @@
 - DT-0905 job queue UI
 - DT-0906 manual pipeline controls
 - DT-0907 live job progress
+- DT-0908 CLI job runner integration
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization

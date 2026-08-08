@@ -1,6 +1,13 @@
 from unittest.mock import patch
 
+import pytest
+from sqlalchemy.orm import Session
+
 from immich_dog_tagger.cli import main
+from immich_dog_tagger.config import load_config
+from immich_dog_tagger.database import create_database
+from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
+from immich_dog_tagger.models import PipelineJob
 
 
 def test_pipeline_dry_run_prints_plan(capsys):
@@ -13,8 +20,6 @@ def test_pipeline_dry_run_prints_plan(capsys):
                 "--dry-run",
             ],
         ),
-        patch("immich_dog_tagger.cli.YOLODetector"),
-        patch("immich_dog_tagger.cli.get_embedder"),
     ):
         main()
 
@@ -36,8 +41,6 @@ def test_pipeline_dry_run_with_limit(capsys):
                 "25",
             ],
         ),
-        patch("immich_dog_tagger.cli.YOLODetector"),
-        patch("immich_dog_tagger.cli.get_embedder"),
     ):
         main()
 
@@ -56,13 +59,81 @@ def test_classify_accepts_all(capsys):
                 "--all",
             ],
         ),
-        patch("immich_dog_tagger.cli.get_embedder"),
+        patch("immich_dog_tagger.services.job_execution.get_embedder"),
     ):
         main()
 
     output = capsys.readouterr().out
 
     assert "Classified:" in output
+
+
+def test_scan_runs_through_job_runner_and_persists_job(capsys):
+    class FakeScanner:
+        def __init__(self, client, session):
+            pass
+
+        def scan(self, limit=None, force=False):
+            return 3
+
+    with (
+        patch(
+            "sys.argv",
+            [
+                "immich-dog-tagger",
+                "scan",
+            ],
+        ),
+        patch("immich_dog_tagger.services.job_execution.Scanner", FakeScanner),
+    ):
+        main()
+
+    output = capsys.readouterr().out
+
+    assert "New assets: 3" in output
+
+    engine = create_database(load_config().state_dir)
+
+    with Session(engine) as session:
+        jobs = session.query(PipelineJob).all()
+        assert len(jobs) == 1
+        assert jobs[0].operation is PipelineOperation.SCAN
+        assert jobs[0].status is PipelineJobStatus.COMPLETED
+
+
+def test_scan_failure_returns_nonzero_and_persists_failed_job():
+    class FailingScanner:
+        def __init__(self, client, session):
+            pass
+
+        def scan(self, limit=None, force=False):
+            raise RuntimeError("scan exploded")
+
+    with (
+        patch(
+            "sys.argv",
+            [
+                "immich-dog-tagger",
+                "scan",
+            ],
+        ),
+        patch(
+            "immich_dog_tagger.services.job_execution.Scanner",
+            FailingScanner,
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        main()
+
+    assert exc.value.code == 1
+
+    engine = create_database(load_config().state_dir)
+
+    with Session(engine) as session:
+        jobs = session.query(PipelineJob).all()
+        assert len(jobs) == 1
+        assert jobs[0].status is PipelineJobStatus.FAILED
+        assert jobs[0].error_message == "scan exploded"
 
 
 def test_status_outputs_learning_metrics(capsys, monkeypatch, tmp_path):
