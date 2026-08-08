@@ -199,6 +199,30 @@ export function MissionControlPage() {
         </div>
       </header>
 
+      <Card className="overflow-hidden border-primary/20 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.18),_transparent_40%),linear-gradient(135deg,_rgba(255,255,255,0.95),_rgba(254,242,242,0.88))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.2),_transparent_40%),linear-gradient(135deg,_rgba(17,24,39,0.95),_rgba(31,41,55,0.92))]">
+        <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-2xl space-y-2">
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">Local dog recognition</p>
+            <h2 className="text-2xl font-semibold tracking-tight">Keep your Immich library organized with a little more personality.</h2>
+            <p className="text-sm text-muted-foreground">
+              Run the pipeline, review results, and publish confident labels back to Immich from one place.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/20">
+            <img
+              src="/logo_on_black.png"
+              alt="Immich Dog Tagger logo"
+              className="h-16 w-auto dark:hidden"
+            />
+            <img
+              src="/logo_on_white.png"
+              alt="Immich Dog Tagger logo"
+              className="hidden h-16 w-auto dark:block"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {error && (
         <Card>
           <CardHeader>
