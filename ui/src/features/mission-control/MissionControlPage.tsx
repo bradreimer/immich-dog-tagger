@@ -29,6 +29,40 @@ function formatTimestamp(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
+function getJobCardClassName(status: PipelineJob["status"]): string {
+  switch (status) {
+    case "running":
+      return "border-sky-500/40 bg-sky-500/5 hover:bg-sky-500/10";
+    case "completed":
+      return "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10";
+    case "failed":
+      return "border-rose-500/40 bg-rose-500/5 hover:bg-rose-500/10";
+    case "pending":
+      return "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10";
+    case "canceled":
+      return "border-zinc-500/40 bg-zinc-500/5 hover:bg-zinc-500/10";
+    default:
+      return "";
+  }
+}
+
+function getJobBadgeClassName(status: PipelineJob["status"]): string {
+  switch (status) {
+    case "running":
+      return "border-sky-500/40 bg-sky-500 text-sky-950";
+    case "completed":
+      return "border-emerald-500/40 bg-emerald-500 text-emerald-950";
+    case "failed":
+      return "border-rose-500/40 bg-rose-500 text-rose-950";
+    case "pending":
+      return "border-amber-500/40 bg-amber-500 text-amber-950";
+    case "canceled":
+      return "border-zinc-500/40 bg-zinc-500 text-zinc-950";
+    default:
+      return "";
+  }
+}
+
 export function MissionControlPage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
@@ -42,41 +76,49 @@ export function MissionControlPage() {
     operation: JobOperation;
     label: string;
     description: string;
+    note: string;
   }> = [
     {
       operation: "scan",
       label: "Scan",
       description: "Find new assets in Immich.",
+      note: "Step 1",
     },
     {
       operation: "detect",
       label: "Detect",
       description: "Run dog detection over downloaded assets.",
+      note: "Step 2",
     },
     {
       operation: "embed",
       label: "Embed",
       description: "Compute embeddings for pending crops.",
+      note: "Step 3",
     },
     {
       operation: "classify",
       label: "Classify",
       description: "Assign identities to pending crops.",
+      note: "Step 4",
     },
     {
       operation: "learn",
       label: "Learn",
       description: "Import training examples from training directories.",
+      note: "Step 5",
     },
     {
       operation: "sync",
       label: "Sync",
       description: "Sync confident labels to Immich albums.",
+      note: "Step 6",
     },
     {
       operation: "full_pipeline",
       label: "Full Pipeline",
       description: "Run scan, download, detect, and classify.",
+      note: "Shortcut",
     },
   ];
 
@@ -181,6 +223,26 @@ export function MissionControlPage() {
         </div>
       </header>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Recommended Order</CardTitle>
+          <CardDescription>
+            If you want to step through the pipeline manually, press the buttons in this order: Scan, Detect, Embed, Classify, Learn, then Sync. Use Full Pipeline when you want one button to run the core processing stages.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {operations.map((item) => (
+            <div key={item.operation} className="rounded-lg border border-dashed p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{item.note}</span>
+                <span className="text-muted-foreground">{item.label}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {error && (
         <Card>
           <CardHeader>
@@ -233,12 +295,16 @@ export function MissionControlPage() {
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {operations.map((item) => (
-              <div key={item.operation} className="rounded-md border p-3">
-                <div className="font-medium">{item.label}</div>
+              <div key={item.operation} className="rounded-md border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-foreground/20">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium">{item.label}</div>
+                  <Badge variant="outline">{item.note}</Badge>
+                </div>
                 <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
                 <Button
-                  className="mt-3"
-                  variant="outline"
+                  className="mt-3 w-full"
+                  size="lg"
+                  variant={item.operation === "full_pipeline" ? "default" : "outline"}
                   disabled={launching !== null}
                   onClick={() => launchOperation(item.operation)}
                 >
@@ -283,13 +349,13 @@ export function MissionControlPage() {
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="rounded-md border p-3"
+                  className={`rounded-md border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${getJobCardClassName(job.status)}`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-medium">
                       #{job.id} {formatOperation(job.operation)}
                     </div>
-                    <Badge variant="outline">{job.status}</Badge>
+                    <Badge className={getJobBadgeClassName(job.status)}>{job.status}</Badge>
                   </div>
 
                   <div className="mt-2 text-sm text-muted-foreground">
