@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { AppShell } from "./components/layout/AppShell";
+import { JobQueuePage } from "./features/jobs/JobQueuePage";
 import { MissionControlPage } from "./features/mission-control/MissionControlPage";
 import { ReviewPage } from "./features/review/ReviewPage";
 
@@ -27,7 +28,17 @@ function App() {
     setPathname(path);
   };
 
-  const page = pathname === "/review" ? <ReviewPage /> : <MissionControlPage />;
+  const page = (() => {
+    if (pathname === "/review") {
+      return <ReviewPage />;
+    }
+
+    if (pathname === "/jobs") {
+      return <JobQueuePage />;
+    }
+
+    return <MissionControlPage />;
+  })();
 
   return (
     <AppShell currentPath={pathname} onNavigate={navigate}>

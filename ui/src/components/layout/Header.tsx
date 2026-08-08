@@ -12,6 +12,10 @@ export function Header({ currentPath, onNavigate }: Props) {
       path: "/",
     },
     {
+      label: "Job Queue",
+      path: "/jobs",
+    },
+    {
       label: "Review",
       path: "/review",
     },

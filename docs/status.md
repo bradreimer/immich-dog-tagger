@@ -14,6 +14,7 @@
 - DT-0902 pipeline job runner
 - DT-0903 jobs API
 - DT-0904 mission control dashboard
+- DT-0905 job queue UI
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization

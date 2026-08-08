@@ -10,7 +10,7 @@ v0.9.0 Mission Control Foundation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Provide an Immich-style Job Queue view for Dog Tagger pipeline operations.

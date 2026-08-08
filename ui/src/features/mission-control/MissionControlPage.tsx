@@ -82,6 +82,17 @@ export function MissionControlPage() {
         <p className="text-muted-foreground">
           Monitor pipeline health and recent operations.
         </p>
+        <div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              window.history.pushState({}, "", "/jobs");
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }}
+          >
+            Open Job Queue
+          </Button>
+        </div>
       </header>
 
       {error && (
