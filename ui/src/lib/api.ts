@@ -2,6 +2,7 @@ import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../types/review";
+import type { PipelineJob } from "../types/jobs";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -49,6 +50,18 @@ export async function getReviewStats(): Promise<ReviewQueueStats> {
 
   if (!response.ok) {
     throw new Error("Failed to load review stats");
+  }
+
+  return response.json();
+}
+
+export async function getJobs(
+  limit = 20,
+): Promise<PipelineJob[]> {
+  const response = await fetch(`/api/jobs?limit=${limit}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load jobs");
   }
 
   return response.json();

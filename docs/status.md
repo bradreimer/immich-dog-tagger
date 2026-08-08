@@ -13,6 +13,7 @@
 - DT-0901 persistent pipeline job model
 - DT-0902 pipeline job runner
 - DT-0903 jobs API
+- DT-0904 mission control dashboard
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization
