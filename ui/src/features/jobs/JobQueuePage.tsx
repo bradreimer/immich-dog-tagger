@@ -67,8 +67,13 @@ export function JobQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
+    if (!silent) {
+      setLoading(true);
+    }
+
     setError(null);
 
     try {
@@ -76,7 +81,9 @@ export function JobQueuePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -98,12 +105,29 @@ export function JobQueuePage() {
     };
   }, [jobs]);
 
+  const hasActiveJobs = groups.running.length + groups.pending.length > 0;
+
+  useEffect(() => {
+    if (!hasActiveJobs) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void load({ silent: true });
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [hasActiveJobs, load]);
+
   return (
     <section className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">Job Queue</h1>
           <p className="text-muted-foreground">Running, pending, and historical pipeline operations.</p>
+          {hasActiveJobs && (
+            <p className="text-xs text-muted-foreground">Live updates every 3 seconds while jobs are active.</p>
+          )}
         </div>
 
         <Button variant="outline" onClick={() => load()} disabled={loading}>

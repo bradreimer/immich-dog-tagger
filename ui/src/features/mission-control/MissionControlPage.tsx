@@ -80,8 +80,13 @@ export function MissionControlPage() {
     },
   ];
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
+    if (!silent) {
+      setLoading(true);
+    }
+
     setError(null);
 
     try {
@@ -95,7 +100,9 @@ export function MissionControlPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load mission control");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -139,6 +146,20 @@ export function MissionControlPage() {
       },
     );
   }, [jobs]);
+
+  const hasActiveJobs = jobSummary.pending + jobSummary.running > 0;
+
+  useEffect(() => {
+    if (!hasActiveJobs) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void load({ silent: true });
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [hasActiveJobs, load]);
 
   return (
     <section className="space-y-6">
@@ -238,6 +259,9 @@ export function MissionControlPage() {
           <CardDescription>
             Pending: {jobSummary.pending} | Running: {jobSummary.running} | Total tracked: {jobSummary.total}
           </CardDescription>
+          {hasActiveJobs && (
+            <p className="text-xs text-muted-foreground">Live updates every 3 seconds while jobs are active.</p>
+          )}
         </CardHeader>
       </Card>
 

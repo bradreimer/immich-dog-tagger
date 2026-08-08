@@ -16,6 +16,7 @@
 - DT-0904 mission control dashboard
 - DT-0905 job queue UI
 - DT-0906 manual pipeline controls
+- DT-0907 live job progress
 
 ## Current Milestone
 v0.5.0 Review Workflow Stabilization

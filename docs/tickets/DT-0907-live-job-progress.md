@@ -10,7 +10,7 @@ v0.9.0 Mission Control Foundation
 Medium
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Make Mission Control visibly track jobs while they execute.
