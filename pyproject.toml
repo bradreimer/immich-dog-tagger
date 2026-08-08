@@ -12,7 +12,6 @@ dependencies = [
     "pi-heif>=1.4.0",
     "pillow>=12.3.0",
     "open-clip-torch>=3.3.0",
-    "ruff>=0.15.22",
     "fastapi>=0.139.2",
     "uvicorn>=0.51.0",
     "httpx2>=2.9.0",
@@ -24,6 +23,7 @@ immich-dog-tagger = "immich_dog_tagger.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.15.22",
 ]
 
 [build-system]

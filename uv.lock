@@ -453,7 +453,6 @@ dependencies = [
     { name = "pi-heif" },
     { name = "pillow" },
     { name = "python-dotenv" },
-    { name = "ruff" },
     { name = "sqlalchemy" },
     { name = "truststore" },
     { name = "ultralytics" },
@@ -463,6 +462,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -473,7 +473,6 @@ requires-dist = [
     { name = "pi-heif", specifier = ">=1.4.0" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "ruff", specifier = ">=0.15.22" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "truststore", specifier = ">=0.10.4" },
     { name = "ultralytics", specifier = ">=8.4.100" },
@@ -481,7 +480,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.0" }]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "ruff", specifier = ">=0.15.22" },
+]
 
 [[package]]
 name = "iniconfig"
