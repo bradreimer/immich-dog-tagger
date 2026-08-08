@@ -10,7 +10,7 @@ v0.9.0 Mission Control Foundation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Allow the user to manually start every supported pipeline operation from Mission Control.

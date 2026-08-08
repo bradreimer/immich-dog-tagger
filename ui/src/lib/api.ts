@@ -3,6 +3,7 @@ import type {
   ReviewQueueStats,
 } from "../types/review";
 import type { PipelineJob } from "../types/jobs";
+import type { JobOperation } from "../types/jobs";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -62,6 +63,29 @@ export async function getJobs(
 
   if (!response.ok) {
     throw new Error("Failed to load jobs");
+  }
+
+  return response.json();
+}
+
+export async function createJob(
+  operation: JobOperation,
+): Promise<PipelineJob> {
+  const response = await fetch("/api/jobs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation,
+      start: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to create job");
   }
 
   return response.json();

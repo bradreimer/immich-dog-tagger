@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getJobs, getReviewStats } from "../../lib/api";
+import { createJob, getJobs, getReviewStats } from "../../lib/api";
+import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,51 @@ export function MissionControlPage() {
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [launching, setLaunching] = useState<JobOperation | null>(null);
+
+  const operations: Array<{
+    operation: JobOperation;
+    label: string;
+    description: string;
+  }> = [
+    {
+      operation: "scan",
+      label: "Scan",
+      description: "Find new assets in Immich.",
+    },
+    {
+      operation: "detect",
+      label: "Detect",
+      description: "Run dog detection over downloaded assets.",
+    },
+    {
+      operation: "embed",
+      label: "Embed",
+      description: "Compute embeddings for pending crops.",
+    },
+    {
+      operation: "classify",
+      label: "Classify",
+      description: "Assign identities to pending crops.",
+    },
+    {
+      operation: "learn",
+      label: "Learn",
+      description: "Import training examples from training directories.",
+    },
+    {
+      operation: "sync",
+      label: "Sync",
+      description: "Sync confident labels to Immich albums.",
+    },
+    {
+      operation: "full_pipeline",
+      label: "Full Pipeline",
+      description: "Run scan, download, detect, and classify.",
+    },
+  ];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +102,25 @@ export function MissionControlPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const launchOperation = useCallback(
+    async (operation: JobOperation) => {
+      setActionError(null);
+      setActionMessage(null);
+      setLaunching(operation);
+
+      try {
+        const job = await createJob(operation);
+        setActionMessage(`Queued job #${job.id} (${formatOperation(job.operation)}).`);
+        await load();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Failed to start operation");
+      } finally {
+        setLaunching(null);
+      }
+    },
+    [load],
+  );
 
   const jobSummary = useMemo(() => {
     return jobs.reduce(
@@ -136,6 +201,36 @@ export function MissionControlPage() {
           </CardHeader>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Manual Operations</CardTitle>
+          <CardDescription>
+            Start any pipeline operation without using the CLI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {operations.map((item) => (
+              <div key={item.operation} className="rounded-md border p-3">
+                <div className="font-medium">{item.label}</div>
+                <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+                <Button
+                  className="mt-3"
+                  variant="outline"
+                  disabled={launching !== null}
+                  onClick={() => launchOperation(item.operation)}
+                >
+                  {launching === item.operation ? "Starting..." : "Start"}
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {actionMessage && <p className="text-sm text-emerald-700 dark:text-emerald-300">{actionMessage}</p>}
+          {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

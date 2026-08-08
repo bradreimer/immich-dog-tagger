@@ -68,6 +68,8 @@ def api_client(engine):
     app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
     app.dependency_overrides[get_job_dispatcher] = lambda: dispatcher
 
+    app.state.fake_job_dispatcher = dispatcher
+
     return TestClient(app)
 
 

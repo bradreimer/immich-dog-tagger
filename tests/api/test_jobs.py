@@ -76,6 +76,18 @@ def test_jobs_create_validation_error_for_invalid_operation(api_client):
     assert response.status_code == 422
 
 
+def test_jobs_create_with_default_start_triggers_dispatch(api_client):
+    response = api_client.post(
+        "/jobs",
+        json={
+            "operation": "scan",
+        },
+    )
+
+    assert response.status_code == 201
+    assert api_client.app.state.fake_job_dispatcher.triggers == 1
+
+
 def test_jobs_cancel_pending_job(api_client, engine):
     with Session(engine) as session:
         service = PipelineJobService(session)
