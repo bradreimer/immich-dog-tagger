@@ -1,6 +1,6 @@
 [project]
 name = "immich-dog-tagger"
-version = "0.9.0"
+version = "0.9.1"
 description = "AI-assisted dog detection and tagging for Immich"
 readme = "README.md"
 requires-python = ">=3.14"
