@@ -210,12 +210,12 @@ export function MissionControlPage() {
           </div>
           <div className="flex shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/20">
             <img
-              src="/logo_on_black.png"
+              src="/logo_on_white.png"
               alt="Immich Dog Tagger logo"
               className="h-16 w-auto dark:hidden"
             />
             <img
-              src="/logo_on_white.png"
+              src="/logo_on_black.png"
               alt="Immich Dog Tagger logo"
               className="hidden h-16 w-auto dark:block"
             />
