@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
-from immich_dog_tagger.models import PipelineSchedule
+from immich_dog_tagger.models import PipelineJob, PipelineSchedule
 from immich_dog_tagger.services.job_runner import PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.scheduler import SchedulerService
@@ -101,4 +102,25 @@ def test_scheduler_prevents_duplicate_jobs_for_same_due_occurrence(engine):
         second_pass = scheduler.dispatch_due_schedules()
 
         assert len(first_pass) == 1
+        assert second_pass == []
+
+
+def test_scheduler_reconciles_completed_occurrences_without_creating_duplicates(engine):
+    with Session(engine) as session:
+        schedule = make_schedule(session, expression="0 * * * *")
+        clock = FixedClock(datetime(2026, 1, 1, 12, 0, tzinfo=UTC))
+
+        scheduler = SchedulerService(session, clock=clock)
+        scheduler.dispatch_due_schedules()
+
+        session.refresh(schedule)
+        job = session.scalar(
+            select(PipelineJob).where(PipelineJob.schedule_id == schedule.id).limit(1)
+        )
+
+        assert job is not None
+
+        second_scheduler = SchedulerService(session, clock=clock)
+        second_pass = second_scheduler.dispatch_due_schedules()
+
         assert second_pass == []
