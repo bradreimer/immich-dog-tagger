@@ -5,6 +5,52 @@ from pydantic import BaseModel
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
 
 
+class ScheduleResponse(BaseModel):
+    id: int
+    name: str
+    operation: PipelineOperation
+    expression: str
+    timezone_name: str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+    next_run_at: datetime | None
+    last_run_at: datetime | None
+    last_run_result: str | None
+
+    @classmethod
+    def from_schedule(cls, schedule):
+        return cls(
+            id=schedule.id,
+            name=schedule.name,
+            operation=schedule.operation,
+            expression=schedule.expression,
+            timezone_name=schedule.timezone_name,
+            enabled=schedule.enabled,
+            created_at=schedule.created_at,
+            updated_at=schedule.updated_at,
+            next_run_at=schedule.next_run_at,
+            last_run_at=schedule.last_run_at,
+            last_run_result=schedule.last_run_result,
+        )
+
+
+class ScheduleCreateRequest(BaseModel):
+    name: str
+    operation: PipelineOperation
+    expression: str
+    timezone_name: str = "UTC"
+    enabled: bool = True
+
+
+class ScheduleUpdateRequest(BaseModel):
+    name: str | None = None
+    operation: PipelineOperation | None = None
+    expression: str | None = None
+    timezone_name: str | None = None
+    enabled: bool | None = None
+
+
 class ClassificationResponse(BaseModel):
     classification_id: int
     crop_id: int

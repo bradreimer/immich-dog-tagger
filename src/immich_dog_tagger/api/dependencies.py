@@ -16,6 +16,10 @@ from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobSe
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.review_actions import ReviewActionService
 from immich_dog_tagger.services.review_query import ReviewQueryService
+from immich_dog_tagger.services.schedules import (
+    PipelineScheduleRepository,
+    PipelineScheduleService,
+)
 
 
 @cache
@@ -44,6 +48,18 @@ def get_job_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> PipelineJobService:
     return PipelineJobService(session)
+
+
+def get_schedule_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> PipelineScheduleRepository:
+    return PipelineScheduleRepository(session)
+
+
+def get_schedule_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> PipelineScheduleService:
+    return PipelineScheduleService(session)
 
 
 @cache

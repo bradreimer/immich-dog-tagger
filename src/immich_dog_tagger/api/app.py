@@ -9,6 +9,7 @@ from immich_dog_tagger.api.routes import (
     health,
     jobs,
     review,
+    schedules,
 )
 
 
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(jobs.router)
     app.include_router(review.router)
+    app.include_router(schedules.router)
 
     return app
 

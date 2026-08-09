@@ -301,6 +301,75 @@ class ReviewAction(Base):
     )
 
 
+class PipelineSchedule(Base):
+    __tablename__ = "pipeline_schedules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    name: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+    )
+
+    operation: Mapped[PipelineOperation] = mapped_column(
+        Enum(
+            PipelineOperation,
+            native_enum=False,
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    expression: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    timezone_name: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="UTC",
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    next_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    last_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    last_run_result: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    jobs: Mapped[list[PipelineJob]] = relationship(
+        back_populates="schedule",
+        cascade="all, delete-orphan",
+    )
+
+
 class PipelineJob(Base):
     __tablename__ = "pipeline_jobs"
 
@@ -358,6 +427,16 @@ class PipelineJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,
+    )
+
+    schedule_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_schedules.id"),
+        nullable=True,
+        index=True,
+    )
+
+    schedule: Mapped[PipelineSchedule | None] = relationship(
+        back_populates="jobs",
     )
 
     def can_transition_to(
