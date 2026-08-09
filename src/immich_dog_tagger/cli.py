@@ -3,7 +3,6 @@ Command line interface for Immich Dog Tagger.
 """
 
 import argparse
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -182,15 +181,6 @@ def classify_command(args) -> None:
 
     for identity, count in result.get("identities", {}).items():
         print(f"{identity}: {count}")
-
-
-def test_embedding_command(args) -> None:
-    embedder = get_embedder()
-
-    embedding = embedder.embed(Path(args.image))
-
-    print(f"Dimensions: {embedding.shape[0]}")
-    print(f"First values: {embedding[:5]}")
 
 
 def learn_command(args) -> None:
@@ -617,15 +607,6 @@ def main(argv: list[str] | None = None) -> None:
         help="Reclassify already classified crops",
     )
 
-    test_embedding_parser = subparsers.add_parser(
-        "test-embedding",
-        help="Generate an image embedding",
-    )
-
-    test_embedding_parser.add_argument(
-        "image",
-    )
-
     learn_parser = subparsers.add_parser(
         "learn",
         help="Learn a dog identity from images",
@@ -785,9 +766,6 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "classify":
         classify_command(args)
-
-    elif args.command == "test-embedding":
-        test_embedding_command(args)
 
     elif args.command == "learn":
         learn_command(args)

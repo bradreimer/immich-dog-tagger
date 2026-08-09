@@ -7,7 +7,6 @@ from immich_dog_tagger.embeddings import (
 
 
 def test_embedding_round_trip():
-
     original = np.array(
         [
             0.1,

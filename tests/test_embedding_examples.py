@@ -1,16 +1,17 @@
+from sqlalchemy.orm import Session
+
+from immich_dog_tagger.enums import EmbeddingSources
+from immich_dog_tagger.models import (
+    EmbeddingExample,
+    Identity,
+)
+
+
 def test_embedding_example_image(
     api_client,
     engine,
     tmp_path,
 ):
-    from sqlalchemy.orm import Session
-
-    from immich_dog_tagger.enums import EmbeddingSources
-    from immich_dog_tagger.models import (
-        EmbeddingExample,
-        Identity,
-    )
-
     image = tmp_path / "example.jpg"
     image.write_bytes(b"fake-image")
 
