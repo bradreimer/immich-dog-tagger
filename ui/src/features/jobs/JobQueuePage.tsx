@@ -103,13 +103,10 @@ export function JobQueuePage() {
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
-
     if (!silent) {
       setLoading(true);
     }
-
     setError(null);
-
     try {
       setJobs(await getJobs(100));
     } catch (err) {

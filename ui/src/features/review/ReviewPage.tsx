@@ -103,47 +103,28 @@ export function ReviewPage() {
     [items, index],
   );
 
-
-  const skip = useCallback(
-    async () => {
-      const item = items[index];
-      
-      if (!item) {
-        return;
-      }
-      
-      setActionError(null);
-      
-      try {
-        setSaving(true);
-
-        await skipClassification(
-          item.classification_id,
-        );
-        
-        setItems((current) => {
-          const next = current.filter((_, i) => i !== index);
-
-          setIndex((currentIndex) =>
-            Math.min(currentIndex, next.length - 1),
-          );
-
-          return next;
-        });
-
-        setStats(await getReviewStats());
-      } catch (err) {
-        setActionError(
-          err instanceof Error
-          ? err.message
-          : "Failed to save skip action",
-        );
-      } finally {
-        setSaving(false);
-      }
-    },
-    [items, index],
-  );
+  
+  const skip = useCallback(async () => {
+    const item = items[index];
+    if (!item) {
+      return;
+    }
+    setActionError(null);
+    try {
+      setSaving(true);
+      await skipClassification(item.classification_id);
+      setItems((current) => {
+        const next = current.filter((_, i) => i !== index);
+        setIndex((currentIndex) => Math.min(currentIndex, next.length - 1));
+        return next;
+      });
+      setStats(await getReviewStats());
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to save skip action");
+    } finally {
+      setSaving(false);
+    }
+  }, [items, index]);
 
 
   const previous = useCallback(() => {

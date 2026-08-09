@@ -112,13 +112,10 @@ export function MissionControlPage() {
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
-
     if (!silent) {
       setLoading(true);
     }
-
     setError(null);
-
     try {
       const [jobItems, reviewStats, scheduleItems] = await Promise.all([
         getJobs(25),
