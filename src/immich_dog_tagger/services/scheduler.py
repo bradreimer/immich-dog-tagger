@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import PipelineOperation
 from immich_dog_tagger.models import PipelineJob, PipelineSchedule
+from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
 from immich_dog_tagger.services.job_runner import PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 
@@ -28,11 +29,13 @@ class SchedulerService:
         clock: Clock | None = None,
         job_service: PipelineJobService | None = None,
         runner: PipelineJobRunner | None = None,
+        config: object | None = None,
     ):
         self.session = session
         self.clock = clock or SystemClock()
         self.job_service = job_service
         self.runner = runner
+        self.config = config
 
     def due_schedules(self) -> list[PipelineSchedule]:
         now = self.clock.now()
@@ -64,11 +67,14 @@ class SchedulerService:
         runner = self.runner
 
         if runner is None:
-            runner = PipelineJobRunner(
-                PipelineJobRepository(self.session),
-                job_service,
-                handlers={PipelineOperation.FULL_PIPELINE: lambda progress: None},
-            )
+            if self.config is not None:
+                runner = create_pipeline_job_runner(self.session, self.config)
+            else:
+                runner = PipelineJobRunner(
+                    PipelineJobRepository(self.session),
+                    job_service,
+                    handlers={PipelineOperation.FULL_PIPELINE: lambda progress: None},
+                )
 
         job = job_service.create_job(operation=schedule.operation)
         job.schedule_id = schedule.id
