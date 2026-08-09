@@ -4,6 +4,7 @@ import type {
 } from "../types/review";
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
+import type { PipelineSchedule } from "../types/schedules";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -63,6 +64,97 @@ export async function getJobs(
 
   if (!response.ok) {
     throw new Error("Failed to load jobs");
+  }
+
+  return response.json();
+}
+
+export async function getSchedules(): Promise<PipelineSchedule[]> {
+  const response = await fetch("/api/schedules");
+
+  if (!response.ok) {
+    throw new Error("Failed to load schedules");
+  }
+
+  return response.json();
+}
+
+export async function createSchedule(payload: {
+  name: string;
+  operation: JobOperation;
+  expression: string;
+  timezone_name?: string;
+  enabled?: boolean;
+}): Promise<PipelineSchedule> {
+  const response = await fetch("/api/schedules", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to create schedule");
+  }
+
+  return response.json();
+}
+
+export async function updateSchedule(
+  scheduleId: number,
+  payload: Partial<PipelineSchedule>,
+): Promise<PipelineSchedule> {
+  const response = await fetch(`/api/schedules/${scheduleId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to update schedule");
+  }
+
+  return response.json();
+}
+
+export async function enableSchedule(scheduleId: number): Promise<PipelineSchedule> {
+  const response = await fetch(`/api/schedules/${scheduleId}/enable`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to enable schedule");
+  }
+
+  return response.json();
+}
+
+export async function disableSchedule(scheduleId: number): Promise<PipelineSchedule> {
+  const response = await fetch(`/api/schedules/${scheduleId}/disable`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to disable schedule");
+  }
+
+  return response.json();
+}
+
+export async function runScheduleNow(scheduleId: number): Promise<PipelineJob> {
+  const response = await fetch(`/api/schedules/${scheduleId}/run-now`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to run schedule now");
   }
 
   return response.json();
