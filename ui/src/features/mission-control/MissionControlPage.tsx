@@ -237,12 +237,14 @@ export function MissionControlPage() {
 
   return (
     <section className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Mission Control</h1>
-        <p className="text-muted-foreground">
-          Monitor pipeline health and recent operations.
-        </p>
-        <div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Mission Control</h1>
+          <p className="text-muted-foreground">
+            Monitor pipeline health and recent operations.
+          </p>
+        </div>
+        <div className="self-start sm:self-auto">
           <Button
             variant="outline"
             onClick={() => {
@@ -264,16 +266,16 @@ export function MissionControlPage() {
               Run the pipeline, review results, and publish confident labels back to Immich from one place.
             </p>
           </div>
-          <div className="flex shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/20">
+          <div className="flex shrink-0 items-center justify-center self-center rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/20 sm:self-auto">
             <img
               src="/logo_on_white.png"
               alt="Immich Dog Tagger logo"
-              className="h-16 w-auto dark:hidden"
+              className="h-14 w-auto max-w-[140px] object-contain dark:hidden sm:h-16 sm:max-w-[180px]"
             />
             <img
               src="/logo_on_black.png"
               alt="Immich Dog Tagger logo"
-              className="hidden h-16 w-auto dark:block"
+              className="hidden h-14 w-auto max-w-[140px] object-contain dark:block sm:h-16 sm:max-w-[180px]"
             />
           </div>
         </CardContent>
