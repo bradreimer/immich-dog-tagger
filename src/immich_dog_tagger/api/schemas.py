@@ -43,6 +43,34 @@ class ScheduleCreateRequest(BaseModel):
     enabled: bool = True
 
 
+class ScheduleRunResponse(BaseModel):
+    id: int
+    operation: PipelineOperation
+    status: PipelineJobStatus
+    progress_current: int
+    progress_total: int | None
+    progress_message: str | None
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+
+    @classmethod
+    def from_job(cls, job):
+        return cls(
+            id=job.id,
+            operation=job.operation,
+            status=job.status,
+            progress_current=job.progress_current,
+            progress_total=job.progress_total,
+            progress_message=job.progress_message,
+            error_message=job.error_message,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+        )
+
+
 class ScheduleUpdateRequest(BaseModel):
     name: str | None = None
     operation: PipelineOperation | None = None
