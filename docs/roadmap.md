@@ -39,6 +39,17 @@ Exit criteria:
 
 ## Future Milestones
 
+## v0.9.4 - Dynamic Dog Management
+
+Goal:
+Remove hard-coded dog names and let operators manage dog identities from Mission Control.
+
+Potential areas:
+- persistent dog identity model
+- dog management API
+- Mission Control dog management UI
+- regression coverage for empty-install behavior
+
 ## Active Learning Improvements
 
 Goal:

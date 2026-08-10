@@ -20,13 +20,13 @@
 - DT-0908 CLI job runner integration
 
 ## Current Milestone
-v0.5.0 Review Workflow Stabilization
+v0.9.4 Dynamic Dog Management
 
 ## Next Work
-1. Display learning progress in UI.
-2. Improve review batch controls.
-3. Improve embedding example management.
-4. Document release workflow.
+1. Implement dynamic dog identity persistence.
+2. Add Mission Control dog management UI.
+3. Remove hard-coded dog-name assumptions.
+4. Keep release documentation aligned.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.
