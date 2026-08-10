@@ -15,6 +15,7 @@ from .review_export import ReviewExporter
 from .review_import import ReviewImporter
 from .runtime import get_embedder
 from .services.albums import AlbumService
+from .services.backup import BackupError, BackupService
 from .services.correction import ClassificationCorrectionService
 from .services.job_execution import create_pipeline_job_runner
 from .services.jobs import PipelineJobService
@@ -56,6 +57,48 @@ def run_operation_job(
         raise SystemExit(1) from exc
 
     return result if isinstance(result, dict) else {}
+
+
+def backup_command(args) -> None:
+    config = load_config()
+    svc = BackupService(config.state_dir)
+    try:
+        result = svc.create_backup()
+        print(f"Backup created: {result.path}")
+        print(f"Size: {result.size_bytes} bytes")
+        print(f"Created at: {result.created_at.isoformat()}")
+    except BackupError as exc:
+        print(f"Backup failed: {exc}")
+        raise SystemExit(1) from exc
+
+
+def validate_backup_command(args) -> None:
+    from pathlib import Path
+
+    config = load_config()
+    svc = BackupService(config.state_dir)
+    path = Path(args.path)
+    try:
+        svc.validate_backup(path)
+        print(f"Backup is valid: {path}")
+    except BackupError as exc:
+        print(f"Backup invalid: {exc}")
+        raise SystemExit(1) from exc
+
+
+def restore_command(args) -> None:
+    from pathlib import Path
+
+    config = load_config()
+    svc = BackupService(config.state_dir)
+    path = Path(args.path)
+    try:
+        rollback = svc.restore_backup(path)
+        print(f"Restored from: {path}")
+        print(f"Rollback copy: {rollback}")
+    except BackupError as exc:
+        print(f"Restore failed: {exc}")
+        raise SystemExit(1) from exc
 
 
 def config_check_command(args) -> None:
@@ -744,6 +787,23 @@ def main(argv: list[str] | None = None) -> None:
         help="Reprocess existing assets",
     )
 
+    subparsers.add_parser(
+        "backup",
+        help="Create a backup of state.db",
+    )
+
+    validate_backup_parser = subparsers.add_parser(
+        "validate-backup",
+        help="Validate a state.db backup file",
+    )
+    validate_backup_parser.add_argument("path", help="Path to the backup file")
+
+    restore_parser = subparsers.add_parser(
+        "restore",
+        help="Restore state.db from a backup (creates rollback copy first)",
+    )
+    restore_parser.add_argument("path", help="Path to the backup file to restore")
+
     args = parser.parse_args(argv)
 
     if args.command == "config-check":
@@ -796,6 +856,15 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "pipeline":
         pipeline_command(args)
+
+    elif args.command == "backup":
+        backup_command(args)
+
+    elif args.command == "validate-backup":
+        validate_backup_command(args)
+
+    elif args.command == "restore":
+        restore_command(args)
 
     else:
         parser.print_help()
