@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
@@ -11,6 +12,8 @@ from immich_dog_tagger.models import PipelineJob, PipelineSchedule
 from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
 from immich_dog_tagger.services.job_runner import PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
+
+logger = logging.getLogger(__name__)
 
 
 class Clock(Protocol):
@@ -54,9 +57,14 @@ class SchedulerService:
     def dispatch_due_schedules(self) -> list[PipelineJob]:
         created_jobs: list[PipelineJob] = []
         for schedule in self.due_schedules():
-            job = self._dispatch_schedule(schedule)
-            if job is not None:
-                created_jobs.append(job)
+            try:
+                job = self._dispatch_schedule(schedule)
+                if job is not None:
+                    created_jobs.append(job)
+            except Exception:
+                logger.exception(
+                    "Failed to dispatch schedule %r (id=%s)", schedule.name, schedule.id
+                )
         return created_jobs
 
     def _dispatch_schedule(self, schedule: PipelineSchedule) -> PipelineJob | None:
@@ -80,6 +88,12 @@ class SchedulerService:
         job.schedule_id = schedule.id
         self.session.commit()
         self.session.refresh(job)
+        logger.info(
+            "Dispatching scheduled job for %r (schedule_id=%s, job_id=%s)",
+            schedule.name,
+            schedule.id,
+            job.id,
+        )
         runner.run_job(job.id)
         return job
 
