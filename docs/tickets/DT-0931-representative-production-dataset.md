@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -54,3 +54,11 @@ v0.9.2 complete
 ## **Suggested commit message**
 
 `test(validation): define representative production dataset`  
+
+## **Validation results**
+
+* Representative dataset manifest created: `docs/validation/v0.9.3/dt-0931-representative-dataset.csv`.
+* Validation report recorded: `docs/validation/v0.9.3/DT-0931-report.md`.
+* Manifest cohorts include known identity, unknown identity, reviewed, multi-detection, missing captured-at metadata, and recent scan coverage.
+* Manifest is reproducible from `state.db` using the recorded SQL command.
+* No destructive modifications were made to source Immich assets.
