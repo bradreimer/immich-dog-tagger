@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.routes import (
     classifications,
@@ -15,6 +16,7 @@ from immich_dog_tagger.api.routes import (
     schedules,
 )
 from immich_dog_tagger.config import load_config
+from immich_dog_tagger.services.job_recovery import recover_interrupted_jobs
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth, run_scheduler
 
 
@@ -24,6 +26,10 @@ async def lifespan(app: FastAPI):
 
     config = load_config()
     engine = get_engine()
+
+    with Session(engine) as session:
+        recover_interrupted_jobs(session)
+
     scheduler_health = SchedulerHealth()
     stop_event = threading.Event()
     thread = threading.Thread(
