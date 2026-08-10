@@ -79,6 +79,28 @@ class ScheduleUpdateRequest(BaseModel):
     enabled: bool | None = None
 
 
+class DogResponse(BaseModel):
+    id: int
+    name: str
+    active: bool
+
+    @classmethod
+    def from_identity(cls, identity):
+        return cls(
+            id=identity.id,
+            name=identity.name,
+            active=identity.is_active,
+        )
+
+
+class DogCreateRequest(BaseModel):
+    name: str
+
+
+class DogUpdateRequest(BaseModel):
+    name: str
+
+
 class ClassificationResponse(BaseModel):
     classification_id: int
     crop_id: int

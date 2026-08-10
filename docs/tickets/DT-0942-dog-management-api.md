@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -55,3 +55,10 @@ DT-0941
 ## **Suggested commit message**
 
 `feat(api): expose dog management endpoints`
+
+## **Validation results**
+
+* API tests confirm a clean install returns no dogs.
+* CRUD tests confirm create, rename, deactivate, and reactivate flows.
+* Duplicate and reserved names are rejected with API errors.
+* The dog listing can include or exclude inactive dogs.

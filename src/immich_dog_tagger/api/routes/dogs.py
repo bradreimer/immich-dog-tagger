@@ -1,10 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from immich_dog_tagger.api.dependencies import get_review_query_service
-from immich_dog_tagger.api.schemas import ClassificationResponse
-from immich_dog_tagger.services.review_query import ReviewQueryService
+from immich_dog_tagger.api.dependencies import get_dog_service
+from immich_dog_tagger.api.schemas import (
+    DogCreateRequest,
+    DogResponse,
+    DogUpdateRequest,
+)
+from immich_dog_tagger.services.dogs import DogService
 
 router = APIRouter(
     prefix="/dogs",
@@ -12,24 +16,72 @@ router = APIRouter(
 
 
 @router.get(
-    "/{identity}",
-    response_model=list[ClassificationResponse],
+    "",
+    response_model=list[DogResponse],
 )
-def dog(
-    identity: str,
-    service: Annotated[ReviewQueryService, Depends(get_review_query_service)],
+def list_dogs(
+    service: Annotated[DogService, Depends(get_dog_service)],
+    include_inactive: bool = Query(True),
 ):
-    items = service.classifications(
-        identity=identity,
-    )
-
     return [
-        ClassificationResponse(
-            classification_id=item.classification_id,
-            crop_id=item.crop_id,
-            identity=item.prediction.identity,
-            confidence=item.prediction.similarity,
-            filename=item.filename,
-        )
-        for item in items
+        DogResponse.from_identity(identity)
+        for identity in service.list_dogs(include_inactive=include_inactive)
     ]
+
+
+@router.post(
+    "",
+    response_model=DogResponse,
+)
+def create_dog(
+    request: DogCreateRequest,
+    service: Annotated[DogService, Depends(get_dog_service)],
+):
+    try:
+        return DogResponse.from_identity(service.create_dog(request.name))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put(
+    "/{dog_id}",
+    response_model=DogResponse,
+)
+def update_dog(
+    dog_id: int,
+    request: DogUpdateRequest,
+    service: Annotated[DogService, Depends(get_dog_service)],
+):
+    try:
+        return DogResponse.from_identity(service.rename_dog(dog_id, request.name))
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{dog_id}/activate",
+    response_model=DogResponse,
+)
+def activate_dog(
+    dog_id: int,
+    service: Annotated[DogService, Depends(get_dog_service)],
+):
+    try:
+        return DogResponse.from_identity(service.activate_dog(dog_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/{dog_id}",
+    response_model=DogResponse,
+)
+def deactivate_dog(
+    dog_id: int,
+    service: Annotated[DogService, Depends(get_dog_service)],
+):
+    try:
+        return DogResponse.from_identity(service.deactivate_dog(dog_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

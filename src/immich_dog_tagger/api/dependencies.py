@@ -10,6 +10,7 @@ from immich_dog_tagger.database import create_database
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
+from immich_dog_tagger.services.dogs import DogService
 from immich_dog_tagger.services.job_dispatcher import PipelineJobDispatcher
 from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
@@ -87,6 +88,12 @@ def get_review_query_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> ReviewQueryService:
     return ReviewQueryService(session)
+
+
+def get_dog_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> DogService:
+    return DogService(session)
 
 
 def get_review_action_service(
