@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -56,3 +56,11 @@ DT-0933, v0.9.1 scheduler
 ## **Suggested commit message**
 
 `test(validation): verify production scheduling`  
+
+## **Validation results**
+
+* Validation report recorded: `docs/validation/v0.9.3/DT-0934-report.md`.
+* Successful scheduled `SCAN` execution validated against production state.
+* Restart simulation (new session second dispatch) produced no duplicate scheduled occurrence.
+* Controlled failing scheduled `LEARN` run remained visible in job history with persisted error details.
+* Temporary validation schedules were disabled after completion.
