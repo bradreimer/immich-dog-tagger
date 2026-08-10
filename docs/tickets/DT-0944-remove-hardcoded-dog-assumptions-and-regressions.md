@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -54,3 +54,10 @@ DT-0941, DT-0942, DT-0943
 ## **Suggested commit message**
 
 `test(dogs): remove hard-coded dog assumptions`
+
+## **Validation results**
+
+* Review keyboard hints and shortcut handling now use the active dog list instead of hard-coded Fibs/Hermann/Henri bindings.
+* Review export creates identity directories dynamically from the data it processes.
+* Review export regression tests use a neutral dog name and continue to pass.
+* Product-facing source search no longer finds the old hard-coded dog names in `src` or `ui/src`.

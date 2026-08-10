@@ -20,17 +20,6 @@ class ReviewExporter:
 
         confirmed = directory / "confirmed"
 
-        for identity in ("Fibs", "Hermann", "Henri", "Unknown"):
-            (predicted / identity).mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
-            (confirmed / identity).mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
         with (directory / "manifest.csv").open(
             "w",
             newline="",
@@ -53,6 +42,16 @@ class ReviewExporter:
                 identity = item.prediction.identity or "Unknown"
 
                 destination = predicted / identity / item.filename
+
+                destination.parent.mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
+
+                (confirmed / identity).mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
 
                 shutil.copy2(
                     item.path,

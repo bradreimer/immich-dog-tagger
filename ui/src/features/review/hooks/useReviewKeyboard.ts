@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 type ReviewKeyboardActions = {
+  identities: string[];
   correct: (identity: string) => void;
   skip: () => void;
   next: () => void;
@@ -8,6 +9,7 @@ type ReviewKeyboardActions = {
 };
 
 export function useReviewKeyboard({
+  identities,
   correct,
   skip,
   next,
@@ -29,18 +31,23 @@ export function useReviewKeyboard({
         case "s":
           skip();
           break;
-        case "f":
-          correct("Fibs");
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+        case "6":
+        case "7":
+        case "8":
+        case "9": {
+          const index = Number.parseInt(event.key, 10) - 1;
+
+          if (identities[index]) {
+            correct(identities[index]);
+          }
+
           break;
-        case "h":
-          correct("Hermann");
-          break;
-        case "n":
-          correct("Henri");
-          break;
-        case "u":
-          correct("Unknown");
-          break;
+        }
       }
     }
 
@@ -49,5 +56,5 @@ export function useReviewKeyboard({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [correct, next, previous, skip]);
+  }, [correct, identities, next, previous, skip]);
 }

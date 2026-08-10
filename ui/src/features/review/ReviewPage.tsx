@@ -149,6 +149,7 @@ export function ReviewPage() {
   }, [loadReview]);
 
   useReviewKeyboard({
+    identities: dogs.map((dog) => dog.name),
     correct,
     skip,
     next,

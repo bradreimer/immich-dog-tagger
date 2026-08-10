@@ -18,7 +18,7 @@ def test_export_review(tmp_path):
         crop_id=2,
         path=source,
         prediction=ReviewPrediction(
-            identity="Fibs",
+            identity="Riley",
             similarity=0.95,
             candidates=[],
         ),
@@ -34,7 +34,7 @@ def test_export_review(tmp_path):
 
     assert count == 1
     assert (output / "manifest.csv").exists()
-    assert (output / "predicted" / "Fibs" / "crop.jpg").exists()
+    assert (output / "predicted" / "Riley" / "crop.jpg").exists()
 
     with (output / "manifest.csv").open() as file:
         rows = list(csv.DictReader(file))
@@ -56,12 +56,12 @@ def test_export_review_writes_metadata(tmp_path):
         crop_id=2,
         path=source,
         prediction=ReviewPrediction(
-            identity="Fibs",
+            identity="Riley",
             similarity=0.95,
             candidates=[],
         ),
         suggestion=ReviewSuggestion(
-            identity="Fibs",
+            identity="Riley",
             similarity=0.95,
             example_id=1,
             example_path=example,
@@ -76,13 +76,13 @@ def test_export_review_writes_metadata(tmp_path):
         output,
     )
 
-    metadata = output / "predicted" / "Fibs" / "crop.txt"
+    metadata = output / "predicted" / "Riley" / "crop.txt"
 
     assert metadata.exists()
 
     contents = metadata.read_text()
 
-    assert "Fibs" in contents
+    assert "Riley" in contents
     assert "0.9500" in contents
     assert "example.jpg" in contents
     assert "2024-06-01T12:00:00+00:00" in contents

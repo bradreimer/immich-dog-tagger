@@ -16,13 +16,9 @@ export function KeyboardHints() {
         {" · "}
         Space Accept
         {" · "}
-        F Fibs
+        1-9 Active dogs in order
         {" · "}
-        H Hermann
-        {" · "}
-        N Henri
-        {" · "}
-        U Unknown
+        S Skip
       </p>
     </div>
   );
