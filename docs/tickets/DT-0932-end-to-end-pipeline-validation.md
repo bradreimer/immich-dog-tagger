@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -54,3 +54,11 @@ DT-0931
 ## **Suggested commit message**
 
 `test(validation): verify production pipeline end to end`  
+
+## **Validation results**
+
+* Validation report recorded: `docs/validation/v0.9.3/DT-0932-report.md`.
+* End-to-end production pipeline executed through job infrastructure.
+* Initial GPU OOM failure was observed and surfaced to operator output.
+* CPU rerun completed successfully and immediate repeat run was a no-op, confirming incremental behavior.
+* SQLite integrity checks (`quick_check`, `foreign_key_check`) passed.
