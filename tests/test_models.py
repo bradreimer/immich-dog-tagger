@@ -60,6 +60,20 @@ def test_classification_sources():
     assert ClassificationSources.REVIEW == "review"
 
 
+def test_identity_defaults_to_active(engine):
+    identity = Identity(name="Hermann")
+
+    assert identity.is_active is None
+
+    with Session(engine) as session:
+        session.add(identity)
+        session.commit()
+
+        persisted = session.query(Identity).one()
+
+    assert persisted.is_active is True
+
+
 def test_embedding_source_enum_round_trip(engine):
     with Session(engine) as session:
         identity = Identity(

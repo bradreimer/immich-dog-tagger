@@ -1,5 +1,7 @@
+import sqlite3
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus, PipelineOperation
@@ -118,3 +120,29 @@ def test_database_existing_models_unchanged_with_pipeline_jobs(engine):
         assert persisted_asset.immich_asset_id == "asset-existing-model"
         assert persisted_asset.status is AssetStatus.PENDING
         assert persisted_job.operation is PipelineOperation.SCAN
+
+
+def test_database_adds_identity_activation_column(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    connection.execute(
+        "CREATE TABLE identities (id INTEGER PRIMARY KEY, name VARCHAR(64) NOT NULL UNIQUE)"
+    )
+    connection.execute(
+        "INSERT INTO identities (name) VALUES (?)",
+        ("Fibs",),
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        rows = session.execute(
+            text("SELECT name, is_active FROM identities ORDER BY id")
+        ).all()
+
+    assert rows == [("Fibs", 1)]

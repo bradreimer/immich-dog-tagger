@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -54,3 +54,10 @@ v0.9.3 complete
 ## **Suggested commit message**
 
 `feat(dogs): make dog identities persistent and empty by default`
+
+## **Validation results**
+
+* Fresh-install database test confirmed a clean install starts with no dogs.
+* Dog lifecycle tests confirmed create, rename, deactivate, and reactivate behavior.
+* SQLite compatibility test confirmed existing `identities` tables gain the active-state column without losing data.
+* `Identity` defaults to active on persisted rows.

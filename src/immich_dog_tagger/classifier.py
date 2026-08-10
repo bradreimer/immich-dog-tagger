@@ -8,7 +8,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from .embeddings import blob_to_embedding
-from .models import EmbeddingExample
+from .models import EmbeddingExample, Identity
 from .scoring import SimilarityScorer
 
 
@@ -45,7 +45,12 @@ class IdentityClassifier:
 
         identity_scores: dict[str, ClassificationCandidate] = {}
 
-        examples = self.session.query(EmbeddingExample).all()
+        examples = (
+            self.session.query(EmbeddingExample)
+            .join(Identity)
+            .where(Identity.is_active.is_(True))
+            .all()
+        )
 
         for example in examples:
             known = blob_to_embedding(example.embedding)

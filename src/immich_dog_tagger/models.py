@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Enum,
     Float,
@@ -40,6 +41,13 @@ class Identity(Base):
         String(64),
         unique=True,
         nullable=False,
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="1",
     )
 
     embeddings: Mapped[list[EmbeddingExample]] = relationship(
