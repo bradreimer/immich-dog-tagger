@@ -17,6 +17,7 @@ from .runtime import get_embedder
 from .services.albums import AlbumService
 from .services.backup import BackupError, BackupService
 from .services.correction import ClassificationCorrectionService
+from .services.derived_data import DerivedDataService
 from .services.job_execution import create_pipeline_job_runner
 from .services.jobs import PipelineJobService
 from .services.learner import Learner
@@ -99,6 +100,25 @@ def restore_command(args) -> None:
     except BackupError as exc:
         print(f"Restore failed: {exc}")
         raise SystemExit(1) from exc
+
+
+def check_derived_data_command(args) -> None:
+    config = load_config()
+    engine = create_database(config.state_dir)
+    with Session(engine) as session:
+        svc = DerivedDataService(session, config.cache_dir)
+        report = svc.check()
+    if report.healthy:
+        print("Derived data: all referenced artifacts present")
+    else:
+        print(f"Derived data: {report.total_missing} missing artifact(s)")
+        print(f"  Missing downloads:          {len(report.missing_downloads)}")
+        print(f"  Missing crops:              {len(report.missing_crops)}")
+        print(f"  Missing embedding sources:  {len(report.missing_embedding_sources)}")
+        print()
+        for line in DerivedDataService.rebuild_guidance(report):
+            print(line)
+        raise SystemExit(1)
 
 
 def config_check_command(args) -> None:
@@ -804,6 +824,11 @@ def main(argv: list[str] | None = None) -> None:
     )
     restore_parser.add_argument("path", help="Path to the backup file to restore")
 
+    subparsers.add_parser(
+        "check-derived-data",
+        help="Check for missing derived artifacts (crops, embeddings, downloads)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "config-check":
@@ -865,6 +890,9 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "restore":
         restore_command(args)
+
+    elif args.command == "check-derived-data":
+        check_derived_data_command(args)
 
     else:
         parser.print_help()
