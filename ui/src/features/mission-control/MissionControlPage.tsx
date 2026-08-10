@@ -6,7 +6,7 @@ import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
 import type { PipelineSchedule } from "../../types/schedules";
 import type { Diagnostics } from "../../types/diagnostics";
-import { IconBook2, IconCloudUpload, IconRocket } from "@tabler/icons-react";
+import { IconCloudUpload, IconRocket } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -104,15 +104,6 @@ export function MissionControlPage() {
         "Use this after new Immich photos arrive and you want Dog Tagger to scan, detect, crop, embed, and classify them in one pass.",
       icon: IconRocket,
       ariaLabel: "Run the full pipeline",
-    },
-    {
-      operation: "learn",
-      label: "Learn",
-      headline: "Add confirmed dog examples",
-      description:
-        "Use this after you have reviewed or curated new example images and want those confirmations to improve future classification.",
-      icon: IconBook2,
-      ariaLabel: "Learn from reference examples",
     },
     {
       operation: "sync",
