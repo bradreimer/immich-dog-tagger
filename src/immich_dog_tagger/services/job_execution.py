@@ -235,10 +235,17 @@ def _learn_handler(
                 "imported": summary.imported,
             }
 
-        training_root = Path(options.get("training_root", "training"))
+        reference_root = Path(options.get("reference_root", "references"))
+        if (
+            not reference_root.exists()
+            and "reference_root" not in options
+            and Path("training").exists()
+        ):
+            # Backward compatibility for existing deployments using ./training.
+            reference_root = Path("training")
 
-        if not training_root.exists():
-            raise ValueError("training directory not found")
+        if not reference_root.exists():
+            raise ValueError("reference directory not found")
 
         embedder = get_embedder()
         learner = Learner(
@@ -246,7 +253,9 @@ def _learn_handler(
             session,
         )
 
-        identities = [path for path in sorted(training_root.iterdir()) if path.is_dir()]
+        identities = [
+            path for path in sorted(reference_root.iterdir()) if path.is_dir()
+        ]
 
         progress.set(
             current=0,

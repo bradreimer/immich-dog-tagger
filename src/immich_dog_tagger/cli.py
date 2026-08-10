@@ -672,7 +672,7 @@ def main(argv: list[str] | None = None) -> None:
 
     learn_parser = subparsers.add_parser(
         "learn",
-        help="Learn a dog identity from images",
+        help="Add reference examples for a dog identity from images",
     )
 
     learn_parser.add_argument(

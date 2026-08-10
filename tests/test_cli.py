@@ -158,3 +158,22 @@ def test_status_outputs_learning_metrics(capsys, monkeypatch, tmp_path):
     assert "Review actions by type:" in output
     assert "skip:" in output
     assert "correct:" in output
+
+
+def test_help_does_not_expose_train_or_retrain_commands(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+
+    output = capsys.readouterr().out
+
+    assert "train" not in output
+    assert "retrain" not in output
+
+
+def test_help_describes_learn_as_reference_example_import(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+
+    output = capsys.readouterr().out
+
+    assert "reference examples" in output

@@ -101,8 +101,8 @@ export function MissionControlPage() {
     {
       operation: "learn",
       label: "Learn",
-      description: "Import training examples from training directories.",
-      note: "Training",
+      description: "Import reference examples from local identity directories.",
+      note: "Reference",
     },
     {
       operation: "sync",
