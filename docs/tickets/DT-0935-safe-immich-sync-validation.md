@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -58,3 +58,11 @@ DT-0933
 ## **Suggested commit message**
 
 `test(validation): verify safe immich synchronization`  
+
+## **Validation results**
+
+* Validation report recorded: `docs/validation/v0.9.3/DT-0935-report.md`.
+* Dry-run and controlled real sync were both executed against production state.
+* Repeat dry-run produced stable planned counts, supporting idempotent behavior.
+* Failure path validated via controlled invalid-key run; failure persisted in job history and remained observable.
+* Authoritative state remained in `state.db` with sync behavior driven from pipeline records.
