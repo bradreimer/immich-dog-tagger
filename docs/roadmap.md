@@ -45,8 +45,8 @@ Goal:
 Increase classification quality through better feedback loops.
 
 Potential areas:
-- improved training example selection
-- retraining workflows
+- improved reference-example selection
+- reference-set curation workflows
 - confidence analysis
 
 ## Productization

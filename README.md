@@ -235,7 +235,7 @@ Corrections:
 
 * Update the classification
 * Record human provenance
-* Create future training examples
+* Create future reference examples
 * Apply candidate suggestions directly from the review UI
 
 ---
@@ -437,7 +437,7 @@ The database contains knowledge.
 
 # Learning System
 
-The learning system uses incremental examples rather than retraining a large neural network.
+The learning system uses incremental reference examples while keeping model weights fixed.
 
 ```
 Confirmed Crop
@@ -550,7 +550,7 @@ Future milestones focus on improving classification quality and workflow efficie
 
 Planned areas include:
 
-* improved training example management
+* improved reference-example management
 * active-learning workflow refinements
 * browser UX improvements
 * Immich synchronization enhancements
@@ -572,4 +572,4 @@ The goal is a small local assistant that gradually learns the identities of the 
 > **The database is the brain.
 > The ML pipeline is the nose.
 > Immich is the gallery.
-> The review UI is the trainer.**
+> The review UI curates the reference set in state.db.**

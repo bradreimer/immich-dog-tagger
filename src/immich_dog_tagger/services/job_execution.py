@@ -236,13 +236,6 @@ def _learn_handler(
             }
 
         reference_root = Path(options.get("reference_root", "references"))
-        if (
-            not reference_root.exists()
-            and "reference_root" not in options
-            and Path("training").exists()
-        ):
-            # Backward compatibility for existing deployments using ./training.
-            reference_root = Path("training")
 
         if not reference_root.exists():
             raise ValueError("reference directory not found")
