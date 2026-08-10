@@ -2,6 +2,7 @@ import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../types/review";
+import type { Dog } from "../types/dogs";
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
@@ -53,6 +54,83 @@ export async function getReviewStats(): Promise<ReviewQueueStats> {
 
   if (!response.ok) {
     throw new Error("Failed to load review stats");
+  }
+
+  return response.json();
+}
+
+export async function getDogs(options: { includeInactive?: boolean } = {}): Promise<Dog[]> {
+  const params = new URLSearchParams();
+
+  if (options.includeInactive === false) {
+    params.set("include_inactive", "false");
+  }
+
+  const query = params.toString();
+  const response = await fetch(query ? `/api/dogs?${query}` : "/api/dogs");
+
+  if (!response.ok) {
+    throw new Error("Failed to load dogs");
+  }
+
+  return response.json();
+}
+
+export async function createDog(name: string): Promise<Dog> {
+  const response = await fetch("/api/dogs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to create dog");
+  }
+
+  return response.json();
+}
+
+export async function renameDog(id: number, name: string): Promise<Dog> {
+  const response = await fetch(`/api/dogs/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to update dog");
+  }
+
+  return response.json();
+}
+
+export async function activateDog(id: number): Promise<Dog> {
+  const response = await fetch(`/api/dogs/${id}/activate`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to activate dog");
+  }
+
+  return response.json();
+}
+
+export async function deactivateDog(id: number): Promise<Dog> {
+  const response = await fetch(`/api/dogs/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to deactivate dog");
   }
 
   return response.json();

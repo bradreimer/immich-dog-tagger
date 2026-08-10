@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -55,3 +55,10 @@ DT-0942
 ## **Suggested commit message**
 
 `feat(ui): add mission control dog management`
+
+## **Validation results**
+
+* UI build and lint passed after wiring the new dog management flow.
+* Review actions now consume the active dog list from the API instead of a hard-coded array.
+* Mission Control renders a dog-management card for add/rename/deactivate/reactivate workflows.
+* Empty-state behavior is explicit when no dogs exist yet.

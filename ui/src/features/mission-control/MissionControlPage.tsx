@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DogManagementCard } from "./components/DogManagementCard";
 
 function formatOperation(operation: string): string {
   return operation
@@ -396,6 +397,8 @@ export function MissionControlPage() {
           </CardContent>
         </Card>
       )}
+
+      <DogManagementCard />
 
       <Card>
         <CardHeader>

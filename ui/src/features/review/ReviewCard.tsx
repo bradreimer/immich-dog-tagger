@@ -8,6 +8,7 @@ import { ReviewReason } from "./components/ReviewReason";
 
 interface Props {
   item: ReviewItem;
+  identities: string[];
   onCorrect: (identity: string) => void;
   onSkip: () => void;
   disabled: boolean;
@@ -15,6 +16,7 @@ interface Props {
 
 export function ReviewCard({
   item,
+  identities,
   onCorrect,
   onSkip,
   disabled,
@@ -45,6 +47,7 @@ export function ReviewCard({
       </div>
 
       <ReviewActions
+        identities={identities}
         onCorrect={onCorrect}
         onSkip={onSkip}
         disabled={disabled}

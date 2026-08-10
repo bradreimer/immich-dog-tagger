@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  getDogs,
   correctClassification,
   getReview,
   getReviewStats,
@@ -21,11 +22,13 @@ import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../../types/review";
+import type { Dog } from "../../types/dogs";
 
 
 export function ReviewPage() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
+  const [dogs, setDogs] = useState<Dog[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,15 +43,17 @@ export function ReviewPage() {
     setActionError(null);
     
     try {
-      const [queue, queueStats] = await Promise.all([
+      const [queue, queueStats, dogItems] = await Promise.all([
         getReview(
           getReviewQuery(filter),
         ),
         getReviewStats(),
+        getDogs({ includeInactive: false }).catch(() => []),
       ]);
       
       setItems(queue);
       setStats(queueStats);
+      setDogs(dogItems);
       setIndex(0);
     } catch (err) {
       setError(
@@ -255,6 +260,7 @@ export function ReviewPage() {
     
     <ReviewCard
       item={item}
+      identities={dogs.map((dog) => dog.name)}
       onCorrect={correct}
       onSkip={skip}
       disabled={saving}
