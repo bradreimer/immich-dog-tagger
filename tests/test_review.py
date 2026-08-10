@@ -55,7 +55,7 @@ def test_review_query_service_classifications(engine):
         identity = Identity(name="Fibs")
         example = EmbeddingExample(
             identity=identity,
-            crop_path="training/fibs/example.jpg",
+            crop_path="references/fibs/example.jpg",
             embedding=b"123",
             source=EmbeddingSources.REVIEW,
         )
@@ -78,7 +78,7 @@ def test_review_query_service_classifications(engine):
         assert results[0].classification_id == classification.id
         assert results[0].path == Path("test.jpg")
         assert results[0].filename == "test.jpg"
-        assert results[0].suggestion.example_path == Path("training/fibs/example.jpg")
+        assert results[0].suggestion.example_path == Path("references/fibs/example.jpg")
 
 
 def test_review_query_filters_by_identity(engine):
@@ -361,7 +361,7 @@ def test_review_query_active_review_includes_unknown_and_low_confidence(engine):
 
         example = EmbeddingExample(
             identity=identity,
-            crop_path="training/hermann/example.jpg",
+            crop_path="references/hermann/example.jpg",
             embedding=b"fake",
             source=EmbeddingSources.REVIEW,
         )
@@ -438,7 +438,7 @@ def test_review_query_includes_matched_example_path(engine):
 
         example = EmbeddingExample(
             identity=identity,
-            crop_path="training/hermann/example.jpg",
+            crop_path="references/hermann/example.jpg",
             embedding=b"fake",
             source=EmbeddingSources.REVIEW,
         )
@@ -482,7 +482,7 @@ def test_review_returns_queue(api_client, engine):
 
         example = EmbeddingExample(
             identity=identity,
-            crop_path="training/hermann/example.jpg",
+            crop_path="references/hermann/example.jpg",
             embedding=b"fake",
             source=EmbeddingSources.REVIEW,
         )
@@ -535,7 +535,7 @@ def test_review_returns_queue(api_client, engine):
 
     assert item["suggestion"]["identity"] == "Hermann"
     assert item["suggestion"]["example_id"] == example_id
-    assert item["suggestion"]["example_path"] == "training/hermann/example.jpg"
+    assert item["suggestion"]["example_path"] == "references/hermann/example.jpg"
 
 
 def test_review_query_active_review_excludes_skipped(engine):

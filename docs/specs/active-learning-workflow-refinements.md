@@ -12,7 +12,7 @@ As an operator, I want review actions to update learner state consistently so th
 - Improve observability of learning workflow health.
 
 ## Non-goals
-- Automated model retraining pipelines.
+- Automated reference-example curation pipelines.
 - Human-review UI redesign.
 
 ## Requirements

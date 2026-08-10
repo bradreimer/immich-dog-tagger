@@ -1,18 +1,18 @@
-# Training Example Management
+# Reference Example Management
 
 ## Purpose
-Improve the quality and maintainability of training examples used by the learning system.
+Improve the quality and maintainability of reference examples used by the learning system.
 
 ## User Story
-As an operator, I want training examples to be curated and traceable so that feedback improves classification quality over time.
+As an operator, I want reference examples to be curated and traceable so that feedback improves classification quality over time.
 
 ## Goals
-- Define a clear lifecycle for training examples.
+- Define a clear lifecycle for reference examples.
 - Preserve provenance and quality metadata.
 - Make pruning and replacement safe and repeatable.
 
 ## Non-goals
-- Full retraining orchestration.
+- Any model retraining orchestration.
 - Changes to external model architectures.
 
 ## Requirements

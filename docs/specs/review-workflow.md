@@ -35,4 +35,4 @@ Review and correction endpoints.
 Users can process a queue without manually editing database state.
 
 ## Open Questions
-How should retraining be triggered?
+How should confirmed corrections update the reference set?

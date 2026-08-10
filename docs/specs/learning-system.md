@@ -12,7 +12,7 @@ After reviewing photos, future classifications should become more accurate.
 - Improve nearest-neighbor classification
 
 ## Non-goals
-- Fully automated deep model training
+- Any local model training or fine-tuning
 
 ## Requirements
 - Store embeddings
@@ -20,4 +20,4 @@ After reviewing photos, future classifications should become more accurate.
 - Associate examples with identities
 
 ## Open Questions
-When should automatic retraining occur?
+How should example quality and provenance influence reference selection?
