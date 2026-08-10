@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.api.routes import (
     classifications,
     crops,
+    diagnostics,
     dogs,
     embedding_examples,
     health,
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
 
     app.include_router(classifications.router)
     app.include_router(crops.router)
+    app.include_router(diagnostics.router)
     app.include_router(dogs.router)
     app.include_router(embedding_examples.router)
     app.include_router(health.router)

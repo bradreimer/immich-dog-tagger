@@ -5,6 +5,7 @@ import type {
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
+import type { Diagnostics } from "../types/diagnostics";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -218,4 +219,12 @@ export async function skipClassification(
   if (!response.ok) {
     throw new Error("Failed to skip classification");
   }
+}
+
+export async function getDiagnostics(): Promise<Diagnostics> {
+  const response = await fetch("/api/diagnostics");
+  if (!response.ok) {
+    throw new Error("Failed to load diagnostics");
+  }
+  return response.json();
 }

@@ -31,6 +31,11 @@ def get_engine():
     )
 
 
+@cache
+def get_config():
+    return load_config()
+
+
 def get_session() -> Generator[Session]:
     engine = get_engine()
 

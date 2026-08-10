@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createJob, createSchedule, disableSchedule, enableSchedule, getJobs, getReviewStats, getSchedules, runScheduleNow } from "../../lib/api";
+import { createJob, createSchedule, disableSchedule, enableSchedule, getDiagnostics, getJobs, getReviewStats, getSchedules, runScheduleNow } from "../../lib/api";
 import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
 import type { PipelineSchedule } from "../../types/schedules";
+import type { Diagnostics } from "../../types/diagnostics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +69,7 @@ export function MissionControlPage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
   const [schedules, setSchedules] = useState<PipelineSchedule[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -117,15 +119,17 @@ export function MissionControlPage() {
     }
     setError(null);
     try {
-      const [jobItems, reviewStats, scheduleItems] = await Promise.all([
+      const [jobItems, reviewStats, scheduleItems, diagData] = await Promise.all([
         getJobs(25),
         getReviewStats(),
         getSchedules(),
+        getDiagnostics().catch(() => null),
       ]);
 
       setJobs(jobItems);
       setStats(reviewStats);
       setSchedules(scheduleItems);
+      setDiagnostics(diagData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load mission control");
     } finally {
@@ -322,6 +326,76 @@ export function MissionControlPage() {
           </CardHeader>
         </Card>
       </div>
+
+      {diagnostics && (
+        <Card>
+          <CardHeader>
+            <CardTitle>System Diagnostics</CardTitle>
+            <CardDescription>Operational health at a glance.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Database</p>
+                <p className={`mt-1 font-medium ${diagnostics.db.healthy ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {diagnostics.db.healthy ? "Healthy" : "Unhealthy"}
+                </p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Scheduler</p>
+                {diagnostics.scheduler ? (
+                  <p className={`mt-1 font-medium ${diagnostics.scheduler.healthy ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                    {diagnostics.scheduler.healthy ? `Healthy · ${diagnostics.scheduler.ticks} tick(s)` : `Unhealthy · ${diagnostics.scheduler.errors} error(s)`}
+                  </p>
+                ) : (
+                  <p className="mt-1 font-medium text-muted-foreground">Not running</p>
+                )}
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Last Backup</p>
+                <p className={`mt-1 font-medium ${diagnostics.backup.has_backup ? "text-foreground" : "text-amber-600 dark:text-amber-400"}`}>
+                  {diagnostics.backup.last_backup_at
+                    ? new Date(diagnostics.backup.last_backup_at).toLocaleString()
+                    : "No backup found"}
+                </p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Derived Data</p>
+                <p className={`mt-1 font-medium ${diagnostics.derived_data.healthy ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                  {diagnostics.derived_data.healthy
+                    ? "All present"
+                    : `${diagnostics.derived_data.total_missing} missing`}
+                </p>
+              </div>
+            </div>
+
+            {diagnostics.jobs.stuck.length > 0 && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  {diagnostics.jobs.stuck.length} stuck job(s) — manual recovery may be required.
+                </p>
+                {diagnostics.jobs.stuck.map((j) => (
+                  <p key={j.id} className="mt-1 text-xs text-muted-foreground">
+                    #{j.id} {j.operation} ({j.status})
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {diagnostics.jobs.recent_failures.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Recent failures</p>
+                {diagnostics.jobs.recent_failures.map((f) => (
+                  <div key={f.id} className="rounded-md border border-rose-500/20 bg-rose-500/5 p-2 text-xs">
+                    <span className="font-medium">#{f.id} {f.operation}</span>
+                    {f.error_message && <span className="ml-2 text-muted-foreground">{f.error_message}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
