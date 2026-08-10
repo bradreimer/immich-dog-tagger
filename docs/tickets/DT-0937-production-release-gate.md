@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -63,3 +63,10 @@ DT-0931, DT-0932, DT-0933, DT-0934, DT-0935, DT-0936
 ## **Suggested commit message**
 
 `chore(release): close v0.9.3 production validation`  
+
+## **Validation results**
+
+* Consolidated release-gate report recorded: `docs/validation/v0.9.3/DT-0937-report.md`.
+* Production defect discovered during validation (`status --verbose` crash) was fixed with regression tests.
+* DT-0931 through DT-0936 evidence packages were reviewed and mapped to v0.9.3 exit criteria.
+* Final release gate criteria passed, and v0.9.3 is ready as the production-confidence baseline.

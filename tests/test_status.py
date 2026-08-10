@@ -225,3 +225,24 @@ def test_pipeline_plan_empty_database(engine):
     assert plan.pending_download == 0
     assert plan.pending_detection == 0
     assert plan.pending_classification == 0
+
+
+def test_diagnostics_returns_expected_keys(engine):
+    with Session(engine) as session:
+        diagnostics = StatusService(session).diagnostics()
+
+    assert {
+        "assets",
+        "detections",
+        "crops",
+        "classifications",
+        "identities",
+        "examples",
+        "pending_download",
+        "pending_detection",
+        "pending_classification",
+        "download_failed",
+        "detection_failed",
+        "classification_failed",
+        "unknown",
+    } <= diagnostics.keys()

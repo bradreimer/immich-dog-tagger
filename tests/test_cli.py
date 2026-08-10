@@ -160,6 +160,25 @@ def test_status_outputs_learning_metrics(capsys, monkeypatch, tmp_path):
     assert "correct:" in output
 
 
+def test_status_verbose_outputs_diagnostics(capsys, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    with patch(
+        "sys.argv",
+        [
+            "immich-dog-tagger",
+            "status",
+            "--verbose",
+        ],
+    ):
+        main()
+
+    output = capsys.readouterr().out
+
+    assert "Diagnostics" in output
+    assert "download_failed:" in output
+
+
 def test_help_does_not_expose_train_or_retrain_commands(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])

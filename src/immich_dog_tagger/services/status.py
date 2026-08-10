@@ -102,6 +102,23 @@ class StatusService:
             pending_classification=self._count_pending_classification(),
         )
 
+    def diagnostics(self) -> dict[str, int]:
+        return {
+            "assets": self._count(Asset),
+            "detections": self._count(Detection),
+            "crops": self._count(Crop),
+            "classifications": self._count(CropClassification),
+            "identities": self._count(Identity),
+            "examples": self._count(EmbeddingExample),
+            "pending_download": self._count_pending_download(),
+            "pending_detection": self._count_pending_detection(),
+            "pending_classification": self._count_pending_classification(),
+            "download_failed": self._count_download_failed(),
+            "detection_failed": self._count_detection_failed(),
+            "classification_failed": self._count_classification_failed(),
+            "unknown": self._count_unknown(),
+        }
+
     def _count(
         self,
         model,
