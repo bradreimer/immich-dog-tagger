@@ -6,6 +6,7 @@ import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
 import type { PipelineSchedule } from "../../types/schedules";
 import type { Diagnostics } from "../../types/diagnostics";
+import { IconBook2, IconCloudUpload, IconRocket } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -90,26 +91,37 @@ export function MissionControlPage() {
   const operations: Array<{
     operation: JobOperation;
     label: string;
+    headline: string;
     description: string;
-    note: string;
+    icon: typeof IconRocket;
+    ariaLabel: string;
   }> = [
     {
       operation: "full_pipeline",
       label: "Full Pipeline",
-      description: "Run the complete end-to-end pipeline.",
-      note: "Primary",
+      headline: "Process new photos from end to end",
+      description:
+        "Use this after new Immich photos arrive and you want Dog Tagger to scan, detect, crop, embed, and classify them in one pass.",
+      icon: IconRocket,
+      ariaLabel: "Run the full pipeline",
     },
     {
       operation: "learn",
       label: "Learn",
-      description: "Import reference examples from local identity directories.",
-      note: "Reference",
+      headline: "Add confirmed dog examples",
+      description:
+        "Use this after you have reviewed or curated new example images and want those confirmations to improve future classification.",
+      icon: IconBook2,
+      ariaLabel: "Learn from reference examples",
     },
     {
       operation: "sync",
       label: "Sync",
-      description: "Sync confident labels to Immich albums.",
-      note: "Publishing",
+      headline: "Publish confident labels back to Immich",
+      description:
+        "Use this when the current classifications look good and you want to write those confident identities into Immich albums.",
+      icon: IconCloudUpload,
+      ariaLabel: "Synchronize confident labels to Immich",
     },
   ];
 
@@ -404,27 +416,33 @@ export function MissionControlPage() {
         <CardHeader>
           <CardTitle>Manual Operations</CardTitle>
           <CardDescription>
-            Start any pipeline operation without using the CLI.
+            Choose the job that matches what you are trying to accomplish.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {operations.map((item) => (
-              <div key={item.operation} className="rounded-md border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-foreground/20">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium">{item.label}</div>
-                  <Badge variant="outline">{item.note}</Badge>
+              <div key={item.operation} className="rounded-md border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-foreground/20">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="font-medium">{item.headline}</div>
+                    <Badge variant="outline">{item.label}</Badge>
+                  </div>
+
+                  <Button
+                    aria-label={item.ariaLabel}
+                    title={item.ariaLabel}
+                    variant={item.operation === "full_pipeline" ? "default" : "outline"}
+                    size="icon"
+                    className="h-11 w-11 shrink-0 rounded-full"
+                    disabled={launching !== null}
+                    onClick={() => launchOperation(item.operation)}
+                  >
+                    <item.icon className="h-5 w-5" aria-hidden="true" />
+                  </Button>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-                <Button
-                  className="mt-3 w-full"
-                  size="lg"
-                  variant={item.operation === "full_pipeline" ? "default" : "outline"}
-                  disabled={launching !== null}
-                  onClick={() => launchOperation(item.operation)}
-                >
-                  {launching === item.operation ? "Starting..." : "Start"}
-                </Button>
+
+                <p className="mt-3 text-sm text-muted-foreground">{item.description}</p>
               </div>
             ))}
           </div>
