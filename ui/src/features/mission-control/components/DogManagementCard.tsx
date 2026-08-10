@@ -148,18 +148,18 @@ export function DogManagementCard() {
             {dogs.map((dog) => (
               <div key={dog.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex-1 space-y-2">
+                  <input
+                    value={drafts[dog.id] ?? dog.name}
+                    onChange={(event) => setDrafts((current) => ({ ...current, [dog.id]: event.target.value }))}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+
                   <div className="flex items-center gap-2">
-                    <input
-                      value={drafts[dog.id] ?? dog.name}
-                      onChange={(event) => setDrafts((current) => ({ ...current, [dog.id]: event.target.value }))}
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    />
+                    <p className="text-xs text-muted-foreground">ID {dog.id}</p>
                     <Badge variant={dog.active ? "default" : "secondary"}>
                       {dog.active ? "Active" : "Inactive"}
                     </Badge>
                   </div>
-
-                  <p className="text-xs text-muted-foreground">ID {dog.id}</p>
                 </div>
 
                 <div className="flex gap-2">

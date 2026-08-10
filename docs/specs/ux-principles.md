@@ -49,7 +49,11 @@ Do not introduce arbitrary colors or button styles for individual features.
 
 A contributor should not need to invent a new button color to communicate that an action is important.
 
-Hover behavior should be reserved for primary action buttons.
+Action buttons should use the shared orange action color language.
+
+Hover behavior should be consistent across action buttons.
+
+All action buttons should use the same hover interaction pattern (subtle elevation and background transition) so the UI gives a predictable signal that an action is clickable.
 
 Non-action surfaces (cards, list rows, informational panels, and navigation labels) should not use mouse-over animation or hover-only visual effects.
 

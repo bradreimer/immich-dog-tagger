@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getJobs } from "../../lib/api";
 import type { PipelineJob } from "../../types/jobs";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh, IconTrash } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,6 +101,7 @@ export function JobQueuePage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hiddenHistoryIds, setHiddenHistoryIds] = useState<Set<number>>(new Set());
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -126,8 +127,8 @@ export function JobQueuePage() {
   const groups = useMemo(() => {
     const running = jobs.filter((job) => job.status === "running");
     const pending = jobs.filter((job) => job.status === "pending");
-    const history = jobs.filter((job) =>
-      ["completed", "failed", "canceled"].includes(job.status),
+    const history = jobs.filter(
+      (job) => ["completed", "failed", "canceled"].includes(job.status) && !hiddenHistoryIds.has(job.id),
     );
 
     return {
@@ -135,7 +136,23 @@ export function JobQueuePage() {
       pending,
       history,
     };
-  }, [jobs]);
+  }, [hiddenHistoryIds, jobs]);
+
+  const clearVisibleHistory = useCallback(() => {
+    if (groups.history.length === 0) {
+      return;
+    }
+
+    setHiddenHistoryIds((current) => {
+      const next = new Set(current);
+
+      for (const job of groups.history) {
+        next.add(job.id);
+      }
+
+      return next;
+    });
+  }, [groups.history]);
 
   const hasActiveJobs = groups.running.length + groups.pending.length > 0;
 
@@ -206,9 +223,16 @@ export function JobQueuePage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>History</CardTitle>
-          <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>History</CardTitle>
+            <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
+          </div>
+
+          <Button variant="outline" size="sm" onClick={clearVisibleHistory} disabled={groups.history.length === 0}>
+            <IconTrash className="h-4 w-4" aria-hidden="true" />
+            Clear list
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           {groups.history.length === 0 ? (

@@ -138,3 +138,27 @@ body {
     @apply font-sans;
   }
 }
+
+@layer components {
+  .action-button {
+    transition-property: transform, box-shadow, background-color, border-color;
+    transition-duration: 140ms;
+    transition-timing-function: ease;
+  }
+
+  .action-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px oklch(0.24 0.03 40 / 16%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .action-button {
+      transition-property: background-color, border-color;
+    }
+
+    .action-button:hover:not(:disabled) {
+      transform: none;
+      box-shadow: none;
+    }
+  }
+}

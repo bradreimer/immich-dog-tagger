@@ -90,7 +90,6 @@ export function MissionControlPage() {
 
   const operations: Array<{
     operation: JobOperation;
-    label: string;
     headline: string;
     actionLabel: string;
     description: string;
@@ -99,23 +98,21 @@ export function MissionControlPage() {
   }> = [
     {
       operation: "full_pipeline",
-      label: "Full Pipeline",
-      headline: "Process new photos from end to end",
+      headline: "Process new photos",
       actionLabel: "Run",
       description:
-        "Use this after new Immich photos arrive and you want Dog Tagger to scan, detect, crop, embed, and classify them in one pass.",
+        "Use this after new Immich photos arrive to make Dog Tagger scan, detect, crop, embed, and classify them in one pass.",
       icon: IconRocket,
       ariaLabel: "Run the full pipeline",
     },
     {
       operation: "sync",
-      label: "Sync",
-      headline: "Publish confident labels back to Immich",
+      headline: "Publish labels back to Immich",
       actionLabel: "Sync",
       description:
-        "Use this when the current classifications look good and you want to write those confident identities into Immich albums.",
+        "Use this when the current classifications look good and you want to write those identities into Immich albums.",
       icon: IconCloudUpload,
-      ariaLabel: "Synchronize confident labels to Immich",
+      ariaLabel: "Synchronize album to Immich",
     },
   ];
 
@@ -424,7 +421,6 @@ export function MissionControlPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="font-medium">{item.headline}</div>
-                    <Badge variant="outline">{item.label}</Badge>
                   </div>
 
                   <Button
@@ -468,9 +464,6 @@ export function MissionControlPage() {
               value={scheduleForm.operation}
               onChange={(event) => setScheduleForm((current) => ({ ...current, operation: event.target.value as JobOperation }))}
             >
-              {operations.map((item) => (
-                <option key={item.operation} value={item.operation}>{item.label}</option>
-              ))}
             </select>
             <input
               className="rounded-md border bg-background px-3 py-2 text-sm"
@@ -479,7 +472,6 @@ export function MissionControlPage() {
               onChange={(event) => setScheduleForm((current) => ({ ...current, expression: event.target.value }))}
             />
             <Button
-              className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/30"
               disabled={scheduleBusy || !scheduleForm.name}
               onClick={() => void handleCreateSchedule()}
             >
