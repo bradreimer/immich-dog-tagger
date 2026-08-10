@@ -10,7 +10,7 @@ v0.9.1 Scheduling & Automation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Add persistent schedule definitions to `state.db`.

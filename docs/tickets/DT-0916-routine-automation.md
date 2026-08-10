@@ -10,7 +10,7 @@ v0.9.1 Scheduling & Automation
 Medium
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Make the scheduler useful for the normal unattended Dog Tagger workflow.

@@ -10,7 +10,7 @@ v0.9.2 Data Safety & Recovery
 Medium
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Give Mission Control a focused operational diagnostics view.

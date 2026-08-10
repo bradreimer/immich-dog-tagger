@@ -10,7 +10,7 @@ v0.9.2 Data Safety & Recovery
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Implement a reliable SQLite-aware backup service for `state.db`.

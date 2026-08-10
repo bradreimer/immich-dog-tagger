@@ -10,7 +10,7 @@ v0.9.2 Data Safety & Recovery
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Make derived artifacts safely disposable and rebuildable without corrupting authoritative state.

@@ -10,7 +10,7 @@ v0.9.1 Scheduling & Automation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Add schedule configuration and status to Mission Control.

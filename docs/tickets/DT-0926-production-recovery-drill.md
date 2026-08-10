@@ -10,7 +10,7 @@ v0.9.2 Data Safety & Recovery
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Prove the backup, restore, job recovery, and derived-data recovery paths work together.

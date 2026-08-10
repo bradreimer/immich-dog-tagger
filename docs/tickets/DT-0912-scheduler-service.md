@@ -10,7 +10,7 @@ v0.9.1 Scheduling & Automation
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Implement deterministic schedule evaluation and scheduler lifecycle management.

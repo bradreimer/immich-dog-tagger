@@ -10,7 +10,7 @@ v0.9.2 Data Safety & Recovery
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Make interrupted and stuck PipelineJobs recoverable after process or container failure.

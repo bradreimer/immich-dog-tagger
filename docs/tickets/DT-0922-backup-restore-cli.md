@@ -10,7 +10,7 @@ v0.9.2 Data Safety & Recovery
 High
 
 ## Status
-Planned
+Completed
 
 ## Goal
 Expose safe backup and restore operations through the CLI.
