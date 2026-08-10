@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
 import {
   getDogs,
   correctClassification,
@@ -173,6 +174,7 @@ export function ReviewPage() {
         <p>{error}</p>
         
         <Button onClick={() => loadReview()}>
+        <IconRefresh className="h-4 w-4" aria-hidden="true" />
         Retry
         </Button>
       </main>
@@ -274,6 +276,7 @@ export function ReviewPage() {
       onClick={previous}
       disabled={index === 0}
     >
+    <IconArrowLeft className="h-4 w-4" aria-hidden="true" />
     Previous
     </Button>
     
@@ -282,6 +285,7 @@ export function ReviewPage() {
     onClick={next}
     disabled={index === items.length - 1}
     >
+    <IconArrowRight className="h-4 w-4" aria-hidden="true" />
     Next
     </Button>
     </div>

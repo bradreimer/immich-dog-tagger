@@ -1,3 +1,4 @@
+import { IconArrowRight } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -46,6 +47,7 @@ export function IdentityChooser({
           onClick={onSkip}
           disabled={disabled}
         >
+          <IconArrowRight className="h-4 w-4" aria-hidden="true" />
           Skip
         </Button>
       </CardContent>

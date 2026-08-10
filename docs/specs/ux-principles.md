@@ -49,6 +49,14 @@ Do not introduce arbitrary colors or button styles for individual features.
 
 A contributor should not need to invent a new button color to communicate that an action is important.
 
+Hover behavior should be reserved for primary action buttons.
+
+Non-action surfaces (cards, list rows, informational panels, and navigation labels) should not use mouse-over animation or hover-only visual effects.
+
+Action buttons should include both text and an icon when practical.
+
+For create-style actions, use an explicit `Create` text label with a plus icon from Tabler to make intent obvious.
+
 ## 3. Prefer Icons for Familiar Actions
 
 Prefer a recognizable icon over text for simple, frequently used actions.

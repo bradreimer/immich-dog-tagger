@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { IconEdit, IconPlayerPause, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import {
   activateDog,
   createDog,
@@ -130,6 +131,7 @@ export function DogManagementCard() {
           />
 
           <Button onClick={handleCreate} disabled={savingId !== null || !name.trim()}>
+            <IconPlus className="h-4 w-4" aria-hidden="true" />
             Add dog
           </Button>
         </div>
@@ -166,6 +168,7 @@ export function DogManagementCard() {
                     onClick={() => handleRename(dog)}
                     disabled={savingId === dog.id}
                   >
+                    <IconEdit className="h-4 w-4" aria-hidden="true" />
                     Rename
                   </Button>
 
@@ -174,6 +177,7 @@ export function DogManagementCard() {
                     onClick={() => toggleActive(dog)}
                     disabled={savingId === dog.id}
                   >
+                    {dog.active ? <IconPlayerPause className="h-4 w-4" aria-hidden="true" /> : <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />}
                     {dog.active ? "Deactivate" : "Activate"}
                   </Button>
                 </div>

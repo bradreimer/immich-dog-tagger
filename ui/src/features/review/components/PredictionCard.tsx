@@ -1,4 +1,6 @@
+import { IconCheck } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ReviewCandidate } from "@/types/review";
 
@@ -73,14 +75,16 @@ export function PredictionCard({
                   </span>
                 </div>
 
-                <button
+                <Button
                   type="button"
-                  className="hover:underline"
+                  size="sm"
+                  variant="outline"
                   onClick={() => onCorrect(candidate.identity)}
                   disabled={disabled}
                 >
+                  <IconCheck className="h-4 w-4" aria-hidden="true" />
                   Correct
-                </button>
+                </Button>
               </div>
             ))}
           </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getJobs } from "../../lib/api";
 import type { PipelineJob } from "../../types/jobs";
+import { IconRefresh } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,15 +39,15 @@ function progressLabel(job: PipelineJob): string {
 function getJobRowClassName(status: PipelineJob["status"]): string {
   switch (status) {
     case "running":
-      return "border-sky-500/40 bg-sky-500/5 hover:bg-sky-500/10";
+      return "border-sky-500/40 bg-sky-500/5";
     case "completed":
-      return "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10";
+      return "border-emerald-500/40 bg-emerald-500/5";
     case "failed":
-      return "border-rose-500/40 bg-rose-500/5 hover:bg-rose-500/10";
+      return "border-rose-500/40 bg-rose-500/5";
     case "pending":
-      return "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10";
+      return "border-amber-500/40 bg-amber-500/5";
     case "canceled":
-      return "border-zinc-500/40 bg-zinc-500/5 hover:bg-zinc-500/10";
+      return "border-zinc-500/40 bg-zinc-500/5";
     default:
       return "";
   }
@@ -71,7 +72,7 @@ function getJobBadgeClassName(status: PipelineJob["status"]): string {
 
 function JobRow({ job }: { job: PipelineJob }) {
   return (
-    <div className={`rounded-md border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${getJobRowClassName(job.status)}`}>
+    <div className={`rounded-md border p-3 ${getJobRowClassName(job.status)}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-medium">
           #{job.id} {formatOperation(job.operation)}
@@ -162,6 +163,7 @@ export function JobQueuePage() {
         </div>
 
         <Button variant="outline" onClick={() => load()} disabled={loading}>
+          <IconRefresh className="h-4 w-4" aria-hidden="true" />
           Refresh
         </Button>
       </header>

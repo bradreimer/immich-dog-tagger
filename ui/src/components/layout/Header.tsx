@@ -36,7 +36,7 @@ export function Header({ currentPath, onNavigate }: Props) {
                 className={
                   currentPath === link.path
                     ? "rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground sm:px-3 sm:py-1.5 sm:text-sm"
-                    : "rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:px-3 sm:py-1.5 sm:text-sm"
+                    : "rounded-full px-2.5 py-1 text-xs text-muted-foreground sm:px-3 sm:py-1.5 sm:text-sm"
                 }
                 onClick={() => onNavigate(link.path)}
               >

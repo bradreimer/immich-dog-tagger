@@ -6,7 +6,7 @@ import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
 import type { PipelineSchedule } from "../../types/schedules";
 import type { Diagnostics } from "../../types/diagnostics";
-import { IconCloudUpload, IconRocket } from "@tabler/icons-react";
+import { IconCloudUpload, IconListDetails, IconPlayerPause, IconPlayerPlay, IconPlus, IconRefresh, IconRocket } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,15 +36,15 @@ function formatTimestamp(value: string | null): string {
 function getJobCardClassName(status: PipelineJob["status"]): string {
   switch (status) {
     case "running":
-      return "border-sky-500/40 bg-sky-500/5 hover:bg-sky-500/10";
+      return "border-sky-500/40 bg-sky-500/5";
     case "completed":
-      return "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10";
+      return "border-emerald-500/40 bg-emerald-500/5";
     case "failed":
-      return "border-rose-500/40 bg-rose-500/5 hover:bg-rose-500/10";
+      return "border-rose-500/40 bg-rose-500/5";
     case "pending":
-      return "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10";
+      return "border-amber-500/40 bg-amber-500/5";
     case "canceled":
-      return "border-zinc-500/40 bg-zinc-500/5 hover:bg-zinc-500/10";
+      return "border-zinc-500/40 bg-zinc-500/5";
     default:
       return "";
   }
@@ -92,6 +92,7 @@ export function MissionControlPage() {
     operation: JobOperation;
     label: string;
     headline: string;
+    actionLabel: string;
     description: string;
     icon: typeof IconRocket;
     ariaLabel: string;
@@ -100,6 +101,7 @@ export function MissionControlPage() {
       operation: "full_pipeline",
       label: "Full Pipeline",
       headline: "Process new photos from end to end",
+      actionLabel: "Run",
       description:
         "Use this after new Immich photos arrive and you want Dog Tagger to scan, detect, crop, embed, and classify them in one pass.",
       icon: IconRocket,
@@ -109,6 +111,7 @@ export function MissionControlPage() {
       operation: "sync",
       label: "Sync",
       headline: "Publish confident labels back to Immich",
+      actionLabel: "Sync",
       description:
         "Use this when the current classifications look good and you want to write those confident identities into Immich albums.",
       icon: IconCloudUpload,
@@ -260,6 +263,7 @@ export function MissionControlPage() {
               window.dispatchEvent(new PopStateEvent("popstate"));
             }}
           >
+            <IconListDetails className="h-4 w-4" aria-hidden="true" />
             Open Job Queue
           </Button>
         </div>
@@ -296,7 +300,10 @@ export function MissionControlPage() {
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => load()}>Retry</Button>
+            <Button onClick={() => load()}>
+              <IconRefresh className="h-4 w-4" aria-hidden="true" />
+              Retry
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -413,7 +420,7 @@ export function MissionControlPage() {
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {operations.map((item) => (
-              <div key={item.operation} className="rounded-md border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-foreground/20">
+              <div key={item.operation} className="rounded-md border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="font-medium">{item.headline}</div>
@@ -424,12 +431,12 @@ export function MissionControlPage() {
                     aria-label={item.ariaLabel}
                     title={item.ariaLabel}
                     variant={item.operation === "full_pipeline" ? "default" : "outline"}
-                    size="icon"
-                    className="h-11 w-11 shrink-0 rounded-full"
+                    className="h-11 shrink-0 px-4"
                     disabled={launching !== null}
                     onClick={() => launchOperation(item.operation)}
                   >
                     <item.icon className="h-5 w-5" aria-hidden="true" />
+                    {item.actionLabel}
                   </Button>
                 </div>
 
@@ -471,13 +478,14 @@ export function MissionControlPage() {
               value={scheduleForm.expression}
               onChange={(event) => setScheduleForm((current) => ({ ...current, expression: event.target.value }))}
             />
-            <button
-              className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            <Button
+              className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/30"
               disabled={scheduleBusy || !scheduleForm.name}
               onClick={() => void handleCreateSchedule()}
             >
+              <IconPlus className="h-4 w-4" aria-hidden="true" />
               {scheduleBusy ? "Saving..." : "Create"}
-            </button>
+            </Button>
           </div>
 
           {scheduleMessage && <p className="text-sm text-emerald-700 dark:text-emerald-300">{scheduleMessage}</p>}
@@ -501,9 +509,11 @@ export function MissionControlPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={schedule.enabled ? "default" : "secondary"}>{schedule.enabled ? "Enabled" : "Disabled"}</Badge>
                     <Button variant="outline" size="sm" onClick={() => void toggleSchedule(schedule, !schedule.enabled)}>
+                      {schedule.enabled ? <IconPlayerPause className="h-4 w-4" aria-hidden="true" /> : <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />}
                       {schedule.enabled ? "Disable" : "Enable"}
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => void runSchedule(schedule)}>
+                      <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />
                       Run Now
                     </Button>
                   </div>
@@ -533,6 +543,7 @@ export function MissionControlPage() {
             <CardDescription>Most recent pipeline operations.</CardDescription>
           </div>
           <Button variant="outline" onClick={() => load()} disabled={loading}>
+            <IconRefresh className="h-4 w-4" aria-hidden="true" />
             Refresh
           </Button>
         </CardHeader>
@@ -544,7 +555,7 @@ export function MissionControlPage() {
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className={`rounded-md border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${getJobCardClassName(job.status)}`}
+                  className={`rounded-md border p-3 ${getJobCardClassName(job.status)}`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-medium">

@@ -1,3 +1,4 @@
+import { IconRefresh } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -19,6 +20,7 @@ export function ReviewEmptyState({
       </p>
 
       <Button onClick={onRefresh}>
+        <IconRefresh className="h-4 w-4" aria-hidden="true" />
         Refresh queue
       </Button>
     </Card>
