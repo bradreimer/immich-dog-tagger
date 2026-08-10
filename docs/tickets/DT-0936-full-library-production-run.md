@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Planned
+Completed
 
 ## **Goal**
 
@@ -58,3 +58,11 @@ DT-0932, DT-0935
 ## **Suggested commit message**
 
 `test(validation): complete production-scale library run`  
+
+## **Validation results**
+
+* Validation report recorded: `docs/validation/v0.9.3/DT-0936-report.md`.
+* Full-library production run completed incrementally with repeat-run convergence to zero additional work.
+* Backup created and validated before and after operational run.
+* Job history remained coherent and preserved failure visibility.
+* Operational counts and derived-data growth were recorded from authoritative `state.db`.
