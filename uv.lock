@@ -444,7 +444,7 @@ wheels = [
 
 [[package]]
 name = "immich-dog-tagger"
-version = "0.9.2"
+version = "0.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
