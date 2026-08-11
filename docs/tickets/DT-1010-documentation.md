@@ -14,7 +14,7 @@ Medium
 
 ## **Status**
 
-Pending
+Completed
 
 ## **Goal**
 
@@ -24,15 +24,11 @@ Make the product understandable without ML expertise.
 
 DT-1001 through DT-1009 deliver the review -> reclassify loop, its safety guarantees, and its metrics, but a new user still needs a written path from an empty project to progressively improved automatic classification -- what to do first, when to click Reclassify, and what the confidence states mean.
 
-## **Steps**
+## **Implementation notes**
 
-1. Document first-project setup.
-2. Explain the initial 50-100 review recommendation as a starting point, not a magic threshold.
-3. Explain when to click Reclassify.
-4. Explain confidence, needs-review, and unknown.
-5. Explain the iterative workflow.
-6. Document backups/state and recovery.
-7. Document known v1.0 limitations, especially no temporal weighting and no separate training step.
+- Added [docs/workflow.md](../workflow.md) ("New Project Workflow"), covering all seven required points: first-project setup, the 50-100 review batch framed explicitly as a starting point rather than a threshold the system checks for, when to click Reclassify and why it's safe to run repeatedly, a table defining confident/needs-review/unknown against the actual centralized policy semantics, the iterative review -> reclassify loop as a diagram, backups/state/recovery (the real `backup`/`validate-backup`/`restore`/`check-derived-data` CLI commands and the diagnostics panel), and known v1.0.0 limitations (no temporal weighting, no separate training step, no calibrated probabilities, single active operation at a time) with a link to the spec's full non-goals list.
+- Linked from `README.md`'s Quick Start section so it's discoverable at the point a new user finishes their first pipeline run.
+- Written and cross-checked against the actual DT-1001-1009 implementation (policy thresholds, CLI command names, diagnostics fields) rather than the spec's aspirational description, so it reflects what v1.0.0 actually does.
 
 ## **Acceptance criteria**
 
@@ -40,7 +36,7 @@ A new user can follow the workflow from an empty project to progressively improv
 
 ## **Testing requirements**
 
-Documentation-only ticket; reviewed for accuracy against the actual DT-1001-1009 implementation before merge.
+Documentation-only ticket; reviewed for accuracy against the actual DT-1001-1009 implementation. `./scripts/check.sh` passes (no code changed).
 
 ## **Dependencies**
 

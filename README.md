@@ -68,7 +68,13 @@ Open:
 http://localhost:5173
 ```
 
-Review images and correct predictions.
+Review images and correct predictions. When you've reviewed a batch, click
+**Reclassify** in Mission Control to apply what you've learned to the rest of
+the library, then repeat. For the full first-project walkthrough (how much to
+review, when to reclassify, what confidence/needs-review/unknown mean, backups,
+and known limitations), see:
+
+[New Project Workflow](docs/workflow.md)
 
 Publish results back to Immich:
 
