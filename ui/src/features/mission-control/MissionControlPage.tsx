@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createJob, createSchedule, disableSchedule, enableSchedule, getDiagnostics, getJobs, getReviewStats, getSchedules, runScheduleNow } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName, jobTextClassName } from "../../lib/statusColors";
+import { formatRelativeTime } from "../../lib/utils";
 import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
@@ -10,6 +11,7 @@ import type { Diagnostics } from "../../types/diagnostics";
 import {
   IconActivity,
   IconAlertTriangle,
+  IconArrowRight,
   IconCircleCheck,
   IconClipboardList,
   IconCloudUpload,
@@ -20,6 +22,7 @@ import {
   IconRefresh,
   IconRefreshDot,
   IconRocket,
+  IconSparkles,
 } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -235,6 +238,14 @@ export function MissionControlPage() {
     return () => window.clearInterval(timer);
   }, [hasActiveJobs, load]);
 
+  // Forces a re-render every 30s so the relative "last updated" text stays accurate
+  // even when nothing else on the page is refreshing.
+  const [, forceRelativeTimeUpdate] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => forceRelativeTimeUpdate((n) => n + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <section className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -259,7 +270,9 @@ export function MissionControlPage() {
             Run Pipeline
           </Button>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>{lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : "Loading…"}</span>
+            <span title={lastUpdated?.toLocaleTimeString()}>
+              {lastUpdated ? `Last updated: ${formatRelativeTime(lastUpdated)}` : "Loading…"}
+            </span>
             <button
               type="button"
               aria-label="Refresh dashboard"
@@ -319,6 +332,47 @@ export function MissionControlPage() {
           subtext={stats ? `${stats.reviewed} of ${stats.total} reviewed` : undefined}
         />
       </div>
+
+      {stats && (
+        <div
+          className={
+            stats.remaining > 0
+              ? "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-status-warning/30 bg-status-warning/5 p-4"
+              : "flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-4"
+          }
+        >
+          <div className="flex items-center gap-3">
+            <IconSparkles
+              className={stats.remaining > 0 ? "h-5 w-5 shrink-0 text-status-warning" : "h-5 w-5 shrink-0 text-muted-foreground"}
+              aria-hidden="true"
+            />
+            <p className="text-sm">
+              {stats.remaining > 0 ? (
+                <>
+                  <span className="font-medium">{stats.remaining} image{stats.remaining === 1 ? "" : "s"}</span>{" "}
+                  need review. Reviewing them teaches the classifier and shrinks the queue.
+                </>
+              ) : (
+                "All caught up -- no images need review right now."
+              )}
+            </p>
+          </div>
+
+          {stats.remaining > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.history.pushState({}, "", "/review");
+                window.dispatchEvent(new PopStateEvent("popstate"));
+              }}
+            >
+              Go to Review
+              <IconArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+      )}
 
       {diagnostics && (
         <Card>

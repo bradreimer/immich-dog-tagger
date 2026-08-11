@@ -66,6 +66,23 @@ export function MetricsPage() {
   const hasQueueTrend = queueTrendPasses.length >= 2;
   const hasLabeledTrend = labeledTrendPasses.length >= 2;
 
+  // "No review needed" share (eligible - queue) at the first vs. most recent recorded pass,
+  // as percentage points -- how much the automation share has moved across recorded history.
+  // Only meaningful once two passes both have a non-zero eligible_count to divide by.
+  const automationTrendDelta = (() => {
+    if (queueTrendPasses.length < 2) {
+      return null;
+    }
+    const first = queueTrendPasses[0];
+    const last = queueTrendPasses[queueTrendPasses.length - 1];
+    if (first.eligible_count === 0 || last.eligible_count === 0) {
+      return null;
+    }
+    const firstRate = (first.eligible_count - (first.review_queue_size as number)) / first.eligible_count;
+    const lastRate = (last.eligible_count - (last.review_queue_size as number)) / last.eligible_count;
+    return Math.round((lastRate - firstRate) * 100);
+  })();
+
   return (
     <section className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -118,6 +135,19 @@ export function MetricsPage() {
                 {metrics.no_review_needed_count} of {metrics.eligible_count} images require no
                 manual review right now -- either confidently classified, or already reviewed.
               </p>
+
+              {automationTrendDelta !== null && automationTrendDelta !== 0 && (
+                <p
+                  className={
+                    automationTrendDelta > 0
+                      ? "inline-flex items-center gap-1.5 rounded-md bg-status-good/10 px-2.5 py-1 text-sm font-medium text-status-good"
+                      : "inline-flex items-center gap-1.5 rounded-md bg-status-serious/10 px-2.5 py-1 text-sm font-medium text-status-serious"
+                  }
+                >
+                  {automationTrendDelta > 0 ? "↑" : "↓"} {Math.abs(automationTrendDelta)} points since
+                  pass #{queueTrendPasses[0].id}
+                </p>
+              )}
             </div>
 
             <DonutChart
