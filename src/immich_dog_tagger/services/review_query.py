@@ -4,12 +4,23 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import case, exists, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import ClassificationCandidate
 from immich_dog_tagger.models import (
     CropClassification,
+    EmbeddingExample,
     ReviewAction,
+)
+
+# Eager-load the relationships _to_review_item() touches (crop, matched
+# example, and the example's identity) so a review-queue page issues a
+# constant number of queries instead of one extra round trip per row.
+_REVIEW_ITEM_RELATIONSHIPS = (
+    selectinload(CropClassification.crop),
+    selectinload(CropClassification.matched_example).selectinload(
+        EmbeddingExample.identity
+    ),
 )
 from immich_dog_tagger.policy import (
     DEFAULT_POLICY,
@@ -84,7 +95,11 @@ class ReviewQueryService:
         if unknown and identity is not None:
             raise ValueError("identity and unknown cannot be combined")
 
-        query = select(CropClassification).order_by(CropClassification.confidence.asc())
+        query = (
+            select(CropClassification)
+            .options(*_REVIEW_ITEM_RELATIONSHIPS)
+            .order_by(CropClassification.confidence.asc())
+        )
 
         if unknown:
             query = query.where(CropClassification.identity.is_(None))
@@ -182,6 +197,7 @@ class ReviewQueryService:
 
         query = (
             select(CropClassification)
+            .options(*_REVIEW_ITEM_RELATIONSHIPS)
             .where(
                 ~self._has_review_action(),
             )

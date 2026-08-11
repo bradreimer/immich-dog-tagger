@@ -5,7 +5,7 @@ Dog identity classifier.
 from dataclasses import dataclass
 
 import numpy as np
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 
 from .embeddings import blob_to_embedding
 from .models import EmbeddingExample, Identity
@@ -38,6 +38,7 @@ class IdentityClassifier:
         self.session = session
         self.scorer = scorer or SimilarityScorer()
         self.policy = policy
+        self._examples_cache: list[EmbeddingExample] | None = None
 
     def classify(
         self,
@@ -56,14 +57,7 @@ class IdentityClassifier:
 
         identity_scores: dict[str, ClassificationCandidate] = {}
 
-        examples = (
-            self.session.query(EmbeddingExample)
-            .join(Identity)
-            .where(Identity.is_active.is_(True))
-            .all()
-        )
-
-        for example in examples:
+        for example in self._load_examples():
             known = blob_to_embedding(example.embedding)
 
             similarity = self._cosine_similarity(
@@ -127,3 +121,24 @@ class IdentityClassifier:
     ) -> float:
 
         return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+    def _load_examples(self) -> list[EmbeddingExample]:
+        """
+        Load and cache active labeled examples for this classifier instance's
+        lifetime. Without this, classifying a batch of N crops re-fetches and
+        re-deserializes the entire example set N times -- a query per crop
+        that dominates at scale (e.g. 30,000 crops = 30,000 identical
+        queries). Callers create a fresh IdentityClassifier per classify/
+        reclassify run, so caching for the instance's lifetime does not risk
+        missing examples added during that same run in practice.
+        """
+        if self._examples_cache is None:
+            self._examples_cache = (
+                self.session.query(EmbeddingExample)
+                .join(Identity)
+                .where(Identity.is_active.is_(True))
+                .options(contains_eager(EmbeddingExample.identity))
+                .all()
+            )
+
+        return self._examples_cache
