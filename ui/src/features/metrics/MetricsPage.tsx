@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getLearningMetrics } from "../../lib/api";
-import type { ClassificationPassSummary, LearningMetrics } from "../../types/metrics";
-import { IconRefresh } from "@tabler/icons-react";
+import type { LearningMetrics } from "../../types/metrics";
+import {
+  IconBolt,
+  IconBooks,
+  IconClipboardList,
+  IconHistory,
+  IconRefresh,
+  IconTargetArrow,
+  IconUserCheck,
+} from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +19,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { DonutChart } from "./components/DonutChart";
+import { TrendChart } from "./components/TrendChart";
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
@@ -20,52 +31,8 @@ function formatTimestamp(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
-function CoverageSparkline({ passes }: { passes: ClassificationPassSummary[] }) {
-  const width = 160;
-  const height = 32;
-
-  const points = passes.map((pass) =>
-    pass.eligible_count > 0 ? pass.confident_count / pass.eligible_count : 0,
-  );
-
-  const max = Math.max(...points, 0.01);
-  const min = Math.min(...points, 0);
-  const range = Math.max(max - min, 0.01);
-
-  const coords = points.map((value, index) => ({
-    x: (index / (points.length - 1)) * width,
-    y: height - ((value - min) / range) * height,
-    value,
-  }));
-
-  const path = coords
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
-    .join(" ");
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={`Confident coverage trend over the last ${points.length} reclassification passes`}
-      className="shrink-0 overflow-visible text-amber-500"
-    >
-      <path
-        d={path}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {coords.map((point, index) => (
-        <circle key={passes[index].id} cx={point.x} cy={point.y} r={2.5} fill="currentColor">
-          <title>{`Pass #${passes[index].id}: ${Math.round(point.value * 100)}% confident`}</title>
-        </circle>
-      ))}
-    </svg>
-  );
+function formatPercent(value: number | null): string {
+  return value !== null ? `${Math.round(value * 100)}%` : "—";
 }
 
 export function MetricsPage() {
@@ -89,6 +56,15 @@ export function MetricsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const passHistory = metrics?.pass_history ?? [];
+  // review_queue_size/labeled_example_count are nullable on passes recorded before DT-1101
+  // shipped and are never backfilled -- only plot the contiguous data that actually exists
+  // rather than rendering a fabricated 0 for "not recorded".
+  const queueTrendPasses = passHistory.filter((pass) => pass.review_queue_size !== null);
+  const labeledTrendPasses = passHistory.filter((pass) => pass.labeled_example_count !== null);
+  const hasQueueTrend = queueTrendPasses.length >= 2;
+  const hasLabeledTrend = labeledTrendPasses.length >= 2;
 
   return (
     <section className="space-y-6">
@@ -131,20 +107,28 @@ export function MetricsPage() {
       )}
 
       {metrics && (
-        <Card className="overflow-hidden border-primary/20 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.18),_transparent_45%),linear-gradient(135deg,_rgba(255,255,255,0.95),_rgba(254,242,242,0.88))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.2),_transparent_45%),linear-gradient(135deg,_rgba(17,24,39,0.95),_rgba(31,41,55,0.92))]">
-          <CardContent className="space-y-1 p-6">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
-              Automation
-            </p>
-            <p className="text-5xl font-bold tracking-tight">
-              {metrics.automation_rate !== null
-                ? `${Math.round(metrics.automation_rate * 100)}%`
-                : "—"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {metrics.no_review_needed_count} of {metrics.eligible_count} images require no
-              manual review right now -- either confidently classified, or already reviewed.
-            </p>
+        <Card>
+          <CardContent className="grid gap-6 p-6 sm:grid-cols-[1.1fr_1fr] sm:items-center">
+            <div className="space-y-1">
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-status-info">
+                Automation
+              </p>
+              <p className="text-5xl font-bold tracking-tight">{formatPercent(metrics.automation_rate)}</p>
+              <p className="text-sm text-muted-foreground">
+                {metrics.no_review_needed_count} of {metrics.eligible_count} images require no
+                manual review right now -- either confidently classified, or already reviewed.
+              </p>
+            </div>
+
+            <DonutChart
+              centerValue={formatPercent(metrics.automation_rate)}
+              centerLabel="automated"
+              segments={[
+                { key: "confident", label: "Confident", value: metrics.confident_count, colorVar: "var(--status-good)" },
+                { key: "queue", label: "Review queue", value: metrics.review_queue_size, colorVar: "var(--status-warning)" },
+                { key: "unknown", label: "Unknown", value: metrics.unknown_count, colorVar: "var(--status-serious)" },
+              ]}
+            />
           </CardContent>
         </Card>
       )}
@@ -159,77 +143,137 @@ export function MetricsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Confident coverage</p>
-                <p className="mt-1 text-2xl font-semibold">
-                  {metrics.coverage !== null ? `${Math.round(metrics.coverage * 100)}%` : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {metrics.confident_count} of {metrics.eligible_count} eligible crops
-                </p>
-              </div>
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Review rate</p>
-                <p className="mt-1 text-2xl font-semibold">
-                  {metrics.review_rate !== null ? `${Math.round(metrics.review_rate * 100)}%` : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {metrics.reviewed_count} of {metrics.eligible_count} reviewed
-                </p>
-              </div>
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Review queue</p>
-                <p className="mt-1 text-2xl font-semibold">{metrics.review_queue_size}</p>
-                <p className="text-xs text-muted-foreground">
-                  awaiting review · {metrics.unknown_count} unknown
-                  {metrics.unknown_rate !== null
-                    ? ` (${Math.round(metrics.unknown_rate * 100)}%)`
-                    : ""}
-                </p>
-              </div>
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Labeled examples</p>
-                <p className="mt-1 text-2xl font-semibold">{metrics.labeled_example_count}</p>
-                <p className="text-xs text-muted-foreground">
-                  trusted reference examples for the classifier
-                </p>
-              </div>
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Last Reclassify</p>
-                {metrics.last_reclassification ? (
-                  <>
-                    <p
-                      className={`mt-1 font-medium ${
-                        metrics.last_reclassification.status === "completed"
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-rose-600 dark:text-rose-400"
-                      }`}
-                    >
-                      {metrics.last_reclassification.status === "completed" ? "Completed" : "Failed"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatTimestamp(metrics.last_reclassification.completed_at)} ·{" "}
-                      {metrics.last_reclassification.changed_count} changed
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-1 font-medium text-muted-foreground">Never run</p>
-                )}
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatTile
+                icon={IconTargetArrow}
+                tone="good"
+                label="Confident coverage"
+                value={formatPercent(metrics.coverage)}
+                subtext={`${metrics.confident_count} of ${metrics.eligible_count} eligible crops`}
+                progress={metrics.coverage}
+              />
+              <StatTile
+                icon={IconUserCheck}
+                tone="info"
+                label="Review rate"
+                value={formatPercent(metrics.review_rate)}
+                subtext={`${metrics.reviewed_count} of ${metrics.eligible_count} reviewed`}
+                progress={metrics.review_rate}
+              />
+              <StatTile
+                icon={IconClipboardList}
+                tone="warning"
+                label="Review queue"
+                value={metrics.review_queue_size}
+                subtext={`awaiting review · ${metrics.unknown_count} unknown${
+                  metrics.unknown_rate !== null ? ` (${formatPercent(metrics.unknown_rate)})` : ""
+                }`}
+              />
+              <StatTile
+                icon={IconBooks}
+                tone="accent"
+                label="Labeled examples"
+                value={metrics.labeled_example_count}
+                subtext="trusted reference examples for the classifier"
+              />
+              <StatTile
+                icon={IconBolt}
+                tone="info"
+                label="Predictions changed"
+                value={metrics.last_reclassification?.changed_count ?? 0}
+                subtext={metrics.last_reclassification ? "in the last reclassification pass" : "no pass run yet"}
+              />
+              <StatTile
+                icon={IconHistory}
+                tone={
+                  metrics.last_reclassification
+                    ? metrics.last_reclassification.status === "completed"
+                      ? "good"
+                      : "critical"
+                    : "neutral"
+                }
+                label="Last Reclassify"
+                value={
+                  metrics.last_reclassification
+                    ? metrics.last_reclassification.status === "completed"
+                      ? "Completed"
+                      : "Failed"
+                    : "Never run"
+                }
+                subtext={
+                  metrics.last_reclassification
+                    ? formatTimestamp(metrics.last_reclassification.completed_at)
+                    : undefined
+                }
+              />
             </div>
-
-            {metrics.pass_history.length >= 2 && (
-              <div className="flex items-center gap-3 rounded-md border p-3">
-                <CoverageSparkline passes={metrics.pass_history} />
-                <p className="text-xs text-muted-foreground">
-                  Confident coverage across the last {metrics.pass_history.length} reclassification
-                  passes.
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
+      )}
+
+      {metrics && (hasQueueTrend || hasLabeledTrend) && (
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          {hasQueueTrend && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Progress Over Time</CardTitle>
+                <CardDescription>
+                  Review queue, confident, and unknown counts across the last{" "}
+                  {queueTrendPasses.length} reclassification passes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TrendChart
+                  unitLabel="eligible crops"
+                  xLabels={queueTrendPasses.map((pass) => `#${pass.id}`)}
+                  series={[
+                    {
+                      key: "queue",
+                      label: "Review queue",
+                      colorVar: "var(--status-warning)",
+                      values: queueTrendPasses.map((p) => p.review_queue_size as number),
+                    },
+                    {
+                      key: "confident",
+                      label: "Confident",
+                      colorVar: "var(--status-good)",
+                      values: queueTrendPasses.map((p) => p.confident_count),
+                    },
+                    {
+                      key: "unknown",
+                      label: "Unknown",
+                      colorVar: "var(--status-serious)",
+                      values: queueTrendPasses.map((p) => p.unknown_count),
+                    },
+                  ]}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {hasLabeledTrend && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Labeled Examples</CardTitle>
+                <CardDescription>Trusted reference examples, same passes.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TrendChart
+                  unitLabel="labeled examples"
+                  xLabels={labeledTrendPasses.map((pass) => `#${pass.id}`)}
+                  series={[
+                    {
+                      key: "labeled",
+                      label: "Labeled examples",
+                      colorVar: "var(--chart-3)",
+                      values: labeledTrendPasses.map((p) => p.labeled_example_count as number),
+                    },
+                  ]}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
     </section>
   );

@@ -49,7 +49,11 @@ Do not introduce arbitrary colors or button styles for individual features.
 
 A contributor should not need to invent a new button color to communicate that an action is important.
 
-Action buttons should use the shared orange action color language.
+Action buttons should use the shared action color language: the app's single primary/accent
+color (blue, defined by the `--primary` design token; see
+[v1.2-visual-style-refresh.md](v1.2-visual-style-refresh.md)). This superseded an earlier
+amber/orange accent -- the rule that matters is that there is exactly one shared action color
+used consistently everywhere, not which hue it is.
 
 Hover behavior should be consistent across action buttons.
 

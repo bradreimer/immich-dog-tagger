@@ -91,6 +91,24 @@ Completed:
 Exit criteria:
 Completed.
 
+## v1.2 - Visual Style Refresh
+
+See [docs/specs/v1.2-visual-style-refresh.md](specs/v1.2-visual-style-refresh.md).
+
+Goal:
+Give the app one consistent visual identity -- a sidebar navigation shell, a single blue action
+accent, consistent status colors, and a stat-tile/chart pattern -- across all four existing tabs,
+replacing the horizontal pill nav and per-page ad-hoc styling.
+
+Completed:
+- DT-1104: blue accent design tokens, validated status/categorical color palette, sidebar
+  navigation shell, reusable stat-tile primitive
+- DT-1105: rolled the style out to Mission Control, Metrics (including new donut and trend
+  charts built from existing `GET /metrics` data), Job Queue, and Review's surrounding chrome
+
+Exit criteria:
+Completed.
+
 ## Active Learning Improvements
 
 Goal:
