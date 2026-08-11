@@ -14,7 +14,7 @@ Medium
 
 ## **Status**
 
-Pending
+Completed
 
 ## **Goal**
 
@@ -23,6 +23,14 @@ Give metrics their own top-level page instead of sharing space with Mission Cont
 ## **Context**
 
 DT-1006 put the "Learning Progress" card on Mission Control, next to job controls and diagnostics. Operator feedback: metrics deserve their own tab, separate from both Mission Control (operational actions) and Review (the correction workflow) -- Mission Control gets noisier as more operational cards accumulate, and a dedicated page gives the trend data (about to grow further per DT-1101/DT-1102) room to breathe without crowding the manual-operations card.
+
+## **Implementation notes**
+
+- Added `ui/src/features/metrics/MetricsPage.tsx`: a new top-level page following the same structural pattern as `JobQueuePage.tsx` (header with title/description/refresh button, error card, content cards), hosting the `Learning Progress` card and `CoverageSparkline` moved from Mission Control verbatim (fetches from the existing `GET /metrics` via `getLearningMetrics()` -- no new API needed).
+- Added a "Metrics" entry to `Header.tsx`'s `links` array, placed immediately after "Mission Control" (both visually adjacent and in tab order), reusing the existing pushState-based routing with no new dependency.
+- Wired `/metrics` in `App.tsx`'s path switch to render `MetricsPage`.
+- Removed the Learning Progress card, `CoverageSparkline`, the `metrics` state, and the `getLearningMetrics()` call from `MissionControlPage.tsx` -- moved, not duplicated. Mission Control now shows only its operational cards.
+- Verified visually: built the app, ran it against an isolated scratch backend on non-default ports (the default `:8000`/`:5173` were already in use by another local session), seeded sample data, and screenshotted both Mission Control (card gone) and the new Metrics tab (card present, sparkline rendering, nav highlighting "Metrics").
 
 ## **Acceptance criteria**
 

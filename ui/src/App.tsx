@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "./components/layout/AppShell";
 import { JobQueuePage } from "./features/jobs/JobQueuePage";
+import { MetricsPage } from "./features/metrics/MetricsPage";
 import { MissionControlPage } from "./features/mission-control/MissionControlPage";
 import { ReviewPage } from "./features/review/ReviewPage";
 
@@ -35,6 +36,10 @@ function App() {
 
     if (pathname === "/jobs") {
       return <JobQueuePage />;
+    }
+
+    if (pathname === "/metrics") {
+      return <MetricsPage />;
     }
 
     return <MissionControlPage />;

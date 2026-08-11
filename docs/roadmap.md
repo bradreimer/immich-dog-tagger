@@ -65,7 +65,7 @@ Completed:
 - Reclassification service/job that reuses stored embeddings and reviewed examples without touching reviewed ground truth (DT-1001)
 - Review-to-example ground-truth hardening, closing a real leakage defect (DT-1003)
 - Job lifecycle/idempotency/recovery for Reclassify (DT-1005)
-- Reclassify action and Learning Progress dashboard in Mission Control (DT-1002, DT-1006)
+- Reclassify action on Mission Control and a Learning Progress dashboard (DT-1002, DT-1006; the dashboard moved to its own Metrics tab in v1.1's DT-1103)
 - Pipeline/correction lifecycle logging (DT-1007)
 - Scale validation: two N+1 defects found and fixed (DT-1008)
 - End-to-end review-driven learning loop regression tests (DT-1009)
@@ -83,9 +83,11 @@ See [docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-cov
 Goal:
 Answer "is the system getting better at doing the work I used to have to do manually?" with a dedicated Metrics tab, complete per-pass trend data, and one prominent automation-rate number.
 
+Completed:
+- DT-1103: dedicated Metrics tab, next to Mission Control
+
 Backlog:
 - DT-1101: snapshot labeled-example count and review-queue size per classification pass
-- DT-1103: move Learning Progress into a dedicated Metrics tab
 - DT-1102: reconcile the review-queue metric definition and add a prominent automation-rate metric
 
 ## Active Learning Improvements

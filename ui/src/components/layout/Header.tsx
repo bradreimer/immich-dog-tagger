@@ -8,6 +8,7 @@ interface Props {
 export function Header({ currentPath, onNavigate }: Props) {
   const links = [
     { label: "Mission Control", shortLabel: "Control", path: "/" },
+    { label: "Metrics", shortLabel: "Metrics", path: "/metrics" },
     { label: "Job Queue", shortLabel: "Jobs", path: "/jobs" },
     { label: "Review", shortLabel: "Review", path: "/review" },
   ];
