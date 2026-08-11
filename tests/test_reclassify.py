@@ -89,6 +89,10 @@ def test_reclassify_with_no_labeled_examples_terminates_cleanly(engine):
         assert result.changed_count == 0
         assert "No labeled examples" in result.message
 
+        # Trend fields are still snapshotted on the zero-example short circuit.
+        assert result.labeled_example_count == 0
+        assert result.review_queue_size == 1
+
         session.refresh(classification)
         assert classification.identity is None
         assert embedder.calls == []
@@ -115,6 +119,11 @@ def test_reclassify_updates_auto_classification(engine):
         assert result.eligible_count == 1
         assert result.confident_count == 1
         assert result.changed_count == 1
+
+        # One bootstrap example exists; the crop is now confident, so it's
+        # no longer in the review queue.
+        assert result.labeled_example_count == 1
+        assert result.review_queue_size == 0
 
         session.refresh(classification)
         assert classification.identity == "Hermann"
@@ -155,6 +164,25 @@ def test_reclassify_reuses_cached_embedding_and_computes_missing_ones(engine):
         assert cached.identity == "Hermann"
         assert legacy.identity == "Hermann"
         assert legacy.embedding is not None
+
+
+def test_reclassify_snapshots_review_queue_reflecting_post_pass_state(engine):
+    with Session(engine) as session:
+        _add_identity(session, "Hermann", [1, 0, 0])
+
+        # Becomes confident after reclassify -- leaves the queue.
+        _add_auto_classification(session, "hermann.jpg", embedding=[1, 0, 0])
+
+        # No matching example -- stays Unknown, stays in the queue.
+        _add_auto_classification(session, "stranger.jpg", embedding=[0, 1, 0])
+
+        embedder = FakeBatchEmbedder(vector=[1, 0, 0])
+        service = ReclassifyService(session, embedder)
+
+        result = service.reclassify()
+
+        assert result.labeled_example_count == 1
+        assert result.review_queue_size == 1
 
 
 def test_reclassify_never_touches_reviewed_ground_truth(engine):
@@ -266,6 +294,10 @@ def test_reclassify_failure_marks_pass_failed_and_preserves_earlier_batches(engi
         classification_pass = session.query(ClassificationPass).one()
         assert classification_pass.status is ClassificationPassStatus.FAILED
         assert classification_pass.error_message == "simulated database error"
+
+        # A partial pass has no well-defined final snapshot.
+        assert classification_pass.labeled_example_count is None
+        assert classification_pass.review_queue_size is None
 
         # The first batch's update was already committed before the failure.
         updated = (

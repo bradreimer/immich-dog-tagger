@@ -196,6 +196,8 @@ class ClassificationPassResponse(BaseModel):
     needs_review_count: int
     unknown_count: int
     changed_count: int
+    labeled_example_count: int | None
+    review_queue_size: int | None
     error_message: str | None
     started_at: datetime
     completed_at: datetime | None
@@ -212,6 +214,8 @@ class ClassificationPassResponse(BaseModel):
             needs_review_count=summary.needs_review_count,
             unknown_count=summary.unknown_count,
             changed_count=summary.changed_count,
+            labeled_example_count=summary.labeled_example_count,
+            review_queue_size=summary.review_queue_size,
             error_message=summary.error_message,
             started_at=summary.started_at,
             completed_at=summary.completed_at,
@@ -227,6 +231,10 @@ class LearningMetricsResponse(BaseModel):
     unknown_count: int
     coverage: float | None
     review_rate: float | None
+    unknown_rate: float | None
+    review_queue_size: int
+    no_review_needed_count: int
+    automation_rate: float | None
     last_reclassification: ClassificationPassResponse | None
     pass_history: list[ClassificationPassResponse]
 
@@ -241,6 +249,10 @@ class LearningMetricsResponse(BaseModel):
             unknown_count=metrics.unknown_count,
             coverage=metrics.coverage,
             review_rate=metrics.review_rate,
+            unknown_rate=metrics.unknown_rate,
+            review_queue_size=metrics.review_queue_size,
+            no_review_needed_count=metrics.no_review_needed_count,
+            automation_rate=metrics.automation_rate,
             last_reclassification=(
                 ClassificationPassResponse.from_summary(metrics.last_reclassification)
                 if metrics.last_reclassification

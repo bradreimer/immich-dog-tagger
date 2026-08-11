@@ -183,3 +183,44 @@ def test_database_adds_classification_pass_columns(tmp_path: Path):
         ).all()
 
     assert rows == [("Hermann", None, None, None)]
+
+
+def test_database_adds_classification_pass_trend_columns(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    connection.execute(
+        "CREATE TABLE classification_passes ("
+        "id INTEGER PRIMARY KEY, "
+        "status VARCHAR(16) NOT NULL, "
+        "classifier_version VARCHAR(32) NOT NULL, "
+        "threshold FLOAT NOT NULL, "
+        "eligible_count INTEGER NOT NULL, "
+        "confident_count INTEGER NOT NULL, "
+        "needs_review_count INTEGER NOT NULL, "
+        "unknown_count INTEGER NOT NULL, "
+        "changed_count INTEGER NOT NULL"
+        ")"
+    )
+    connection.execute(
+        "INSERT INTO classification_passes "
+        "(status, classifier_version, threshold, eligible_count, confident_count, "
+        "needs_review_count, unknown_count, changed_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("completed", "v1", 0.80, 10, 8, 0, 2, 1),
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        rows = session.execute(
+            text(
+                "SELECT status, labeled_example_count, review_queue_size "
+                "FROM classification_passes ORDER BY id"
+            )
+        ).all()
+
+    assert rows == [("completed", None, None)]

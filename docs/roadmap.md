@@ -85,10 +85,11 @@ Answer "is the system getting better at doing the work I used to have to do manu
 
 Completed:
 - DT-1103: dedicated Metrics tab, next to Mission Control
-
-Backlog:
 - DT-1101: snapshot labeled-example count and review-queue size per classification pass
 - DT-1102: reconcile the review-queue metric definition and add a prominent automation-rate metric
+
+Exit criteria:
+Completed.
 
 ## Active Learning Improvements
 

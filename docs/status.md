@@ -22,12 +22,15 @@
 - DT-1009 end-to-end review-driven learning loop test suite
 - DT-1010 v1.0 user and operator documentation (docs/workflow.md)
 - DT-1011 v1.0.0 release validation (see docs/validation/v1.0.0/DT-1011-release-validation.md)
+- DT-1103 dedicated Metrics tab, next to Mission Control
+- DT-1101 per-pass labeled-example-count/review-queue-size snapshots
+- DT-1102 reconciled review-queue metric and prominent automation-rate metric
 
 ## Current Milestone
-v1.0.0 -- released. See [docs/specs/v1.0.0.md](specs/v1.0.0.md).
+v1.1 Automation Coverage Dashboard -- all backlog tickets implemented (DT-1101, DT-1102, DT-1103). Not yet version-bumped or tagged. See [docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-coverage-dashboard.md).
 
 ## Next Work
-Post-v1.0.0: improved reference-example selection, reference-set curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements").
+Decide whether/when to cut a v1.1.0 release; otherwise, next candidates are improved reference-example selection, reference-set curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements").
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

@@ -68,6 +68,12 @@ def test_learning_metrics_counts_and_ratios(engine):
         assert metrics.labeled_example_count == 1
         assert metrics.coverage == 0.5
         assert metrics.review_rate == 0.25
+        assert metrics.unknown_rate == 0.25
+        # Reviewed items and confident AUTO items don't need manual review;
+        # the unknown crop and the below-threshold Hermann crop do.
+        assert metrics.review_queue_size == 2
+        assert metrics.no_review_needed_count == 2
+        assert metrics.automation_rate == 0.5
         assert metrics.last_reclassification is None
         assert metrics.pass_history == []
 
@@ -79,6 +85,10 @@ def test_learning_metrics_with_no_data_reports_none_ratios(engine):
         assert metrics.eligible_count == 0
         assert metrics.coverage is None
         assert metrics.review_rate is None
+        assert metrics.unknown_rate is None
+        assert metrics.automation_rate is None
+        assert metrics.review_queue_size == 0
+        assert metrics.no_review_needed_count == 0
 
 
 def test_learning_metrics_reports_pass_history_and_last_reclassification(engine):
@@ -92,6 +102,8 @@ def test_learning_metrics_reports_pass_history_and_last_reclassification(engine)
                 confident_count=8,
                 unknown_count=2,
                 changed_count=3,
+                labeled_example_count=40,
+                review_queue_size=2,
             )
         )
         session.commit()
@@ -104,6 +116,8 @@ def test_learning_metrics_reports_pass_history_and_last_reclassification(engine)
             confident_count=9,
             unknown_count=1,
             changed_count=1,
+            labeled_example_count=55,
+            review_queue_size=1,
         )
         session.add(second)
         session.commit()
@@ -113,11 +127,35 @@ def test_learning_metrics_reports_pass_history_and_last_reclassification(engine)
         assert len(metrics.pass_history) == 2
         # Oldest first, so a trend chart reads left-to-right chronologically.
         assert metrics.pass_history[0].confident_count == 8
+        assert metrics.pass_history[0].labeled_example_count == 40
+        assert metrics.pass_history[0].review_queue_size == 2
         assert metrics.pass_history[1].confident_count == 9
+        assert metrics.pass_history[1].labeled_example_count == 55
+        assert metrics.pass_history[1].review_queue_size == 1
 
         assert metrics.last_reclassification is not None
         assert metrics.last_reclassification.id == second.id
         assert metrics.last_reclassification.changed_count == 1
+        assert metrics.last_reclassification.labeled_example_count == 55
+
+
+def test_pass_summary_trend_fields_are_null_for_legacy_or_failed_passes(engine):
+    with Session(engine) as session:
+        session.add(
+            ClassificationPass(
+                status=ClassificationPassStatus.FAILED,
+                classifier_version="v1",
+                threshold=0.80,
+                eligible_count=10,
+            )
+        )
+        session.commit()
+
+        metrics = MetricsService(session).learning_metrics()
+
+        assert metrics.last_reclassification is not None
+        assert metrics.last_reclassification.labeled_example_count is None
+        assert metrics.last_reclassification.review_queue_size is None
 
 
 def test_learning_metrics_history_limit(engine):

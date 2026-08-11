@@ -174,6 +174,35 @@ class ReviewQueryService:
             remaining=(total or 0) - (reviewed or 0),
         )
 
+    def review_queue_count(
+        self,
+        *,
+        threshold: float | None = None,
+    ) -> int:
+        """
+        Count of items `active_review()` would actually surface as pending
+        work: no review action yet, and either unknown or below the
+        confident threshold. Unlike `review_queue_stats().remaining` (total
+        minus reviewed), this excludes confidently-classified items that
+        simply haven't been manually reviewed yet -- those don't need a
+        human to look at them.
+        """
+        threshold = (
+            threshold if threshold is not None else self.policy.confident_threshold
+        )
+
+        query = (
+            select(func.count())
+            .select_from(CropClassification)
+            .where(~self._has_review_action())
+            .where(
+                (CropClassification.identity.is_(None))
+                | (CropClassification.confidence < threshold)
+            )
+        )
+
+        return self.session.scalar(query) or 0
+
     def active_review(
         self,
         *,

@@ -12,6 +12,10 @@ def test_metrics_empty_project(api_client):
     assert payload["eligible_count"] == 0
     assert payload["coverage"] is None
     assert payload["review_rate"] is None
+    assert payload["unknown_rate"] is None
+    assert payload["automation_rate"] is None
+    assert payload["review_queue_size"] == 0
+    assert payload["no_review_needed_count"] == 0
     assert payload["last_reclassification"] is None
     assert payload["pass_history"] == []
 
@@ -38,3 +42,6 @@ def test_metrics_reflects_classification_counts(api_client, engine):
     assert payload["eligible_count"] == 1
     assert payload["confident_count"] == 1
     assert payload["coverage"] == 1.0
+    assert payload["automation_rate"] == 1.0
+    assert payload["no_review_needed_count"] == 1
+    assert payload["review_queue_size"] == 0

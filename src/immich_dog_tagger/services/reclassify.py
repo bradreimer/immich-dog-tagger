@@ -37,6 +37,7 @@ from immich_dog_tagger.policy import (
     ClassificationDecision,
     ClassifierPolicy,
 )
+from immich_dog_tagger.services.review_query import ReviewQueryService
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,8 @@ class ReclassifyResult:
     needs_review_count: int
     unknown_count: int
     changed_count: int
+    labeled_example_count: int | None
+    review_queue_size: int | None
     message: str
 
 
@@ -134,6 +137,8 @@ class ReclassifyService:
             needs_review_count=classification_pass.needs_review_count,
             unknown_count=classification_pass.unknown_count,
             changed_count=classification_pass.changed_count,
+            labeled_example_count=classification_pass.labeled_example_count,
+            review_queue_size=classification_pass.review_queue_size,
             message=message,
         )
 
@@ -167,6 +172,7 @@ class ReclassifyService:
             if progress:
                 progress.message(message)
 
+            self._snapshot_trend_fields(classification_pass)
             return message
 
         if not eligible_ids:
@@ -175,6 +181,7 @@ class ReclassifyService:
             if progress:
                 progress.message(message)
 
+            self._snapshot_trend_fields(classification_pass)
             return message
 
         classifier = IdentityClassifier(self.session, policy=self.policy)
@@ -256,4 +263,24 @@ class ReclassifyService:
                     message=f"Reclassified {processed}/{total} crop(s)",
                 )
 
+        self._snapshot_trend_fields(classification_pass)
+
         return f"Reclassified {total} crop(s)."
+
+    def _snapshot_trend_fields(
+        self,
+        classification_pass: ClassificationPass,
+    ) -> None:
+        """
+        Record the labeled-example count and review-queue size as of when
+        this pass completed, so DT-1101's per-pass trend (queue shrinking,
+        examples growing) is queryable historically rather than only live.
+        Not called on a mid-run failure -- a partial pass has no
+        well-defined final snapshot, so those fields stay null.
+        """
+        classification_pass.labeled_example_count = (
+            self.session.scalar(select(func.count()).select_from(EmbeddingExample)) or 0
+        )
+        classification_pass.review_queue_size = ReviewQueryService(
+            self.session, policy=self.policy
+        ).review_queue_count()

@@ -131,6 +131,25 @@ export function MetricsPage() {
       )}
 
       {metrics && (
+        <Card className="overflow-hidden border-primary/20 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.18),_transparent_45%),linear-gradient(135deg,_rgba(255,255,255,0.95),_rgba(254,242,242,0.88))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.2),_transparent_45%),linear-gradient(135deg,_rgba(17,24,39,0.95),_rgba(31,41,55,0.92))]">
+          <CardContent className="space-y-1 p-6">
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">
+              Automation
+            </p>
+            <p className="text-5xl font-bold tracking-tight">
+              {metrics.automation_rate !== null
+                ? `${Math.round(metrics.automation_rate * 100)}%`
+                : "—"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {metrics.no_review_needed_count} of {metrics.eligible_count} images require no
+              manual review right now -- either confidently classified, or already reviewed.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {metrics && (
         <Card>
           <CardHeader>
             <CardTitle>Learning Progress</CardTitle>
@@ -140,7 +159,7 @@ export function MetricsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Confident coverage</p>
                 <p className="mt-1 text-2xl font-semibold">
@@ -160,10 +179,20 @@ export function MetricsPage() {
                 </p>
               </div>
               <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Review queue</p>
+                <p className="mt-1 text-2xl font-semibold">{metrics.review_queue_size}</p>
+                <p className="text-xs text-muted-foreground">
+                  awaiting review · {metrics.unknown_count} unknown
+                  {metrics.unknown_rate !== null
+                    ? ` (${Math.round(metrics.unknown_rate * 100)}%)`
+                    : ""}
+                </p>
+              </div>
+              <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Labeled examples</p>
                 <p className="mt-1 text-2xl font-semibold">{metrics.labeled_example_count}</p>
                 <p className="text-xs text-muted-foreground">
-                  {metrics.needs_review_count} needs review · {metrics.unknown_count} unknown
+                  trusted reference examples for the classifier
                 </p>
               </div>
               <div className="rounded-md border p-3">

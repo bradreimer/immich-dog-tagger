@@ -35,6 +35,8 @@ class ClassificationPassSummary:
     needs_review_count: int
     unknown_count: int
     changed_count: int
+    labeled_example_count: int | None
+    review_queue_size: int | None
     error_message: str | None
     started_at: datetime
     completed_at: datetime | None
@@ -53,6 +55,8 @@ class ClassificationPassSummary:
             needs_review_count=classification_pass.needs_review_count,
             unknown_count=classification_pass.unknown_count,
             changed_count=classification_pass.changed_count,
+            labeled_example_count=classification_pass.labeled_example_count,
+            review_queue_size=classification_pass.review_queue_size,
             error_message=classification_pass.error_message,
             started_at=classification_pass.started_at,
             completed_at=classification_pass.completed_at,
@@ -69,6 +73,10 @@ class LearningMetrics:
     unknown_count: int
     coverage: float | None
     review_rate: float | None
+    unknown_rate: float | None
+    review_queue_size: int
+    no_review_needed_count: int
+    automation_rate: float | None
     last_reclassification: ClassificationPassSummary | None
     pass_history: list[ClassificationPassSummary]
 
@@ -113,6 +121,20 @@ class MetricsService:
 
         needs_review_count = eligible_count - unknown_count - confident_count
 
+        # The actual pending-work queue -- unreviewed items that are
+        # unknown or below the confident threshold -- as opposed to
+        # needs_review_count above, which (given the classifier never
+        # assigns an identity below its own threshold) is populated almost
+        # entirely by legacy/manual data rather than organic AUTO output.
+        review_queue_size = self.review_query.review_queue_count()
+
+        # "No review needed" is the complement of the queue: it answers
+        # "how many images can I ignore right now," which includes both
+        # confidently auto-classified items AND anything a human has
+        # already reviewed (regardless of that item's confidence) -- not
+        # only "how many did the classifier get right without help."
+        no_review_needed_count = eligible_count - review_queue_size
+
         # SQLite's CURRENT_TIMESTAMP has only second-level resolution, so
         # started_at alone cannot break ties between passes created within
         # the same second -- id is a reliable secondary sort key since pass
@@ -140,6 +162,12 @@ class MetricsService:
             unknown_count=unknown_count,
             coverage=(confident_count / eligible_count) if eligible_count else None,
             review_rate=(reviewed_count / eligible_count) if eligible_count else None,
+            unknown_rate=(unknown_count / eligible_count) if eligible_count else None,
+            review_queue_size=review_queue_size,
+            no_review_needed_count=no_review_needed_count,
+            automation_rate=(no_review_needed_count / eligible_count)
+            if eligible_count
+            else None,
             last_reclassification=pass_summaries[-1] if pass_summaries else None,
             pass_history=pass_summaries,
         )

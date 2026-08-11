@@ -29,6 +29,7 @@ def create_database(state_dir: Path):
 
     _ensure_identity_activation_column(engine)
     _ensure_classification_pass_columns(engine)
+    _ensure_classification_pass_trend_columns(engine)
 
     return engine
 
@@ -67,6 +68,32 @@ def _ensure_classification_pass_columns(engine) -> None:
 
     if "embedding" not in columns:
         statements.append("ALTER TABLE crop_classifications ADD COLUMN embedding BLOB")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+
+
+def _ensure_classification_pass_trend_columns(engine) -> None:
+    inspector = inspect(engine)
+    columns = {
+        column["name"] for column in inspector.get_columns("classification_passes")
+    }
+
+    statements = []
+
+    if "labeled_example_count" not in columns:
+        statements.append(
+            "ALTER TABLE classification_passes ADD COLUMN labeled_example_count INTEGER"
+        )
+
+    if "review_queue_size" not in columns:
+        statements.append(
+            "ALTER TABLE classification_passes ADD COLUMN review_queue_size INTEGER"
+        )
 
     if not statements:
         return
