@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -12,6 +13,8 @@ from immich_dog_tagger.models import (
     ReviewAction,
 )
 from immich_dog_tagger.services.learner import Learner
+
+logger = logging.getLogger(__name__)
 
 
 class ClassificationCorrectionService:
@@ -36,11 +39,13 @@ class ClassificationCorrectionService:
         if classification is None:
             raise ValueError(f"Classification {classification_id} not found")
 
+        original_identity = classification.identity
+
         self.session.add(
             ReviewAction(
                 classification_id=classification.id,
                 action=ReviewActions.CORRECT,
-                original_identity=classification.identity,
+                original_identity=original_identity,
                 identity=identity,
             )
         )
@@ -74,5 +79,12 @@ class ClassificationCorrectionService:
                 self.learner.forget_image(crop_path)
 
         self.session.commit()
+
+        logger.info(
+            "Classification %d corrected: %r -> %r",
+            classification.id,
+            original_identity,
+            identity,
+        )
 
         return classification

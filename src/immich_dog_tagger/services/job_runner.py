@@ -1,9 +1,13 @@
+import logging
+import time
 from collections.abc import Callable, Mapping
 from threading import Lock
 
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
 from immich_dog_tagger.models import PipelineJob
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
+
+logger = logging.getLogger(__name__)
 
 
 class JobProgressReporter:
@@ -104,16 +108,39 @@ class PipelineJobRunner:
             job = self.service.start_job(job)
             reporter = JobProgressReporter(self.service, job)
 
+            logger.info("Job %d (%s) started", job.id, job.operation.value)
+            started_at = time.monotonic()
+
             try:
                 result = handler(reporter)
+                duration = time.monotonic() - started_at
+
                 self.service.complete_job(
                     job,
                     progress_message=f"{job.operation.value} completed",
                 )
+
+                logger.info(
+                    "Job %d (%s) completed in %.2fs",
+                    job.id,
+                    job.operation.value,
+                    duration,
+                )
                 return result
             except Exception as exc:
+                duration = time.monotonic() - started_at
+                message = str(exc) or exc.__class__.__name__
+
                 self.service.fail_job(
                     job,
-                    error_message=str(exc) or exc.__class__.__name__,
+                    error_message=message,
                 )
-                raise RuntimeError(str(exc) or exc.__class__.__name__) from exc
+
+                logger.error(
+                    "Job %d (%s) failed after %.2fs: %s",
+                    job.id,
+                    job.operation.value,
+                    duration,
+                    message,
+                )
+                raise RuntimeError(message) from exc

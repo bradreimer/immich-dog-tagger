@@ -2,6 +2,7 @@
 Crop classification pipeline.
 """
 
+import logging
 from collections import Counter
 from dataclasses import dataclass
 
@@ -17,6 +18,8 @@ from immich_dog_tagger.models import (
 )
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -58,6 +61,7 @@ class ClassificationService:
         crops = query.all()
 
         if not crops:
+            logger.info("Classify (mode=%s): no eligible crops", mode.value)
             return ClassificationSummary(
                 classified=0,
                 identities={},
@@ -82,6 +86,13 @@ class ClassificationService:
                 counts["Unknown"] += 1
 
         self.session.commit()
+
+        logger.info(
+            "Classify (mode=%s): classified %d crop(s), %d unknown",
+            mode.value,
+            len(crops),
+            counts.get("Unknown", 0),
+        )
 
         return ClassificationSummary(
             classified=len(crops),
