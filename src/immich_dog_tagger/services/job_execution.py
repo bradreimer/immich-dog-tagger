@@ -19,6 +19,7 @@ from immich_dog_tagger.services.job_runner import JobProgressReporter, PipelineJ
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.pipeline import PipelineService
+from immich_dog_tagger.services.reclassify import ReclassifyService
 from immich_dog_tagger.services.sync import SyncService
 from immich_dog_tagger.yolo_detector import YOLODetector
 
@@ -51,6 +52,10 @@ def create_pipeline_job_runner(
         PipelineOperation.CLASSIFY: _classify_handler(
             session,
             options.get(PipelineOperation.CLASSIFY, {}),
+        ),
+        PipelineOperation.RECLASSIFY: _reclassify_handler(
+            session,
+            options.get(PipelineOperation.RECLASSIFY, {}),
         ),
         PipelineOperation.LEARN: _learn_handler(
             session,
@@ -199,6 +204,34 @@ def _classify_handler(
         return {
             "classified": summary.classified,
             "identities": summary.identities,
+        }
+
+    return run
+
+
+def _reclassify_handler(
+    session: Session,
+    options: dict,
+):
+    def run(progress: JobProgressReporter) -> dict[str, object]:
+        progress.message("Reclassifying crops")
+
+        embedder = get_embedder()
+        service = ReclassifyService(session, embedder)
+
+        result = service.reclassify(progress=progress)
+
+        progress.message(f"Reclassify pass {result.pass_id}: {result.message}")
+
+        return {
+            "pass_id": result.pass_id,
+            "status": result.status.value,
+            "eligible_count": result.eligible_count,
+            "confident_count": result.confident_count,
+            "needs_review_count": result.needs_review_count,
+            "unknown_count": result.unknown_count,
+            "changed_count": result.changed_count,
+            "message": result.message,
         }
 
     return run

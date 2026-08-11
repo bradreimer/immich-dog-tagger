@@ -10,6 +10,7 @@ export type JobOperation =
   | "detect"
   | "embed"
   | "classify"
+  | "reclassify"
   | "learn"
   | "sync"
   | "full_pipeline";
