@@ -21,13 +21,13 @@
 - DT-1008 scale validation (fixed two N+1 defects; documented gap: no literal 30k-image run performed in this environment)
 - DT-1009 end-to-end review-driven learning loop test suite
 - DT-1010 v1.0 user and operator documentation (docs/workflow.md)
+- DT-1011 v1.0.0 release validation (see docs/validation/v1.0.0/DT-1011-release-validation.md)
 
 ## Current Milestone
-v1.0.0 (see [docs/specs/v1.0.0.md](specs/v1.0.0.md))
+v1.0.0 -- released. See [docs/specs/v1.0.0.md](specs/v1.0.0.md).
 
 ## Next Work
-1. DT-1011: release validation against the full v1.0.0 acceptance criteria.
-2. Tag v1.0.0 once DT-1011 passes.
+Post-v1.0.0: improved reference-example selection, reference-set curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements").
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

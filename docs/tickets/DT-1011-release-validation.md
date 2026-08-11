@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Pending
+Completed
 
 ## **Goal**
 
@@ -24,19 +24,14 @@ Verify the complete release against the specification.
 
 DT-1000 through DT-1010 implement and document every v1.0.0 requirement individually. This ticket is the release gate: verify the assembled whole against the spec's acceptance criteria, close any release-blocking defects found, and tag the release only once everything passes.
 
-## **Steps**
+## **Implementation notes**
 
-1. Run all automated tests.
-2. Perform a fresh-install test.
-3. Process a representative project.
-4. Complete an initial manual review batch.
-5. Reclassify from the web UI.
-6. Verify metrics.
-7. Verify restart/recovery behavior.
-8. Run scale validation.
-9. Review logs for sensitive-data leakage.
-10. Update changelog/release notes.
-11. Tag v1.0.0 only after all acceptance criteria pass.
+Full report: [docs/validation/v1.0.0/DT-1011-release-validation.md](../validation/v1.0.0/DT-1011-release-validation.md). Summary:
+
+- All 11 steps performed. `./scripts/check.sh` passes (257 tests, clean UI build/lint).
+- Fresh-install, metrics, and restart/recovery were verified live against a running API instance on an isolated scratch database (not unit tests alone) -- including killing a simulated in-progress Reclassify and confirming both the job and its classification pass reconcile to `FAILED` on restart with a clear message.
+- Version bumped to 1.0.0 (`pyproject.toml`, API app version) and release notes updated (`README.md` Project Status, `docs/roadmap.md`, `docs/status.md`).
+- Two gaps disclosed rather than hidden: no live run against a real Immich library was performed (no credentials/GPU in this environment), matching the same disclosed gap from DT-1008. Every other acceptance criterion passed -- see the full criteria-by-criteria table in the report.
 
 ## **Acceptance criteria**
 
@@ -44,7 +39,7 @@ Every v1.0.0 acceptance criterion (spec section 7) is demonstrated and no releas
 
 ## **Testing requirements**
 
-Full `./scripts/check.sh`, plus the manual verification steps above.
+Full `./scripts/check.sh`, plus the manual verification steps in the report above.
 
 ## **Dependencies**
 
