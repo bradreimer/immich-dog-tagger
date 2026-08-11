@@ -76,6 +76,18 @@ Remaining:
 
 ## Future Milestones
 
+## v1.1 - Automation Coverage Dashboard
+
+See [docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-coverage-dashboard.md).
+
+Goal:
+Answer "is the system getting better at doing the work I used to have to do manually?" with a dedicated Metrics tab, complete per-pass trend data, and one prominent automation-rate number.
+
+Backlog:
+- DT-1101: snapshot labeled-example count and review-queue size per classification pass
+- DT-1103: move Learning Progress into a dedicated Metrics tab
+- DT-1102: reconcile the review-queue metric definition and add a prominent automation-rate metric
+
 ## Active Learning Improvements
 
 Goal:
