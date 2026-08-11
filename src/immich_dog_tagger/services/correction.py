@@ -49,21 +49,29 @@ class ClassificationCorrectionService:
         classification.confidence = 1.0
         classification.source = ClassificationSources.REVIEW
 
-        if self.learner is not None and identity is not None and identity != "Unknown":
-            captured_at = None
+        if self.learner is not None:
+            crop_path = Path(classification.crop.path)
 
-            if (
-                classification.crop.detection is not None
-                and classification.crop.detection.asset is not None
-            ):
-                captured_at = classification.crop.detection.asset.captured_at
+            if identity is not None and identity != "Unknown":
+                captured_at = None
 
-            self.learner.learn_image(
-                identity,
-                Path(classification.crop.path),
-                source=EmbeddingSources.REVIEW,
-                captured_at=captured_at,
-            )
+                if (
+                    classification.crop.detection is not None
+                    and classification.crop.detection.asset is not None
+                ):
+                    captured_at = classification.crop.detection.asset.captured_at
+
+                self.learner.learn_image(
+                    identity,
+                    crop_path,
+                    source=EmbeddingSources.REVIEW,
+                    captured_at=captured_at,
+                )
+            else:
+                # Corrected to Unknown: this crop should no longer serve as a
+                # reference example for whatever identity it was previously
+                # attributed to.
+                self.learner.forget_image(crop_path)
 
         self.session.commit()
 

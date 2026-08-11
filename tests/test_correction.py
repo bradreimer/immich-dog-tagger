@@ -474,3 +474,84 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
                 "captured_at": captured_at.replace(tzinfo=None),
             }
         ]
+
+
+def test_re_review_under_different_identity_supersedes_stale_example(engine, tmp_path):
+    """DT-1003: re-reviewing a crop under a new identity must not leave the
+    stale embedding example from the previous correction behind."""
+    import numpy as np
+
+    class FakeEmbedder:
+        def embed(self, path):
+            return np.array([1, 0, 0], dtype=np.float32)
+
+    image_path = tmp_path / "dog.jpg"
+    image_path.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path=str(image_path))
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.2,
+            source=ClassificationSources.AUTO,
+        )
+        session.add(classification)
+        session.commit()
+
+        learner = Learner(FakeEmbedder(), session)
+        service = ClassificationCorrectionService(session, learner)
+
+        service.correct(classification.id, "Fibs")
+        service.correct(classification.id, "Hermann")
+
+        examples = session.query(EmbeddingExample).all()
+
+        assert len(examples) == 1
+        assert examples[0].identity.name == "Hermann"
+
+        result = session.get(CropClassification, classification.id)
+        assert result.identity == "Hermann"
+
+
+def test_correcting_to_unknown_removes_stale_embedding_example(engine, tmp_path):
+    """DT-1003: correcting a crop to Unknown removes any reference example
+    it previously contributed, instead of leaving stale learned data."""
+    import numpy as np
+
+    class FakeEmbedder:
+        def embed(self, path):
+            return np.array([1, 0, 0], dtype=np.float32)
+
+    image_path = tmp_path / "dog.jpg"
+    image_path.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path=str(image_path))
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.2,
+            source=ClassificationSources.AUTO,
+        )
+        session.add(classification)
+        session.commit()
+
+        learner = Learner(FakeEmbedder(), session)
+        service = ClassificationCorrectionService(session, learner)
+
+        service.correct(classification.id, "Fibs")
+        assert session.query(EmbeddingExample).count() == 1
+
+        service.correct(classification.id, "Unknown")
+
+        assert session.query(EmbeddingExample).count() == 0
+
+        result = session.get(CropClassification, classification.id)
+        assert result.identity == "Unknown"

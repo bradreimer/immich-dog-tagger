@@ -175,3 +175,53 @@ def test_learn_image_creates_embedding_example(engine, tmp_path):
 
         assert example.crop_path == str(image)
         assert example.source == EmbeddingSources.REVIEW
+
+
+def test_learn_image_supersedes_stale_example_under_previous_identity(engine, tmp_path):
+    """Re-reviewing a crop under a different identity must not leave a stale
+    example for the old identity behind (DT-1003 leakage regression)."""
+    image = tmp_path / "dog.jpg"
+    image.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        learner = Learner(FakeEmbedder(), session)
+
+        learner.learn_image("Fibs", image, source=EmbeddingSources.REVIEW)
+        session.commit()
+
+        learner.learn_image("Hermann", image, source=EmbeddingSources.REVIEW)
+        session.commit()
+
+        examples = session.query(EmbeddingExample).all()
+
+        assert len(examples) == 1
+        assert examples[0].identity.name == "Hermann"
+        assert examples[0].crop_path == str(image)
+
+
+def test_forget_image_removes_examples_for_any_identity(engine, tmp_path):
+    image = tmp_path / "dog.jpg"
+    image.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        learner = Learner(FakeEmbedder(), session)
+
+        learner.learn_image("Fibs", image, source=EmbeddingSources.REVIEW)
+        session.commit()
+
+        removed = learner.forget_image(image)
+        session.commit()
+
+        assert removed == 1
+        assert session.query(EmbeddingExample).count() == 0
+
+
+def test_forget_image_is_a_noop_when_nothing_matches(engine, tmp_path):
+    image = tmp_path / "dog.jpg"
+
+    with Session(engine) as session:
+        learner = Learner(FakeEmbedder(), session)
+
+        removed = learner.forget_image(image)
+
+        assert removed == 0

@@ -38,22 +38,21 @@ class Learner:
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
         captured_at: datetime | None = None,
     ) -> bool:
-        identity = self.session.scalar(
-            select(Identity).where(Identity.name == identity_name)
-        )
+        """
+        Upsert a single reference example for `identity_name` at `image_path`.
 
-        if identity is None:
-            identity = Identity(name=identity_name)
+        A physical crop can only depict one dog, so any existing example for
+        this same path under a *different* identity is superseded (deleted)
+        first. This keeps re-reviewing an item idempotent: correcting a crop
+        from "Fibs" to "Hermann" removes the stale Fibs example instead of
+        leaving it behind to pollute future classifications. Caller is
+        responsible for committing.
+        """
+        identity = self._get_or_create_identity(identity_name)
 
-            self.session.add(identity)
-            self.session.flush()
+        self._forget_other_identities(identity.id, image_path)
 
-        existing = self.session.scalar(
-            select(EmbeddingExample).where(
-                EmbeddingExample.identity_id == identity.id,
-                EmbeddingExample.crop_path == str(image_path),
-            )
-        )
+        existing = self._find_example(identity.id, image_path)
 
         if existing is not None:
             return False
@@ -72,6 +71,27 @@ class Learner:
 
         return True
 
+    def forget_image(
+        self,
+        image_path: Path,
+    ) -> int:
+        """
+        Remove every reference example for `image_path`, regardless of
+        identity. Used when a review corrects a crop to Unknown: it should
+        stop serving as a reference example for whatever identity it was
+        previously attributed to. Caller is responsible for committing.
+        """
+        examples = self.session.scalars(
+            select(EmbeddingExample).where(
+                EmbeddingExample.crop_path == str(image_path),
+            )
+        ).all()
+
+        for example in examples:
+            self.session.delete(example)
+
+        return len(examples)
+
     def learn(
         self,
         identity_name: str,
@@ -80,16 +100,7 @@ class Learner:
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
         captured_at: datetime | None = None,
     ) -> LearnSummary:
-        identity = self.session.scalar(
-            select(Identity).where(Identity.name == identity_name)
-        )
-
-        if identity is None:
-            identity = Identity(name=identity_name)
-
-            self.session.add(identity)
-
-            self.session.flush()
+        identity = self._get_or_create_identity(identity_name)
 
         count = 0
         skipped_existing = 0
@@ -101,12 +112,9 @@ class Learner:
             if not is_supported_image(image_path):
                 continue
 
-            existing = self.session.scalar(
-                select(EmbeddingExample).where(
-                    EmbeddingExample.identity_id == identity.id,
-                    EmbeddingExample.crop_path == str(image_path),
-                )
-            )
+            self._forget_other_identities(identity.id, image_path)
+
+            existing = self._find_example(identity.id, image_path)
 
             if existing is not None:
                 skipped_existing += 1
@@ -132,3 +140,46 @@ class Learner:
             imported=count,
             skipped_existing=skipped_existing,
         )
+
+    def _get_or_create_identity(
+        self,
+        identity_name: str,
+    ) -> Identity:
+        identity = self.session.scalar(
+            select(Identity).where(Identity.name == identity_name)
+        )
+
+        if identity is None:
+            identity = Identity(name=identity_name)
+
+            self.session.add(identity)
+            self.session.flush()
+
+        return identity
+
+    def _find_example(
+        self,
+        identity_id: int,
+        image_path: Path,
+    ) -> EmbeddingExample | None:
+        return self.session.scalar(
+            select(EmbeddingExample).where(
+                EmbeddingExample.identity_id == identity_id,
+                EmbeddingExample.crop_path == str(image_path),
+            )
+        )
+
+    def _forget_other_identities(
+        self,
+        identity_id: int,
+        image_path: Path,
+    ) -> None:
+        stale_examples = self.session.scalars(
+            select(EmbeddingExample).where(
+                EmbeddingExample.crop_path == str(image_path),
+                EmbeddingExample.identity_id != identity_id,
+            )
+        ).all()
+
+        for example in stale_examples:
+            self.session.delete(example)
