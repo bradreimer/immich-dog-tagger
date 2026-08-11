@@ -186,6 +186,73 @@ class JobCreateRequest(BaseModel):
     start: bool = True
 
 
+class ClassificationPassResponse(BaseModel):
+    id: int
+    status: str
+    classifier_version: str
+    threshold: float
+    eligible_count: int
+    confident_count: int
+    needs_review_count: int
+    unknown_count: int
+    changed_count: int
+    error_message: str | None
+    started_at: datetime
+    completed_at: datetime | None
+
+    @classmethod
+    def from_summary(cls, summary):
+        return cls(
+            id=summary.id,
+            status=summary.status,
+            classifier_version=summary.classifier_version,
+            threshold=summary.threshold,
+            eligible_count=summary.eligible_count,
+            confident_count=summary.confident_count,
+            needs_review_count=summary.needs_review_count,
+            unknown_count=summary.unknown_count,
+            changed_count=summary.changed_count,
+            error_message=summary.error_message,
+            started_at=summary.started_at,
+            completed_at=summary.completed_at,
+        )
+
+
+class LearningMetricsResponse(BaseModel):
+    eligible_count: int
+    reviewed_count: int
+    labeled_example_count: int
+    confident_count: int
+    needs_review_count: int
+    unknown_count: int
+    coverage: float | None
+    review_rate: float | None
+    last_reclassification: ClassificationPassResponse | None
+    pass_history: list[ClassificationPassResponse]
+
+    @classmethod
+    def from_metrics(cls, metrics):
+        return cls(
+            eligible_count=metrics.eligible_count,
+            reviewed_count=metrics.reviewed_count,
+            labeled_example_count=metrics.labeled_example_count,
+            confident_count=metrics.confident_count,
+            needs_review_count=metrics.needs_review_count,
+            unknown_count=metrics.unknown_count,
+            coverage=metrics.coverage,
+            review_rate=metrics.review_rate,
+            last_reclassification=(
+                ClassificationPassResponse.from_summary(metrics.last_reclassification)
+                if metrics.last_reclassification
+                else None
+            ),
+            pass_history=[
+                ClassificationPassResponse.from_summary(summary)
+                for summary in metrics.pass_history
+            ],
+        )
+
+
 class JobResponse(BaseModel):
     id: int
     operation: PipelineOperation

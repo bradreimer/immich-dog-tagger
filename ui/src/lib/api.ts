@@ -7,6 +7,7 @@ import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
+import type { LearningMetrics } from "../types/metrics";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -303,6 +304,14 @@ export async function getDiagnostics(): Promise<Diagnostics> {
   const response = await fetch("/api/diagnostics");
   if (!response.ok) {
     throw new Error("Failed to load diagnostics");
+  }
+  return response.json();
+}
+
+export async function getLearningMetrics(): Promise<LearningMetrics> {
+  const response = await fetch("/api/metrics");
+  if (!response.ok) {
+    throw new Error("Failed to load learning metrics");
   }
   return response.json();
 }
