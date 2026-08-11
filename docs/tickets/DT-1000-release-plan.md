@@ -1,5 +1,8 @@
 # TICKET 00: v1.0.0 release plan and architecture audit
 
+## Status
+Completed — see [docs/validation/v1.0.0/DT-1000-architecture-audit.md](../validation/v1.0.0/DT-1000-architecture-audit.md).
+
 ## Goal
 Map the current implementation to the v1.0.0 specification before changing code.
 
