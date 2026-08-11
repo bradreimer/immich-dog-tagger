@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
+from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.models import (
     ClassificationSources,
@@ -15,6 +16,7 @@ from immich_dog_tagger.models import (
     CropClassification,
 )
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
+from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
 
 
 @dataclass
@@ -29,17 +31,22 @@ class ClassificationService:
         session: Session,
         embedder: OpenClipEmbedder,
         classifier: IdentityClassifier,
+        policy: ClassifierPolicy = DEFAULT_POLICY,
     ):
         self.session = session
         self.embedder = embedder
         self.classifier = classifier
+        self.policy = policy
 
     def classify(
         self,
         mode: ClassificationMode = ClassificationMode.PENDING,
         limit: int | None = None,
-        threshold: float = 0.80,
+        threshold: float | None = None,
     ) -> ClassificationSummary:
+        threshold = (
+            threshold if threshold is not None else self.policy.confident_threshold
+        )
         query = self._classification_query(
             mode,
             threshold,
@@ -92,36 +99,37 @@ class ClassificationService:
             threshold=threshold,
         )
 
+        candidates = [
+            {
+                "identity": candidate.identity,
+                "similarity": candidate.similarity,
+                "matched_example_id": candidate.matched_example_id,
+            }
+            for candidate in result.candidates
+        ]
+
+        embedding_blob = embedding_to_blob(embedding)
+
         if crop.classification:
             classification = crop.classification
 
             classification.identity = result.identity
             classification.confidence = result.similarity
             classification.matched_example_id = result.matched_example_id
-            classification.candidates = [
-                {
-                    "identity": candidate.identity,
-                    "similarity": candidate.similarity,
-                    "matched_example_id": candidate.matched_example_id,
-                }
-                for candidate in result.candidates
-            ]
+            classification.candidates = candidates
+            classification.classifier_version = self.policy.version
+            classification.embedding = embedding_blob
 
         else:
             classification = CropClassification(
                 crop=crop,
                 identity=result.identity,
                 confidence=result.similarity,
-                candidates=[
-                    {
-                        "identity": candidate.identity,
-                        "similarity": candidate.similarity,
-                        "matched_example_id": candidate.matched_example_id,
-                    }
-                    for candidate in result.candidates
-                ],
+                candidates=candidates,
                 matched_example_id=result.matched_example_id,
                 source=ClassificationSources.AUTO,
+                classifier_version=self.policy.version,
+                embedding=embedding_blob,
             )
 
             self.session.add(classification)

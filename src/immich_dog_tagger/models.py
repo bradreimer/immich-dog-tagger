@@ -20,6 +20,7 @@ from sqlalchemy.sql import func
 
 from .enums import (
     AssetStatus,
+    ClassificationPassStatus,
     ClassificationSources,
     EmbeddingSources,
     PipelineJobStatus,
@@ -226,6 +227,22 @@ class CropClassification(Base):
         default=ClassificationSources.AUTO,
     )
 
+    classifier_version: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+    )
+
+    classification_pass_id: Mapped[int | None] = mapped_column(
+        ForeignKey("classification_passes.id"),
+        nullable=True,
+        index=True,
+    )
+
+    embedding: Mapped[bytes | None] = mapped_column(
+        LargeBinary,
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
@@ -234,6 +251,10 @@ class CropClassification(Base):
 
     crop: Mapped[Crop] = relationship(
         back_populates="classification",
+    )
+
+    classification_pass: Mapped[ClassificationPass | None] = relationship(
+        back_populates="classifications",
     )
 
     matched_example_id: Mapped[int | None] = mapped_column(
@@ -248,6 +269,68 @@ class CropClassification(Base):
 
     review_actions: Mapped[list[ReviewAction]] = relationship(
         cascade="all, delete-orphan",
+    )
+
+
+class ClassificationPass(Base):
+    """
+    A single Reclassify run: recomputes AUTO predictions from the current
+    labeled-example set without touching reviewed/manual ground truth.
+    """
+
+    __tablename__ = "classification_passes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    status: Mapped[ClassificationPassStatus] = mapped_column(
+        Enum(
+            ClassificationPassStatus,
+            native_enum=False,
+        ),
+        nullable=False,
+        default=ClassificationPassStatus.RUNNING,
+    )
+
+    classifier_version: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+    )
+
+    threshold: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    eligible_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    confident_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    needs_review_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    unknown_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    changed_count: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    error_message: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
+    )
+
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_jobs.id"),
+        nullable=True,
+        index=True,
+    )
+
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    classifications: Mapped[list[CropClassification]] = relationship(
+        back_populates="classification_pass",
     )
 
 

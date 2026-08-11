@@ -192,7 +192,7 @@ def _classify_handler(
         summary = classifier.classify(
             mode=options.get("mode", ClassificationMode.PENDING),
             limit=options.get("limit"),
-            threshold=options.get("threshold", 0.80),
+            threshold=options.get("threshold"),
         )
 
         progress.message(f"Classified {summary.classified} crops")

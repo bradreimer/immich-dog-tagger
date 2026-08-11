@@ -11,6 +11,7 @@ from .database import create_database
 from .downloader import Downloader
 from .enums import ClassificationMode, PipelineOperation
 from .immich import ImmichClient
+from .policy import DEFAULT_POLICY
 from .review_export import ReviewExporter
 from .review_import import ReviewImporter
 from .runtime import get_embedder
@@ -660,7 +661,7 @@ def main(argv: list[str] | None = None) -> None:
     classify_parser.add_argument(
         "--threshold",
         type=float,
-        default=0.80,
+        default=DEFAULT_POLICY.confident_threshold,
         help="Minimum confidence required for identity assignment",
     )
 
@@ -745,7 +746,7 @@ def main(argv: list[str] | None = None) -> None:
     active_review_parser.add_argument(
         "--threshold",
         type=float,
-        default=0.80,
+        default=DEFAULT_POLICY.confident_threshold,
     )
 
     review_apply_parser = subparsers.add_parser(

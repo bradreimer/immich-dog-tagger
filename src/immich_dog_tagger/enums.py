@@ -41,6 +41,7 @@ class PipelineOperation(StrEnum):
     DETECT = "detect"
     EMBED = "embed"
     CLASSIFY = "classify"
+    RECLASSIFY = "reclassify"
     LEARN = "learn"
     SYNC = "sync"
     FULL_PIPELINE = "full_pipeline"
@@ -52,3 +53,9 @@ class PipelineJobStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELED = "canceled"
+
+
+class ClassificationPassStatus(StrEnum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"

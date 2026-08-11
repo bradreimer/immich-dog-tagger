@@ -22,6 +22,7 @@ from immich_dog_tagger.models import (
     Identity,
     ReviewAction,
 )
+from immich_dog_tagger.policy import DEFAULT_POLICY
 
 
 @dataclass(frozen=True)
@@ -70,7 +71,7 @@ class StatusService:
     def summary(
         self,
         *,
-        confidence_threshold: float = 0.80,
+        confidence_threshold: float = DEFAULT_POLICY.confident_threshold,
     ) -> StatusSummary:
         return StatusSummary(
             assets=self._count(Asset),

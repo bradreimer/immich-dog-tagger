@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .embeddings import blob_to_embedding
 from .models import EmbeddingExample, Identity
+from .policy import DEFAULT_POLICY, ClassifierPolicy
 from .scoring import SimilarityScorer
 
 
@@ -32,16 +33,26 @@ class IdentityClassifier:
         self,
         session: Session,
         scorer: SimilarityScorer | None = None,
+        policy: ClassifierPolicy = DEFAULT_POLICY,
     ):
         self.session = session
         self.scorer = scorer or SimilarityScorer()
+        self.policy = policy
 
     def classify(
         self,
         embedding: np.ndarray,
-        threshold: float = 0.80,
-        candidate_limit: int = 3,
+        threshold: float | None = None,
+        candidate_limit: int | None = None,
     ) -> ClassificationResult:
+        threshold = (
+            threshold if threshold is not None else self.policy.confident_threshold
+        )
+        candidate_limit = (
+            candidate_limit
+            if candidate_limit is not None
+            else self.policy.candidate_limit
+        )
 
         identity_scores: dict[str, ClassificationCandidate] = {}
 

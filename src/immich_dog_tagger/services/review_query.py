@@ -11,6 +11,11 @@ from immich_dog_tagger.models import (
     CropClassification,
     ReviewAction,
 )
+from immich_dog_tagger.policy import (
+    DEFAULT_POLICY,
+    ClassificationDecision,
+    ClassifierPolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -62,8 +67,10 @@ class ReviewQueryService:
     def __init__(
         self,
         session: Session,
+        policy: ClassifierPolicy = DEFAULT_POLICY,
     ):
         self.session = session
+        self.policy = policy
 
     def classifications(
         self,
@@ -155,12 +162,16 @@ class ReviewQueryService:
     def active_review(
         self,
         *,
-        threshold: float = 0.80,
+        threshold: float | None = None,
         limit: int | None = None,
         unknown: bool = False,
         confidence_below: float | None = None,
         candidate_conflict: bool = False,
     ) -> list[ReviewItem]:
+        threshold = (
+            threshold if threshold is not None else self.policy.confident_threshold
+        )
+
         priority = case(
             (
                 CropClassification.identity.is_(None),
@@ -270,13 +281,18 @@ class ReviewQueryService:
         self,
         classification: CropClassification,
     ) -> str:
-        if classification.identity is None:
+        decision = self.policy.decide(
+            identity=classification.identity,
+            similarity=classification.confidence,
+        )
+
+        if decision is ClassificationDecision.UNKNOWN:
             return "unknown"
 
         if classification.candidates:
             return "candidate-conflict"
 
-        if classification.confidence < 0.80:
+        if decision is ClassificationDecision.NEEDS_REVIEW:
             return "low-confidence"
 
         return "review"

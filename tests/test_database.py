@@ -146,3 +146,40 @@ def test_database_adds_identity_activation_column(tmp_path: Path):
         ).all()
 
     assert rows == [("Fibs", 1)]
+
+
+def test_database_adds_classification_pass_columns(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    connection.execute(
+        "CREATE TABLE crop_classifications ("
+        "id INTEGER PRIMARY KEY, "
+        "crop_id INTEGER, "
+        "identity VARCHAR(64), "
+        "confidence FLOAT NOT NULL, "
+        "candidates TEXT NOT NULL, "
+        "source VARCHAR(16) NOT NULL"
+        ")"
+    )
+    connection.execute(
+        "INSERT INTO crop_classifications "
+        "(crop_id, identity, confidence, candidates, source) VALUES (?, ?, ?, ?, ?)",
+        (1, "Hermann", 0.95, "[]", "auto"),
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        rows = session.execute(
+            text(
+                "SELECT identity, classifier_version, classification_pass_id, embedding "
+                "FROM crop_classifications ORDER BY id"
+            )
+        ).all()
+
+    assert rows == [("Hermann", None, None, None)]

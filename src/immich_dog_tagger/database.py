@@ -28,6 +28,7 @@ def create_database(state_dir: Path):
     Base.metadata.create_all(engine)
 
     _ensure_identity_activation_column(engine)
+    _ensure_classification_pass_columns(engine)
 
     return engine
 
@@ -43,3 +44,33 @@ def _ensure_identity_activation_column(engine) -> None:
         connection.exec_driver_sql(
             "ALTER TABLE identities ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
         )
+
+
+def _ensure_classification_pass_columns(engine) -> None:
+    inspector = inspect(engine)
+    columns = {
+        column["name"] for column in inspector.get_columns("crop_classifications")
+    }
+
+    statements = []
+
+    if "classifier_version" not in columns:
+        statements.append(
+            "ALTER TABLE crop_classifications ADD COLUMN classifier_version VARCHAR(32)"
+        )
+
+    if "classification_pass_id" not in columns:
+        statements.append(
+            "ALTER TABLE crop_classifications ADD COLUMN classification_pass_id INTEGER "
+            "REFERENCES classification_passes(id)"
+        )
+
+    if "embedding" not in columns:
+        statements.append("ALTER TABLE crop_classifications ADD COLUMN embedding BLOB")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)

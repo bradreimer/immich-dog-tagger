@@ -12,6 +12,7 @@ from immich_dog_tagger.api.schemas import (
     ReviewItemResponse,
     ReviewQueueStatsResponse,
 )
+from immich_dog_tagger.policy import DEFAULT_POLICY
 from immich_dog_tagger.services.review_actions import ReviewActionService
 
 router = APIRouter(
@@ -25,7 +26,7 @@ router = APIRouter(
 )
 def review(
     session: Annotated[Session, Depends(get_session)],
-    threshold: float = Query(0.80),
+    threshold: float = Query(DEFAULT_POLICY.confident_threshold),
     limit: int = Query(50),
     unknown: bool = Query(False),
     confidence_below: float | None = Query(None),
