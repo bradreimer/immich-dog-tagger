@@ -18,7 +18,15 @@ from immich_dog_tagger.services.job_execution import (
 from immich_dog_tagger.services.jobs import PipelineJobService
 
 
+class DummyJob:
+    def __init__(self, job_id=1):
+        self.id = job_id
+
+
 class DummyProgress:
+    def __init__(self, job_id=1):
+        self.job = DummyJob(job_id)
+
     def set(self, current=None, total=None, message=None):
         return None
 
@@ -115,3 +123,4 @@ def test_reclassify_runs_through_pipeline_job_runner(engine, monkeypatch):
 
         classification_pass = session.query(ClassificationPass).one()
         assert classification_pass.confident_count == 1
+        assert classification_pass.job_id == job.id

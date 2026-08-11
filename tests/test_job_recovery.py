@@ -77,3 +77,54 @@ def test_recovery_result_total():
 
     r = RecoveryResult(failed=2, canceled=3)
     assert r.total == 5
+
+
+def test_running_classification_pass_is_marked_failed_on_recovery(engine):
+    from immich_dog_tagger.enums import ClassificationPassStatus
+    from immich_dog_tagger.models import ClassificationPass
+
+    with Session(engine) as session:
+        job_id = _create_job(session, PipelineJobStatus.RUNNING)
+
+        classification_pass = ClassificationPass(
+            status=ClassificationPassStatus.RUNNING,
+            classifier_version="v1",
+            threshold=0.80,
+            job_id=job_id,
+        )
+        session.add(classification_pass)
+        session.commit()
+        pass_id = classification_pass.id
+
+        result = recover_interrupted_jobs(session)
+
+    assert result.orphaned_passes == 1
+
+    with Session(engine) as session:
+        classification_pass = session.get(ClassificationPass, pass_id)
+        assert classification_pass.status is ClassificationPassStatus.FAILED
+        assert classification_pass.error_message is not None
+        assert classification_pass.completed_at is not None
+
+
+def test_completed_classification_pass_is_untouched_by_recovery(engine):
+    from immich_dog_tagger.enums import ClassificationPassStatus
+    from immich_dog_tagger.models import ClassificationPass
+
+    with Session(engine) as session:
+        classification_pass = ClassificationPass(
+            status=ClassificationPassStatus.COMPLETED,
+            classifier_version="v1",
+            threshold=0.80,
+        )
+        session.add(classification_pass)
+        session.commit()
+        pass_id = classification_pass.id
+
+        result = recover_interrupted_jobs(session)
+
+    assert result.orphaned_passes == 0
+
+    with Session(engine) as session:
+        classification_pass = session.get(ClassificationPass, pass_id)
+        assert classification_pass.status is ClassificationPassStatus.COMPLETED

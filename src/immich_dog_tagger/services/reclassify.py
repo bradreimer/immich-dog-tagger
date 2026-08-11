@@ -70,11 +70,12 @@ class ReclassifyService:
         self.policy = policy
         self.batch_size = batch_size
 
-    def reclassify(self, progress=None) -> ReclassifyResult:
+    def reclassify(self, progress=None, job_id: int | None = None) -> ReclassifyResult:
         classification_pass = ClassificationPass(
             status=ClassificationPassStatus.RUNNING,
             classifier_version=self.policy.version,
             threshold=self.policy.confident_threshold,
+            job_id=job_id,
         )
         self.session.add(classification_pass)
         self.session.commit()

@@ -219,7 +219,7 @@ def _reclassify_handler(
         embedder = get_embedder()
         service = ReclassifyService(session, embedder)
 
-        result = service.reclassify(progress=progress)
+        result = service.reclassify(progress=progress, job_id=progress.job.id)
 
         progress.message(f"Reclassify pass {result.pass_id}: {result.message}")
 
