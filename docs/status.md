@@ -10,23 +10,36 @@
 - Review action tracking
 - API hardening and review service-boundary cleanup
 - Learning and review statistics
-- DT-0901 persistent pipeline job model
-- DT-0902 pipeline job runner
-- DT-0903 jobs API
-- DT-0904 mission control dashboard
-- DT-0905 job queue UI
-- DT-0906 manual pipeline controls
-- DT-0907 live job progress
-- DT-0908 CLI job runner integration
+- DT-0901 through DT-0944 (job system, scheduling, backup/recovery, production validation, dynamic dog management -- v0.9.0 through v0.9.4)
+- DT-1000 v1.0.0 architecture audit
+- DT-1004 centralized nearest-neighbor classifier policy
+- DT-1001 reclassification service/job
+- DT-1003 review-to-example ground-truth hardening (fixed a real leakage defect)
+- DT-1005 job lifecycle/idempotency/recovery for Reclassify
+- DT-1002 + DT-1006 Reclassify action and Learning Progress dashboard
+- DT-1007 pipeline/correction lifecycle logging
+- DT-1008 scale validation (fixed two N+1 defects; documented gap: no literal 30k-image run performed in this environment)
+- DT-1009 end-to-end review-driven learning loop test suite
+- DT-1010 v1.0 user and operator documentation (docs/workflow.md)
+- DT-1011 v1.0.0 release validation (see docs/validation/v1.0.0/DT-1011-release-validation.md)
+- DT-1103 dedicated Metrics tab, next to Mission Control
+- DT-1101 per-pass labeled-example-count/review-queue-size snapshots
+- DT-1102 reconciled review-queue metric and prominent automation-rate metric
+- DT-1104 visual style foundations: blue accent tokens, validated status/categorical palette,
+  sidebar navigation shell, stat-tile primitive
+- DT-1105 rolled the visual style out to all four pages, including Metrics' donut and trend
+  charts
 
 ## Current Milestone
-v0.9.4 Dynamic Dog Management
+v1.2 Visual Style Refresh -- all backlog tickets implemented (DT-1104, DT-1105). Not yet
+version-bumped or tagged. See [docs/specs/v1.2-visual-style-refresh.md](specs/v1.2-visual-style-refresh.md).
+v1.1 Automation Coverage Dashboard is also complete (DT-1101, DT-1102, DT-1103; see
+[docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-coverage-dashboard.md)) and not yet version-bumped or tagged either.
 
 ## Next Work
-1. Implement dynamic dog identity persistence.
-2. Add Mission Control dog management UI.
-3. Remove hard-coded dog-name assumptions.
-4. Keep release documentation aligned.
+Decide whether/when to cut a release covering v1.1+v1.2; next candidates beyond that are improved
+reference-example selection, reference-set curation workflows, and confidence analysis (see
+docs/roadmap.md "Active Learning Improvements").
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.
@@ -37,3 +50,4 @@ v0.9.4 Dynamic Dog Management
 - Some pipeline status counters may need future cleanup.
 - Detection/classification status ownership needs review.
 - Endpoint-level API auth is not implemented yet.
+- DT-1008's scale validation used synthetic-scale regression tests rather than a literal 30,000-real-image run (no GPU/Immich instance in the development environment); a real-library run is recommended before relying on it at that scale in production.

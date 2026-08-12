@@ -231,6 +231,8 @@ def _reclassify_handler(
             "needs_review_count": result.needs_review_count,
             "unknown_count": result.unknown_count,
             "changed_count": result.changed_count,
+            "labeled_example_count": result.labeled_example_count,
+            "review_queue_size": result.review_queue_size,
             "message": result.message,
         }
 

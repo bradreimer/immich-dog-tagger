@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getJobs } from "../../lib/api";
+import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
 import type { PipelineJob } from "../../types/jobs";
 import { IconRefresh, IconTrash } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
@@ -36,50 +37,16 @@ function progressLabel(job: PipelineJob): string {
   return `${job.progress_current}/${job.progress_total}`;
 }
 
-function getJobRowClassName(status: PipelineJob["status"]): string {
-  switch (status) {
-    case "running":
-      return "border-sky-500/40 bg-sky-500/5";
-    case "completed":
-      return "border-emerald-500/40 bg-emerald-500/5";
-    case "failed":
-      return "border-rose-500/40 bg-rose-500/5";
-    case "pending":
-      return "border-amber-500/40 bg-amber-500/5";
-    case "canceled":
-      return "border-zinc-500/40 bg-zinc-500/5";
-    default:
-      return "";
-  }
-}
-
-function getJobBadgeClassName(status: PipelineJob["status"]): string {
-  switch (status) {
-    case "running":
-      return "border-sky-500/40 bg-sky-500 text-sky-950";
-    case "completed":
-      return "border-emerald-500/40 bg-emerald-500 text-emerald-950";
-    case "failed":
-      return "border-rose-500/40 bg-rose-500 text-rose-950";
-    case "pending":
-      return "border-amber-500/40 bg-amber-500 text-amber-950";
-    case "canceled":
-      return "border-zinc-500/40 bg-zinc-500 text-zinc-950";
-    default:
-      return "";
-  }
-}
-
 function JobRow({ job }: { job: PipelineJob }) {
   return (
-    <div className={`rounded-md border p-3 ${getJobRowClassName(job.status)}`}>
+    <div className={`rounded-md border p-3 ${jobCardClassName(job.status)}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-medium">
           #{job.id} {formatOperation(job.operation)}
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge className={getJobBadgeClassName(job.status)}>{job.status}</Badge>
+          <Badge className={jobBadgeClassName(job.status)}>{job.status}</Badge>
           <span className="text-xs text-muted-foreground">{progressLabel(job)}</span>
         </div>
       </div>

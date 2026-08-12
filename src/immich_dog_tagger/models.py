@@ -307,6 +307,13 @@ class ClassificationPass(Base):
     unknown_count: Mapped[int] = mapped_column(default=0, nullable=False)
     changed_count: Mapped[int] = mapped_column(default=0, nullable=False)
 
+    # Snapshotted once the pass completes successfully; left null for passes
+    # that predate this column or that failed mid-run (DT-1101). Not
+    # backfillable -- a past queue/example-count state isn't reconstructable
+    # from current data.
+    labeled_example_count: Mapped[int | None] = mapped_column(nullable=True)
+    review_queue_size: Mapped[int | None] = mapped_column(nullable=True)
+
     error_message: Mapped[str | None] = mapped_column(
         String(2048),
         nullable=True,

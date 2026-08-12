@@ -432,6 +432,46 @@ def test_review_query_active_review_includes_unknown_and_low_confidence(engine):
         assert low_result.suggestion.example_id == example.id
 
 
+def test_review_queue_count_matches_active_review_result_count(engine):
+    """DT-1102: review_queue_count() must count exactly what active_review()
+    would return, so /metrics and /review can never silently drift apart."""
+    with Session(engine) as session:
+        unknown_crop = Crop(detection_id=1, path="unknown.jpg")
+        low_crop = Crop(detection_id=2, path="low.jpg")
+        good_crop = Crop(detection_id=3, path="good.jpg")
+        reviewed_crop = Crop(detection_id=4, path="reviewed.jpg")
+
+        session.add_all([unknown_crop, low_crop, good_crop, reviewed_crop])
+        session.flush()
+
+        reviewed_classification = CropClassification(
+            crop=reviewed_crop, identity=None, confidence=-1.0
+        )
+
+        session.add_all(
+            [
+                CropClassification(crop=unknown_crop, identity=None, confidence=-1.0),
+                CropClassification(crop=low_crop, identity="Hermann", confidence=0.60),
+                CropClassification(crop=good_crop, identity="Fibs", confidence=0.95),
+                reviewed_classification,
+            ]
+        )
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=reviewed_classification.id,
+                action=ReviewActions.SKIP,
+            )
+        )
+        session.commit()
+
+        service = ReviewQueryService(session)
+
+        assert service.review_queue_count() == len(service.active_review())
+        assert service.review_queue_count() == 2
+
+
 def test_review_query_includes_matched_example_path(engine):
     with Session(engine) as session:
         identity = Identity(name="Hermann")

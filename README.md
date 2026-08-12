@@ -68,7 +68,13 @@ Open:
 http://localhost:5173
 ```
 
-Review images and correct predictions.
+Review images and correct predictions. When you've reviewed a batch, click
+**Reclassify** in Mission Control to apply what you've learned to the rest of
+the library, then repeat. For the full first-project walkthrough (how much to
+review, when to reclassify, what confidence/needs-review/unknown mean, backups,
+and known limitations), see:
+
+[New Project Workflow](docs/workflow.md)
 
 Publish results back to Immich:
 
@@ -87,8 +93,34 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v0.8.0
+v1.0.0
 ```
+
+Release v1.0.0 delivers the full review-driven learning loop described in
+[docs/specs/v1.0.0.md](docs/specs/v1.0.0.md) and
+[docs/workflow.md](docs/workflow.md):
+
+* A `Reclassify` operation that recomputes predictions from your reviewed
+  examples without rescanning, redownloading, or redetecting, and without
+  ever touching a label you've already confirmed
+* A single centralized classifier policy (confidence threshold, candidate
+  ranking, confident/needs-review/unknown decision) used consistently by
+  the pipeline, Reclassify, and the review queue
+* A "Learning Progress" dashboard on Mission Control: confident coverage,
+  review rate, labeled-example count, last-Reclassify status, and a
+  coverage trend across recent passes
+* A fixed review-to-example leakage defect, so re-reviewing a crop under a
+  different identity (or correcting it to Unknown) no longer leaves a
+  stale reference example behind
+* Reclassify inherits the existing job system's queued/running/completed/
+  failed states, single-flight locking, and startup recovery, extended to
+  also reconcile an interrupted classification pass on restart
+* Structured lifecycle logging for the pipeline, corrections, and
+  Reclassify, verified to never include image paths or content
+* Two fixed N+1 database-query defects and a batched, bounded-memory
+  Reclassify implementation
+* An end-to-end regression suite covering the full review -> reclassify
+  user journey, including failure/retry and existing-project migration
 
 Release v0.8.0 expands classification context and makes the review loop more explicit:
 
@@ -124,6 +156,12 @@ Completed:
 * Review statistics, audit history, and skip workflow
 * Dockerized FastAPI and React deployment behind Traefik
 * Unified bootstrap and project-wide validation scripts
+* Reclassify: safe, idempotent, ground-truth-preserving reclassification from reviewed examples
+* Centralized nearest-neighbor classifier policy shared by the pipeline, Reclassify, and review queue
+* Learning Progress dashboard with coverage/review-rate metrics and a pass-history trend
+* Job lifecycle hardening: interrupted-job and interrupted-pass recovery on restart
+* Pipeline/correction/Reclassify lifecycle logging with no image content or paths logged
+* N+1 query fixes and batched processing validated for large-project scale
 
 ---
 
@@ -544,17 +582,15 @@ UI lint: passing
 
 # Roadmap
 
-## Next: v0.9.0
+See [docs/roadmap.md](docs/roadmap.md) for the full milestone history.
 
-Future milestones focus on improving classification quality and workflow efficiency.
+## Next
 
-Planned areas include:
+Future work focuses on improving classification quality beyond the v1.0.0 loop:
 
-* improved reference-example management
-* active-learning workflow refinements
-* browser UX improvements
-* Immich synchronization enhancements
-* deployment and release automation
+* improved reference-example selection and reference-set curation workflows
+* confidence analysis
+* a polished, fully web-driven operator workflow
 
 ---
 

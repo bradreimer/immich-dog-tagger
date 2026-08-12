@@ -136,7 +136,7 @@ export function DogManagementCard() {
           </Button>
         </div>
 
-        {message && <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
+        {message && <p className="text-sm text-status-good">{message}</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {loading ? (

@@ -161,40 +161,40 @@ export function ReviewPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl p-6">
+      <div className="mx-auto max-w-5xl">
         <ReviewSkeleton />
-      </main>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <main className="mx-auto max-w-5xl space-y-6 p-6">
-        <h1>Review Error</h1>
-        <p>{error}</p>
-        
+      <div className="mx-auto max-w-5xl space-y-6">
+        <h1 className="text-3xl font-semibold tracking-tight">Review Error</h1>
+        <p className="text-muted-foreground">{error}</p>
+
         <Button onClick={() => loadReview()}>
         <IconRefresh className="h-4 w-4" aria-hidden="true" />
         Retry
         </Button>
-      </main>
+      </div>
     );
   }
 
   if (!item) {
     return (
-      <main className="mx-auto max-w-5xl p-6">
+      <div className="mx-auto max-w-5xl">
         <ReviewEmptyState
           onRefresh={() => loadReview()}
         />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="container mx-auto max-w-6xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-6">
     <header className="space-y-2">
-      <h1 className="text-3xl font-bold tracking-tight">
+      <h1 className="text-3xl font-semibold tracking-tight">
         Dog Review
       </h1>
       
@@ -292,7 +292,7 @@ export function ReviewPage() {
     
     <KeyboardHints />
     </footer>
-    </main>
+    </div>
   );
 }
 
