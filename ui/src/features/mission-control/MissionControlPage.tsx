@@ -34,7 +34,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
-import { DogManagementCard } from "./components/DogManagementCard";
 
 function formatOperation(operation: string): string {
   return operation
@@ -443,8 +442,6 @@ export function MissionControlPage() {
           </CardContent>
         </Card>
       )}
-
-      <DogManagementCard />
 
       <Card>
         <CardHeader>
