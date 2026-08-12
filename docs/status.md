@@ -29,9 +29,15 @@
   sidebar navigation shell, stat-tile primitive
 - DT-1105 rolled the visual style out to all four pages, including Metrics' donut and trend
   charts
+- DT-1106 UX review follow-ups: destructive-button contrast fix, relative "last updated" time,
+  Mission Control next-action banner, Metrics automation trend delta
+- DT-1107 moved dog management to its own `/dogs` page and sidebar tab
+- DT-1108 consolidated Metrics' trend section into one dual-axis Progress Over Time chart
+- DT-1109 fixed a 500 on `POST /classifications/{id}/correct` (raw ORM object with a binary
+  embedding column was reaching FastAPI's JSON encoder)
 
 ## Current Milestone
-v1.2 Visual Style Refresh -- all backlog tickets implemented (DT-1104, DT-1105). Not yet
+v1.2 Visual Style Refresh -- all backlog tickets implemented (DT-1104 through DT-1108). Not yet
 version-bumped or tagged. See [docs/specs/v1.2-visual-style-refresh.md](specs/v1.2-visual-style-refresh.md).
 v1.1 Automation Coverage Dashboard is also complete (DT-1101, DT-1102, DT-1103; see
 [docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-coverage-dashboard.md)) and not yet version-bumped or tagged either.
