@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { getLearningMetrics } from "../../lib/api";
+import { getDogs, getLearningMetrics } from "../../lib/api";
 import type { LearningMetrics } from "../../types/metrics";
 import {
   IconBolt,
   IconBooks,
+  IconCircleCheck,
   IconClipboardList,
   IconHistory,
+  IconQuestionMark,
   IconRefresh,
   IconTargetArrow,
+  IconTrendingDown,
+  IconTrendingUp,
   IconUserCheck,
+  IconX,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +26,7 @@ import {
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DonutChart } from "./components/DonutChart";
-import { TrendChart } from "./components/TrendChart";
+import { ProgressOverTimeChart, type ProgressPassPoint } from "./components/ProgressOverTimeChart";
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
@@ -35,8 +40,72 @@ function formatPercent(value: number | null): string {
   return value !== null ? `${Math.round(value * 100)}%` : "—";
 }
 
+function shareOfEligible(value: number, eligibleCount: number): string | undefined {
+  return eligibleCount > 0 ? `${Math.round((value / eligibleCount) * 100)}% of eligible` : undefined;
+}
+
+function ProgressFooterStats({
+  pass,
+  activeDogCount,
+  reduction,
+  reductionSincePassId,
+}: {
+  pass: ProgressPassPoint;
+  activeDogCount: number | null;
+  /** undefined = don't show the tile (not enough history yet); null = show it with a dash. */
+  reduction: number | null | undefined;
+  reductionSincePassId: number | null;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <StatTile
+        icon={IconBooks}
+        tone="accent"
+        label="Labeled Examples"
+        value={pass.labeledExampleCount}
+        subtext={activeDogCount !== null ? `Across ${activeDogCount} dog${activeDogCount === 1 ? "" : "s"}` : undefined}
+      />
+      <StatTile
+        icon={IconCircleCheck}
+        tone="good"
+        label="Confidently Classified"
+        value={pass.confidentCount}
+        subtext={shareOfEligible(pass.confidentCount, pass.eligibleCount)}
+      />
+      <StatTile
+        icon={IconQuestionMark}
+        tone="warning"
+        label="Needs Review"
+        value={pass.needsReviewCount}
+        subtext={shareOfEligible(pass.needsReviewCount, pass.eligibleCount)}
+      />
+      <StatTile
+        icon={IconX}
+        tone="serious"
+        label="Unknown"
+        value={pass.unknownCount}
+        subtext={shareOfEligible(pass.unknownCount, pass.eligibleCount)}
+      />
+      {reduction !== undefined && (
+        <StatTile
+          icon={reduction !== null && reduction < 0 ? IconTrendingUp : IconTrendingDown}
+          tone={reduction === null ? "neutral" : reduction >= 0 ? "good" : "serious"}
+          label="Review Queue Reduction"
+          value={reduction !== null ? `${Math.abs(Math.round(reduction * 100))}%` : "—"}
+          subtext={
+            reduction !== null && reductionSincePassId !== null
+              ? `since pass #${reductionSincePassId}`
+              : "starting queue was empty"
+          }
+        />
+      )}
+    </div>
+  );
+}
+
 export function MetricsPage() {
   const [metrics, setMetrics] = useState<LearningMetrics | null>(null);
+  const [activeDogCount, setActiveDogCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +114,12 @@ export function MetricsPage() {
     setError(null);
 
     try {
-      setMetrics(await getLearningMetrics());
+      const [learningMetrics, dogs] = await Promise.all([
+        getLearningMetrics(),
+        getDogs({ includeInactive: false }).catch(() => null),
+      ]);
+      setMetrics(learningMetrics);
+      setActiveDogCount(dogs ? dogs.length : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load metrics");
     } finally {
@@ -60,28 +134,29 @@ export function MetricsPage() {
   const passHistory = metrics?.pass_history ?? [];
   // review_queue_size/labeled_example_count are nullable on passes recorded before DT-1101
   // shipped and are never backfilled -- only plot the contiguous data that actually exists
-  // rather than rendering a fabricated 0 for "not recorded".
-  const queueTrendPasses = passHistory.filter((pass) => pass.review_queue_size !== null);
-  const labeledTrendPasses = passHistory.filter((pass) => pass.labeled_example_count !== null);
-  const hasQueueTrend = queueTrendPasses.length >= 2;
-  const hasLabeledTrend = labeledTrendPasses.length >= 2;
+  // rather than rendering a fabricated 0 for "not recorded". "Needs Review" plots
+  // review_queue_size (not the legacy, effectively-always-zero needs_review_count field) --
+  // see DT-1108 for why.
+  const chartPasses: ProgressPassPoint[] = passHistory
+    .filter((pass) => pass.review_queue_size !== null && pass.labeled_example_count !== null)
+    .map((pass) => ({
+      id: pass.id,
+      eligibleCount: pass.eligible_count,
+      confidentCount: pass.confident_count,
+      needsReviewCount: pass.review_queue_size as number,
+      unknownCount: pass.unknown_count,
+      labeledExampleCount: pass.labeled_example_count as number,
+    }));
 
-  // "No review needed" share (eligible - queue) at the first vs. most recent recorded pass,
-  // as percentage points -- how much the automation share has moved across recorded history.
-  // Only meaningful once two passes both have a non-zero eligible_count to divide by.
-  const automationTrendDelta = (() => {
-    if (queueTrendPasses.length < 2) {
-      return null;
-    }
-    const first = queueTrendPasses[0];
-    const last = queueTrendPasses[queueTrendPasses.length - 1];
-    if (first.eligible_count === 0 || last.eligible_count === 0) {
-      return null;
-    }
-    const firstRate = (first.eligible_count - (first.review_queue_size as number)) / first.eligible_count;
-    const lastRate = (last.eligible_count - (last.review_queue_size as number)) / last.eligible_count;
-    return Math.round((lastRate - firstRate) * 100);
-  })();
+  // Reduction in the needs-review queue between the first and most recently recorded
+  // qualifying pass -- not "since initial", since no pass snapshot exists before the first
+  // Reclassify run (ClassificationPass rows are only ever created by ReclassifyService).
+  const reductionSinceFirst =
+    chartPasses.length < 2
+      ? undefined
+      : chartPasses[0].needsReviewCount === 0
+        ? null
+        : 1 - chartPasses[chartPasses.length - 1].needsReviewCount / chartPasses[0].needsReviewCount;
 
   return (
     <section className="space-y-6">
@@ -135,19 +210,6 @@ export function MetricsPage() {
                 {metrics.no_review_needed_count} of {metrics.eligible_count} images require no
                 manual review right now -- either confidently classified, or already reviewed.
               </p>
-
-              {automationTrendDelta !== null && automationTrendDelta !== 0 && (
-                <p
-                  className={
-                    automationTrendDelta > 0
-                      ? "inline-flex items-center gap-1.5 rounded-md bg-status-good/10 px-2.5 py-1 text-sm font-medium text-status-good"
-                      : "inline-flex items-center gap-1.5 rounded-md bg-status-serious/10 px-2.5 py-1 text-sm font-medium text-status-serious"
-                  }
-                >
-                  {automationTrendDelta > 0 ? "↑" : "↓"} {Math.abs(automationTrendDelta)} points since
-                  pass #{queueTrendPasses[0].id}
-                </p>
-              )}
             </div>
 
             <DonutChart
@@ -241,69 +303,43 @@ export function MetricsPage() {
         </Card>
       )}
 
-      {metrics && (hasQueueTrend || hasLabeledTrend) && (
-        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          {hasQueueTrend && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Progress Over Time</CardTitle>
-                <CardDescription>
-                  Review queue, confident, and unknown counts across the last{" "}
-                  {queueTrendPasses.length} reclassification passes.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TrendChart
-                  unitLabel="eligible crops"
-                  xLabels={queueTrendPasses.map((pass) => `#${pass.id}`)}
-                  series={[
-                    {
-                      key: "queue",
-                      label: "Review queue",
-                      colorVar: "var(--status-warning)",
-                      values: queueTrendPasses.map((p) => p.review_queue_size as number),
-                    },
-                    {
-                      key: "confident",
-                      label: "Confident",
-                      colorVar: "var(--status-good)",
-                      values: queueTrendPasses.map((p) => p.confident_count),
-                    },
-                    {
-                      key: "unknown",
-                      label: "Unknown",
-                      colorVar: "var(--status-serious)",
-                      values: queueTrendPasses.map((p) => p.unknown_count),
-                    },
-                  ]}
+      {metrics && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Progress Over Time</CardTitle>
+            <CardDescription>By reclassification pass.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {chartPasses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Run the pipeline and review your first batch of images. Your progress will appear
+                here after your first Reclassify pass.
+              </p>
+            ) : chartPasses.length === 1 ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  One pass recorded so far -- trends will appear after your next Reclassify pass.
+                </p>
+                <ProgressFooterStats
+                  pass={chartPasses[0]}
+                  activeDogCount={activeDogCount}
+                  reduction={undefined}
+                  reductionSincePassId={null}
                 />
-              </CardContent>
-            </Card>
-          )}
-
-          {hasLabeledTrend && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Labeled Examples</CardTitle>
-                <CardDescription>Trusted reference examples, same passes.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TrendChart
-                  unitLabel="labeled examples"
-                  xLabels={labeledTrendPasses.map((pass) => `#${pass.id}`)}
-                  series={[
-                    {
-                      key: "labeled",
-                      label: "Labeled examples",
-                      colorVar: "var(--chart-3)",
-                      values: labeledTrendPasses.map((p) => p.labeled_example_count as number),
-                    },
-                  ]}
+              </>
+            ) : (
+              <>
+                <ProgressOverTimeChart passes={chartPasses} />
+                <ProgressFooterStats
+                  pass={chartPasses[chartPasses.length - 1]}
+                  activeDogCount={activeDogCount}
+                  reduction={reductionSinceFirst}
+                  reductionSincePassId={chartPasses[0].id}
                 />
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       )}
     </section>
   );
