@@ -52,8 +52,8 @@ The current milestone and active work are tracked in [docs/status.md](docs/statu
   queries in routes/components.
 - **FastAPI** (`src/immich_dog_tagger/api/`, routes in `api/routes/`) — human interaction layer:
   review, jobs, schedules, dogs, crops, embedding examples, diagnostics, health.
-- **React UI** (`ui/src/`, features in `ui/src/features/`: `review/`, `jobs/`, `mission-control/`)
-  — browser review workspace and Mission Control operational dashboard.
+- **React UI** (`ui/src/`, features in `ui/src/features/`: `review/`, `jobs/`, `dogs/`,
+  `metrics/`, `overview/`) — browser review workspace and Overview operational dashboard.
 - **ML pipeline** — YOLO detection (`detector.py`, `yolo_detector.py`), cropping (`crops.py`),
   OpenCLIP embeddings (`embedder.py`, `openclip_embedder.py`), classification (`classifier.py`,
   `scoring.py`).

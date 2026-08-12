@@ -2,7 +2,7 @@ import type { JobStatus } from "../types/jobs";
 
 /**
  * Single source of truth for status -> color mapping, so "failed" (etc.) renders as the same
- * color on the Job Queue page, Mission Control's recent-jobs list, and the Metrics donut/trend
+ * color on the Job Queue page, Overview's recent-jobs list, and the Metrics donut/trend
  * chart. See docs/specs/v1.2-visual-style-refresh.md FR-3.
  */
 const CARD_CLASS: Record<JobStatus, string> = {
