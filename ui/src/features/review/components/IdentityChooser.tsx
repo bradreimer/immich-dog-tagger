@@ -38,7 +38,7 @@ export function IdentityChooser({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No dogs are configured yet. Add one in Mission Control before correcting reviews.
+            No dogs are configured yet. Add one on the Dogs page before correcting reviews.
           </p>
         )}
 

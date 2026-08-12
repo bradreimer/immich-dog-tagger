@@ -28,7 +28,7 @@ point*, not a threshold the system enforces or checks for:
 - There's no hard ceiling. Review more if you have a lot of dogs, fewer photos
   covering a wider variety of angles/lighting, or dogs that look similar to each
   other. Review less if you have very few dogs and abundant, easy examples.
-- The **Learning Progress** card on Mission Control (labeled-example count,
+- The **Learning Progress** card on the Metrics tab (labeled-example count,
   confident coverage) is the actual signal to watch, not a review counter.
 
 Every correction you make (accept, correct, or mark Unknown) becomes ground
@@ -38,7 +38,7 @@ these examples.
 
 ## 3. When to click Reclassify
 
-**Reclassify** (Mission Control -> Manual Operations) recomputes predictions
+**Reclassify** (Overview -> Manual Operations) recomputes predictions
 for existing crops using your current set of reviewed examples. Click it:
 
 - After finishing a review batch, to see how much the new examples improved
@@ -83,7 +83,7 @@ New project
 ```
 
 Each cycle should need fewer manual corrections than the last, visible on
-Mission Control as confident coverage trending up and the review queue
+the Metrics tab as confident coverage trending up and the review queue
 shrinking. When new photos arrive later, just run the pipeline again (or let a
 schedule do it -- see [docs/deployment.md](deployment.md#unattended-operation))
 and repeat the review -> reclassify loop for anything it can't classify
@@ -106,7 +106,7 @@ history and learned examples cannot. Treat it accordingly:
   missing downloads/crops/embedding sources and prints rebuild guidance.
   Derived data (downloads, crops) is safe to delete and regenerate; `state.db`
   is not.
-- **Operational visibility**: Mission Control's diagnostics panel and the
+- **Operational visibility**: Overview's diagnostics panel and the
   `/diagnostics` API report database health, scheduler health, stuck/failed
   jobs, last backup time, and derived-data completeness in one place.
 

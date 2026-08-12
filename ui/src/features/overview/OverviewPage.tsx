@@ -50,7 +50,7 @@ function formatTimestamp(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
-export function MissionControlPage() {
+export function OverviewPage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
   const [schedules, setSchedules] = useState<PipelineSchedule[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
@@ -249,9 +249,9 @@ export function MissionControlPage() {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Mission Control</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
           <p className="text-muted-foreground">
-            Overview of pipeline health and classification progress.
+            Pipeline health and classification progress at a glance.
           </p>
         </div>
 
@@ -289,7 +289,7 @@ export function MissionControlPage() {
       {error && (
         <Card>
           <CardHeader>
-            <CardTitle>Mission Control Error</CardTitle>
+            <CardTitle>Overview Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent>

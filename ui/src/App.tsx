@@ -4,7 +4,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { DogsPage } from "./features/dogs/DogsPage";
 import { JobQueuePage } from "./features/jobs/JobQueuePage";
 import { MetricsPage } from "./features/metrics/MetricsPage";
-import { MissionControlPage } from "./features/mission-control/MissionControlPage";
+import { OverviewPage } from "./features/overview/OverviewPage";
 import { ReviewPage } from "./features/review/ReviewPage";
 
 function getPathname() {
@@ -47,7 +47,7 @@ function App() {
       return <MetricsPage />;
     }
 
-    return <MissionControlPage />;
+    return <OverviewPage />;
   })();
 
   return (

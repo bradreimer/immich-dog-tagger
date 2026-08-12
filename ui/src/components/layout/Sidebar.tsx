@@ -18,7 +18,7 @@ interface Props {
 }
 
 const links = [
-  { label: "Mission Control", path: "/", icon: IconLayoutDashboard },
+  { label: "Overview", path: "/", icon: IconLayoutDashboard },
   { label: "Review", path: "/review", icon: IconChecklist },
   { label: "Dogs", path: "/dogs", icon: IconDog },
   { label: "Job Queue", path: "/jobs", icon: IconListDetails },

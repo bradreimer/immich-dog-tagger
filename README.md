@@ -69,7 +69,7 @@ http://localhost:5173
 ```
 
 Review images and correct predictions. When you've reviewed a batch, click
-**Reclassify** in Mission Control to apply what you've learned to the rest of
+**Reclassify** in Overview to apply what you've learned to the rest of
 the library, then repeat. For the full first-project walkthrough (how much to
 review, when to reclassify, what confidence/needs-review/unknown mean, backups,
 and known limitations), see:
@@ -106,7 +106,7 @@ Release v1.0.0 delivers the full review-driven learning loop described in
 * A single centralized classifier policy (confidence threshold, candidate
   ranking, confident/needs-review/unknown decision) used consistently by
   the pipeline, Reclassify, and the review queue
-* A "Learning Progress" dashboard on Mission Control: confident coverage,
+* A "Learning Progress" dashboard on the Metrics tab: confident coverage,
   review rate, labeled-example count, last-Reclassify status, and a
   coverage trend across recent passes
 * A fixed review-to-example leakage defect, so re-reviewing a crop under a

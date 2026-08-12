@@ -14,8 +14,12 @@ from immich_dog_tagger.models import ClassificationPass, PipelineJob
 
 logger = logging.getLogger(__name__)
 
-_INTERRUPTED_MSG = "Interrupted: process stopped while this job was active. Retry from Mission Control."
-_ABANDONED_MSG = "Abandoned: process stopped before this job could start. Retry from Mission Control."
+_INTERRUPTED_MSG = (
+    "Interrupted: process stopped while this job was active. Retry from Overview."
+)
+_ABANDONED_MSG = (
+    "Abandoned: process stopped before this job could start. Retry from Overview."
+)
 
 
 @dataclass

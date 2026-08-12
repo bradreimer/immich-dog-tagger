@@ -310,7 +310,7 @@ On startup the scheduler also runs an immediate reconciliation tick so any occur
 
 ### Recommended setup
 
-1. Create at least one schedule in Mission Control (Automation Schedules section).
+1. Create at least one schedule in Overview (Automation Schedules section).
    - Recommended: Full Pipeline on a regular cadence, e.g. `0 * * * *` (hourly).
    - Optional: Sync after confident labels accumulate, e.g. `30 * * * *`.
 
