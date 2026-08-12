@@ -27,6 +27,13 @@ export function ReviewCard({
 
       <ReviewReason reason={item.reason} />
 
+      <ReviewActions
+        identities={identities}
+        onCorrect={onCorrect}
+        onSkip={onSkip}
+        disabled={disabled}
+      />
+
       <div className="grid gap-6 lg:grid-cols-2">
         <PredictionCard
           identity={item.prediction.identity}
@@ -45,13 +52,6 @@ export function ReviewCard({
           />
         )}
       </div>
-
-      <ReviewActions
-        identities={identities}
-        onCorrect={onCorrect}
-        onSkip={onSkip}
-        disabled={disabled}
-      />
     </section>
   );
 }
