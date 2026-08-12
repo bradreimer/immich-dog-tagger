@@ -11,7 +11,7 @@ import {
 import type { Dog } from "../../../types/dogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function DogManagementCard() {
   const [dogs, setDogs] = useState<Dog[]>([]);
@@ -116,11 +116,6 @@ export function DogManagementCard() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Dogs</CardTitle>
-        <CardDescription>Manage the dog identities used by review and learning.</CardDescription>
-      </CardHeader>
-
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input

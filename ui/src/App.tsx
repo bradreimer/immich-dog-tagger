@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { AppShell } from "./components/layout/AppShell";
+import { DogsPage } from "./features/dogs/DogsPage";
 import { JobQueuePage } from "./features/jobs/JobQueuePage";
 import { MetricsPage } from "./features/metrics/MetricsPage";
 import { MissionControlPage } from "./features/mission-control/MissionControlPage";
@@ -32,6 +33,10 @@ function App() {
   const page = (() => {
     if (pathname === "/review") {
       return <ReviewPage />;
+    }
+
+    if (pathname === "/dogs") {
+      return <DogsPage />;
     }
 
     if (pathname === "/jobs") {
