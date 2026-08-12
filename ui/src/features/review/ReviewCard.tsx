@@ -29,6 +29,7 @@ export function ReviewCard({
 
       <ReviewActions
         identities={identities}
+        species={item.species}
         onCorrect={onCorrect}
         onSkip={onSkip}
         disabled={disabled}

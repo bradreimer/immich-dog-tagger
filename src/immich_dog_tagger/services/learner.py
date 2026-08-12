@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
+from immich_dog_tagger.enums import Species
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import EmbeddingExample, EmbeddingSources, Identity
 
@@ -35,20 +36,21 @@ class Learner:
         identity_name: str,
         image_path: Path,
         *,
+        species: Species = Species.DOG,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
         captured_at: datetime | None = None,
     ) -> bool:
         """
         Upsert a single reference example for `identity_name` at `image_path`.
 
-        A physical crop can only depict one dog, so any existing example for
-        this same path under a *different* identity is superseded (deleted)
-        first. This keeps re-reviewing an item idempotent: correcting a crop
-        from "Fibs" to "Hermann" removes the stale Fibs example instead of
-        leaving it behind to pollute future classifications. Caller is
-        responsible for committing.
+        A physical crop can only depict one animal, so any existing example
+        for this same path under a *different* identity is superseded
+        (deleted) first. This keeps re-reviewing an item idempotent:
+        correcting a crop from "Fibs" to "Hermann" removes the stale Fibs
+        example instead of leaving it behind to pollute future
+        classifications. Caller is responsible for committing.
         """
-        identity = self._get_or_create_identity(identity_name)
+        identity = self._get_or_create_identity(identity_name, species)
 
         self._forget_other_identities(identity.id, image_path)
 
@@ -97,10 +99,11 @@ class Learner:
         identity_name: str,
         image_dir: Path,
         *,
+        species: Species = Species.DOG,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
         captured_at: datetime | None = None,
     ) -> LearnSummary:
-        identity = self._get_or_create_identity(identity_name)
+        identity = self._get_or_create_identity(identity_name, species)
 
         count = 0
         skipped_existing = 0
@@ -144,13 +147,17 @@ class Learner:
     def _get_or_create_identity(
         self,
         identity_name: str,
+        species: Species,
     ) -> Identity:
         identity = self.session.scalar(
-            select(Identity).where(Identity.name == identity_name)
+            select(Identity).where(
+                Identity.name == identity_name,
+                Identity.species == species,
+            )
         )
 
         if identity is None:
-            identity = Identity(name=identity_name)
+            identity = Identity(name=identity_name, species=species)
 
             self.session.add(identity)
             self.session.flush()

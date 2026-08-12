@@ -6,7 +6,7 @@ import logging
 from collections import Counter
 from dataclasses import dataclass
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import embedding_to_blob
@@ -107,6 +107,7 @@ class ClassificationService:
     ) -> CropClassification:
         result = self.classifier.classify(
             embedding,
+            species=crop.species,
             threshold=threshold,
         )
 
@@ -152,7 +153,10 @@ class ClassificationService:
         mode: ClassificationMode,
         threshold: float,
     ):
-        query = self.session.query(Crop)
+        # joinedload(Crop.detection): _classify_crop() reads crop.species
+        # (derived from crop.detection.label) for every crop -- without this,
+        # that's an N+1 query across the whole batch.
+        query = self.session.query(Crop).options(joinedload(Crop.detection))
 
         if mode == ClassificationMode.LOW_CONFIDENCE:
             return query.join(CropClassification).filter(

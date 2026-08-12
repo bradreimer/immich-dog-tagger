@@ -18,7 +18,7 @@ Medium
 
 ## **Status**
 
-Pending
+Completed
 
 ## **Goal**
 

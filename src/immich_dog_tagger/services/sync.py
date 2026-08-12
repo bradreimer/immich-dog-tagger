@@ -12,6 +12,7 @@ from immich_dog_tagger.services.sync_policy import SyncPolicy
 @dataclass(frozen=True)
 class SyncIdentitySummary:
     identity: str
+    species: str
     assets: int
 
 
@@ -36,7 +37,10 @@ class SyncService:
         *,
         dry_run: bool = False,
     ) -> SyncSummary:
-        assets: dict[str, set[str]] = defaultdict(set)
+        # Keyed by (species, identity), not identity alone (DT-1110) -- a
+        # dog "Max" and a cat "Max" must sync to two separate albums, not
+        # get merged into one because they share a name.
+        assets: dict[tuple[str, str], set[str]] = defaultdict(set)
 
         classifications = self.session.scalars(select(CropClassification)).all()
 
@@ -52,22 +56,25 @@ class SyncService:
             else:
                 identity = classification.identity
 
+            species = classification.crop.species
             asset_id = classification.crop.detection.asset.immich_asset_id
 
-            assets[identity].add(asset_id)
+            assets[(species, identity)].add(asset_id)
 
         summary: list[SyncIdentitySummary] = []
 
-        for identity, asset_ids in assets.items():
+        for (species, identity), asset_ids in assets.items():
             if not dry_run:
                 self.albums.sync_identity(
                     identity,
                     sorted(asset_ids),
+                    species=species,
                 )
 
             summary.append(
                 SyncIdentitySummary(
                     identity=identity,
+                    species=species,
                     assets=len(asset_ids),
                 )
             )

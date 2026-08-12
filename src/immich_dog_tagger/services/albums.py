@@ -24,8 +24,9 @@ class AlbumService:
         self,
         identity: str,
         asset_ids: list[str],
+        species: str = "dog",
     ) -> None:
-        album_name = f"Dog - {identity}"
+        album_name = f"{species.capitalize()} - {identity}"
 
         album_id = self.ensure_album(
             album_name,

@@ -35,6 +35,11 @@
 - DT-1108 consolidated Metrics' trend section into one dual-axis Progress Over Time chart
 - DT-1109 fixed a 500 on `POST /classifications/{id}/correct` (raw ORM object with a binary
   embedding column was reaching FastAPI's JSON encoder)
+- DT-1110 cat support alongside dogs: species-scoped identities and crops, species-scoped
+  nearest-neighbor classification, unified dog+cat review queue with per-item species-scoped
+  identity chooser, species-aware Immich album naming (also fixed a same-name-cross-species
+  album-collision bug in `SyncService.sync()`), per-species Learning Progress breakdown, and a
+  backward-compatible additive migration for existing dog-only projects
 
 ## Current Milestone
 v1.2 Visual Style Refresh -- all backlog tickets implemented (DT-1104 through DT-1108). Not yet

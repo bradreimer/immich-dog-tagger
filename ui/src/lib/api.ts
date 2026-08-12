@@ -2,7 +2,7 @@ import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../types/review";
-import type { Dog } from "../types/dogs";
+import type { Dog, Species } from "../types/dogs";
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
@@ -77,13 +77,13 @@ export async function getDogs(options: { includeInactive?: boolean } = {}): Prom
   return response.json();
 }
 
-export async function createDog(name: string): Promise<Dog> {
+export async function createDog(name: string, species: Species = "dog"): Promise<Dog> {
   const response = await fetch("/api/dogs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, species }),
   });
 
   if (!response.ok) {

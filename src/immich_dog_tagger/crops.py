@@ -2,6 +2,10 @@ from pathlib import Path
 
 from PIL import Image
 
+from .enums import Species
+
+_DETECTABLE_LABELS = {species.value for species in Species}
+
 
 class CropWriter:
     def __init__(
@@ -31,7 +35,7 @@ class CropWriter:
         crops = []
 
         for index, detection in enumerate(detections):
-            if detection.label != "dog":
+            if detection.label not in _DETECTABLE_LABELS:
                 continue
 
             box = self._expand_box(

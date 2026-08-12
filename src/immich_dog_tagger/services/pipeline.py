@@ -55,9 +55,9 @@ class PipelineService:
         if progress:
             progress(f"Downloaded {downloaded} assets")
 
-        # Detect dogs in downloaded assets
+        # Detect dogs and cats in downloaded assets
         if progress:
-            progress("Detecting dogs")
+            progress("Detecting dogs and cats")
 
         detected = self.detector.run(
             limit=limit,
@@ -65,11 +65,11 @@ class PipelineService:
         )
 
         if progress:
-            progress(f"Detected {detected.dogs} dogs")
+            progress(f"Detected {detected.dogs} dog(s) and {detected.cats} cat(s)")
 
-        # Classify detected dogs
+        # Classify detected crops
         if progress:
-            progress("Classifying dogs")
+            progress("Classifying crops")
 
         mode = ClassificationMode.ALL if force else ClassificationMode.PENDING
 
@@ -84,6 +84,6 @@ class PipelineService:
         return PipelineSummary(
             scanned=scanned,
             downloaded=downloaded,
-            detected=detected.dogs,
+            detected=detected.dogs + detected.cats,
             classified=classified.classified,
         )

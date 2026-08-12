@@ -211,6 +211,63 @@ def test_detection_respects_limit(
         assert len(detections) == 2
 
 
+def test_detection_creates_one_crop_per_species_from_same_photo(
+    engine,
+    tmp_path,
+):
+    # DT-1110 acceptance criterion 2: a single photo containing both a dog
+    # and a cat produces the union of both detections -- two crops, each
+    # tagged with its own species -- not just the dog, and not merged into
+    # one crop.
+    class MixedDetector:
+        def detect(self, image_path):
+            return [
+                DetectionResult(label="dog", confidence=0.95, x1=0, y1=0, x2=50, y2=50),
+                DetectionResult(
+                    label="cat", confidence=0.90, x1=60, y1=60, x2=100, y2=100
+                ),
+            ]
+
+    class MixedCropWriter:
+        def write(self, image_path, asset_id, detections):
+            crops = []
+            for index, detection in enumerate(detections):
+                path = tmp_path / f"{asset_id}_{index}.jpg"
+                path.write_bytes(b"fake crop")
+                crops.append((index, path))
+            return crops
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="mixed-asset",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        service = DetectionService(
+            MixedDetector(),
+            session,
+            tmp_path,
+            crop_writer=MixedCropWriter(),
+        )
+
+        summary = service.run()
+
+        assert summary.processed == 1
+        assert summary.detections == 2
+        assert summary.dogs == 1
+        assert summary.cats == 1
+
+        crops = session.query(Crop).order_by(Crop.id).all()
+
+        assert len(crops) == 2
+        assert crops[0].species == "dog"
+        assert crops[1].species == "cat"
+
+
 def test_detection_force_replaces_existing_crop(
     engine,
     tmp_path,

@@ -149,15 +149,19 @@ export function ReviewPage() {
     loadReview();
   }, [loadReview]);
 
+  const item = items[index];
+
+  const speciesIdentities = item
+    ? dogs.filter((dog) => dog.species === item.species).map((dog) => dog.name)
+    : [];
+
   useReviewKeyboard({
-    identities: dogs.map((dog) => dog.name),
+    identities: speciesIdentities,
     correct,
     skip,
     next,
     previous,
   });
-
-  const item = items[index];
 
   if (loading) {
     return (
@@ -195,7 +199,7 @@ export function ReviewPage() {
     <div className="mx-auto max-w-5xl space-y-6">
     <header className="space-y-2">
       <h1 className="text-3xl font-semibold tracking-tight">
-        Dog Review
+        {item.species === "cat" ? "Cat Review" : "Dog Review"}
       </h1>
       
       <div className="text-muted-foreground">
@@ -263,7 +267,7 @@ export function ReviewPage() {
     
     <ReviewCard
       item={item}
-      identities={dogs.map((dog) => dog.name)}
+      identities={speciesIdentities}
       onCorrect={correct}
       onSkip={skip}
       disabled={saving}

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
   identities: string[];
+  species?: string;
   onCorrect: (identity: string) => void;
   onSkip: () => void;
   disabled?: boolean;
@@ -11,10 +12,12 @@ interface Props {
 
 export function IdentityChooser({
   identities,
+  species,
   onCorrect,
   onSkip,
   disabled,
 }: Props) {
+  const speciesLabel = species === "cat" ? "cats" : "dogs";
   return (
     <Card>
       <CardHeader>
@@ -38,7 +41,7 @@ export function IdentityChooser({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No dogs are configured yet. Add one on the Dogs page before correcting reviews.
+            No {speciesLabel} are configured yet. Add one on the Dogs & Cats page before correcting reviews.
           </p>
         )}
 

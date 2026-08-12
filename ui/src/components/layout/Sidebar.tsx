@@ -20,7 +20,7 @@ interface Props {
 const links = [
   { label: "Overview", path: "/", icon: IconLayoutDashboard },
   { label: "Review", path: "/review", icon: IconChecklist },
-  { label: "Dogs", path: "/dogs", icon: IconDog },
+  { label: "Dogs & Cats", path: "/dogs", icon: IconDog },
   { label: "Job Queue", path: "/jobs", icon: IconListDetails },
   { label: "Metrics", path: "/metrics", icon: IconChartBar },
 ];

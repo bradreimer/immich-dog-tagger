@@ -20,13 +20,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import blob_to_embedding, embedding_to_blob
 from immich_dog_tagger.enums import ClassificationPassStatus, ClassificationSources
 from immich_dog_tagger.models import (
     ClassificationPass,
+    Crop,
     CropClassification,
     EmbeddingExample,
     Identity,
@@ -200,6 +201,9 @@ class ReclassifyService:
                 select(CropClassification)
                 .where(CropClassification.id.in_(chunk_ids))
                 .order_by(CropClassification.id)
+                .options(
+                    selectinload(CropClassification.crop).selectinload(Crop.detection)
+                )
             ).all()
 
             missing_embedding = [c for c in classifications if c.embedding is None]
@@ -216,7 +220,10 @@ class ReclassifyService:
 
             for classification in classifications:
                 embedding = blob_to_embedding(classification.embedding)
-                result = classifier.classify(embedding)
+                result = classifier.classify(
+                    embedding,
+                    species=classification.crop.species,
+                )
 
                 if result.identity != classification.identity:
                     changed += 1

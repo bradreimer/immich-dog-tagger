@@ -44,3 +44,17 @@ def test_album_service_creates_album():
             ["asset1"],
         )
     ]
+
+
+def test_album_service_names_cat_albums_by_species():
+    client = FakeImmich()
+
+    service = AlbumService(client)
+
+    service.sync_identity(
+        "Whiskers",
+        ["asset1"],
+        species="cat",
+    )
+
+    assert client.created == ["Cat - Whiskers"]

@@ -7,7 +7,7 @@ from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.downloader import Downloader
-from immich_dog_tagger.enums import ClassificationMode, PipelineOperation
+from immich_dog_tagger.enums import ClassificationMode, PipelineOperation, Species
 from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.models import Crop
 from immich_dog_tagger.runtime import get_embedder
@@ -116,7 +116,7 @@ def _detect_handler(
     options: dict,
 ):
     def run(progress: JobProgressReporter) -> dict[str, int]:
-        progress.message("Detecting dogs")
+        progress.message("Detecting dogs and cats")
 
         detector = YOLODetector(config.yolo_model)
         service = DetectionService(
@@ -134,11 +134,12 @@ def _detect_handler(
             force=options.get("force", False),
         )
 
-        progress.message(f"Detected {summary.dogs} dogs")
+        progress.message(f"Detected {summary.dogs} dog(s) and {summary.cats} cat(s)")
         return {
             "processed": summary.processed,
             "detections": summary.detections,
             "dogs": summary.dogs,
+            "cats": summary.cats,
         }
 
     return run
@@ -246,6 +247,7 @@ def _learn_handler(
     def run(progress: JobProgressReporter) -> dict[str, int]:
         identity_name = options.get("identity")
         directory = options.get("directory")
+        species = Species(options.get("species", Species.DOG))
 
         if identity_name and directory:
             embedder = get_embedder()
@@ -257,6 +259,7 @@ def _learn_handler(
             summary = learner.learn(
                 identity_name,
                 Path(directory),
+                species=species,
             )
 
             progress.set(

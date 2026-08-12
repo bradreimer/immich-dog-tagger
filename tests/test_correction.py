@@ -7,6 +7,7 @@ from immich_dog_tagger.enums import (
     ClassificationSources,
     EmbeddingSources,
     ReviewActions,
+    Species,
 )
 from immich_dog_tagger.models import (
     Asset,
@@ -26,11 +27,14 @@ class FakeLearner:
     def __init__(self):
         self.calls = []
 
-    def learn_image(self, identity, image_path, source, captured_at=None):
+    def learn_image(
+        self, identity, image_path, species=None, source=None, captured_at=None
+    ):
         self.calls.append(
             {
                 "identity": identity,
                 "image_path": image_path,
+                "species": species,
                 "source": source,
                 "captured_at": captured_at,
             }
@@ -119,6 +123,7 @@ def test_correction_learns_from_review(engine):
             {
                 "identity": "Hermann",
                 "image_path": Path("hermann.jpg"),
+                "species": Species.DOG,
                 "source": EmbeddingSources.REVIEW,
                 "captured_at": None,
             }
@@ -404,6 +409,7 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
             identity,
             image_path,
             *,
+            species=None,
             source,
             captured_at=None,
         ):
@@ -411,6 +417,7 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
                 {
                     "identity": identity,
                     "image_path": image_path,
+                    "species": species,
                     "source": source,
                     "captured_at": captured_at,
                 }
@@ -470,6 +477,7 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
             {
                 "identity": "Fibs",
                 "image_path": image_path,
+                "species": Species.DOG,
                 "source": EmbeddingSources.REVIEW,
                 "captured_at": captured_at.replace(tzinfo=None),
             }

@@ -8,16 +8,18 @@ from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import ClassificationCandidate
 from immich_dog_tagger.models import (
+    Crop,
     CropClassification,
     EmbeddingExample,
     ReviewAction,
 )
 
-# Eager-load the relationships _to_review_item() touches (crop, matched
-# example, and the example's identity) so a review-queue page issues a
-# constant number of queries instead of one extra round trip per row.
+# Eager-load the relationships _to_review_item() touches (crop, the crop's
+# detection -- for crop.species, DT-1110 -- matched example, and the
+# example's identity) so a review-queue page issues a constant number of
+# queries instead of one extra round trip per row.
 _REVIEW_ITEM_RELATIONSHIPS = (
-    selectinload(CropClassification.crop),
+    selectinload(CropClassification.crop).selectinload(Crop.detection),
     selectinload(CropClassification.matched_example).selectinload(
         EmbeddingExample.identity
     ),
@@ -50,6 +52,7 @@ class ReviewItem:
     classification_id: int
     crop_id: int
     path: Path
+    species: str
     prediction: ReviewPrediction
     suggestion: ReviewSuggestion | None
     reason: str = "review"
@@ -310,6 +313,7 @@ class ReviewQueryService:
             classification_id=classification.id,
             crop_id=classification.crop.id,
             path=Path(classification.crop.path),
+            species=classification.crop.species,
             prediction=self._prediction(classification),
             suggestion=self._suggestion(classification),
             reason=self._review_reason(classification),

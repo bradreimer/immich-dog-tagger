@@ -69,6 +69,7 @@ class ClassificationCorrectionService:
                 self.learner.learn_image(
                     identity,
                     crop_path,
+                    species=classification.crop.species,
                     source=EmbeddingSources.REVIEW,
                     captured_at=captured_at,
                 )

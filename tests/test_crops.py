@@ -65,6 +65,66 @@ def test_crop_writer_creates_padded_dog_crop(tmp_path: Path):
     )
 
 
+def test_crop_writer_keeps_cat_detections_too(tmp_path: Path):
+    image_path = tmp_path / "test.jpg"
+
+    image = Image.new(
+        "RGB",
+        (100, 100),
+        "white",
+    )
+
+    image.save(image_path)
+
+    crop_dir = tmp_path / "crops"
+
+    writer = CropWriter(
+        crop_dir,
+    )
+
+    detections = [
+        DetectionResult(
+            label="dog",
+            confidence=0.95,
+            x1=10,
+            y1=20,
+            x2=60,
+            y2=80,
+        ),
+        DetectionResult(
+            label="cat",
+            confidence=0.92,
+            x1=5,
+            y1=5,
+            x2=40,
+            y2=40,
+        ),
+        DetectionResult(
+            label="person",
+            confidence=0.90,
+            x1=0,
+            y1=0,
+            x2=50,
+            y2=50,
+        ),
+    ]
+
+    crops = writer.write(
+        image_path,
+        "mixed",
+        detections,
+    )
+
+    # Union of dog + cat detections; "person" (or any other COCO class)
+    # still excluded -- species is hardcoded to exactly these two.
+    assert len(crops) == 2
+    assert crops[0][0] == 0
+    assert crops[1][0] == 1
+    assert (crop_dir / "mixed_0.jpg").exists()
+    assert (crop_dir / "mixed_1.jpg").exists()
+    assert not (crop_dir / "mixed_2.jpg").exists()
+
+
 def test_crop_writer_clips_crop_to_image_bounds(tmp_path: Path):
     image_path = tmp_path / "test.jpg"
 

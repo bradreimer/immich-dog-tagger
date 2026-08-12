@@ -17,6 +17,7 @@ def test_export_review(tmp_path):
         classification_id=1,
         crop_id=2,
         path=source,
+        species="dog",
         prediction=ReviewPrediction(
             identity="Riley",
             similarity=0.95,
@@ -55,6 +56,7 @@ def test_export_review_writes_metadata(tmp_path):
         classification_id=1,
         crop_id=2,
         path=source,
+        species="dog",
         prediction=ReviewPrediction(
             identity="Riley",
             similarity=0.95,

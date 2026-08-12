@@ -16,7 +16,7 @@ export function KeyboardHints() {
         {" · "}
         Space Accept
         {" · "}
-        1-9 Active dogs in order
+        1-9 Active identities in order
         {" · "}
         S Skip
       </p>
