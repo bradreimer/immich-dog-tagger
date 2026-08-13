@@ -115,9 +115,18 @@ class PipelineJobRunner:
                 result = handler(reporter)
                 duration = time.monotonic() - started_at
 
+                # Preserve whatever informative final message the handler
+                # already set via progress.message()/.set() -- every
+                # handler sets one (e.g. "Synchronized 3 identities"), and
+                # unconditionally overwriting it with a generic
+                # "<operation> completed" here was silently discarding it,
+                # leaving no way to tell from the job's own status why a
+                # run did (or didn't) do as much as expected. Only fall
+                # back to the generic message if the handler never set one.
                 self.service.complete_job(
                     job,
-                    progress_message=f"{job.operation.value} completed",
+                    progress_message=job.progress_message
+                    or f"{job.operation.value} completed",
                 )
 
                 logger.info(

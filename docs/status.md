@@ -68,6 +68,13 @@
   straight back -- `PipelineJob` gained a `visible` flag, `POST /jobs/clear-history` hides
   (never deletes) finished jobs server-side, and `GET /jobs` excludes them by default; pending/
   running jobs are never hidden
+- DT-1117 fixed [GitHub issue #11](https://github.com/bradreimer/immich-dog-tagger/issues/11):
+  Sync producing fewer Immich albums than expected had no explanation anywhere -- `PipelineJobRunner`
+  was discarding every job's own final status message (not sync-specific; affected every
+  operation) in favor of a generic "\<operation\> completed", and `SyncService.sync()` had no
+  accounting for classifications it skipped (low confidence / unidentified / a missing
+  detection-asset chain that could previously abort an entire sync run on one bad row). Job
+  completion messages now survive, and a sync that skips anything says how many and why.
 
 ## Current Milestone
 v1.4.0 Trustworthy Photo Library -- released (DT-1111 through DT-1114). See

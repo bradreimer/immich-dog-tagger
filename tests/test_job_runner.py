@@ -50,7 +50,30 @@ def test_runner_executes_queued_job_and_marks_completed(engine):
         assert job.completed_at is not None
         assert job.progress_current == 2
         assert job.progress_total == 2
-        assert job.progress_message == "scan completed"
+        # The handler's own last message survives completion -- it must
+        # not be silently replaced by a generic "scan completed".
+        assert job.progress_message == "Done"
+
+
+def test_runner_falls_back_to_generic_message_when_handler_sets_none(engine):
+    """A handler that never calls progress.message()/.set() with a message
+    still needs some completion message -- the generic fallback only
+    applies in that case, not whenever a handler happens to finish."""
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(operation=PipelineOperation.LEARN)
+
+        runner = build_runner(
+            session,
+            {
+                PipelineOperation.LEARN: lambda progress: {"imported": 0},
+            },
+        )
+
+        runner.run_job(job.id)
+        session.refresh(job)
+
+        assert job.progress_message == "learn completed"
 
 
 def test_runner_marks_failed_and_preserves_job_on_exception(engine):

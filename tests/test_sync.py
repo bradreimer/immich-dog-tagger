@@ -313,3 +313,144 @@ def test_sync_dry_run_does_not_persist_synced_state_or_remove(engine):
         assert albums.calls == []
         assert albums.removals == []
         assert session.query(SyncedAsset).count() == 0
+
+
+def test_sync_reports_skipped_low_confidence_classifications(engine):
+    """Issue #11: a sync producing fewer albums than expected must say why
+    -- not just silently omit the low-confidence classifications."""
+    with Session(engine) as session:
+        for i, confidence in enumerate([0.95, 0.50, 0.10]):
+            asset = Asset(immich_asset_id=f"asset{i}", checksum="c", extension=".jpg")
+            detection = Detection(
+                asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+            )
+            crop = Crop(detection=detection, path=f"crop{i}.jpg")
+            session.add(
+                CropClassification(crop=crop, identity="Fibs", confidence=confidence)
+            )
+        session.commit()
+
+        albums = FakeAlbums()
+        summary = SyncService(session, albums).sync()
+
+        assert len(summary.identities) == 1
+        assert summary.identities[0].assets == 1
+        assert summary.skipped_low_confidence == 2
+        assert summary.skipped_unknown == 0
+        assert summary.skipped_missing_asset == 0
+
+
+def test_sync_reports_skipped_unknown_classifications(engine):
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+
+        # Manually corrected to Unknown: confidence is 1.0 (matching what
+        # ClassificationCorrectionService.correct() sets), so this is only
+        # excluded by the identity=None/include_unknown check, not the
+        # confidence one -- the two skip reasons must stay distinct.
+        session.add(CropClassification(crop=crop, identity=None, confidence=1.0))
+        session.commit()
+
+        albums = FakeAlbums()
+        summary = SyncService(session, albums).sync()
+
+        assert len(summary.identities) == 0
+        assert summary.skipped_low_confidence == 0
+        assert summary.skipped_unknown == 1
+        assert albums.calls == []
+
+
+def test_sync_skips_classification_missing_detection_instead_of_crashing(engine):
+    """A crop with no resolvable Detection (e.g. an orphaned row) used to
+    raise, aborting sync() before a single album was touched -- one bad row
+    meant zero albums synced that run, not "everything else still went
+    through". It must now be skipped and counted instead."""
+    with Session(engine) as session:
+        orphaned_crop = Crop(detection_id=999, path="orphaned.jpg")
+
+        good_asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        good_detection = Detection(
+            asset=good_asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        good_crop = Crop(detection=good_detection, path="good.jpg")
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=orphaned_crop, identity="Fibs", confidence=0.95
+                ),
+                CropClassification(crop=good_crop, identity="Hermann", confidence=0.95),
+            ]
+        )
+        session.commit()
+
+        albums = FakeAlbums()
+        summary = SyncService(session, albums).sync()
+
+        assert summary.skipped_missing_asset == 1
+        assert len(summary.identities) == 1
+        assert summary.identities[0].identity == "Hermann"
+        assert albums.calls == [("Hermann", ["asset1"], "dog")]
+
+
+def test_sync_full_accounting_matches_issue_11_scenario(engine):
+    """Reproduces the reported scenario: several reviewed/classified
+    animals, but only some are eligible to sync -- the summary must account
+    for all of them, not just the ones that made it into an album."""
+    with Session(engine) as session:
+        # 3 confidently classified (reviewed) -- expected to sync.
+        for i, identity in enumerate(["Fibs", "Hermann", "Henri"]):
+            asset = Asset(immich_asset_id=f"good-{i}", checksum="c", extension=".jpg")
+            detection = Detection(
+                asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+            )
+            crop = Crop(detection=detection, path=f"good-{i}.jpg")
+            session.add(
+                CropClassification(crop=crop, identity=identity, confidence=1.0)
+            )
+
+        # 2 auto-classified but never reviewed, below the sync threshold.
+        for i in range(2):
+            asset = Asset(
+                immich_asset_id=f"low-conf-{i}", checksum="c", extension=".jpg"
+            )
+            detection = Detection(
+                asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+            )
+            crop = Crop(detection=detection, path=f"low-conf-{i}.jpg")
+            session.add(
+                CropClassification(crop=crop, identity="Cooper", confidence=0.55)
+            )
+
+        # 1 manually corrected to Unknown -- confidence 1.0 (matching what
+        # ClassificationCorrectionService.correct() sets), so it's excluded
+        # by the identity=None check, not the confidence one.
+        asset = Asset(immich_asset_id="unknown-1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="unknown-1.jpg")
+        session.add(CropClassification(crop=crop, identity=None, confidence=1.0))
+
+        session.commit()
+
+        albums = FakeAlbums()
+        summary = SyncService(session, albums).sync()
+
+        assert len(summary.identities) == 3
+        assert summary.skipped_low_confidence == 2
+        assert summary.skipped_unknown == 1
+        assert summary.skipped_missing_asset == 0
+
+        # The full count is always reconstructable from the summary alone.
+        total_accounted_for = (
+            len(summary.identities)
+            + summary.skipped_low_confidence
+            + summary.skipped_unknown
+            + summary.skipped_missing_asset
+        )
+        assert total_accounted_for == 6

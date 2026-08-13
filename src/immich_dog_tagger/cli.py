@@ -519,6 +519,19 @@ def sync_command(args) -> None:
         for item in summary.identities:
             print(f"{item.identity}: {item.assets}")
 
+        skipped = (
+            summary.skipped_low_confidence
+            + summary.skipped_unknown
+            + summary.skipped_missing_asset
+        )
+
+        if skipped:
+            print()
+            print(f"Skipped {skipped} classification(s):")
+            print(f"  {summary.skipped_low_confidence} below confidence threshold")
+            print(f"  {summary.skipped_unknown} unidentified")
+            print(f"  {summary.skipped_missing_asset} missing asset data")
+
         return
 
     engine = create_database(

@@ -19,6 +19,12 @@ class SyncIdentitySummary:
 @dataclass(frozen=True)
 class SyncSummary:
     identities: list[SyncIdentitySummary]
+    # Classifications that did not end up in any album this run, and why --
+    # without these, a lower-than-expected album count is silent and
+    # unexplained (github.com/bradreimer/immich-dog-tagger/issues/11).
+    skipped_low_confidence: int = 0
+    skipped_unknown: int = 0
+    skipped_missing_asset: int = 0
 
 
 class SyncService:
@@ -42,22 +48,40 @@ class SyncService:
         # get merged into one because they share a name.
         assets: dict[tuple[str, str], set[str]] = defaultdict(set)
 
+        skipped_low_confidence = 0
+        skipped_unknown = 0
+        skipped_missing_asset = 0
+
         classifications = self.session.scalars(select(CropClassification)).all()
 
         for classification in classifications:
             if classification.confidence < self.policy.minimum_confidence:
+                skipped_low_confidence += 1
                 continue
 
             if classification.identity is None:
                 if not self.policy.include_unknown:
+                    skipped_unknown += 1
                     continue
 
                 identity = "Unknown"
             else:
                 identity = classification.identity
 
+            # A crop whose detection/asset chain is missing (e.g. an
+            # orphaned row) previously raised here, aborting the entire
+            # sync before a single album was touched -- one bad row meant
+            # zero albums updated, not "every other row still synced".
+            # Skip and count it instead so the rest of the batch still
+            # goes through.
+            detection = classification.crop.detection
+
+            if detection is None or detection.asset is None:
+                skipped_missing_asset += 1
+                continue
+
             species = classification.crop.species
-            asset_id = classification.crop.detection.asset.immich_asset_id
+            asset_id = detection.asset.immich_asset_id
 
             assets[(species, identity)].add(asset_id)
 
@@ -87,6 +111,9 @@ class SyncService:
 
         return SyncSummary(
             identities=summary,
+            skipped_low_confidence=skipped_low_confidence,
+            skipped_unknown=skipped_unknown,
+            skipped_missing_asset=skipped_missing_asset,
         )
 
     def _previously_synced_state(self) -> dict[tuple[str, str], set[str]]:

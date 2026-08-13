@@ -332,9 +332,35 @@ def _sync_handler(
             dry_run=options.get("dry_run", False),
         )
 
-        progress.message(f"Synchronized {len(summary.identities)} identities")
+        total_assets = sum(item.assets for item in summary.identities)
+        message = (
+            f"Synchronized {len(summary.identities)} identities "
+            f"({total_assets} asset(s))"
+        )
+
+        skipped = (
+            summary.skipped_low_confidence
+            + summary.skipped_unknown
+            + summary.skipped_missing_asset
+        )
+
+        if skipped:
+            # Issue #11: without this, a lower-than-expected album count
+            # has no explanation anywhere the operator would see it.
+            message += (
+                f"; skipped {skipped} classification(s) "
+                f"({summary.skipped_low_confidence} below confidence threshold, "
+                f"{summary.skipped_unknown} unidentified, "
+                f"{summary.skipped_missing_asset} missing asset data)"
+            )
+
+        progress.message(message)
+
         return {
             "identities": len(summary.identities),
+            "skipped_low_confidence": summary.skipped_low_confidence,
+            "skipped_unknown": summary.skipped_unknown,
+            "skipped_missing_asset": summary.skipped_missing_asset,
             "items": [
                 {
                     "identity": item.identity,
