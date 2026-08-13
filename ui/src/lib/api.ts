@@ -8,6 +8,7 @@ import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
+import type { LibraryPage } from "../types/library";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -45,6 +46,53 @@ export async function getReview(
 
   if (!response.ok) {
     throw new Error("Failed to load review queue");
+  }
+
+  return response.json();
+}
+
+export type LibraryQuery = {
+  identity?: string;
+  species?: string;
+  reviewed?: boolean;
+  captured_after?: string;
+  captured_before?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function getLibrary(
+  query: LibraryQuery = {},
+): Promise<LibraryPage> {
+  const params = new URLSearchParams();
+
+  if (query.identity) {
+    params.set("identity", query.identity);
+  }
+
+  if (query.species) {
+    params.set("species", query.species);
+  }
+
+  if (query.reviewed !== undefined) {
+    params.set("reviewed", String(query.reviewed));
+  }
+
+  if (query.captured_after) {
+    params.set("captured_after", query.captured_after);
+  }
+
+  if (query.captured_before) {
+    params.set("captured_before", query.captured_before);
+  }
+
+  params.set("limit", String(query.limit ?? 24));
+  params.set("offset", String(query.offset ?? 0));
+
+  const response = await fetch(`/api/library?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load library");
   }
 
   return response.json();

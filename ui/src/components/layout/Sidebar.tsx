@@ -7,6 +7,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconListDetails,
+  IconPhoto,
 } from "@tabler/icons-react";
 import { getReviewStats } from "../../lib/api";
 import { cn } from "../../lib/utils";
@@ -20,6 +21,7 @@ interface Props {
 const links = [
   { label: "Overview", path: "/", icon: IconLayoutDashboard },
   { label: "Review", path: "/review", icon: IconChecklist },
+  { label: "Library", path: "/library", icon: IconPhoto },
   { label: "Dogs & Cats", path: "/dogs", icon: IconDog },
   { label: "Job Queue", path: "/jobs", icon: IconListDetails },
   { label: "Metrics", path: "/metrics", icon: IconChartBar },

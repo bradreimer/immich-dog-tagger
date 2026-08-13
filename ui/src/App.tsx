@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { DogsPage } from "./features/dogs/DogsPage";
 import { JobQueuePage } from "./features/jobs/JobQueuePage";
+import { LibraryPage } from "./features/library/LibraryPage";
 import { MetricsPage } from "./features/metrics/MetricsPage";
 import { OverviewPage } from "./features/overview/OverviewPage";
 import { ReviewPage } from "./features/review/ReviewPage";
@@ -37,6 +38,10 @@ function App() {
 
     if (pathname === "/dogs") {
       return <DogsPage />;
+    }
+
+    if (pathname === "/library") {
+      return <LibraryPage />;
     }
 
     if (pathname === "/jobs") {

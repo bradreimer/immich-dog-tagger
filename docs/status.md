@@ -43,16 +43,19 @@
 - DT-1111 show each photo's own capture date next to its prediction/confidence everywhere a
   classification is shown (Review page and the review export text), plumbed through
   Crop -> Detection -> Asset with no N+1 query regression
+- DT-1112 searchable, paginated Library page (new `/library` route and sidebar tab) showing every
+  classified photo, reviewed and unreviewed alike, filterable by identity/species/reviewed-status/
+  capture-date range -- the existing `/review` queue is unchanged
 
 ## Current Milestone
 v1.4 Trustworthy Photo Library, in progress -- filed as
 [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md), tickets
-DT-1111 through DT-1114. DT-1111 (photo capture date) is done; DT-1112 (searchable library),
-DT-1113 (edit tags + fix stale Immich album membership), and DT-1114 (date-aware classification)
+DT-1111 through DT-1114. DT-1111 (photo capture date) and DT-1112 (searchable library) are done;
+DT-1113 (edit tags + fix stale Immich album membership) and DT-1114 (date-aware classification)
 remain. Not yet version-bumped or tagged.
 
 ## Next Work
-Implement DT-1112, DT-1113, and DT-1114 in order (each depends on the previous per the tickets'
+Implement DT-1113 and DT-1114 in order (each depends on DT-1111/DT-1112 per the tickets'
 Dependencies sections), then cut the v1.4.0 release. Beyond v1.4, other candidates are improved
 reference-example selection, reference-set curation workflows, and confidence analysis (see
 docs/roadmap.md "Active Learning Improvements").

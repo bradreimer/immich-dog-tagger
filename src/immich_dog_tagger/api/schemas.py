@@ -182,6 +182,36 @@ class ReviewQueueStatsResponse(BaseModel):
     remaining: int
 
 
+class LibraryEntryResponse(BaseModel):
+    item: ReviewItemResponse
+    reviewed: bool
+    reviewed_at: datetime | None
+
+    @classmethod
+    def from_entry(cls, entry):
+        return cls(
+            item=ReviewItemResponse.from_item(entry.item),
+            reviewed=entry.reviewed,
+            reviewed_at=entry.reviewed_at,
+        )
+
+
+class LibraryPageResponse(BaseModel):
+    items: list[LibraryEntryResponse]
+    total: int
+    limit: int
+    offset: int
+
+    @classmethod
+    def from_page(cls, page):
+        return cls(
+            items=[LibraryEntryResponse.from_entry(entry) for entry in page.items],
+            total=page.total,
+            limit=page.limit,
+            offset=page.offset,
+        )
+
+
 class ReviewCandidateResponse(BaseModel):
     identity: str
     similarity: float

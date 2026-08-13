@@ -8,6 +8,7 @@ from immich_dog_tagger.enums import (
     ClassificationSources,
     EmbeddingSources,
     ReviewActions,
+    Species,
 )
 from immich_dog_tagger.models import (
     Asset,
@@ -1111,3 +1112,206 @@ def test_review_query_filters_candidate_conflict(engine):
 
         assert len(results) == 1
         assert results[0].path.name == "conflict.jpg"
+
+
+def test_library_includes_reviewed_and_unreviewed_items(engine):
+    """DT-1112: unlike active_review(), library() must not exclude items
+    that already have a review action -- that's the entire point."""
+    with Session(engine) as session:
+        reviewed_crop = Crop(detection_id=1, path="reviewed.jpg")
+        unreviewed_crop = Crop(detection_id=1, path="unreviewed.jpg")
+
+        session.add_all([reviewed_crop, unreviewed_crop])
+        session.flush()
+
+        reviewed = CropClassification(
+            crop=reviewed_crop,
+            identity="Fibs",
+            confidence=0.95,
+        )
+        unreviewed = CropClassification(
+            crop=unreviewed_crop,
+            identity="Hermann",
+            confidence=0.60,
+        )
+
+        session.add_all([reviewed, unreviewed])
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=reviewed.id,
+                action=ReviewActions.CORRECT,
+                identity="Fibs",
+            )
+        )
+        session.commit()
+
+        page = ReviewQueryService(session).library()
+
+        assert page.total == 2
+        assert len(page.items) == 2
+
+        by_path = {entry.item.filename: entry for entry in page.items}
+
+        assert by_path["reviewed.jpg"].reviewed is True
+        assert by_path["reviewed.jpg"].reviewed_at is not None
+        assert by_path["unreviewed.jpg"].reviewed is False
+        assert by_path["unreviewed.jpg"].reviewed_at is None
+
+
+def test_library_filters_by_identity(engine):
+    with Session(engine) as session:
+        fibs_crop = Crop(detection_id=1, path="fibs.jpg")
+        hermann_crop = Crop(detection_id=1, path="hermann.jpg")
+
+        session.add_all([fibs_crop, hermann_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=fibs_crop, identity="Fibs", confidence=0.9),
+                CropClassification(
+                    crop=hermann_crop, identity="Hermann", confidence=0.9
+                ),
+            ]
+        )
+        session.commit()
+
+        page = ReviewQueryService(session).library(identity="Fibs")
+
+        assert page.total == 1
+        assert page.items[0].item.filename == "fibs.jpg"
+
+
+def test_library_filters_by_species(engine):
+    with Session(engine) as session:
+        dog_crop = Crop(detection_id=1, path="dog.jpg", species=Species.DOG)
+        cat_crop = Crop(detection_id=1, path="cat.jpg", species=Species.CAT)
+
+        session.add_all([dog_crop, cat_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=dog_crop, identity="Fibs", confidence=0.9),
+                CropClassification(crop=cat_crop, identity="Whiskers", confidence=0.9),
+            ]
+        )
+        session.commit()
+
+        page = ReviewQueryService(session).library(species="cat")
+
+        assert page.total == 1
+        assert page.items[0].item.filename == "cat.jpg"
+
+
+def test_library_filters_by_reviewed(engine):
+    with Session(engine) as session:
+        reviewed_crop = Crop(detection_id=1, path="reviewed.jpg")
+        unreviewed_crop = Crop(detection_id=1, path="unreviewed.jpg")
+
+        session.add_all([reviewed_crop, unreviewed_crop])
+        session.flush()
+
+        reviewed = CropClassification(
+            crop=reviewed_crop,
+            identity="Fibs",
+            confidence=0.95,
+        )
+        unreviewed = CropClassification(
+            crop=unreviewed_crop,
+            identity="Hermann",
+            confidence=0.60,
+        )
+
+        session.add_all([reviewed, unreviewed])
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=reviewed.id,
+                action=ReviewActions.CORRECT,
+                identity="Fibs",
+            )
+        )
+        session.commit()
+
+        reviewed_page = ReviewQueryService(session).library(reviewed=True)
+        unreviewed_page = ReviewQueryService(session).library(reviewed=False)
+
+        assert reviewed_page.total == 1
+        assert reviewed_page.items[0].item.filename == "reviewed.jpg"
+
+        assert unreviewed_page.total == 1
+        assert unreviewed_page.items[0].item.filename == "unreviewed.jpg"
+
+
+def test_library_filters_by_captured_date_range(engine):
+    with Session(engine) as session:
+        old_asset = Asset(
+            immich_asset_id="old",
+            extension=".jpg",
+            captured_at=datetime(2015, 1, 1, tzinfo=UTC),
+        )
+        old_detection = Detection(
+            asset=old_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        old_crop = Crop(detection=old_detection, path="old.jpg")
+
+        new_asset = Asset(
+            immich_asset_id="new",
+            extension=".jpg",
+            captured_at=datetime(2023, 1, 1, tzinfo=UTC),
+        )
+        new_detection = Detection(
+            asset=new_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        new_crop = Crop(detection=new_detection, path="new.jpg")
+
+        session.add_all([old_crop, new_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=old_crop, identity="Fibs", confidence=0.9),
+                CropClassification(crop=new_crop, identity="Fibs", confidence=0.9),
+            ]
+        )
+        session.commit()
+
+        after_page = ReviewQueryService(session).library(
+            captured_after=datetime(2020, 1, 1, tzinfo=UTC)
+        )
+        before_page = ReviewQueryService(session).library(
+            captured_before=datetime(2020, 1, 1, tzinfo=UTC)
+        )
+
+        assert after_page.total == 1
+        assert after_page.items[0].item.filename == "new.jpg"
+
+        assert before_page.total == 1
+        assert before_page.items[0].item.filename == "old.jpg"
+
+
+def test_library_pagination(engine):
+    with Session(engine) as session:
+        for i in range(5):
+            crop = Crop(detection_id=1, path=f"dog-{i}.jpg")
+            session.add(crop)
+            session.flush()
+            session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.9))
+        session.commit()
+
+        first_page = ReviewQueryService(session).library(limit=2, offset=0)
+        second_page = ReviewQueryService(session).library(limit=2, offset=2)
+
+        assert first_page.total == 5
+        assert len(first_page.items) == 2
+        assert second_page.total == 5
+        assert len(second_page.items) == 2
+
+        first_ids = {entry.item.classification_id for entry in first_page.items}
+        second_ids = {entry.item.classification_id for entry in second_page.items}
+
+        assert first_ids.isdisjoint(second_ids)

@@ -30,6 +30,24 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's own recommended remedy for this rule's FastAPI-specific false
+# positive: `Query(...)`/`Depends(...)` used as a parameter default only
+# looks like a mutable-default-argument bug (B008) to a linter that doesn't
+# know FastAPI replaces it with the parsed request value at call time. Ruff
+# already skips this check for params whose type annotation it recognizes as
+# immutable (str, bool, int, ...); this extends that allowlist to cover
+# Query/Path/Body/Depends defaults regardless of the param's type (e.g.
+# `datetime | None = Query(None)`, which ruff doesn't otherwise recognize as
+# immutable).
+extend-immutable-calls = [
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+]
+
 [[tool.uv.index]]
 name = "pytorch-cu132"
 url = "https://download.pytorch.org/whl/cu132"

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import ClassificationCandidate
 from immich_dog_tagger.models import (
+    Asset,
     Crop,
     CropClassification,
     Detection,
@@ -27,6 +28,13 @@ _REVIEW_ITEM_RELATIONSHIPS = (
     selectinload(CropClassification.matched_example).selectinload(
         EmbeddingExample.identity
     ),
+)
+
+# The library (DT-1112) additionally needs each classification's review
+# actions to compute reviewed/reviewed_at -- something the queue views never
+# surface, since they only ever show unreviewed items.
+_LIBRARY_RELATIONSHIPS = _REVIEW_ITEM_RELATIONSHIPS + (
+    selectinload(CropClassification.review_actions),
 )
 from immich_dog_tagger.policy import (
     DEFAULT_POLICY,
@@ -80,6 +88,21 @@ class ReviewQueueStats:
     total: int
     reviewed: int
     remaining: int
+
+
+@dataclass(frozen=True)
+class LibraryEntry:
+    item: ReviewItem
+    reviewed: bool
+    reviewed_at: datetime | None
+
+
+@dataclass(frozen=True)
+class LibraryPage:
+    items: list[LibraryEntry]
+    total: int
+    limit: int
+    offset: int
 
 
 class ReviewQueryService:
@@ -266,6 +289,114 @@ class ReviewQueryService:
         return [
             self._to_review_item(classification) for classification in classifications
         ]
+
+    def library(
+        self,
+        *,
+        identity: str | None = None,
+        species: str | None = None,
+        reviewed: bool | None = None,
+        captured_after: datetime | None = None,
+        captured_before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> LibraryPage:
+        """
+        Every classified photo, reviewed and unreviewed alike -- unlike
+        `active_review()`, this never excludes already-reviewed items. The
+        library is a browsable catalogue, not a queue that empties out.
+        """
+        filters = self._library_filters(
+            identity=identity,
+            species=species,
+            reviewed=reviewed,
+            captured_after=captured_after,
+            captured_before=captured_before,
+        )
+
+        count_query = select(func.count()).select_from(CropClassification)
+
+        for condition in filters:
+            count_query = count_query.where(condition)
+
+        total = self.session.scalar(count_query) or 0
+
+        query = (
+            select(CropClassification)
+            .options(*_LIBRARY_RELATIONSHIPS)
+            .order_by(CropClassification.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        for condition in filters:
+            query = query.where(condition)
+
+        classifications = self.session.scalars(query).all()
+
+        return LibraryPage(
+            items=[self._to_library_entry(c) for c in classifications],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    def _library_filters(
+        self,
+        *,
+        identity: str | None,
+        species: str | None,
+        reviewed: bool | None,
+        captured_after: datetime | None,
+        captured_before: datetime | None,
+    ) -> list:
+        filters = []
+
+        if identity is not None:
+            filters.append(CropClassification.identity == identity)
+
+        if species is not None:
+            filters.append(CropClassification.crop.has(Crop.species == species))
+
+        if reviewed is not None:
+            condition = self._has_review_action()
+            filters.append(condition if reviewed else ~condition)
+
+        if captured_after is not None:
+            filters.append(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.captured_at >= captured_after)
+                    )
+                )
+            )
+
+        if captured_before is not None:
+            filters.append(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.captured_at <= captured_before)
+                    )
+                )
+            )
+
+        return filters
+
+    def _to_library_entry(
+        self,
+        classification: CropClassification,
+    ) -> LibraryEntry:
+        review_actions = classification.review_actions
+        reviewed_at = max(
+            (action.created_at for action in review_actions),
+            default=None,
+        )
+
+        return LibraryEntry(
+            item=self._to_review_item(classification),
+            reviewed=len(review_actions) > 0,
+            reviewed_at=reviewed_at,
+        )
 
     def _candidates(
         self,

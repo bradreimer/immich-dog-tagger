@@ -13,6 +13,7 @@ from immich_dog_tagger.api.routes import (
     embedding_examples,
     health,
     jobs,
+    library,
     metrics,
     review,
     schedules,
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(embedding_examples.router)
     app.include_router(health.router)
     app.include_router(jobs.router)
+    app.include_router(library.router)
     app.include_router(metrics.router)
     app.include_router(review.router)
     app.include_router(schedules.router)
