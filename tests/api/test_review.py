@@ -1,7 +1,15 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import ReviewActions
-from immich_dog_tagger.models import Crop, CropClassification, ReviewAction
+from immich_dog_tagger.models import (
+    Asset,
+    Crop,
+    CropClassification,
+    Detection,
+    ReviewAction,
+)
 
 
 def test_review_queue(api_client):
@@ -94,6 +102,76 @@ def test_review_item_returns_image_url(api_client, engine):
 
     assert "path" not in item
     assert "/some/internal/storage/path" not in response.text
+
+
+def test_review_item_returns_captured_at(api_client, engine):
+    """DT-1111: GET /review items include the reviewed photo's own capture
+    date."""
+    captured_at = datetime(2019, 3, 3, 12, 0, 0, tzinfo=UTC)
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-1",
+            extension=".jpg",
+            captured_at=captured_at,
+        )
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path="fibs.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+
+    item = response.json()[0]
+
+    assert item["captured_at"] == "2019-03-03T12:00:00"
+
+
+def test_review_item_captured_at_is_null_without_asset(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+
+    item = response.json()[0]
+
+    assert item["captured_at"] is None
 
 
 def test_review_queue_interleaves_both_species(api_client, engine):

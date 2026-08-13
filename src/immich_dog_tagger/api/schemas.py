@@ -135,6 +135,7 @@ class ReviewItemResponse(BaseModel):
     crop_id: int
     image_url: str
     species: str
+    captured_at: datetime | None
 
     prediction: ReviewPredictionResponse
     suggestion: ReviewSuggestionResponse | None
@@ -147,6 +148,7 @@ class ReviewItemResponse(BaseModel):
             crop_id=item.crop_id,
             image_url=f"/crops/{item.crop_id}",
             species=item.species,
+            captured_at=item.captured_at,
             prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
                 similarity=item.prediction.similarity,

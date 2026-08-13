@@ -13,6 +13,7 @@ export interface ReviewItem {
   filename: string;
   species: string;
   reason: string;
+  captured_at: string | null;
 
   prediction: {
     identity: string | null;

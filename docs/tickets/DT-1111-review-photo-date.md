@@ -14,7 +14,7 @@ High
 
 ## **Status**
 
-Pending
+Completed
 
 ## **Goal**
 

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -9,8 +10,10 @@ from immich_dog_tagger.enums import (
     ReviewActions,
 )
 from immich_dog_tagger.models import (
+    Asset,
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     Identity,
     ReviewAction,
@@ -512,6 +515,62 @@ def test_review_query_includes_matched_example_path(engine):
 
         assert len(results) == 1
         assert results[0].suggestion.example_id == example.id
+
+
+def test_review_query_includes_photo_captured_at(engine):
+    """DT-1111: ReviewItem.captured_at is the reviewed photo's own capture
+    date (Crop -> Detection -> Asset), not the matched example's date."""
+    captured_at = datetime(2019, 3, 3, 12, 0, 0, tzinfo=UTC)
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-1",
+            extension=".jpg",
+            captured_at=captured_at,
+        )
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path="crop.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).classifications()
+
+        assert len(results) == 1
+        assert results[0].captured_at == captured_at.replace(tzinfo=None)
+
+
+def test_review_query_captured_at_is_none_without_asset(engine):
+    """A crop whose detection/asset chain is missing (orphaned rows, or test
+    fixtures that don't bother with it) must yield captured_at=None rather
+    than raising."""
+    with Session(engine) as session:
+        classification = create_test_classification(session)
+
+        results = ReviewQueryService(session).classifications()
+
+        assert len(results) == 1
+        assert results[0].classification_id == classification.id
+        assert results[0].captured_at is None
 
 
 def test_review_returns_queue(api_client, engine):

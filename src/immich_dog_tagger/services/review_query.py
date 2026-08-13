@@ -10,16 +10,20 @@ from immich_dog_tagger.classifier import ClassificationCandidate
 from immich_dog_tagger.models import (
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     ReviewAction,
 )
 
 # Eager-load the relationships _to_review_item() touches (crop, the crop's
-# detection -- for crop.species, DT-1110 -- matched example, and the
+# detection -- for crop.species, DT-1110 -- and the detection's asset -- for
+# the photo's own capture date, DT-1111 -- plus the matched example and the
 # example's identity) so a review-queue page issues a constant number of
 # queries instead of one extra round trip per row.
 _REVIEW_ITEM_RELATIONSHIPS = (
-    selectinload(CropClassification.crop).selectinload(Crop.detection),
+    selectinload(CropClassification.crop)
+    .selectinload(Crop.detection)
+    .selectinload(Detection.asset),
     selectinload(CropClassification.matched_example).selectinload(
         EmbeddingExample.identity
     ),
@@ -55,6 +59,7 @@ class ReviewItem:
     species: str
     prediction: ReviewPrediction
     suggestion: ReviewSuggestion | None
+    captured_at: datetime | None = None
     reason: str = "review"
 
     @property
@@ -316,8 +321,20 @@ class ReviewQueryService:
             species=classification.crop.species,
             prediction=self._prediction(classification),
             suggestion=self._suggestion(classification),
+            captured_at=self._captured_at(classification),
             reason=self._review_reason(classification),
         )
+
+    def _captured_at(
+        self,
+        classification: CropClassification,
+    ) -> datetime | None:
+        detection = classification.crop.detection
+
+        if detection is None or detection.asset is None:
+            return None
+
+        return detection.asset.captured_at
 
     def _has_review_action(self):
         return exists(

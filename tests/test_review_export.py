@@ -69,6 +69,7 @@ def test_export_review_writes_metadata(tmp_path):
             example_path=example,
             captured_at=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC),
         ),
+        captured_at=datetime(2019, 3, 3, 9, 0, 0, tzinfo=UTC),
     )
 
     output = tmp_path / "review"
@@ -87,4 +88,35 @@ def test_export_review_writes_metadata(tmp_path):
     assert "Riley" in contents
     assert "0.9500" in contents
     assert "example.jpg" in contents
-    assert "2024-06-01T12:00:00+00:00" in contents
+    assert "Photo captured at: 2019-03-03T09:00:00+00:00" in contents
+    assert "Matched example captured at: 2024-06-01T12:00:00+00:00" in contents
+
+
+def test_export_review_writes_metadata_with_unknown_captured_at(tmp_path):
+    source = tmp_path / "crop.jpg"
+    source.write_text("test")
+
+    item = ReviewItem(
+        classification_id=1,
+        crop_id=2,
+        path=source,
+        species="dog",
+        prediction=ReviewPrediction(
+            identity="Riley",
+            similarity=0.95,
+            candidates=[],
+        ),
+        suggestion=None,
+        captured_at=None,
+    )
+
+    output = tmp_path / "review"
+
+    ReviewExporter().export(
+        [item],
+        output,
+    )
+
+    metadata = output / "predicted" / "Riley" / "crop.txt"
+
+    assert "Photo captured at: Unknown" in metadata.read_text()

@@ -40,19 +40,22 @@
   identity chooser, species-aware Immich album naming (also fixed a same-name-cross-species
   album-collision bug in `SyncService.sync()`), per-species Learning Progress breakdown, and a
   backward-compatible additive migration for existing dog-only projects
+- DT-1111 show each photo's own capture date next to its prediction/confidence everywhere a
+  classification is shown (Review page and the review export text), plumbed through
+  Crop -> Detection -> Asset with no N+1 query regression
 
 ## Current Milestone
-v1.3.0 Cat Support -- released (DT-1110). See
-[docs/tickets/DT-1110-cat-support.md](tickets/DT-1110-cat-support.md).
+v1.4 Trustworthy Photo Library, in progress -- filed as
+[docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md), tickets
+DT-1111 through DT-1114. DT-1111 (photo capture date) is done; DT-1112 (searchable library),
+DT-1113 (edit tags + fix stale Immich album membership), and DT-1114 (date-aware classification)
+remain. Not yet version-bumped or tagged.
 
 ## Next Work
-A mock user interview surfaced a v1.4
-backlog -- filed as [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md)
-and tickets DT-1111 through DT-1114 -- shifting the product's primary mental model from "process a
-review queue" to "maintain a searchable library of tagged photos," with photo capture date as a
-trust signal in both the UI and the classifier itself. Not yet started. Other candidates beyond
-that are improved reference-example selection, reference-set curation workflows, and confidence
-analysis (see docs/roadmap.md "Active Learning Improvements").
+Implement DT-1112, DT-1113, and DT-1114 in order (each depends on the previous per the tickets'
+Dependencies sections), then cut the v1.4.0 release. Beyond v1.4, other candidates are improved
+reference-example selection, reference-set curation workflows, and confidence analysis (see
+docs/roadmap.md "Active Learning Improvements").
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

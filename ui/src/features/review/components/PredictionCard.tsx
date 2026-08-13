@@ -8,6 +8,7 @@ interface Props {
   identity: string | null;
   similarity: number;
   candidates: ReviewCandidate[];
+  capturedAt: string | null;
   onCorrect: (identity: string) => void;
   disabled?: boolean;
 }
@@ -24,10 +25,23 @@ function confidenceLabel(similarity: number): string {
   return "Low confidence";
 }
 
+function formatCapturedAt(capturedAt: string | null): string {
+  if (!capturedAt) {
+    return "Date unknown";
+  }
+
+  return new Date(capturedAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export function PredictionCard({
   identity,
   similarity,
   candidates,
+  capturedAt,
   onCorrect,
   disabled,
 }: Props) {
@@ -52,6 +66,10 @@ export function PredictionCard({
           <span className="text-sm text-muted-foreground">
             {(similarity * 100).toFixed(1)}%
           </span>
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          Photo taken: {formatCapturedAt(capturedAt)}
         </div>
 
         {candidates.length > 1 && (

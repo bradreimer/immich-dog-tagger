@@ -150,8 +150,10 @@ capture date as a first-class trust signal, let corrections happen any time (not
 a queue that empties out), and use capture date as an additional classification signal to catch
 temporally impossible matches between visually similar individuals.
 
-Planned:
+Completed:
 - DT-1111: show photo capture date prominently during review
+
+Remaining:
 - DT-1112: searchable, paginated library of every classified photo (reviewed and unreviewed)
 - DT-1113: edit any previously assigned tag from the library, and fix a real gap found while
   scoping this work -- re-syncing after a correction never removed the asset from its stale

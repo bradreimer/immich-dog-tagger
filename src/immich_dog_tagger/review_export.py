@@ -88,13 +88,20 @@ class ReviewExporter:
             f"Similarity: {item.prediction.similarity:.4f}",
         ]
 
+        if item.captured_at:
+            lines.append(f"Photo captured at: {item.captured_at.isoformat()}")
+        else:
+            lines.append("Photo captured at: Unknown")
+
         if item.suggestion and item.suggestion.example_path:
             lines.append(f"Matched example: {item.suggestion.example_path}")
         else:
             lines.append("Matched example: None")
 
         if item.suggestion and item.suggestion.captured_at:
-            lines.append(f"Captured at: {item.suggestion.captured_at.isoformat()}")
+            lines.append(
+                f"Matched example captured at: {item.suggestion.captured_at.isoformat()}"
+            )
 
         metadata.write_text(
             "\n".join(lines),

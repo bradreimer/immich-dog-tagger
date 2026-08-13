@@ -40,6 +40,7 @@ export function ReviewCard({
           identity={item.prediction.identity}
           similarity={item.prediction.similarity}
           candidates={item.prediction.candidates}
+          capturedAt={item.captured_at}
           onCorrect={onCorrect}
           disabled={disabled}
         />

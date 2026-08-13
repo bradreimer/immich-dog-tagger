@@ -15,8 +15,10 @@ from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import EmbeddingSources
 from immich_dog_tagger.models import (
+    Asset,
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     Identity,
 )
@@ -105,6 +107,49 @@ def test_review_queue_query_count_does_not_scale_with_result_size(engine):
 
     # Query count should be flat (a handful of fixed queries), not
     # proportional to the number of rows returned.
+    assert large.count <= small.count + 2
+
+
+def test_review_queue_captured_at_query_count_does_not_scale_with_result_size(engine):
+    """DT-1111: the Crop -> Detection -> Asset eager-load hop added for
+    captured_at must not reintroduce a per-row query -- each row here has a
+    real Detection/Asset chain (unlike the dangling detection_id fixtures
+    used elsewhere), so this actually exercises the new selectinload hop."""
+    from immich_dog_tagger.services.review_query import ReviewQueryService
+
+    def seed(session, offset, n):
+        for i in range(offset, offset + n):
+            asset = Asset(
+                immich_asset_id=f"asset-{i}",
+                extension=".jpg",
+            )
+            detection = Detection(
+                asset=asset,
+                label="dog",
+                confidence=0.99,
+                x1=0,
+                y1=0,
+                x2=100,
+                y2=100,
+            )
+            crop = Crop(detection=detection, path=f"dog-{i}.jpg")
+            session.add(crop)
+            session.flush()
+            session.add(CropClassification(crop=crop, identity=None, confidence=-1.0))
+        session.commit()
+
+    with Session(engine) as session:
+        seed(session, 0, 10)
+
+        with _QueryCounter(engine) as small:
+            ReviewQueryService(session).active_review(limit=100)
+
+    with Session(engine) as session:
+        seed(session, 10, 90)  # 100 total across both sessions' worth of rows
+
+        with _QueryCounter(engine) as large:
+            ReviewQueryService(session).active_review(limit=100)
+
     assert large.count <= small.count + 2
 
 
