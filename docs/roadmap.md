@@ -127,6 +127,29 @@ Completed:
 Exit criteria:
 Completed.
 
+## v1.4 - Trustworthy Photo Library
+
+See [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md).
+
+Goal:
+Shift the product's primary mental model from "process a review queue" to "build and maintain a
+trustworthy, searchable library of tagged photos," surfaced by a mock user interview. Show photo
+capture date as a first-class trust signal, let corrections happen any time (not just once, from
+a queue that empties out), and use capture date as an additional classification signal to catch
+temporally impossible matches between visually similar individuals.
+
+Planned:
+- DT-1111: show photo capture date prominently during review
+- DT-1112: searchable, paginated library of every classified photo (reviewed and unreviewed)
+- DT-1113: edit any previously assigned tag from the library, and fix a real gap found while
+  scoping this work -- re-syncing after a correction never removed the asset from its stale
+  identity's Immich album, only added it to the new one
+- DT-1114: flag (not silently accept) a classification whose photo date falls outside a
+  candidate identity's known active date range
+
+Explicitly not planned (see spec Non-goals): review queue removal, undo/redo for classification
+actions.
+
 ## Active Learning Improvements
 
 Goal:

@@ -14,6 +14,12 @@ As a reviewer, I want clear progress and low-friction controls so I can process 
 ## Non-goals
 - Full visual redesign of the entire product.
 - New non-review product surfaces.
+  **Amended** (see [v1.4-trustworthy-photo-library.md](v1.4-trustworthy-photo-library.md)): a mock
+  user interview found that "process a review queue" isn't the owner's actual mental model --
+  they want a persistent, searchable library of classified photos, with the queue as one filtered
+  view within it rather than the only surface. The queue and this spec's improvements to it
+  remain valid and unchanged; a new library surface is added alongside it, superseding this
+  non-goal specifically.
 
 ## Requirements
 - Primary review actions must remain accessible via keyboard and pointer.
