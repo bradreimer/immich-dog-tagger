@@ -1,5 +1,8 @@
+from datetime import UTC, datetime
+
 import numpy as np
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.embeddings import embedding_to_blob
@@ -9,9 +12,11 @@ from immich_dog_tagger.enums import (
     Species,
 )
 from immich_dog_tagger.models import (
+    Asset,
     ClassificationPass,
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     EmbeddingSources,
     Identity,
@@ -299,6 +304,53 @@ def test_reclassify_is_idempotent_when_rerun_with_unchanged_inputs(engine):
         assert second.changed_count == 0
         assert second.confident_count == 1
         assert second.pass_id != first.pass_id
+
+
+def test_reclassify_idempotent_with_active_ranges_set(engine):
+    """DT-1114: rerunning Reclassify with identities that have active date
+    ranges set must still be idempotent -- date-aware scoring is a new
+    signal surfaced on candidates, not something that should make results
+    unstable across passes with no new reviews in between."""
+    with Session(engine) as session:
+        identity = _add_identity(session, "Hermann", [1, 0, 0])
+        identity.active_from = datetime(2015, 1, 1, tzinfo=UTC)
+        identity.active_until = datetime(2025, 1, 1, tzinfo=UTC)
+
+        asset = Asset(
+            immich_asset_id="asset-1",
+            extension=".jpg",
+            captured_at=datetime(2020, 6, 1, tzinfo=UTC),
+        )
+        detection = Detection(
+            asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        crop = Crop(detection=detection, path="hermann_photo.jpg")
+        session.add(crop)
+        session.flush()
+
+        session.add(
+            CropClassification(
+                crop=crop,
+                identity=None,
+                confidence=0.10,
+                source=ClassificationSources.AUTO,
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+            )
+        )
+        session.commit()
+
+        embedder = FakeBatchEmbedder()
+        service = ReclassifyService(session, embedder)
+
+        first = service.reclassify()
+        second = service.reclassify()
+
+        assert first.changed_count == 1
+        assert second.changed_count == 0
+        assert second.confident_count == 1
+
+        classification = session.scalar(select(CropClassification))
+        assert classification.candidates[0]["date_conflict"] is False
 
 
 def test_reclassify_processes_in_batches_committing_progress(engine):

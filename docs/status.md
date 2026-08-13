@@ -57,17 +57,22 @@
   confidently-classified ones, so it could claim "N images need review" while the actual `/review`
   queue was empty -- it now reuses `review_queue_count()`, the same definition `/metrics` already
   used, so `remaining` matches what `/review` actually returns everywhere it's surfaced
+- DT-1114 date-aware classification: `IdentityClassifier.classify()` takes the crop's own capture
+  date and flags (never silently excludes) a candidate whose match falls outside that identity's
+  optional owner-set active date range (`Identity.active_from`/`active_until`, editable from the
+  Dogs & Cats page via a new `set_active_range`/`PUT /dogs/{id}/active-range`), surfaced as a new
+  `date-conflict` review/library reason; fails open with zero behavior change for crops with no
+  capture date or identities with no range set
 
 ## Current Milestone
-v1.4 Trustworthy Photo Library, in progress -- filed as
-[docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md), tickets
-DT-1111 through DT-1114. DT-1111, DT-1112, and DT-1113 are done; DT-1114 (date-aware
-classification) remains. Not yet version-bumped or tagged.
+v1.4.0 Trustworthy Photo Library -- feature-complete (DT-1111 through DT-1114). See
+[docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md). Not yet
+version-bumped or tagged.
 
 ## Next Work
-Implement DT-1114, then cut the v1.4.0 release. Beyond v1.4, other candidates are improved
-reference-example selection, reference-set curation workflows, and confidence analysis (see
-docs/roadmap.md "Active Learning Improvements").
+Cut the v1.4.0 release. Beyond v1.4, other candidates are improved reference-example selection,
+reference-set curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning
+Improvements").
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

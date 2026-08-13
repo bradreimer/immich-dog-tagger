@@ -3,6 +3,7 @@ Dog identity classifier.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 from sqlalchemy.orm import Session, contains_eager
@@ -19,6 +20,11 @@ class ClassificationCandidate:
     identity: str
     similarity: float
     matched_example_id: int
+    # DT-1114: True when the crop's capture date falls outside this
+    # candidate identity's known active date range -- a signal surfaced
+    # alongside the match, never folded into `similarity` (which stays a
+    # raw, uncalibrated embedding score; see v1.0.0.md section 8).
+    date_conflict: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,7 @@ class IdentityClassifier:
         species: Species = Species.DOG,
         threshold: float | None = None,
         candidate_limit: int | None = None,
+        captured_at: datetime | None = None,
     ) -> ClassificationResult:
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold
@@ -75,6 +82,7 @@ class IdentityClassifier:
                 identity=example.identity.name,
                 similarity=score.similarity,
                 matched_example_id=example.id,
+                date_conflict=self._date_conflict(captured_at, example.identity),
             )
 
             existing = identity_scores.get(candidate.identity)
@@ -115,6 +123,27 @@ class IdentityClassifier:
             matched_example_id=best.matched_example_id,
             candidates=top_candidates,
         )
+
+    def _date_conflict(
+        self,
+        captured_at: datetime | None,
+        identity: Identity,
+    ) -> bool:
+        """
+        Fail-open by design: no crop capture date, or an identity with
+        neither bound set, means "no date signal available" -- never treat
+        that as suspicious. Either bound alone is unbounded on that side.
+        """
+        if captured_at is None:
+            return False
+
+        if identity.active_from is None and identity.active_until is None:
+            return False
+
+        if identity.active_from is not None and captured_at < identity.active_from:
+            return True
+
+        return identity.active_until is not None and captured_at > identity.active_until
 
     def _cosine_similarity(
         self,

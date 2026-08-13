@@ -29,6 +29,7 @@ from immich_dog_tagger.models import (
     ClassificationPass,
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     Identity,
 )
@@ -202,7 +203,9 @@ class ReclassifyService:
                 .where(CropClassification.id.in_(chunk_ids))
                 .order_by(CropClassification.id)
                 .options(
-                    selectinload(CropClassification.crop).selectinload(Crop.detection)
+                    selectinload(CropClassification.crop)
+                    .selectinload(Crop.detection)
+                    .selectinload(Detection.asset)
                 )
             ).all()
 
@@ -220,9 +223,17 @@ class ReclassifyService:
 
             for classification in classifications:
                 embedding = blob_to_embedding(classification.embedding)
+
+                captured_at = None
+                detection = classification.crop.detection
+
+                if detection is not None and detection.asset is not None:
+                    captured_at = detection.asset.captured_at
+
                 result = classifier.classify(
                     embedding,
                     species=classification.crop.species,
+                    captured_at=captured_at,
                 )
 
                 if result.identity != classification.identity:
@@ -236,6 +247,7 @@ class ReclassifyService:
                         "identity": candidate.identity,
                         "similarity": candidate.similarity,
                         "matched_example_id": candidate.matched_example_id,
+                        "date_conflict": candidate.date_conflict,
                     }
                     for candidate in result.candidates
                 ]

@@ -15,6 +15,9 @@ function formatReason(reason: string): string {
     case "candidate-conflict":
       return "Candidate conflict";
 
+    case "date-conflict":
+      return "Date conflict";
+
     default:
       return "Needs review";
   }

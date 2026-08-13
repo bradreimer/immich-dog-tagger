@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { IconEdit, IconPlayerPause, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
+import { IconCalendar, IconEdit, IconPlayerPause, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import {
   activateDog,
   createDog,
   deactivateDog,
   getDogs,
   renameDog,
+  setDogActiveRange,
 } from "../../../lib/api";
 import type { Dog, Species } from "../../../types/dogs";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +18,25 @@ function speciesLabel(species: Species): string {
   return species === "cat" ? "Cat" : "Dog";
 }
 
+interface RangeDraft {
+  from: string;
+  until: string;
+}
+
+function toDateInputValue(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
+
+function toIsoOrNull(value: string): string | null {
+  return value ? `${value}T00:00:00` : null;
+}
+
 export function DogManagementCard() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [name, setName] = useState("");
   const [species, setSpecies] = useState<Species>("dog");
   const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [rangeDrafts, setRangeDrafts] = useState<Record<number, RangeDraft>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | "new" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -42,6 +57,18 @@ export function DogManagementCard() {
 
         for (const dog of items) {
           next[dog.id] = current[dog.id] ?? dog.name;
+        }
+
+        return next;
+      });
+      setRangeDrafts((current) => {
+        const next: Record<number, RangeDraft> = {};
+
+        for (const dog of items) {
+          next[dog.id] = current[dog.id] ?? {
+            from: toDateInputValue(dog.active_from),
+            until: toDateInputValue(dog.active_until),
+          };
         }
 
         return next;
@@ -68,6 +95,10 @@ export function DogManagementCard() {
       const dog = await createDog(name, species);
       setDogs((current) => [...current, dog]);
       setDrafts((current) => ({ ...current, [dog.id]: dog.name }));
+      setRangeDrafts((current) => ({
+        ...current,
+        [dog.id]: { from: "", until: "" },
+      }));
       setName("");
       setMessage(`Created ${speciesLabel(dog.species).toLowerCase()} “${dog.name}”.`);
     } catch (err) {
@@ -99,6 +130,35 @@ export function DogManagementCard() {
       setSavingId(null);
     }
   }, [drafts]);
+
+  const handleSetRange = useCallback(async (dog: Dog) => {
+    const draft = rangeDrafts[dog.id] ?? { from: "", until: "" };
+
+    setError(null);
+    setMessage(null);
+    setSavingId(dog.id);
+
+    try {
+      const updated = await setDogActiveRange(
+        dog.id,
+        toIsoOrNull(draft.from),
+        toIsoOrNull(draft.until),
+      );
+      setDogs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setRangeDrafts((current) => ({
+        ...current,
+        [updated.id]: {
+          from: toDateInputValue(updated.active_from),
+          until: toDateInputValue(updated.active_until),
+        },
+      }));
+      setMessage(`Updated active range for “${updated.name}”.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update active range");
+    } finally {
+      setSavingId(null);
+    }
+  }, [rangeDrafts]);
 
   const toggleActive = useCallback(async (dog: Dog) => {
     setError(null);
@@ -179,6 +239,54 @@ export function DogManagementCard() {
                     <Badge variant={dog.active ? "default" : "secondary"}>
                       {dog.active ? "Active" : "Inactive"}
                     </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                      Active from
+                      <input
+                        type="date"
+                        value={rangeDrafts[dog.id]?.from ?? ""}
+                        onChange={(event) =>
+                          setRangeDrafts((current) => ({
+                            ...current,
+                            [dog.id]: {
+                              from: event.target.value,
+                              until: current[dog.id]?.until ?? "",
+                            },
+                          }))
+                        }
+                        className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </label>
+
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                      Active until
+                      <input
+                        type="date"
+                        value={rangeDrafts[dog.id]?.until ?? ""}
+                        onChange={(event) =>
+                          setRangeDrafts((current) => ({
+                            ...current,
+                            [dog.id]: {
+                              from: current[dog.id]?.from ?? "",
+                              until: event.target.value,
+                            },
+                          }))
+                        }
+                        className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </label>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetRange(dog)}
+                      disabled={savingId === dog.id}
+                    >
+                      <IconCalendar className="h-4 w-4" aria-hidden="true" />
+                      Save range
+                    </Button>
                   </div>
                 </div>
 

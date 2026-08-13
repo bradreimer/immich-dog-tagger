@@ -137,9 +137,7 @@ Completed:
 Exit criteria:
 Completed.
 
-## Future Milestones
-
-## v1.4 - Trustworthy Photo Library
+## v1.4.0 - Trustworthy Photo Library
 
 See [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md).
 
@@ -157,13 +155,15 @@ Completed:
 - DT-1113: edit any previously assigned tag from the library, and fix a real gap found while
   scoping this work -- re-syncing after a correction never removed the asset from its stale
   identity's Immich album, only added it to the new one
-
-Remaining:
 - DT-1114: flag (not silently accept) a classification whose photo date falls outside a
-  candidate identity's known active date range
+  candidate identity's known active date range, via an optional owner-set active range per
+  identity (Dogs & Cats page) and a new `date-conflict` review/library reason
 
 Explicitly not planned (see spec Non-goals): review queue removal, undo/redo for classification
 actions.
+
+Exit criteria:
+Completed.
 
 ## Active Learning Improvements
 

@@ -84,6 +84,8 @@ class DogResponse(BaseModel):
     name: str
     species: Species
     active: bool
+    active_from: datetime | None
+    active_until: datetime | None
 
     @classmethod
     def from_identity(cls, identity):
@@ -92,6 +94,8 @@ class DogResponse(BaseModel):
             name=identity.name,
             species=identity.species,
             active=identity.is_active,
+            active_from=identity.active_from,
+            active_until=identity.active_until,
         )
 
 
@@ -102,6 +106,11 @@ class DogCreateRequest(BaseModel):
 
 class DogUpdateRequest(BaseModel):
     name: str
+
+
+class DogActiveRangeRequest(BaseModel):
+    active_from: datetime | None = None
+    active_until: datetime | None = None
 
 
 class ClassificationResponse(BaseModel):

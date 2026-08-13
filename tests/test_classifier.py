@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import numpy as np
 from sqlalchemy.orm import Session
 
@@ -158,6 +160,105 @@ def test_classifier_never_returns_cross_species_candidate(engine):
         assert {c.matched_example_id for c in dog_result.candidates} != {
             c.matched_example_id for c in cat_result.candidates
         }
+
+
+def test_classifier_flags_date_conflict_for_out_of_range_identity(engine):
+    """DT-1114: two identities with overlapping-looking embeddings but
+    non-overlapping active date ranges must be distinguishable -- a photo
+    matching one identity's embedding closely, but captured outside that
+    identity's active range, is flagged rather than silently accepted."""
+    with Session(engine) as session:
+        old_fibs = Identity(
+            name="Fibs",
+            active_from=datetime(2015, 1, 1, tzinfo=UTC),
+            active_until=datetime(2018, 12, 31, tzinfo=UTC),
+        )
+
+        session.add(old_fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=old_fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        # A photo of the exact same-looking dog, but taken in 2021 -- three
+        # years after Fibs's known active range ended.
+        result = classifier.classify(
+            probe,
+            captured_at=datetime(2021, 6, 1, tzinfo=UTC).replace(tzinfo=None),
+        )
+
+        assert result.identity == "Fibs"  # similarity/ranking unaffected
+        assert result.candidates[0].date_conflict is True
+
+
+def test_classifier_date_conflict_fails_open_without_crop_date(engine):
+    with Session(engine) as session:
+        fibs = Identity(
+            name="Fibs",
+            active_from=datetime(2015, 1, 1, tzinfo=UTC),
+            active_until=datetime(2018, 12, 31, tzinfo=UTC),
+        )
+
+        session.add(fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        # No captured_at at all -- "no date signal available" must never
+        # be treated as suspicious, even though the range would otherwise
+        # exclude any date.
+        result = classifier.classify(probe)
+
+        assert result.candidates[0].date_conflict is False
+
+
+def test_classifier_date_conflict_fails_open_without_identity_range(engine):
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs")  # no active_from/active_until set
+
+        session.add(fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        result = classifier.classify(
+            probe,
+            captured_at=datetime(2021, 6, 1, tzinfo=UTC).replace(tzinfo=None),
+        )
+
+        assert result.candidates[0].date_conflict is False
 
 
 def test_classification_service_handles_no_pending_crops(engine):

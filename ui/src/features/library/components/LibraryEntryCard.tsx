@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { ReviewReason } from "@/features/review/components/ReviewReason";
 import type { Dog } from "@/types/dogs";
 import type { LibraryEntry } from "@/types/library";
 
@@ -69,6 +70,8 @@ export function LibraryEntryCard({ entry, identities, onCorrect }: Props) {
 
           <Badge variant="outline">{speciesLabel(item.species)}</Badge>
         </div>
+
+        {item.reason !== "review" && <ReviewReason reason={item.reason} />}
 
         <div className="text-sm text-muted-foreground">
           {(item.prediction.similarity * 100).toFixed(1)}% confidence

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -45,6 +47,32 @@ class DogService:
     def set_active(self, dog_id: int, active: bool) -> Identity:
         dog = self._require_dog(dog_id)
         dog.is_active = active
+        self.session.commit()
+        self.session.refresh(dog)
+        return dog
+
+    def set_active_range(
+        self,
+        dog_id: int,
+        active_from: datetime | None,
+        active_until: datetime | None,
+    ) -> Identity:
+        """
+        DT-1114: an optional owner-set date range the classifier uses to
+        flag (never silently exclude) a candidate match whose photo was
+        taken outside it. Deliberately a separate method from rename_dog,
+        not folded into it -- rename's contract stays name-only.
+        """
+        if (
+            active_from is not None
+            and active_until is not None
+            and active_from > active_until
+        ):
+            raise ValueError("active_from must not be after active_until")
+
+        dog = self._require_dog(dog_id)
+        dog.active_from = active_from
+        dog.active_until = active_until
         self.session.commit()
         self.session.refresh(dog)
         return dog

@@ -15,6 +15,7 @@ from immich_dog_tagger.models import (
     ClassificationSources,
     Crop,
     CropClassification,
+    Detection,
 )
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
@@ -105,10 +106,16 @@ class ClassificationService:
         embedding,
         threshold: float,
     ) -> CropClassification:
+        captured_at = None
+
+        if crop.detection is not None and crop.detection.asset is not None:
+            captured_at = crop.detection.asset.captured_at
+
         result = self.classifier.classify(
             embedding,
             species=crop.species,
             threshold=threshold,
+            captured_at=captured_at,
         )
 
         candidates = [
@@ -116,6 +123,7 @@ class ClassificationService:
                 "identity": candidate.identity,
                 "similarity": candidate.similarity,
                 "matched_example_id": candidate.matched_example_id,
+                "date_conflict": candidate.date_conflict,
             }
             for candidate in result.candidates
         ]
@@ -153,10 +161,13 @@ class ClassificationService:
         mode: ClassificationMode,
         threshold: float,
     ):
-        # joinedload(Crop.detection): _classify_crop() reads crop.species
-        # (derived from crop.detection.label) for every crop -- without this,
-        # that's an N+1 query across the whole batch.
-        query = self.session.query(Crop).options(joinedload(Crop.detection))
+        # joinedload(Crop.detection).joinedload(Detection.asset):
+        # _classify_crop() reads crop.species (derived from crop.detection.label)
+        # and crop.detection.asset.captured_at (DT-1114) for every crop --
+        # without this, that's an N+1 query across the whole batch.
+        query = self.session.query(Crop).options(
+            joinedload(Crop.detection).joinedload(Detection.asset)
+        )
 
         if mode == ClassificationMode.LOW_CONFIDENCE:
             return query.join(CropClassification).filter(

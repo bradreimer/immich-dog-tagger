@@ -420,6 +420,9 @@ class ReviewQueryService:
                     "matched_example_id",
                     -1,
                 ),
+                # Absent on candidates stored before DT-1114 -- read as "no
+                # conflict", the same fail-open default the field itself has.
+                date_conflict=candidate.get("date_conflict", False),
             )
             for candidate in classification.candidates
         ]
@@ -495,6 +498,16 @@ class ReviewQueryService:
 
         if decision is ClassificationDecision.UNKNOWN:
             return "unknown"
+
+        # The top candidate is always classification.candidates[0] (see
+        # IdentityClassifier.classify()'s sort-then-slice), and is the
+        # accepted identity whenever one was accepted -- so this single
+        # check covers both "the accepted identity has a date conflict" and
+        # "the top candidate does" (DT-1114).
+        if classification.candidates and classification.candidates[0].get(
+            "date_conflict", False
+        ):
+            return "date-conflict"
 
         if classification.candidates:
             return "candidate-conflict"

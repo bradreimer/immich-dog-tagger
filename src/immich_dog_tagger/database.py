@@ -32,6 +32,7 @@ def create_database(state_dir: Path):
     _ensure_classification_pass_trend_columns(engine)
     _ensure_identity_species_column(engine)
     _ensure_crop_species_column(engine)
+    _ensure_identity_active_range_columns(engine)
 
     return engine
 
@@ -70,6 +71,35 @@ def _ensure_classification_pass_columns(engine) -> None:
 
     if "embedding" not in columns:
         statements.append("ALTER TABLE crop_classifications ADD COLUMN embedding BLOB")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+
+
+def _ensure_identity_active_range_columns(engine) -> None:
+    """
+    DT-1114: identities gain an optional owner-set active date range. Both
+    nullable, no uniqueness change -- a plain ADD COLUMN suffices, unlike
+    _ensure_identity_species_column's table rebuild. Leaving both columns
+    null for every existing identity is the correct backfill (not a guess):
+    it's exactly the "no date signal available" state the classifier is
+    required to never penalize, so migrating in makes zero difference to
+    classification output until an owner opts in by setting a range.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("identities")}
+
+    statements = []
+
+    if "active_from" not in columns:
+        statements.append("ALTER TABLE identities ADD COLUMN active_from DATETIME")
+
+    if "active_until" not in columns:
+        statements.append("ALTER TABLE identities ADD COLUMN active_until DATETIME")
 
     if not statements:
         return
