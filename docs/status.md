@@ -46,17 +46,21 @@
 - DT-1112 searchable, paginated Library page (new `/library` route and sidebar tab) showing every
   classified photo, reviewed and unreviewed alike, filterable by identity/species/reviewed-status/
   capture-date range -- the existing `/review` queue is unchanged
+- DT-1113 identity correction control on each Library entry (reuses the existing
+  `POST /classifications/{id}/correct` endpoint), plus the real fix underneath it: a new
+  `SyncedAsset` table tracks each asset's last-synced `(species, identity)` membership so
+  `SyncService.sync()` can detect and remove stale Immich album membership after a correction --
+  previously an asset corrected from one identity to another stayed in both albums forever, since
+  `sync_identity()` only ever added
 
 ## Current Milestone
 v1.4 Trustworthy Photo Library, in progress -- filed as
 [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md), tickets
-DT-1111 through DT-1114. DT-1111 (photo capture date) and DT-1112 (searchable library) are done;
-DT-1113 (edit tags + fix stale Immich album membership) and DT-1114 (date-aware classification)
-remain. Not yet version-bumped or tagged.
+DT-1111 through DT-1114. DT-1111, DT-1112, and DT-1113 are done; DT-1114 (date-aware
+classification) remains. Not yet version-bumped or tagged.
 
 ## Next Work
-Implement DT-1113 and DT-1114 in order (each depends on DT-1111/DT-1112 per the tickets'
-Dependencies sections), then cut the v1.4.0 release. Beyond v1.4, other candidates are improved
+Implement DT-1114, then cut the v1.4.0 release. Beyond v1.4, other candidates are improved
 reference-example selection, reference-set curation workflows, and confidence analysis (see
 docs/roadmap.md "Active Learning Improvements").
 

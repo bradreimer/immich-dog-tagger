@@ -154,11 +154,11 @@ Completed:
 - DT-1111: show photo capture date prominently during review
 - DT-1112: searchable, paginated library of every classified photo (reviewed and unreviewed),
   filterable by identity/species/reviewed-status/capture-date range
-
-Remaining:
 - DT-1113: edit any previously assigned tag from the library, and fix a real gap found while
   scoping this work -- re-syncing after a correction never removed the asset from its stale
   identity's Immich album, only added it to the new one
+
+Remaining:
 - DT-1114: flag (not silently accept) a classification whose photo date falls outside a
   candidate identity's known active date range
 

@@ -32,6 +32,10 @@ class ImmichAddAssetsToAlbumError(Exception):
     pass
 
 
+class ImmichRemoveAssetsFromAlbumError(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class ImmichAsset:
     """
@@ -186,5 +190,28 @@ class ImmichClient:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise ImmichAddAssetsToAlbumError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
+
+    def remove_assets_from_album(
+        self,
+        album_id: str,
+        asset_ids: list[str],
+    ) -> None:
+        # DELETE with a JSON body -- the same {"ids": [...]} shape as the
+        # add endpoint above -- so httpx.Client.request() is used directly;
+        # .delete() doesn't accept a json= body.
+        response = self.client.request(
+            "DELETE",
+            f"{self.url}/api/albums/{album_id}/assets",
+            json={
+                "ids": asset_ids,
+            },
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichRemoveAssetsFromAlbumError(
                 f"Immich API error {response.status_code}: {response.text}"
             ) from exc

@@ -1,5 +1,8 @@
+import { useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Dog } from "@/types/dogs";
 import type { LibraryEntry } from "@/types/library";
 
 function formatDate(value: string | null): string {
@@ -20,10 +23,35 @@ function speciesLabel(species: string): string {
 
 interface Props {
   entry: LibraryEntry;
+  identities: Dog[];
+  onCorrect: (classificationId: number, identity: string) => Promise<void>;
 }
 
-export function LibraryEntryCard({ entry }: Props) {
+export function LibraryEntryCard({ entry, identities, onCorrect }: Props) {
   const { item } = entry;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const speciesIdentities = identities.filter((dog) => dog.species === item.species);
+
+  const handleChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const identity = event.target.value;
+
+    if (!identity || identity === item.prediction.identity) {
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+
+    try {
+      await onCorrect(item.classification_id, identity);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to correct");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -53,6 +81,25 @@ export function LibraryEntryCard({ entry }: Props) {
         <Badge variant={entry.reviewed ? "default" : "secondary"}>
           {entry.reviewed ? `Reviewed ${formatDate(entry.reviewed_at)}` : "Not yet reviewed"}
         </Badge>
+
+        <select
+          value={item.prediction.identity ?? ""}
+          onChange={handleChange}
+          disabled={saving || speciesIdentities.length === 0}
+          aria-label={`Correct identity for photo ${item.crop_id}`}
+          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <option value="" disabled>
+            {speciesIdentities.length === 0 ? "No identities configured" : "Correct to…"}
+          </option>
+          {speciesIdentities.map((dog) => (
+            <option key={dog.id} value={dog.name}>
+              {dog.name}
+            </option>
+          ))}
+        </select>
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </CardContent>
     </Card>
   );

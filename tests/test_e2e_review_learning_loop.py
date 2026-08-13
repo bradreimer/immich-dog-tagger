@@ -469,3 +469,71 @@ def test_mixed_dog_and_cat_project_full_loop(engine):
             ("cat", "Max", ("cat-asset", "cat-asset-2")),
             ("dog", "Max", ("dog-asset", "dog-asset-2")),
         ]
+
+
+def test_re_correction_after_sync_fixes_stale_album_membership(engine):
+    """
+    DT-1113: the interview's stated pain point was a photo left in the
+    wrong Immich album after a correction. This exercises the real chain --
+    classify -> correct -> sync -> correct again -> sync again -- and
+    asserts the *album* state ends up correct, not just the classification
+    row. A test that only checked CropClassification.identity would miss
+    exactly the bug this ticket fixes: sync_identity() only ever adds, so
+    without the removal path the asset would end up in both albums.
+    """
+
+    class FakeAlbums:
+        def __init__(self):
+            self.albums: dict[str, set[str]] = {}
+
+        def _key(self, identity, species):
+            return f"{species} - {identity}"
+
+        def sync_identity(self, identity, asset_ids, species="dog"):
+            self.albums.setdefault(self._key(identity, species), set()).update(
+                asset_ids
+            )
+
+        def remove_from_identity(self, identity, asset_ids, species="dog"):
+            key = self._key(identity, species)
+            if key in self.albums:
+                self.albums[key].difference_update(asset_ids)
+
+    with Session(engine) as session:
+        path_to_vector = {"fibs.jpg": [1.0, 0.0, 0.0]}
+
+        asset = Asset(immich_asset_id="dog-asset-1", checksum="c1", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=0.95, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="fibs.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        embedder = FakeVectorEmbedder(path_to_vector)
+
+        classification_service = ClassificationService(
+            session, embedder, IdentityClassifier(session)
+        )
+        classification_service.classify(mode=ClassificationMode.PENDING)
+
+        learner = Learner(embedder, session)
+        correction = ClassificationCorrectionService(session, learner)
+
+        correction.correct(crop.classification.id, "Fibs")
+
+        albums = FakeAlbums()
+        policy = SyncPolicy(minimum_confidence=0.0)
+
+        SyncService(session, albums, policy).sync()
+
+        assert albums.albums["dog - Fibs"] == {"dog-asset-1"}
+
+        # A second, later correction on an already-synced asset -- the
+        # exact scenario the interview described.
+        correction.correct(crop.classification.id, "Hermann")
+
+        SyncService(session, albums, policy).sync()
+
+        assert albums.albums["dog - Fibs"] == set()
+        assert albums.albums["dog - Hermann"] == {"dog-asset-1"}

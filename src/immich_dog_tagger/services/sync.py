@@ -1,10 +1,10 @@
 from collections import defaultdict
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import CropClassification
+from immich_dog_tagger.models import CropClassification, SyncedAsset
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.sync_policy import SyncPolicy
 
@@ -61,6 +61,9 @@ class SyncService:
 
             assets[(species, identity)].add(asset_id)
 
+        if not dry_run:
+            self._remove_stale_memberships(assets)
+
         summary: list[SyncIdentitySummary] = []
 
         for (species, identity), asset_ids in assets.items():
@@ -79,6 +82,60 @@ class SyncService:
                 )
             )
 
+        if not dry_run:
+            self._save_synced_state(assets)
+
         return SyncSummary(
             identities=summary,
         )
+
+    def _previously_synced_state(self) -> dict[tuple[str, str], set[str]]:
+        state: dict[tuple[str, str], set[str]] = defaultdict(set)
+
+        for row in self.session.scalars(select(SyncedAsset)).all():
+            state[(row.species, row.identity)].add(row.immich_asset_id)
+
+        return state
+
+    def _remove_stale_memberships(
+        self,
+        current: dict[tuple[str, str], set[str]],
+    ) -> None:
+        """
+        Diff the current (species, identity) -> asset_ids mapping against
+        what was last synced (DT-1113). An asset present in a previous
+        membership but absent from that same membership now -- because it
+        was corrected to a different identity, or to Unknown -- needs
+        removing from its old album; otherwise it silently stays in both
+        the old and new identity's albums forever.
+        """
+        previous = self._previously_synced_state()
+
+        for key, previous_ids in previous.items():
+            species, identity = key
+            stale = previous_ids - current.get(key, set())
+
+            if stale:
+                self.albums.remove_from_identity(
+                    identity,
+                    sorted(stale),
+                    species=species,
+                )
+
+    def _save_synced_state(
+        self,
+        current: dict[tuple[str, str], set[str]],
+    ) -> None:
+        self.session.execute(delete(SyncedAsset))
+
+        for (species, identity), asset_ids in current.items():
+            for asset_id in asset_ids:
+                self.session.add(
+                    SyncedAsset(
+                        species=species,
+                        identity=identity,
+                        immich_asset_id=asset_id,
+                    )
+                )
+
+        self.session.commit()

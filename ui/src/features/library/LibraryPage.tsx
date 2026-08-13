@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
-import { getDogs, getLibrary } from "@/lib/api";
+import { correctClassification, getDogs, getLibrary } from "@/lib/api";
 import type { LibraryQuery } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import type { Dog } from "@/types/dogs";
@@ -83,9 +83,35 @@ export function LibraryPage() {
     setOffset(0);
   }, [identityFilter, speciesFilter, reviewedFilter, capturedAfter, capturedBefore]);
 
-  const identities = dogs
+  const identityOptions = dogs
     .filter((dog) => speciesFilter === "all" || dog.species === speciesFilter)
     .map((dog) => dog.name);
+
+  const correct = useCallback(async (classificationId: number, identity: string) => {
+    await correctClassification(classificationId, identity);
+
+    // Update in place rather than re-fetching the whole page, matching
+    // ReviewPage's optimistic-update pattern after a correction.
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.item.classification_id === classificationId
+          ? {
+              ...entry,
+              reviewed: true,
+              reviewed_at: new Date().toISOString(),
+              item: {
+                ...entry.item,
+                prediction: {
+                  ...entry.item.prediction,
+                  identity,
+                  similarity: 1,
+                },
+              },
+            }
+          : entry,
+      ),
+    );
+  }, []);
 
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + PAGE_SIZE, total);
@@ -108,7 +134,7 @@ export function LibraryPage() {
           aria-label="Filter by identity"
         >
           <option value="">All identities</option>
-          {identities.map((name) => (
+          {identityOptions.map((name) => (
             <option key={name} value={name}>
               {name}
             </option>
@@ -186,7 +212,12 @@ export function LibraryPage() {
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {entries.map((entry) => (
-              <LibraryEntryCard key={entry.item.classification_id} entry={entry} />
+              <LibraryEntryCard
+                key={entry.item.classification_id}
+                entry={entry}
+                identities={dogs}
+                onCorrect={correct}
+              />
             ))}
           </div>
 

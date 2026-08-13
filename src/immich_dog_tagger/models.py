@@ -606,3 +606,44 @@ class PipelineJob(Base):
             PipelineJobStatus.CANCELED,
         }:
             self.completed_at = timestamp
+
+
+class SyncedAsset(Base):
+    """
+    Tracks which (species, identity) album an Immich asset was synced into
+    the last time SyncService.sync() ran (DT-1113). Diffing against this
+    table -- rather than querying Immich's actual current album contents --
+    is what lets sync() detect and undo a stale membership after a
+    correction changes an asset's identity: per ADR-001, state.db is the
+    source of truth, so this treats our own last-known-synced state as
+    authoritative, not Immich's live state (which would also silently
+    "fix" any manual album edits a user made directly in Immich).
+    """
+
+    __tablename__ = "synced_assets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    species: Mapped[Species] = mapped_column(
+        Enum(Species, native_enum=False),
+        nullable=False,
+    )
+
+    identity: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    immich_asset_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "species",
+            "identity",
+            "immich_asset_id",
+            name="uq_synced_assets_species_identity_asset",
+        ),
+    )
