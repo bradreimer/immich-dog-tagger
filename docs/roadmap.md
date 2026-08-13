@@ -93,9 +93,9 @@ Completed:
 Exit criteria:
 Completed.
 
-## Future Milestones
+---
 
-## v1.2 - Visual Style Refresh
+## v1.2.0 - Visual Style Refresh
 
 See [docs/specs/v1.2-visual-style-refresh.md](specs/v1.2-visual-style-refresh.md).
 
@@ -109,9 +109,15 @@ Completed:
   navigation shell, reusable stat-tile primitive
 - DT-1105: rolled the style out to Mission Control, Metrics (including new donut and trend
   charts built from existing `GET /metrics` data), Job Queue, and Review's surrounding chrome
+- DT-1106: UX review follow-ups -- destructive-button contrast fix, relative "last updated" time,
+  Mission Control next-action banner, Metrics automation trend delta
+- DT-1107: moved dog management to its own `/dogs` page and sidebar tab
+- DT-1108: consolidated Metrics' trend section into one dual-axis Progress Over Time chart
 
 Exit criteria:
 Completed.
+
+## Future Milestones
 
 ## v1.3 - Cat Support
 

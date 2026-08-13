@@ -93,8 +93,20 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v1.1.0
+v1.2.0
 ```
+
+Release v1.2.0 delivers one consistent visual identity across the app, described in
+[docs/specs/v1.2-visual-style-refresh.md](docs/specs/v1.2-visual-style-refresh.md):
+
+* A sidebar navigation shell, replacing the horizontal pill nav
+* A single blue action-color accent and a validated status/categorical color palette, applied
+  consistently across Mission Control, Metrics, Job Queue, and Review
+* A reusable stat-tile primitive and new donut/trend charts on the Metrics tab, including one
+  consolidated dual-axis Progress Over Time chart
+* Dog management moved to its own `/dogs` page and sidebar tab
+* UX follow-ups: destructive-button contrast fix, relative "last updated" time, a Mission Control
+  next-action banner, and an automation-rate trend delta on Metrics
 
 Release v1.1.0 delivers the Automation Coverage Dashboard described in
 [docs/specs/v1.1-automation-coverage-dashboard.md](docs/specs/v1.1-automation-coverage-dashboard.md):
@@ -172,6 +184,7 @@ Completed:
 * Pipeline/correction/Reclassify lifecycle logging with no image content or paths logged
 * N+1 query fixes and batched processing validated for large-project scale
 * Dedicated Metrics tab with per-pass labeled-example/review-queue snapshots and a prominent automation-rate metric
+* One consistent visual identity: sidebar navigation shell, blue action accent, validated status/categorical palette, and a reusable stat-tile/chart pattern across all pages
 
 ---
 

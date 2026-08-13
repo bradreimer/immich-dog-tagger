@@ -42,15 +42,14 @@
   backward-compatible additive migration for existing dog-only projects
 
 ## Current Milestone
-v1.1.0 Automation Coverage Dashboard -- released (DT-1101, DT-1102, DT-1103). See
-[docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-coverage-dashboard.md).
+v1.2.0 Visual Style Refresh -- released (DT-1104 through DT-1108). See
+[docs/specs/v1.2-visual-style-refresh.md](specs/v1.2-visual-style-refresh.md).
 
-v1.2 Visual Style Refresh is feature-complete (DT-1104 through DT-1108) and v1.3 Cat Support is
-feature-complete and merged to `main` (DT-1110), but neither has been version-bumped or tagged
-yet.
+v1.3 Cat Support is feature-complete and merged to `main` (DT-1110), but not yet version-bumped or
+tagged.
 
 ## Next Work
-Decide whether/when to cut releases covering v1.2 and v1.3. A mock user interview surfaced a v1.4
+Cut a release covering v1.3. A mock user interview surfaced a v1.4
 backlog -- filed as [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md)
 and tickets DT-1111 through DT-1114 -- shifting the product's primary mental model from "process a
 review queue" to "maintain a searchable library of tagged photos," with photo capture date as a
