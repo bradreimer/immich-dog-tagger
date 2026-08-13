@@ -93,8 +93,17 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v1.0.0
+v1.1.0
 ```
+
+Release v1.1.0 delivers the Automation Coverage Dashboard described in
+[docs/specs/v1.1-automation-coverage-dashboard.md](docs/specs/v1.1-automation-coverage-dashboard.md):
+
+* A dedicated Metrics tab, separate from Mission Control
+* Per-classification-pass snapshots of labeled-example count and review-queue size, so coverage
+  trends are visible across passes rather than only as a single current number
+* A reconciled review-queue metric definition and a single, prominent automation-rate number
+  answering "how much of this am I no longer doing by hand?"
 
 Release v1.0.0 delivers the full review-driven learning loop described in
 [docs/specs/v1.0.0.md](docs/specs/v1.0.0.md) and
@@ -162,6 +171,7 @@ Completed:
 * Job lifecycle hardening: interrupted-job and interrupted-pass recovery on restart
 * Pipeline/correction/Reclassify lifecycle logging with no image content or paths logged
 * N+1 query fixes and batched processing validated for large-project scale
+* Dedicated Metrics tab with per-pass labeled-example/review-queue snapshots and a prominent automation-rate metric
 
 ---
 

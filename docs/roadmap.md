@@ -71,12 +71,14 @@ Completed:
 - End-to-end review-driven learning loop regression tests (DT-1009)
 - v1.0 user and operator documentation (DT-1010)
 
-Remaining:
-- DT-1011 release validation against the full v1.0.0 acceptance criteria, then tag v1.0.0.
+- DT-1011 release validation against the full v1.0.0 acceptance criteria (docs/validation/v1.0.0/DT-1011-release-validation.md)
 
-## Future Milestones
+Exit criteria:
+Completed.
 
-## v1.1 - Automation Coverage Dashboard
+---
+
+## v1.1.0 - Automation Coverage Dashboard
 
 See [docs/specs/v1.1-automation-coverage-dashboard.md](specs/v1.1-automation-coverage-dashboard.md).
 
@@ -90,6 +92,8 @@ Completed:
 
 Exit criteria:
 Completed.
+
+## Future Milestones
 
 ## v1.2 - Visual Style Refresh
 
