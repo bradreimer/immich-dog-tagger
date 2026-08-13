@@ -8,14 +8,19 @@ import {
   getDogs,
   renameDog,
 } from "../../../lib/api";
-import type { Dog } from "../../../types/dogs";
+import type { Dog, Species } from "../../../types/dogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
+function speciesLabel(species: Species): string {
+  return species === "cat" ? "Cat" : "Dog";
+}
+
 export function DogManagementCard() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [name, setName] = useState("");
+  const [species, setSpecies] = useState<Species>("dog");
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | "new" | null>(null);
@@ -60,17 +65,17 @@ export function DogManagementCard() {
     setSavingId("new");
 
     try {
-      const dog = await createDog(name);
+      const dog = await createDog(name, species);
       setDogs((current) => [...current, dog]);
       setDrafts((current) => ({ ...current, [dog.id]: dog.name }));
       setName("");
-      setMessage(`Created dog “${dog.name}”.`);
+      setMessage(`Created ${speciesLabel(dog.species).toLowerCase()} “${dog.name}”.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create dog");
     } finally {
       setSavingId(null);
     }
-  }, [name]);
+  }, [name, species]);
 
   const handleRename = useCallback(async (dog: Dog) => {
     const nextName = drafts[dog.id]?.trim() ?? dog.name;
@@ -87,7 +92,7 @@ export function DogManagementCard() {
       const updated = await renameDog(dog.id, nextName);
       setDogs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setDrafts((current) => ({ ...current, [updated.id]: updated.name }));
-      setMessage(`Renamed dog to “${updated.name}”.`);
+      setMessage(`Renamed to “${updated.name}”.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to rename dog");
     } finally {
@@ -106,7 +111,7 @@ export function DogManagementCard() {
         : await activateDog(dog.id);
 
       setDogs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      setMessage(updated.active ? `Activated dog “${updated.name}”.` : `Deactivated dog “${updated.name}”.`);
+      setMessage(updated.active ? `Activated “${updated.name}”.` : `Deactivated “${updated.name}”.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update dog");
     } finally {
@@ -121,13 +126,32 @@ export function DogManagementCard() {
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Add a dog name"
+            placeholder="Add a name"
             className="h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
 
+          <div className="flex gap-2" role="radiogroup" aria-label="Species">
+            <Button
+              type="button"
+              variant={species === "dog" ? "default" : "outline"}
+              aria-pressed={species === "dog"}
+              onClick={() => setSpecies("dog")}
+            >
+              Dog
+            </Button>
+            <Button
+              type="button"
+              variant={species === "cat" ? "default" : "outline"}
+              aria-pressed={species === "cat"}
+              onClick={() => setSpecies("cat")}
+            >
+              Cat
+            </Button>
+          </div>
+
           <Button onClick={handleCreate} disabled={savingId !== null || !name.trim()}>
             <IconPlus className="h-4 w-4" aria-hidden="true" />
-            Add dog
+            Add
           </Button>
         </div>
 
@@ -135,9 +159,9 @@ export function DogManagementCard() {
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading dogs…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : dogs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No dogs configured yet.</p>
+          <p className="text-sm text-muted-foreground">No dogs or cats configured yet.</p>
         ) : (
           <div className="space-y-3">
             {dogs.map((dog) => (
@@ -151,6 +175,7 @@ export function DogManagementCard() {
 
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-muted-foreground">ID {dog.id}</p>
+                    <Badge variant="outline">{speciesLabel(dog.species)}</Badge>
                     <Badge variant={dog.active ? "default" : "secondary"}>
                       {dog.active ? "Active" : "Inactive"}
                     </Badge>

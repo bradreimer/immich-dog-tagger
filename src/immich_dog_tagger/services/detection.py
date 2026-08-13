@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.detector import ObjectDetector
-from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.enums import AssetStatus, Species
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import Asset, Crop, Detection
 
@@ -16,6 +16,7 @@ class DetectionSummary:
     processed: int
     detections: int
     dogs: int
+    cats: int
 
 
 class DetectionService:
@@ -60,6 +61,7 @@ class DetectionService:
         processed = 0
         detection_count = 0
         dog_count = 0
+        cat_count = 0
 
         for asset in assets:
             image_path = asset.cache_path(self.cache_dir)
@@ -103,6 +105,8 @@ class DetectionService:
 
                 if detection.label == "dog":
                     dog_count += 1
+                elif detection.label == "cat":
+                    cat_count += 1
 
                 db_detection = Detection(
                     asset_id=asset.id,
@@ -125,6 +129,7 @@ class DetectionService:
                         Crop(
                             detection_id=db_detection.id,
                             path=str(crop_path),
+                            species=Species(detection.label),
                         )
                     )
 
@@ -138,4 +143,5 @@ class DetectionService:
             processed=processed,
             detections=detection_count,
             dogs=dog_count,
+            cats=cat_count,
         )

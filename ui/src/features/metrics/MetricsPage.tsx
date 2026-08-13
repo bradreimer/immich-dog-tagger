@@ -63,7 +63,7 @@ function ProgressFooterStats({
         tone="accent"
         label="Labeled Examples"
         value={pass.labeledExampleCount}
-        subtext={activeDogCount !== null ? `Across ${activeDogCount} dog${activeDogCount === 1 ? "" : "s"}` : undefined}
+        subtext={activeDogCount !== null ? `Across ${activeDogCount} identit${activeDogCount === 1 ? "y" : "ies"}` : undefined}
       />
       <StatTile
         icon={IconCircleCheck}

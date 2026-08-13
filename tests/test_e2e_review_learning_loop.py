@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
@@ -23,11 +24,14 @@ from immich_dog_tagger.enums import (
     ClassificationSources,
     EmbeddingSources,
     PipelineOperation,
+    Species,
 )
 from immich_dog_tagger.models import (
+    Asset,
     ClassificationPass,
     Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
     Identity,
 )
@@ -37,6 +41,8 @@ from immich_dog_tagger.services.job_runner import PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.reclassify import ReclassifyService
+from immich_dog_tagger.services.sync import SyncService
+from immich_dog_tagger.services.sync_policy import SyncPolicy
 
 
 class FakeVectorEmbedder:
@@ -357,3 +363,109 @@ def test_existing_project_migrates_and_continues_working(tmp_path: Path):
 
         result = ReclassifyService(session, embedder).reclassify()
         assert result.eligible_count == 1  # only the AUTO row; REVIEW row excluded
+
+
+def test_mixed_dog_and_cat_project_full_loop(engine):
+    """
+    DT-1110: the same review -> reclassify -> sync loop DT-1009 covers for a
+    dog-only project, but with a dog "Max" and a cat "Max" -- same name,
+    same embedding vector -- moving through classify, correction/learning,
+    reclassify, and sync together. If species scoping were broken anywhere
+    in that chain, this is the scenario that would surface it: identical
+    names and vectors give species-blind code nothing else to go on.
+    """
+
+    class FakeAlbums:
+        def __init__(self):
+            self.synced = []
+
+        def sync_identity(self, identity, asset_ids, species="dog"):
+            self.synced.append((species, identity, tuple(sorted(asset_ids))))
+
+    with Session(engine) as session:
+        path_to_vector: dict[str, list[float]] = {}
+
+        def add_crop(species: str, label: str, immich_id: str) -> Crop:
+            path = f"{species}-{label}.jpg"
+            path_to_vector[path] = [1.0, 0.0, 0.0]
+
+            asset = Asset(
+                immich_asset_id=immich_id, checksum=immich_id, extension=".jpg"
+            )
+            detection = Detection(
+                asset=asset, label=species, confidence=0.95, x1=0, y1=0, x2=10, y2=10
+            )
+            crop = Crop(detection=detection, path=path, species=species)
+            session.add(crop)
+            session.flush()
+            return crop
+
+        # Two crops per species: one will be reviewed directly, the other
+        # left for Reclassify to pick up once examples exist.
+        dog_crop = add_crop("dog", "pending", "dog-asset")
+        cat_crop = add_crop("cat", "pending", "cat-asset")
+        new_dog_crop = add_crop("dog", "new", "dog-asset-2")
+        new_cat_crop = add_crop("cat", "new", "cat-asset-2")
+
+        embedder = FakeVectorEmbedder(path_to_vector)
+
+        classification_service = ClassificationService(
+            session, embedder, IdentityClassifier(session)
+        )
+        summary = classification_service.classify(mode=ClassificationMode.PENDING)
+
+        assert summary.classified == 4
+        # Zero labeled examples yet -- all Unknown, not cross-matched to
+        # whatever the other species might eventually be named.
+        assert summary.identities == {"Unknown": 4}
+
+        # Review: teach the classifier "Max" separately for each species.
+        learner = Learner(embedder, session)
+        correction = ClassificationCorrectionService(session, learner)
+
+        correction.correct(dog_crop.classification.id, "Max")
+        correction.correct(cat_crop.classification.id, "Max")
+
+        dog_identity = session.scalar(
+            select(Identity).where(Identity.species == Species.DOG)
+        )
+        cat_identity = session.scalar(
+            select(Identity).where(Identity.species == Species.CAT)
+        )
+        assert dog_identity.name == "Max"
+        assert cat_identity.name == "Max"
+        assert dog_identity.id != cat_identity.id
+
+        # The still-Unknown, AUTO-sourced crops of each species -- identical
+        # vector -- must each resolve to their own species' "Max" once
+        # Reclassify picks them up, never the other's.
+        result = ReclassifyService(session, embedder).reclassify()
+
+        assert result.eligible_count == 2
+
+        session.refresh(new_dog_crop.classification)
+        session.refresh(new_cat_crop.classification)
+
+        assert new_dog_crop.classification.identity == "Max"
+        assert new_cat_crop.classification.identity == "Max"
+        assert (
+            new_dog_crop.classification.matched_example_id
+            != new_cat_crop.classification.matched_example_id
+        )
+
+        # Rerunning changes nothing -- idempotent across both species.
+        second = ReclassifyService(session, embedder).reclassify()
+        assert second.changed_count == 0
+
+        # Sync: two "Max" identities must produce two separate albums, not
+        # one merged album with both species' assets.
+        albums = FakeAlbums()
+        sync_summary = SyncService(
+            session, albums, SyncPolicy(minimum_confidence=0.0)
+        ).sync()
+
+        assert len(sync_summary.identities) == 2
+        assert sorted(albums.synced) == [
+            ("cat", "Max", ("cat-asset", "cat-asset-2")),
+            ("dog", "Max", ("dog-asset", "dog-asset-2")),
+        ]

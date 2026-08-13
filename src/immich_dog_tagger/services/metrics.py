@@ -15,10 +15,15 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import Species
 from immich_dog_tagger.models import (
     ClassificationPass,
+    Crop,
     CropClassification,
+    Detection,
     EmbeddingExample,
+    Identity,
+    ReviewAction,
 )
 from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
 from immich_dog_tagger.services.review_query import ReviewQueryService
@@ -64,6 +69,24 @@ class ClassificationPassSummary:
 
 
 @dataclass(frozen=True)
+class SpeciesMetrics:
+    """
+    The same core counts as LearningMetrics, scoped to one species (DT-1110)
+    -- so "how much manual review is left" is never silently averaged across
+    dogs and cats into one misleading number, even though the review queue
+    itself stays unified.
+    """
+
+    species: str
+    eligible_count: int
+    confident_count: int
+    unknown_count: int
+    reviewed_count: int
+    labeled_example_count: int
+    coverage: float | None
+
+
+@dataclass(frozen=True)
 class LearningMetrics:
     eligible_count: int
     reviewed_count: int
@@ -79,6 +102,7 @@ class LearningMetrics:
     automation_rate: float | None
     last_reclassification: ClassificationPassSummary | None
     pass_history: list[ClassificationPassSummary]
+    by_species: list[SpeciesMetrics]
 
 
 class MetricsService:
@@ -170,7 +194,96 @@ class MetricsService:
             else None,
             last_reclassification=pass_summaries[-1] if pass_summaries else None,
             pass_history=pass_summaries,
+            by_species=self._species_breakdown(),
         )
+
+    def _species_breakdown(self) -> list[SpeciesMetrics]:
+        """
+        Grouped queries, not one query per species -- stays cheap regardless
+        of how many crops/examples exist, matching this file's existing
+        "explicit denominators, no per-row Python loop" style.
+        """
+        eligible_by_species = dict(
+            self.session.execute(
+                select(Detection.label, func.count())
+                .select_from(CropClassification)
+                .join(Crop, CropClassification.crop_id == Crop.id)
+                .join(Detection, Crop.detection_id == Detection.id)
+                .group_by(Detection.label)
+            ).all()
+        )
+
+        confident_by_species = dict(
+            self.session.execute(
+                select(Detection.label, func.count())
+                .select_from(CropClassification)
+                .join(Crop, CropClassification.crop_id == Crop.id)
+                .join(Detection, Crop.detection_id == Detection.id)
+                .where(
+                    CropClassification.identity.is_not(None),
+                    CropClassification.confidence >= self.policy.confident_threshold,
+                )
+                .group_by(Detection.label)
+            ).all()
+        )
+
+        unknown_by_species = dict(
+            self.session.execute(
+                select(Detection.label, func.count())
+                .select_from(CropClassification)
+                .join(Crop, CropClassification.crop_id == Crop.id)
+                .join(Detection, Crop.detection_id == Detection.id)
+                .where(CropClassification.identity.is_(None))
+                .group_by(Detection.label)
+            ).all()
+        )
+
+        reviewed_by_species = dict(
+            self.session.execute(
+                select(
+                    Detection.label, func.count(func.distinct(CropClassification.id))
+                )
+                .select_from(CropClassification)
+                .join(Crop, CropClassification.crop_id == Crop.id)
+                .join(Detection, Crop.detection_id == Detection.id)
+                .join(
+                    ReviewAction,
+                    ReviewAction.classification_id == CropClassification.id,
+                )
+                .group_by(Detection.label)
+            ).all()
+        )
+
+        labeled_by_species = dict(
+            self.session.execute(
+                select(Identity.species, func.count())
+                .select_from(EmbeddingExample)
+                .join(Identity, EmbeddingExample.identity_id == Identity.id)
+                .group_by(Identity.species)
+            ).all()
+        )
+
+        breakdown = []
+
+        for species in Species:
+            eligible_count = eligible_by_species.get(species.value, 0)
+            confident_count = confident_by_species.get(species.value, 0)
+
+            breakdown.append(
+                SpeciesMetrics(
+                    species=species.value,
+                    eligible_count=eligible_count,
+                    confident_count=confident_count,
+                    unknown_count=unknown_by_species.get(species.value, 0),
+                    reviewed_count=reviewed_by_species.get(species.value, 0),
+                    labeled_example_count=labeled_by_species.get(species, 0),
+                    coverage=(confident_count / eligible_count)
+                    if eligible_count
+                    else None,
+                )
+            )
+
+        return breakdown
 
     def _count(self, query) -> int:
         return self.session.scalar(query) or 0

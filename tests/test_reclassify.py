@@ -3,7 +3,11 @@ import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.embeddings import embedding_to_blob
-from immich_dog_tagger.enums import ClassificationPassStatus, ClassificationSources
+from immich_dog_tagger.enums import (
+    ClassificationPassStatus,
+    ClassificationSources,
+    Species,
+)
 from immich_dog_tagger.models import (
     ClassificationPass,
     Crop,
@@ -30,15 +34,15 @@ class FakeBatchEmbedder:
         )
 
 
-def _add_identity(session, name, vector):
-    identity = Identity(name=name)
+def _add_identity(session, name, vector, species=Species.DOG):
+    identity = Identity(name=name, species=species)
     session.add(identity)
     session.flush()
 
     session.add(
         EmbeddingExample(
             identity_id=identity.id,
-            crop_path=f"{name.lower()}.jpg",
+            crop_path=f"{species.value}-{name.lower()}.jpg",
             embedding=embedding_to_blob(np.array(vector, dtype=np.float32)),
             source=EmbeddingSources.BOOTSTRAP,
         )
@@ -54,8 +58,9 @@ def _add_auto_classification(
     confidence=0.10,
     embedding=None,
     source=ClassificationSources.AUTO,
+    species=Species.DOG,
 ):
-    crop = Crop(detection_id=1, path=path)
+    crop = Crop(detection_id=1, path=path, species=species)
     session.add(crop)
     session.flush()
 
@@ -132,6 +137,68 @@ def test_reclassify_updates_auto_classification(engine):
 
         # Embedding was already cached on the row, so it must not be recomputed.
         assert embedder.calls == []
+
+
+def test_reclassify_mixed_species_batch_is_species_scoped_and_idempotent(engine):
+    # DT-1110: a single ReclassifyService run shares one IdentityClassifier
+    # instance across every eligible crop regardless of species. A dog
+    # "Max" and a cat "Max" with the *same* embedding vector are the
+    # sharpest test of that -- without per-species scoping in the shared
+    # classifier's example cache, the cat crop could resolve to the dog
+    # identity (or vice versa) since the name and embedding alone can't
+    # distinguish them.
+    with Session(engine) as session:
+        _add_identity(session, "Max", [1, 0, 0], species=Species.DOG)
+        _add_identity(session, "Max", [1, 0, 0], species=Species.CAT)
+
+        dog_classification = _add_auto_classification(
+            session,
+            "dog_photo.jpg",
+            identity=None,
+            confidence=-1.0,
+            embedding=[1, 0, 0],
+            species=Species.DOG,
+        )
+        cat_classification = _add_auto_classification(
+            session,
+            "cat_photo.jpg",
+            identity=None,
+            confidence=-1.0,
+            embedding=[1, 0, 0],
+            species=Species.CAT,
+        )
+
+        embedder = FakeBatchEmbedder()
+        service = ReclassifyService(session, embedder)
+
+        result = service.reclassify()
+
+        assert result.status is ClassificationPassStatus.COMPLETED
+        assert result.eligible_count == 2
+        assert result.confident_count == 2
+        assert result.changed_count == 2
+
+        session.refresh(dog_classification)
+        session.refresh(cat_classification)
+
+        assert dog_classification.identity == "Max"
+        assert cat_classification.identity == "Max"
+        assert (
+            dog_classification.matched_example_id
+            != cat_classification.matched_example_id
+        )
+
+        # Re-running with no new reviews changes nothing for either crop --
+        # idempotency must hold per-species, not just in aggregate.
+        second = service.reclassify()
+
+        assert second.changed_count == 0
+
+        session.refresh(dog_classification)
+        session.refresh(cat_classification)
+
+        assert dog_classification.identity == "Max"
+        assert cat_classification.identity == "Max"
 
 
 def test_reclassify_reuses_cached_embedding_and_computes_missing_ones(engine):

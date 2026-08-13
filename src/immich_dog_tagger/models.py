@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     LargeBinary,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -26,6 +27,7 @@ from .enums import (
     PipelineJobStatus,
     PipelineOperation,
     ReviewActions,
+    Species,
 )
 
 
@@ -35,12 +37,23 @@ class Base(DeclarativeBase):
 
 class Identity(Base):
     __tablename__ = "identities"
+    __table_args__ = (
+        UniqueConstraint("species", "name", name="uq_identities_species_name"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
+    # Identity names are unique per species, not globally (DT-1110) -- a dog
+    # "Max" and a cat "Max" are different identities and must not collide.
+    species: Mapped[Species] = mapped_column(
+        Enum(Species, native_enum=False),
+        nullable=False,
+        default=Species.DOG,
+        server_default=Species.DOG.name,
+    )
+
     name: Mapped[str] = mapped_column(
         String(64),
-        unique=True,
         nullable=False,
     )
 
@@ -354,6 +367,18 @@ class Crop(Base):
     path: Mapped[str] = mapped_column(
         String(512),
         nullable=False,
+    )
+
+    # Set explicitly by DetectionService from the detection's COCO label at
+    # crop-creation time (DT-1110). A real column, not a property computed
+    # from crop.detection.label, so reading a crop's species never requires
+    # its detection row to be loaded (or to exist at all, which many test
+    # fixtures don't bother with) -- just this row.
+    species: Mapped[Species] = mapped_column(
+        Enum(Species, native_enum=False),
+        nullable=False,
+        default=Species.DOG,
+        server_default=Species.DOG.name,
     )
 
     detection: Mapped[Detection] = relationship(back_populates="crop")

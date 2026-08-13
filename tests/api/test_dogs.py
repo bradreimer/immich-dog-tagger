@@ -24,6 +24,7 @@ def test_dogs_crud(api_client, engine):
         {
             "id": dog_id,
             "name": "Fibs",
+            "species": "dog",
             "active": True,
         }
     ]

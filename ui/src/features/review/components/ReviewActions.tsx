@@ -2,6 +2,7 @@ import { IdentityChooser } from "./IdentityChooser";
 
 interface Props {
   identities: string[];
+  species?: string;
   onCorrect: (identity: string) => void;
   onSkip: () => void;
   disabled?: boolean;

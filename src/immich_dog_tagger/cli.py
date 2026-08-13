@@ -218,6 +218,7 @@ def detect_command(args) -> None:
         print(f"Processed: {result.get('processed', 0)}")
         print(f"Detections: {result.get('detections', 0)}")
         print(f"Dogs: {result.get('dogs', 0)}")
+        print(f"Cats: {result.get('cats', 0)}")
 
 
 def classify_command(args) -> None:
@@ -262,6 +263,7 @@ def learn_command(args) -> None:
             options={
                 "identity": args.identity,
                 "directory": args.directory,
+                "species": args.species,
             },
         )
 
@@ -673,7 +675,7 @@ def main(argv: list[str] | None = None) -> None:
 
     learn_parser = subparsers.add_parser(
         "learn",
-        help="Add reference examples for a dog identity from images",
+        help="Add reference examples for a dog or cat identity from images",
     )
 
     learn_parser.add_argument(
@@ -682,6 +684,13 @@ def main(argv: list[str] | None = None) -> None:
 
     learn_parser.add_argument(
         "directory",
+    )
+
+    learn_parser.add_argument(
+        "--species",
+        choices=["dog", "cat"],
+        default="dog",
+        help="Species of the identity being taught (default: dog)",
     )
 
     classify_list_parser = subparsers.add_parser(

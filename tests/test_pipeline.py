@@ -7,6 +7,7 @@ from immich_dog_tagger.services.pipeline import PipelineService
 @dataclass
 class FakeDetectionSummary:
     dogs: int
+    cats: int = 0
 
 
 @dataclass
@@ -165,9 +166,9 @@ def test_pipeline_reports_progress():
         "Scanned 10 assets",
         "Downloading assets",
         "Downloaded 8 assets",
-        "Detecting dogs",
-        "Detected 5 dogs",
-        "Classifying dogs",
+        "Detecting dogs and cats",
+        "Detected 5 dog(s) and 0 cat(s)",
+        "Classifying crops",
         "Classified 5 crops",
     ]
 

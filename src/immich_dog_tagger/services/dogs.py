@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import Species
 from immich_dog_tagger.models import Identity
 
 
@@ -10,7 +11,7 @@ class DogService:
 
     def list_dogs(self, *, include_inactive: bool = True) -> list[Identity]:
         query = select(Identity).order_by(
-            Identity.is_active.desc(), Identity.name.asc()
+            Identity.species.asc(), Identity.is_active.desc(), Identity.name.asc()
         )
 
         if not include_inactive:
@@ -21,11 +22,11 @@ class DogService:
     def get_dog(self, dog_id: int) -> Identity | None:
         return self.session.get(Identity, dog_id)
 
-    def create_dog(self, name: str) -> Identity:
+    def create_dog(self, name: str, species: Species = Species.DOG) -> Identity:
         name = self._normalize_name(name)
-        self._ensure_name_available(name)
+        self._ensure_name_available(name, species)
 
-        dog = Identity(name=name, is_active=True)
+        dog = Identity(name=name, species=species, is_active=True)
         self.session.add(dog)
         self.session.commit()
         self.session.refresh(dog)
@@ -34,7 +35,7 @@ class DogService:
     def rename_dog(self, dog_id: int, name: str) -> Identity:
         dog = self._require_dog(dog_id)
         name = self._normalize_name(name)
-        self._ensure_name_available(name, exclude_id=dog_id)
+        self._ensure_name_available(name, dog.species, exclude_id=dog_id)
 
         dog.name = name
         self.session.commit()
@@ -75,12 +76,21 @@ class DogService:
         return normalized
 
     def _ensure_name_available(
-        self, name: str, *, exclude_id: int | None = None
+        self,
+        name: str,
+        species: Species,
+        *,
+        exclude_id: int | None = None,
     ) -> None:
-        query = select(Identity).where(Identity.name == name)
+        # Names are unique per species (DT-1110), not globally -- a dog
+        # "Max" and a cat "Max" are different identities.
+        query = select(Identity).where(
+            Identity.name == name,
+            Identity.species == species,
+        )
 
         if exclude_id is not None:
             query = query.where(Identity.id != exclude_id)
 
         if self.session.scalar(query) is not None:
-            raise ValueError(f"Dog already exists: {name}")
+            raise ValueError(f"{species.value.capitalize()} already exists: {name}")

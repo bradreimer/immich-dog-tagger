@@ -38,7 +38,9 @@ def create_dog(
     service: Annotated[DogService, Depends(get_dog_service)],
 ):
     try:
-        return DogResponse.from_identity(service.create_dog(request.name))
+        return DogResponse.from_identity(
+            service.create_dog(request.name, request.species)
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -109,6 +109,24 @@ Completed:
 Exit criteria:
 Completed.
 
+## v1.3 - Cat Support
+
+See [docs/tickets/DT-1110-cat-support.md](tickets/DT-1110-cat-support.md).
+
+Goal:
+Extend detection, classification, review, and sync to cats alongside dogs, sharing one review
+queue and one correction UI -- no separate tab, page, or mode for cats. Species is hardcoded to
+`dog`/`cat`, not a general-purpose config.
+
+Completed:
+- DT-1110: species-scoped identities and crops (additive migration, backward compatible with
+  existing dog-only projects), species-scoped nearest-neighbor classification, unified review
+  queue with a per-item species-scoped identity chooser, species-aware Immich album naming, and a
+  per-species Learning Progress breakdown
+
+Exit criteria:
+Completed.
+
 ## v1.4 - Trustworthy Photo Library
 
 See [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md).

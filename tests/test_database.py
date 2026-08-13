@@ -1,10 +1,12 @@
 import sqlite3
 from pathlib import Path
 
-from sqlalchemy import text
+import pytest
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import AssetStatus, PipelineOperation
+from immich_dog_tagger.enums import AssetStatus, PipelineOperation, Species
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -224,3 +226,86 @@ def test_database_adds_classification_pass_trend_columns(tmp_path: Path):
         ).all()
 
     assert rows == [("completed", None, None)]
+
+
+def test_database_adds_identity_species_column_and_scopes_uniqueness(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    # Oldest pre-DT-1110 shape: no is_active, no species, name unique alone.
+    connection.execute(
+        "CREATE TABLE identities (id INTEGER PRIMARY KEY, name VARCHAR(64) NOT NULL UNIQUE)"
+    )
+    connection.execute(
+        "INSERT INTO identities (name) VALUES (?)",
+        ("Fibs",),
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        existing = session.scalars(select(Identity)).all()
+
+        assert len(existing) == 1
+        assert existing[0].name == "Fibs"
+        assert existing[0].species == Species.DOG
+        assert existing[0].is_active is True
+
+        # Composite (species, name) uniqueness: a cat "Fibs" is a different
+        # identity from the migrated dog "Fibs" and must not collide.
+        session.add(Identity(name="Fibs", species=Species.CAT))
+        session.commit()
+
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(Identity)
+                .where(Identity.name == "Fibs")
+            )
+            == 2
+        )
+
+        # Same-species duplicate is still rejected.
+        session.add(Identity(name="Fibs", species=Species.DOG))
+
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+
+def test_database_adds_crop_species_column(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    connection.execute(
+        "CREATE TABLE detections ("
+        "id INTEGER PRIMARY KEY, asset_id INTEGER, label VARCHAR NOT NULL, "
+        "confidence FLOAT NOT NULL, x1 INTEGER, y1 INTEGER, x2 INTEGER, y2 INTEGER"
+        ")"
+    )
+    connection.execute(
+        "CREATE TABLE crops (id INTEGER PRIMARY KEY, detection_id INTEGER, path VARCHAR(512) NOT NULL)"
+    )
+    connection.execute(
+        "INSERT INTO detections (id, asset_id, label, confidence, x1, y1, x2, y2) "
+        "VALUES (1, 1, 'dog', 0.9, 0, 0, 10, 10)"
+    )
+    connection.execute(
+        "INSERT INTO crops (id, detection_id, path) VALUES (1, 1, 'fibs.jpg')"
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        rows = session.execute(
+            text("SELECT path, species FROM crops ORDER BY id")
+        ).all()
+
+    assert rows == [("fibs.jpg", "DOG")]

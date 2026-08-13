@@ -96,6 +96,27 @@ def test_review_item_returns_image_url(api_client, engine):
     assert "/some/internal/storage/path" not in response.text
 
 
+def test_review_queue_interleaves_both_species(api_client, engine):
+    # DT-1110 acceptance criterion 4: dog and cat items share one queue,
+    # sorted by the existing priority rules -- no species grouping/filter.
+    with Session(engine) as session:
+        dog_crop = Crop(detection_id=1, path="dog.jpg", species="dog")
+        cat_crop = Crop(detection_id=1, path="cat.jpg", species="cat")
+
+        session.add(CropClassification(crop=dog_crop, identity=None, confidence=0.5))
+        session.add(CropClassification(crop=cat_crop, identity=None, confidence=0.5))
+        session.commit()
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 2
+    assert {item["species"] for item in items} == {"dog", "cat"}
+
+
 def test_review_skip_creates_single_action(api_client, engine):
     with Session(engine) as session:
         crop = Crop(

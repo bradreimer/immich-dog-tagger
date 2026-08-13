@@ -8,6 +8,7 @@ import numpy as np
 from sqlalchemy.orm import Session, contains_eager
 
 from .embeddings import blob_to_embedding
+from .enums import Species
 from .models import EmbeddingExample, Identity
 from .policy import DEFAULT_POLICY, ClassifierPolicy
 from .scoring import SimilarityScorer
@@ -38,11 +39,12 @@ class IdentityClassifier:
         self.session = session
         self.scorer = scorer or SimilarityScorer()
         self.policy = policy
-        self._examples_cache: list[EmbeddingExample] | None = None
+        self._examples_cache: dict[str, list[EmbeddingExample]] | None = None
 
     def classify(
         self,
         embedding: np.ndarray,
+        species: Species = Species.DOG,
         threshold: float | None = None,
         candidate_limit: int | None = None,
     ) -> ClassificationResult:
@@ -57,7 +59,7 @@ class IdentityClassifier:
 
         identity_scores: dict[str, ClassificationCandidate] = {}
 
-        for example in self._load_examples():
+        for example in self._load_examples(species):
             known = blob_to_embedding(example.embedding)
 
             similarity = self._cosine_similarity(
@@ -122,18 +124,21 @@ class IdentityClassifier:
 
         return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
-    def _load_examples(self) -> list[EmbeddingExample]:
+    def _load_examples(self, species: Species) -> list[EmbeddingExample]:
         """
         Load and cache active labeled examples for this classifier instance's
-        lifetime. Without this, classifying a batch of N crops re-fetches and
-        re-deserializes the entire example set N times -- a query per crop
-        that dominates at scale (e.g. 30,000 crops = 30,000 identical
-        queries). Callers create a fresh IdentityClassifier per classify/
-        reclassify run, so caching for the instance's lifetime does not risk
-        missing examples added during that same run in practice.
+        lifetime, partitioned by species so a single instance can safely
+        serve a mixed dog/cat batch (DT-1110) -- a cat crop must never be
+        compared against dog reference examples. Without the cache, classifying
+        a batch of N crops re-fetches and re-deserializes the entire example
+        set N times -- a query per crop that dominates at scale (e.g. 30,000
+        crops = 30,000 identical queries). Callers create a fresh
+        IdentityClassifier per classify/reclassify run, so caching for the
+        instance's lifetime does not risk missing examples added during that
+        same run in practice.
         """
         if self._examples_cache is None:
-            self._examples_cache = (
+            all_examples = (
                 self.session.query(EmbeddingExample)
                 .join(Identity)
                 .where(Identity.is_active.is_(True))
@@ -141,4 +146,11 @@ class IdentityClassifier:
                 .all()
             )
 
-        return self._examples_cache
+            self._examples_cache = {}
+
+            for example in all_examples:
+                self._examples_cache.setdefault(example.identity.species, []).append(
+                    example
+                )
+
+        return self._examples_cache.get(species, [])

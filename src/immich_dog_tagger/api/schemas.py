@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
+from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation, Species
 
 
 class ScheduleResponse(BaseModel):
@@ -82,6 +82,7 @@ class ScheduleUpdateRequest(BaseModel):
 class DogResponse(BaseModel):
     id: int
     name: str
+    species: Species
     active: bool
 
     @classmethod
@@ -89,12 +90,14 @@ class DogResponse(BaseModel):
         return cls(
             id=identity.id,
             name=identity.name,
+            species=identity.species,
             active=identity.is_active,
         )
 
 
 class DogCreateRequest(BaseModel):
     name: str
+    species: Species = Species.DOG
 
 
 class DogUpdateRequest(BaseModel):
@@ -131,6 +134,7 @@ class ReviewItemResponse(BaseModel):
     classification_id: int
     crop_id: int
     image_url: str
+    species: str
 
     prediction: ReviewPredictionResponse
     suggestion: ReviewSuggestionResponse | None
@@ -142,6 +146,7 @@ class ReviewItemResponse(BaseModel):
             classification_id=item.classification_id,
             crop_id=item.crop_id,
             image_url=f"/crops/{item.crop_id}",
+            species=item.species,
             prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
                 similarity=item.prediction.similarity,
@@ -222,6 +227,28 @@ class ClassificationPassResponse(BaseModel):
         )
 
 
+class SpeciesMetricsResponse(BaseModel):
+    species: str
+    eligible_count: int
+    confident_count: int
+    unknown_count: int
+    reviewed_count: int
+    labeled_example_count: int
+    coverage: float | None
+
+    @classmethod
+    def from_species_metrics(cls, species_metrics):
+        return cls(
+            species=species_metrics.species,
+            eligible_count=species_metrics.eligible_count,
+            confident_count=species_metrics.confident_count,
+            unknown_count=species_metrics.unknown_count,
+            reviewed_count=species_metrics.reviewed_count,
+            labeled_example_count=species_metrics.labeled_example_count,
+            coverage=species_metrics.coverage,
+        )
+
+
 class LearningMetricsResponse(BaseModel):
     eligible_count: int
     reviewed_count: int
@@ -237,6 +264,7 @@ class LearningMetricsResponse(BaseModel):
     automation_rate: float | None
     last_reclassification: ClassificationPassResponse | None
     pass_history: list[ClassificationPassResponse]
+    by_species: list[SpeciesMetricsResponse]
 
     @classmethod
     def from_metrics(cls, metrics):
@@ -261,6 +289,10 @@ class LearningMetricsResponse(BaseModel):
             pass_history=[
                 ClassificationPassResponse.from_summary(summary)
                 for summary in metrics.pass_history
+            ],
+            by_species=[
+                SpeciesMetricsResponse.from_species_metrics(species_metrics)
+                for species_metrics in metrics.by_species
             ],
         )
 

@@ -1,6 +1,16 @@
 from enum import Enum, StrEnum
 
 
+class Species(StrEnum):
+    """
+    Hardcoded to exactly these two values (DT-1110) -- not a general-purpose,
+    configurable species list.
+    """
+
+    DOG = "dog"
+    CAT = "cat"
+
+
 class AssetStatus(StrEnum):
     PENDING = "pending"
     DOWNLOADED = "downloaded"
