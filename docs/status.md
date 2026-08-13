@@ -65,14 +65,15 @@
   capture date or identities with no range set
 
 ## Current Milestone
-v1.4.0 Trustworthy Photo Library -- feature-complete (DT-1111 through DT-1114). See
-[docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md). Not yet
-version-bumped or tagged.
+v1.4.0 Trustworthy Photo Library -- released (DT-1111 through DT-1114). See
+[docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md).
 
 ## Next Work
-Cut the v1.4.0 release. Beyond v1.4, other candidates are improved reference-example selection,
-reference-set curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning
-Improvements").
+No queued numbered milestone. Candidates: improved reference-example selection, reference-set
+curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
+or the spec's own open questions (library as default landing page, hard-excluding vs. flagging a
+date conflict once there's real usage data, auto-suggesting an identity's active range from its
+reviewed examples' capture dates).
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

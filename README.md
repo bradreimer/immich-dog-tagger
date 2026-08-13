@@ -93,8 +93,24 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v1.3.0
+v1.4.0
 ```
+
+Release v1.4.0 shifts the primary mental model from "process a review queue" to "maintain a
+trustworthy, searchable library of tagged photos," described in
+[docs/specs/v1.4-trustworthy-photo-library.md](docs/specs/v1.4-trustworthy-photo-library.md):
+
+* Each photo's own capture date shown next to its prediction everywhere a classification is
+  shown -- the Review page and the review export text -- with an explicit "date unknown" state
+* A new Library page and sidebar tab: every classified photo, reviewed and unreviewed alike,
+  filterable by identity, species, reviewed status, and capture-date range, with the same
+  identity-correction control the Review page has
+* Corrections work identically from the library as from Review, on already-reviewed items too --
+  and re-running sync now actually removes a corrected asset from its previous identity's Immich
+  album instead of leaving it in both
+* An optional owner-set active date range per identity (Dogs & Cats page): a candidate match whose
+  photo falls outside it is flagged as a `date-conflict`, never silently accepted -- and never
+  penalized when date evidence is missing on either side
 
 Release v1.3.0 extends detection, classification, review, and sync to cats alongside dogs,
 described in [docs/tickets/DT-1110-cat-support.md](docs/tickets/DT-1110-cat-support.md):
@@ -197,6 +213,7 @@ Completed:
 * Dedicated Metrics tab with per-pass labeled-example/review-queue snapshots and a prominent automation-rate metric
 * One consistent visual identity: sidebar navigation shell, blue action accent, validated status/categorical palette, and a reusable stat-tile/chart pattern across all pages
 * Cat support alongside dogs: species-scoped identities, crops, and classification; one unified review queue and correction UI for both species; species-aware Immich album naming
+* Trustworthy Photo Library: photo capture dates throughout, a searchable/filterable Library of every classified photo, library-side corrections with correct Immich album cleanup on sync, and date-aware classification flagging via an optional owner-set active range per identity
 
 ---
 
