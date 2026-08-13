@@ -33,6 +33,7 @@ def create_database(state_dir: Path):
     _ensure_identity_species_column(engine)
     _ensure_crop_species_column(engine)
     _ensure_identity_active_range_columns(engine)
+    _ensure_pipeline_job_visible_column(engine)
 
     return engine
 
@@ -197,3 +198,24 @@ def _ensure_classification_pass_trend_columns(engine) -> None:
     with engine.begin() as connection:
         for statement in statements:
             connection.exec_driver_sql(statement)
+
+
+def _ensure_pipeline_job_visible_column(engine) -> None:
+    """
+    DT-1116: "Clear list" in the Job Queue UI used to only filter the
+    frontend's local state, so a refresh brought every job straight back
+    (github.com/bradreimer/immich-dog-tagger/issues/12). Every existing job
+    defaults to visible=True on migration -- clearing is something an
+    operator does going forward, not a retroactive change to what's
+    currently displayed.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("pipeline_jobs")}
+
+    if "visible" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE pipeline_jobs ADD COLUMN visible BOOLEAN NOT NULL DEFAULT 1"
+        )

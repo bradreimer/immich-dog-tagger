@@ -1,8 +1,14 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
 from immich_dog_tagger.models import PipelineJob
+
+_TERMINAL_STATUSES = (
+    PipelineJobStatus.COMPLETED,
+    PipelineJobStatus.FAILED,
+    PipelineJobStatus.CANCELED,
+)
 
 
 class PipelineJobRepository:
@@ -42,7 +48,10 @@ class PipelineJobRepository:
         limit: int = 100,
     ) -> list[PipelineJob]:
         return self.session.scalars(
-            select(PipelineJob).order_by(PipelineJob.id.desc()).limit(limit)
+            select(PipelineJob)
+            .where(PipelineJob.visible.is_(True))
+            .order_by(PipelineJob.id.desc())
+            .limit(limit)
         ).all()
 
     def next_pending(
@@ -68,6 +77,22 @@ class PipelineJobRepository:
             query = query.where(PipelineJob.id != exclude_job_id)
 
         return self.session.scalar(query.limit(1)) is not None
+
+    def hide_finished_jobs(self) -> int:
+        """
+        "Clear list": hides every currently-visible finished job (never a
+        pending/running one) from list_recent()'s default result set. Rows
+        are kept, not deleted -- state.db stays the source of truth for job
+        history (ADR-001); this only changes what's displayed by default.
+        """
+        result = self.session.execute(
+            update(PipelineJob)
+            .where(PipelineJob.status.in_(_TERMINAL_STATUSES))
+            .where(PipelineJob.visible.is_(True))
+            .values(visible=False)
+        )
+
+        return result.rowcount
 
 
 class PipelineJobService:
@@ -147,6 +172,11 @@ class PipelineJobService:
         self.session.commit()
         self.session.refresh(job)
         return job
+
+    def clear_history(self) -> int:
+        cleared = self.repository.hide_finished_jobs()
+        self.session.commit()
+        return cleared
 
     def update_progress(
         self,

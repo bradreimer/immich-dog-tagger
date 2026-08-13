@@ -66,6 +66,17 @@ def create_job(
 
 
 @router.post(
+    "/clear-history",
+)
+def clear_history(
+    service: Annotated[PipelineJobService, Depends(get_job_service)],
+):
+    return {
+        "cleared": service.clear_history(),
+    }
+
+
+@router.post(
     "/{job_id}/cancel",
     response_model=JobResponse,
 )

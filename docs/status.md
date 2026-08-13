@@ -63,6 +63,11 @@
   Dogs & Cats page via a new `set_active_range`/`PUT /dogs/{id}/active-range`), surfaced as a new
   `date-conflict` review/library reason; fails open with zero behavior change for crops with no
   capture date or identities with no range set
+- DT-1116 fixed [GitHub issue #12](https://github.com/bradreimer/immich-dog-tagger/issues/12):
+  "Clear list" in Job Queue > History only cleared frontend state, so a refresh brought every job
+  straight back -- `PipelineJob` gained a `visible` flag, `POST /jobs/clear-history` hides
+  (never deletes) finished jobs server-side, and `GET /jobs` excludes them by default; pending/
+  running jobs are never hidden
 
 ## Current Milestone
 v1.4.0 Trustworthy Photo Library -- released (DT-1111 through DT-1114). See

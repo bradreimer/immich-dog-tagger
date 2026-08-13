@@ -222,6 +222,18 @@ export async function getJobs(
   return response.json();
 }
 
+export async function clearJobHistory(): Promise<{ cleared: number }> {
+  const response = await fetch("/api/jobs/clear-history", {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to clear job history");
+  }
+
+  return response.json();
+}
+
 export async function getSchedules(): Promise<PipelineSchedule[]> {
   const response = await fetch("/api/schedules");
 

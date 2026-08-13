@@ -105,6 +105,37 @@ def test_jobs_cancel_pending_job(api_client, engine):
         assert persisted.status is PipelineJobStatus.CANCELED
 
 
+def test_jobs_clear_history(api_client, engine):
+    """Issue #12: refreshing after "Clear list" must not bring the cleared
+    jobs back -- GET /jobs (what the frontend reloads with) must actually
+    exclude them, not just whatever the client happened to filter locally."""
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+
+        completed = service.create_job(operation=PipelineOperation.SCAN)
+        service.start_job(completed)
+        service.complete_job(completed)
+        completed_id = completed.id
+
+        pending = service.create_job(operation=PipelineOperation.CLASSIFY)
+        pending_id = pending.id
+
+    response = api_client.post("/jobs/clear-history")
+
+    assert response.status_code == 200
+    assert response.json() == {"cleared": 1}
+
+    remaining = api_client.get("/jobs").json()
+    remaining_ids = {job["id"] for job in remaining}
+
+    assert completed_id not in remaining_ids
+    assert pending_id in remaining_ids
+
+    # The cleared job still exists server-side -- it's hidden, not deleted.
+    direct = api_client.get(f"/jobs/{completed_id}")
+    assert direct.status_code == 200
+
+
 def test_jobs_cancel_running_job_conflict(api_client, engine):
     with Session(engine) as session:
         service = PipelineJobService(session)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getJobs } from "../../lib/api";
+import { clearJobHistory, getJobs } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
 import type { PipelineJob } from "../../types/jobs";
 import { IconRefresh, IconTrash } from "@tabler/icons-react";
@@ -68,7 +68,7 @@ export function JobQueuePage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hiddenHistoryIds, setHiddenHistoryIds] = useState<Set<number>>(new Set());
+  const [clearing, setClearing] = useState(false);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -94,8 +94,8 @@ export function JobQueuePage() {
   const groups = useMemo(() => {
     const running = jobs.filter((job) => job.status === "running");
     const pending = jobs.filter((job) => job.status === "pending");
-    const history = jobs.filter(
-      (job) => ["completed", "failed", "canceled"].includes(job.status) && !hiddenHistoryIds.has(job.id),
+    const history = jobs.filter((job) =>
+      ["completed", "failed", "canceled"].includes(job.status),
     );
 
     return {
@@ -103,23 +103,25 @@ export function JobQueuePage() {
       pending,
       history,
     };
-  }, [hiddenHistoryIds, jobs]);
+  }, [jobs]);
 
-  const clearVisibleHistory = useCallback(() => {
+  const clearVisibleHistory = useCallback(async () => {
     if (groups.history.length === 0) {
       return;
     }
 
-    setHiddenHistoryIds((current) => {
-      const next = new Set(current);
+    setError(null);
+    setClearing(true);
 
-      for (const job of groups.history) {
-        next.add(job.id);
-      }
-
-      return next;
-    });
-  }, [groups.history]);
+    try {
+      await clearJobHistory();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear job history");
+    } finally {
+      setClearing(false);
+    }
+  }, [groups.history, load]);
 
   const hasActiveJobs = groups.running.length + groups.pending.length > 0;
 
@@ -196,7 +198,7 @@ export function JobQueuePage() {
             <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
           </div>
 
-          <Button variant="outline" size="sm" onClick={clearVisibleHistory} disabled={groups.history.length === 0}>
+          <Button variant="outline" size="sm" onClick={clearVisibleHistory} disabled={groups.history.length === 0 || clearing}>
             <IconTrash className="h-4 w-4" aria-hidden="true" />
             Clear list
           </Button>

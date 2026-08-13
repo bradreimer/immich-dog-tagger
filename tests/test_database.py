@@ -359,3 +359,39 @@ def test_database_adds_identity_active_range_columns(tmp_path: Path):
         assert existing[0].active_until == datetime(2019, 12, 31, tzinfo=UTC).replace(
             tzinfo=None
         )
+
+
+def test_database_adds_pipeline_job_visible_column(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    # Pre-DT-1116 shape: no visible column yet.
+    connection.execute(
+        "CREATE TABLE pipeline_jobs ("
+        "id INTEGER PRIMARY KEY, "
+        "operation VARCHAR(32) NOT NULL, "
+        "status VARCHAR(16) NOT NULL, "
+        "progress_current INTEGER NOT NULL DEFAULT 0, "
+        "progress_total INTEGER, "
+        "progress_message VARCHAR(512), "
+        "error_message VARCHAR(2048)"
+        ")"
+    )
+    connection.execute(
+        "INSERT INTO pipeline_jobs (operation, status) VALUES ('scan', 'completed')"
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        rows = session.execute(
+            text("SELECT operation, visible FROM pipeline_jobs ORDER BY id")
+        ).all()
+
+    # Existing jobs stay visible on migration -- clearing is something an
+    # operator does going forward, not a retroactive change.
+    assert rows == [("scan", 1)]

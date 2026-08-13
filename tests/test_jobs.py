@@ -141,3 +141,50 @@ def test_pipeline_job_service_rejects_invalid_progress(engine):
                 job,
                 current=5,
             )
+
+
+def test_clear_history_hides_only_finished_jobs(engine):
+    """DT-1116 / issue #12: "Clear list" must actually persist server-side
+    -- a completed job hidden by clear_history() must not come back from
+    list_recent(), and pending/running jobs must never be hidden by it."""
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+
+        completed = service.create_job(operation=PipelineOperation.SCAN)
+        service.start_job(completed)
+        service.complete_job(completed)
+
+        failed = service.create_job(operation=PipelineOperation.DETECT)
+        service.start_job(failed)
+        service.fail_job(failed, error_message="boom")
+
+        pending = service.create_job(operation=PipelineOperation.CLASSIFY)
+
+        running = service.create_job(operation=PipelineOperation.EMBED)
+        service.start_job(running)
+
+        cleared = service.clear_history()
+
+        assert cleared == 2
+
+        visible_ids = {job.id for job in service.repository.list_recent()}
+
+        assert completed.id not in visible_ids
+        assert failed.id not in visible_ids
+        assert pending.id in visible_ids
+        assert running.id in visible_ids
+
+
+def test_clear_history_is_idempotent(engine):
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+
+        job = service.create_job(operation=PipelineOperation.SCAN)
+        service.start_job(job)
+        service.complete_job(job)
+
+        first = service.clear_history()
+        second = service.clear_history()
+
+        assert first == 1
+        assert second == 0

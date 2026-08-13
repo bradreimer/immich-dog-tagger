@@ -573,6 +573,16 @@ class PipelineJob(Base):
         index=True,
     )
 
+    # "Clear list" in the Job Queue UI (DT-1116) sets this False for
+    # finished jobs rather than deleting the row -- the job history itself
+    # is never lost, only hidden from list_recent()'s default result set.
+    visible: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="1",
+    )
+
     schedule: Mapped[PipelineSchedule | None] = relationship(
         back_populates="jobs",
     )
