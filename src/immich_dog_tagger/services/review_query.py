@@ -202,7 +202,16 @@ class ReviewQueryService:
         return ReviewQueueStats(
             total=total or 0,
             reviewed=reviewed or 0,
-            remaining=(total or 0) - (reviewed or 0),
+            # Bug fix: this used to be `total - reviewed`, which counts
+            # every unreviewed classification -- including ones that are
+            # confidently auto-classified and were never going to need a
+            # human to look at them. That made the Mission Control banner
+            # and sidebar badge (both driven by this field) claim "N images
+            # need review" while the actual /review queue, correctly
+            # filtered by review_queue_count(), showed nothing to review.
+            # remaining must mean the same thing everywhere it's surfaced:
+            # how many items active_review() would actually return.
+            remaining=self.review_queue_count(),
         )
 
     def review_queue_count(
@@ -213,10 +222,11 @@ class ReviewQueryService:
         """
         Count of items `active_review()` would actually surface as pending
         work: no review action yet, and either unknown or below the
-        confident threshold. Unlike `review_queue_stats().remaining` (total
-        minus reviewed), this excludes confidently-classified items that
-        simply haven't been manually reviewed yet -- those don't need a
-        human to look at them.
+        confident threshold. This excludes confidently-classified items
+        that simply haven't been manually reviewed yet -- those don't need
+        a human to look at them. `review_queue_stats().remaining` reuses
+        this method for exactly that reason, rather than the naive `total
+        minus reviewed` it used to compute.
         """
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold

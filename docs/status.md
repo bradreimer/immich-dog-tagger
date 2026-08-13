@@ -52,6 +52,11 @@
   `SyncService.sync()` can detect and remove stale Immich album membership after a correction --
   previously an asset corrected from one identity to another stayed in both albums forever, since
   `sync_identity()` only ever added
+- DT-1115 fixed a production bug: `review_queue_stats().remaining` (behind the Mission Control
+  banner and sidebar "Review" badge) counted every unreviewed classification including
+  confidently-classified ones, so it could claim "N images need review" while the actual `/review`
+  queue was empty -- it now reuses `review_queue_count()`, the same definition `/metrics` already
+  used, so `remaining` matches what `/review` actually returns everywhere it's surfaced
 
 ## Current Milestone
 v1.4 Trustworthy Photo Library, in progress -- filed as

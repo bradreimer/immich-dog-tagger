@@ -60,7 +60,53 @@ def test_review_stats(api_client):
     assert data["reviewed"] >= 0
     assert data["remaining"] >= 0
 
-    assert data["remaining"] == (data["total"] - data["reviewed"])
+
+def test_review_stats_remaining_excludes_confidently_classified_items(
+    api_client, engine
+):
+    """Regression test: `remaining` must match what GET /review actually
+    returns, not `total - reviewed`. A confidently-classified, unreviewed
+    item is not part of either -- it was the DT-1106 Mission Control
+    banner/sidebar badge bug (both driven by this field) claiming "N images
+    need review" while the /review queue itself showed nothing."""
+    with Session(engine) as session:
+        confident_crop = Crop(detection_id=1, path="confident.jpg")
+        needs_review_crop = Crop(detection_id=1, path="needs-review.jpg")
+
+        session.add_all([confident_crop, needs_review_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=confident_crop,
+                    identity="Fibs",
+                    confidence=0.95,
+                ),
+                CropClassification(
+                    crop=needs_review_crop,
+                    identity=None,
+                    confidence=0.5,
+                ),
+            ]
+        )
+        session.commit()
+
+    stats_response = api_client.get("/review/stats")
+    review_response = api_client.get("/review")
+
+    assert stats_response.status_code == 200
+    assert review_response.status_code == 200
+
+    stats = stats_response.json()
+    queue = review_response.json()
+
+    assert stats["total"] == 2
+    assert stats["reviewed"] == 0
+    # Not 2 (total - reviewed) -- only the unknown item actually needs a
+    # human, matching len(queue) exactly.
+    assert stats["remaining"] == 1
+    assert stats["remaining"] == len(queue)
 
 
 def test_review_item_returns_image_url(api_client, engine):

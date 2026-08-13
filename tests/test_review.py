@@ -719,6 +719,44 @@ def test_review_query_stats_counts_review_actions(engine):
         assert stats.remaining == 0
 
 
+def test_review_queue_stats_remaining_matches_review_queue_count(engine):
+    """Bug fix regression: review_queue_stats().remaining must equal
+    review_queue_count() (what active_review() actually returns), not
+    total - reviewed. A confidently-classified item with no review action
+    is unreviewed but does not belong in "remaining"."""
+    with Session(engine) as session:
+        confident_crop = Crop(detection_id=1, path="confident.jpg")
+        needs_review_crop = Crop(detection_id=1, path="needs-review.jpg")
+
+        session.add_all([confident_crop, needs_review_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(
+                    crop=confident_crop,
+                    identity="Fibs",
+                    confidence=0.95,
+                ),
+                CropClassification(
+                    crop=needs_review_crop,
+                    identity=None,
+                    confidence=0.5,
+                ),
+            ]
+        )
+        session.commit()
+
+        service = ReviewQueryService(session)
+        stats = service.review_queue_stats()
+
+        assert stats.total == 2
+        assert stats.reviewed == 0
+        assert stats.remaining == 1
+        assert stats.remaining == service.review_queue_count()
+        assert stats.remaining == len(service.active_review())
+
+
 def test_skip_review_endpoint(api_client, engine):
     with Session(engine) as session:
         crop = Crop(
