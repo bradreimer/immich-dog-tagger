@@ -93,8 +93,19 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v1.2.0
+v1.3.0
 ```
+
+Release v1.3.0 extends detection, classification, review, and sync to cats alongside dogs,
+described in [docs/tickets/DT-1110-cat-support.md](docs/tickets/DT-1110-cat-support.md):
+
+* Species-scoped identities and crops, via a backward-compatible additive migration for existing
+  dog-only projects
+* Species-scoped nearest-neighbor classification -- a dog photo is never matched against a cat
+  identity or vice versa
+* One unified review queue and correction UI for both species, with a per-item species-scoped
+  identity chooser -- no separate tab, page, or mode for cats
+* Species-aware Immich album naming, and a per-species breakdown on the Learning Progress metric
 
 Release v1.2.0 delivers one consistent visual identity across the app, described in
 [docs/specs/v1.2-visual-style-refresh.md](docs/specs/v1.2-visual-style-refresh.md):
@@ -185,6 +196,7 @@ Completed:
 * N+1 query fixes and batched processing validated for large-project scale
 * Dedicated Metrics tab with per-pass labeled-example/review-queue snapshots and a prominent automation-rate metric
 * One consistent visual identity: sidebar navigation shell, blue action accent, validated status/categorical palette, and a reusable stat-tile/chart pattern across all pages
+* Cat support alongside dogs: species-scoped identities, crops, and classification; one unified review queue and correction UI for both species; species-aware Immich album naming
 
 ---
 

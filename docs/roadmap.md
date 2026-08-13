@@ -117,9 +117,9 @@ Completed:
 Exit criteria:
 Completed.
 
-## Future Milestones
+---
 
-## v1.3 - Cat Support
+## v1.3.0 - Cat Support
 
 See [docs/tickets/DT-1110-cat-support.md](tickets/DT-1110-cat-support.md).
 
@@ -136,6 +136,8 @@ Completed:
 
 Exit criteria:
 Completed.
+
+## Future Milestones
 
 ## v1.4 - Trustworthy Photo Library
 

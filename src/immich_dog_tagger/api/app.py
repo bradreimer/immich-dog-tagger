@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Immich Dog Tagger API",
-        version="1.2.0",
+        version="1.3.0",
         lifespan=lifespan,
     )
 

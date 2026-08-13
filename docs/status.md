@@ -42,14 +42,11 @@
   backward-compatible additive migration for existing dog-only projects
 
 ## Current Milestone
-v1.2.0 Visual Style Refresh -- released (DT-1104 through DT-1108). See
-[docs/specs/v1.2-visual-style-refresh.md](specs/v1.2-visual-style-refresh.md).
-
-v1.3 Cat Support is feature-complete and merged to `main` (DT-1110), but not yet version-bumped or
-tagged.
+v1.3.0 Cat Support -- released (DT-1110). See
+[docs/tickets/DT-1110-cat-support.md](tickets/DT-1110-cat-support.md).
 
 ## Next Work
-Cut a release covering v1.3. A mock user interview surfaced a v1.4
+A mock user interview surfaced a v1.4
 backlog -- filed as [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md)
 and tickets DT-1111 through DT-1114 -- shifting the product's primary mental model from "process a
 review queue" to "maintain a searchable library of tagged photos," with photo capture date as a
