@@ -56,7 +56,7 @@ def test_list_assets_follows_pagination():
                 "nextPage": "2",
             }
         },
-        "2": {
+        2: {
             "assets": {
                 "items": [{"id": "2", "originalFileName": "b.jpg", "checksum": "b"}],
                 "nextPage": None,
@@ -86,7 +86,8 @@ def test_list_assets_follows_pagination():
 
     assert [asset.id for asset in assets] == ["1", "2"]
     assert requests[0].get("page") is None
-    assert requests[1]["page"] == "2"
+    assert requests[1]["page"] == 2
+    assert isinstance(requests[1]["page"], int)
 
 
 def test_download_asset():
