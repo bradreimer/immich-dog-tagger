@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { IconCalendar, IconEdit, IconPlayerPause, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
+import {
+  IconCalendar,
+  IconCat,
+  IconDog,
+  IconEdit,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconPlus,
+} from "@tabler/icons-react";
 import {
   activateDog,
   createDog,
@@ -197,6 +205,7 @@ export function DogManagementCard() {
               aria-pressed={species === "dog"}
               onClick={() => setSpecies("dog")}
             >
+              <IconDog className="h-4 w-4" aria-hidden="true" />
               Dog
             </Button>
             <Button
@@ -205,6 +214,7 @@ export function DogManagementCard() {
               aria-pressed={species === "cat"}
               onClick={() => setSpecies("cat")}
             >
+              <IconCat className="h-4 w-4" aria-hidden="true" />
               Cat
             </Button>
           </div>
