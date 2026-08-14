@@ -28,7 +28,7 @@ class CropWriter:
             exist_ok=True,
         )
 
-        image = Image.open(image_path)
+        image = Image.open(image_path).convert("RGB")
 
         width, height = image.size
 

@@ -125,6 +125,53 @@ def test_crop_writer_keeps_cat_detections_too(tmp_path: Path):
     assert not (crop_dir / "mixed_2.jpg").exists()
 
 
+def test_crop_writer_handles_rgba_source_image(tmp_path: Path):
+    image_path = tmp_path / "test.png"
+
+    # PNGs (and other formats) can carry an alpha channel; JPEG can't
+    # encode one, so the writer must normalize mode before saving.
+    image = Image.new(
+        "RGBA",
+        (100, 100),
+        (255, 255, 255, 128),
+    )
+
+    image.save(image_path)
+
+    crop_dir = tmp_path / "crops"
+
+    writer = CropWriter(
+        crop_dir,
+    )
+
+    detections = [
+        DetectionResult(
+            label="dog",
+            confidence=0.95,
+            x1=10,
+            y1=20,
+            x2=60,
+            y2=80,
+        ),
+    ]
+
+    crops = writer.write(
+        image_path,
+        "rgba",
+        detections,
+    )
+
+    assert len(crops) == 1
+
+    crop_path = crop_dir / "rgba_0.jpg"
+
+    assert crop_path.exists()
+
+    cropped = Image.open(crop_path)
+
+    assert cropped.mode == "RGB"
+
+
 def test_crop_writer_clips_crop_to_image_bounds(tmp_path: Path):
     image_path = tmp_path / "test.jpg"
 
