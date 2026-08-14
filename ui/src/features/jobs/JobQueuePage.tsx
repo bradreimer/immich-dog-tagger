@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { clearJobHistory, getJobs } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
 import type { PipelineJob } from "../../types/jobs";
-import { IconRefresh, IconTrash } from "@tabler/icons-react";
+import { IconLoader2, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -165,7 +165,15 @@ export function JobQueuePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Running</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Running
+            {groups.running.length > 0 && (
+              <IconLoader2
+                className="h-4 w-4 animate-spin text-muted-foreground"
+                aria-hidden="true"
+              />
+            )}
+          </CardTitle>
           <CardDescription>{groups.running.length} active jobs</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
