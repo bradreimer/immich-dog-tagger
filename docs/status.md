@@ -75,6 +75,12 @@
   accounting for classifications it skipped (low confidence / unidentified / a missing
   detection-asset chain that could previously abort an entire sync run on one bad row). Job
   completion messages now survive, and a sync that skips anything says how many and why.
+- DT-1118 fixed a production-blocking bug found while preparing for a first full-library scan:
+  `ImmichClient.list_assets()` called Immich's paginated `/api/search/metadata` endpoint exactly
+  once and never followed its `nextPage` cursor, so `scan` silently discovered only the first 1000
+  assets in any library and stopped -- no error, no warning. It now loops until `nextPage` is
+  exhausted, so a full scan sees the entire library regardless of size; single-page libraries are
+  unaffected.
 
 ## Current Milestone
 v1.4.0 Trustworthy Photo Library -- released (DT-1111 through DT-1114). See

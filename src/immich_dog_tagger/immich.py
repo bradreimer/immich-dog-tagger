@@ -80,44 +80,55 @@ class ImmichClient:
         self,
     ) -> list[ImmichAsset]:
         """
-        Retrieve assets from Immich.
+        Retrieve all assets from Immich, following pagination until exhausted.
         """
 
-        # Default page size for asset listing
-        DEFAULT_PAGE_SIZE = 1000
+        PAGE_SIZE = 1000
 
-        response = self.client.post(
-            f"{self.url}/api/search/metadata",
-            json={
-                "size": DEFAULT_PAGE_SIZE,
-            },
-        )
+        assets: list[ImmichAsset] = []
+        page: str | None = None
 
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ImmichListAssetsError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
+        while True:
+            body: dict = {"size": PAGE_SIZE}
 
-        data = response.json()
+            if page is not None:
+                body["page"] = page
 
-        items = data["assets"]["items"]
-
-        return [
-            ImmichAsset(
-                id=item["id"],
-                filename=item.get(
-                    "originalFileName",
-                    "",
-                ),
-                checksum=item.get(
-                    "checksum",
-                ),
-                captured_at=parse_immich_datetime(item.get("fileCreatedAt")),
+            response = self.client.post(
+                f"{self.url}/api/search/metadata",
+                json=body,
             )
-            for item in items
-        ]
+
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise ImmichListAssetsError(
+                    f"Immich API error {response.status_code}: {response.text}"
+                ) from exc
+
+            result = response.json()["assets"]
+
+            assets.extend(
+                ImmichAsset(
+                    id=item["id"],
+                    filename=item.get(
+                        "originalFileName",
+                        "",
+                    ),
+                    checksum=item.get(
+                        "checksum",
+                    ),
+                    captured_at=parse_immich_datetime(item.get("fileCreatedAt")),
+                )
+                for item in result["items"]
+            )
+
+            page = result.get("nextPage")
+
+            if not page:
+                break
+
+        return assets
 
     def download_asset(
         self,

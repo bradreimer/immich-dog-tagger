@@ -46,6 +46,49 @@ def test_list_assets():
     assert assets[0].filename == "dog.jpg"
 
 
+def test_list_assets_follows_pagination():
+    requests = []
+
+    pages = {
+        None: {
+            "assets": {
+                "items": [{"id": "1", "originalFileName": "a.jpg", "checksum": "a"}],
+                "nextPage": "2",
+            }
+        },
+        "2": {
+            "assets": {
+                "items": [{"id": "2", "originalFileName": "b.jpg", "checksum": "b"}],
+                "nextPage": None,
+            }
+        },
+    }
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append(body)
+
+        return httpx.Response(200, json=pages[body.get("page")])
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient(
+        "http://immich.test",
+        "secret",
+    )
+
+    client.client = httpx.Client(
+        transport=transport,
+        headers={"x-api-key": "secret"},
+    )
+
+    assets = client.list_assets()
+
+    assert [asset.id for asset in assets] == ["1", "2"]
+    assert requests[0].get("page") is None
+    assert requests[1]["page"] == "2"
+
+
 def test_download_asset():
     def handler(request):
         return httpx.Response(
