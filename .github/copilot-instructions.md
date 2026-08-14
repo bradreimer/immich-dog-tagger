@@ -3,7 +3,7 @@
 ## Development workflow
 - Prefer spec-driven and ticket-driven development.
 - Before implementing a meaningful feature or behavior change, check the relevant spec in docs/specs/ and the related ticket in GitHub Issues.
-- If no matching spec or ticket exists, create one before coding (issues use the "Ticket" template, `.github/ISSUE_TEMPLATE/ticket.md`).
+- If no matching spec or ticket exists, create one before coding (issues use the "User Story", "Bug Report", or "Feature Request" templates in `.github/ISSUE_TEMPLATE/`).
 - Keep the documentation package in sync with implementation decisions, architecture changes, and release progress.
 
 ## Required documentation artifacts

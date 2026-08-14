@@ -29,11 +29,12 @@ This is the required workflow — follow it before writing code for any meaningf
    [docs/specs/README.md](docs/specs/README.md): Purpose, User story, Goals, Non-goals,
    Requirements, Acceptance criteria, Open questions).
 2. Check the repository's [GitHub Issues](https://github.com/bradreimer/immich-dog-tagger/issues)
-   for an implementation-sized ticket. Create one if it doesn't exist, using the "Ticket" issue
-   template (`.github/ISSUE_TEMPLATE/ticket.md`: Related spec, Priority, Goal, Context,
-   Implementation notes, Acceptance criteria, Testing requirements, Dependencies, Suggested commit
-   message). The issue number is the ticket ID; reference it in the commit body (e.g.
-   `Closes #123`).
+   for an implementation-sized ticket. Create one if it doesn't exist, using the issue template
+   that matches the work: "User Story" for scoped user-facing capability
+   (`.github/ISSUE_TEMPLATE/user_story.md`), "Bug Report" for a defect
+   (`.github/ISSUE_TEMPLATE/bug_report.md`), or "Feature Request" for an unscoped idea to refine
+   first (`.github/ISSUE_TEMPLATE/feature_request.md`). The issue number is the ticket ID;
+   reference it in the commit body (e.g. `Closes #123`).
 3. Implement in small, focused commits with tests.
 4. Update [docs/status.md](docs/status.md) and the relevant spec/ticket as progress changes.
 5. Record significant architectural decisions as an ADR in [docs/adr/](docs/adr/) (Status,

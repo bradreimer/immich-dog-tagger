@@ -24,8 +24,10 @@ fix(api): handle missing crop image
 
 ## Before starting work
 - Review the relevant spec in docs/specs/.
-- Review or create a ticket as a GitHub Issue, using the "Ticket" issue template
-  (`.github/ISSUE_TEMPLATE/ticket.md`).
+- Review or create a ticket as a GitHub Issue, using the template that matches the work: "User
+  Story" (`.github/ISSUE_TEMPLATE/user_story.md`), "Bug Report"
+  (`.github/ISSUE_TEMPLATE/bug_report.md`), or "Feature Request"
+  (`.github/ISSUE_TEMPLATE/feature_request.md`) for an unscoped idea.
 - Update docs/status.md if the milestone or priorities change.
 
 ## Testing
