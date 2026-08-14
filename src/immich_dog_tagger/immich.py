@@ -86,7 +86,7 @@ class ImmichClient:
         PAGE_SIZE = 1000
 
         assets: list[ImmichAsset] = []
-        page: str | None = None
+        page: int | None = None
 
         while True:
             body: dict = {"size": PAGE_SIZE}
@@ -123,9 +123,10 @@ class ImmichClient:
                 for item in result["items"]
             )
 
-            page = result.get("nextPage")
+            next_page = result.get("nextPage")
+            page = int(next_page) if next_page else None
 
-            if not page:
+            if page is None:
                 break
 
         return assets
