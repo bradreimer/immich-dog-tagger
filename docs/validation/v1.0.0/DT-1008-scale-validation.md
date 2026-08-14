@@ -13,7 +13,7 @@ O(1)-vs-O(n) query behavior without a multi-minute CI run.
 Anyone validating an actual 30,000-image production library should re-run the
 `immich-dog-tagger pipeline` and Reclassify against that library and compare
 against the expectations below; this is explicitly called out as a gap in
-[docs/tickets/DT-1011-release-validation.md](../../tickets/DT-1011-release-validation.md).
+[DT-1011: v1.0.0 release validation](https://github.com/bradreimer/immich-dog-tagger/issues/56).
 
 ## N+1 defects found and fixed
 

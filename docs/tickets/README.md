@@ -1,14 +1,19 @@
 # Tickets
 
-This directory holds implementation-sized work items that can be executed and validated independently.
+Ticket-tracking moved from this directory to
+[GitHub Issues](https://github.com/bradreimer/immich-dog-tagger/issues) so that ticket state
+(open/closed, labels, search) is native instead of hand-maintained in markdown. The historical
+tickets that used to live here (`DT-0901`-`DT-1118`, `TICKET-001`-`TICKET-003`) were migrated to
+closed GitHub Issues, one per ticket, preserving the original content -- see the repository's
+closed issues for that history.
 
-Use a ticket when there is a clear scope, acceptance criteria, and test plan.
+Use an issue when there is a clear scope, acceptance criteria, and test plan. Open one with the
+"Ticket" template (`.github/ISSUE_TEMPLATE/ticket.md`), which carries the same fields this
+directory's tickets used:
 
 ## Template
-- ID
 - Related spec
 - Priority
-- Status
 - Goal
 - Context
 - Implementation notes
@@ -16,3 +21,7 @@ Use a ticket when there is a clear scope, acceptance criteria, and test plan.
 - Testing requirements
 - Dependencies
 - Suggested commit message
+
+The issue number is the ticket ID (no more hand-assigned `DT-XXXX`/`TICKET-XXX` numbers) --
+reference it in commits, e.g. `fix(review): handle missing crop image` with `Closes #123` in the
+commit body.

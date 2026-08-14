@@ -121,7 +121,7 @@ Completed.
 
 ## v1.3.0 - Cat Support
 
-See [docs/tickets/DT-1110-cat-support.md](tickets/DT-1110-cat-support.md).
+See [DT-1110: Add cat support alongside dogs](https://github.com/bradreimer/immich-dog-tagger/issues/66).
 
 Goal:
 Extend detection, classification, review, and sync to cats alongside dogs, sharing one review

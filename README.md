@@ -113,7 +113,7 @@ trustworthy, searchable library of tagged photos," described in
   penalized when date evidence is missing on either side
 
 Release v1.3.0 extends detection, classification, review, and sync to cats alongside dogs,
-described in [docs/tickets/DT-1110-cat-support.md](docs/tickets/DT-1110-cat-support.md):
+described in [DT-1110: Add cat support alongside dogs](https://github.com/bradreimer/immich-dog-tagger/issues/66):
 
 * Species-scoped identities and crops, via a backward-compatible additive migration for existing
   dog-only projects

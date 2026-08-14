@@ -28,19 +28,20 @@ This is the required workflow — follow it before writing code for any meaningf
    for a user-facing or cross-cutting change, write one first (template in
    [docs/specs/README.md](docs/specs/README.md): Purpose, User story, Goals, Non-goals,
    Requirements, Acceptance criteria, Open questions).
-2. Check [docs/tickets/](docs/tickets/) for an implementation-sized ticket. Create one if it
-   doesn't exist (template in [docs/tickets/README.md](docs/tickets/README.md): ID, Related spec,
-   Priority, Status, Goal, Context, Implementation notes, Acceptance criteria, Testing
-   requirements, Dependencies, Suggested commit message).
+2. Check the repository's [GitHub Issues](https://github.com/bradreimer/immich-dog-tagger/issues)
+   for an implementation-sized ticket. Create one if it doesn't exist, using the "Ticket" issue
+   template (`.github/ISSUE_TEMPLATE/ticket.md`: Related spec, Priority, Goal, Context,
+   Implementation notes, Acceptance criteria, Testing requirements, Dependencies, Suggested commit
+   message). The issue number is the ticket ID; reference it in the commit body (e.g.
+   `Closes #123`).
 3. Implement in small, focused commits with tests.
 4. Update [docs/status.md](docs/status.md) and the relevant spec/ticket as progress changes.
 5. Record significant architectural decisions as an ADR in [docs/adr/](docs/adr/) (Status,
    Context, Decision, Alternatives Considered, Consequences).
 
 The current milestone and active work are tracked in [docs/status.md](docs/status.md) and
-[docs/roadmap.md](docs/roadmap.md). The in-flight release spec is
-[docs/specs/v1.0.0.md](docs/specs/v1.0.0.md), backed by tickets `DT-1000`–`DT-1011` in
-[docs/tickets/](docs/tickets/).
+[docs/roadmap.md](docs/roadmap.md). Completed tickets through v1.4.0 (formerly `DT-0901`-`DT-1118`
+in `docs/tickets/`) are recorded as closed GitHub Issues.
 
 ## Architecture
 
@@ -130,6 +131,7 @@ and the frontend at `http://localhost:5173` (`cd ui && npm run dev`, proxies `/a
 - [docs/ml-classification.md](docs/ml-classification.md) — classification pipeline detail.
 - [docs/project-health.md](docs/project-health.md) — known risks and gaps.
 - [docs/adr/](docs/adr/) — architectural decisions.
-- [docs/specs/](docs/specs/), [docs/tickets/](docs/tickets/) — behavioral specs and implementation-sized work.
+- [docs/specs/](docs/specs/) — behavioral specs. Implementation-sized work is tracked as
+  [GitHub Issues](https://github.com/bradreimer/immich-dog-tagger/issues), not in `docs/`.
 - `CONTRIBUTING.md` — contribution conventions (this file summarizes the parts most relevant to
   automated changes; consult it directly for anything not covered here).

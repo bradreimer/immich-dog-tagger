@@ -131,5 +131,5 @@ project.
   orchestration, and others).
 - **Single active operation at a time.** The job system runs one pipeline or
   Reclassify operation at a time by design (see
-  [docs/tickets/DT-1005-job-safety.md](tickets/DT-1005-job-safety.md)); queue
-  another operation and it waits rather than running concurrently.
+  [DT-1005: Job lifecycle, idempotency, and recovery](https://github.com/bradreimer/immich-dog-tagger/issues/50));
+  queue another operation and it waits rather than running concurrently.

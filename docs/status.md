@@ -95,7 +95,7 @@ reviewed examples' capture dates).
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.
-- Implementation-sized work should be captured in docs/tickets/.
+- Implementation-sized work should be captured as a GitHub Issue (see the "Ticket" issue template).
 - Documentation should be updated alongside code changes.
 
 ## Known Issues
