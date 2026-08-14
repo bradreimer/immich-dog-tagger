@@ -9,6 +9,7 @@ import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
+import type { Settings } from "../types/settings";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -397,6 +398,14 @@ export async function getLearningMetrics(): Promise<LearningMetrics> {
   const response = await fetch("/api/metrics");
   if (!response.ok) {
     throw new Error("Failed to load learning metrics");
+  }
+  return response.json();
+}
+
+export async function getSettings(): Promise<Settings> {
+  const response = await fetch("/api/settings");
+  if (!response.ok) {
+    throw new Error("Failed to load settings");
   }
   return response.json();
 }

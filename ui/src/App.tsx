@@ -7,6 +7,7 @@ import { LibraryPage } from "./features/library/LibraryPage";
 import { MetricsPage } from "./features/metrics/MetricsPage";
 import { OverviewPage } from "./features/overview/OverviewPage";
 import { ReviewPage } from "./features/review/ReviewPage";
+import { SettingsPage } from "./features/settings/SettingsPage";
 
 function getPathname() {
   return window.location.pathname;
@@ -50,6 +51,10 @@ function App() {
 
     if (pathname === "/metrics") {
       return <MetricsPage />;
+    }
+
+    if (pathname === "/settings") {
+      return <SettingsPage />;
     }
 
     return <OverviewPage />;

@@ -17,6 +17,7 @@ from immich_dog_tagger.api.routes import (
     metrics,
     review,
     schedules,
+    settings,
 )
 from immich_dog_tagger.config import load_config
 from immich_dog_tagger.services.job_recovery import recover_interrupted_jobs
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router)
     app.include_router(review.router)
     app.include_router(schedules.router)
+    app.include_router(settings.router)
 
     return app
 
