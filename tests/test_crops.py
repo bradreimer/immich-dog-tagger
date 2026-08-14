@@ -218,3 +218,101 @@ def test_crop_writer_clips_crop_to_image_bounds(tmp_path: Path):
         23,
         23,
     )
+
+
+def test_crop_writer_skips_detection_entirely_outside_image_bounds(
+    tmp_path: Path,
+    caplog,
+):
+    # Regression test for issue #88: a detection box whose raw coordinates
+    # fall entirely outside the image (e.g. from a detector/decoder
+    # dimension mismatch) used to reach Image.crop() with an inverted box
+    # -- "Coordinate 'lower' is less than 'upper'" -- crashing the whole
+    # pipeline job instead of being skipped.
+    image_path = tmp_path / "test.jpg"
+
+    image = Image.new(
+        "RGB",
+        (100, 100),
+        "white",
+    )
+
+    image.save(image_path)
+
+    crop_dir = tmp_path / "crops"
+
+    writer = CropWriter(
+        crop_dir,
+    )
+
+    detections = [
+        DetectionResult(
+            label="dog",
+            confidence=0.9,
+            x1=150,
+            y1=150,
+            x2=180,
+            y2=180,
+        ),
+    ]
+
+    with caplog.at_level("WARNING"):
+        crops = writer.write(
+            image_path,
+            "out-of-bounds",
+            detections,
+        )
+
+    assert crops == []
+    assert not any(crop_dir.iterdir())
+    assert "outside image bounds" in caplog.text
+
+
+def test_crop_writer_clamps_partially_out_of_bounds_detection(tmp_path: Path):
+    image_path = tmp_path / "test.jpg"
+
+    image = Image.new(
+        "RGB",
+        (100, 100),
+        "white",
+    )
+
+    image.save(image_path)
+
+    crop_dir = tmp_path / "crops"
+
+    writer = CropWriter(
+        crop_dir,
+    )
+
+    # y2 extends beyond the image height; the crop should still be
+    # produced, clamped to the actual image bounds.
+    detections = [
+        DetectionResult(
+            label="dog",
+            confidence=0.9,
+            x1=50,
+            y1=50,
+            x2=90,
+            y2=150,
+        ),
+    ]
+
+    crops = writer.write(
+        image_path,
+        "partial",
+        detections,
+    )
+
+    assert len(crops) == 1
+
+    crop_path = crop_dir / "partial_0.jpg"
+    crop = Image.open(crop_path)
+
+    # Clamped box before padding: (50,50)-(90,100). 15% padding on the
+    # clamped 40x50 box adds 6px/7px, then re-clamps to the image bounds:
+    # (44,43)-(96,100) -> 52x57.
+    assert crop.size == (
+        52,
+        57,
+    )

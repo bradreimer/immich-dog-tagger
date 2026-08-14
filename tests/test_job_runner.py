@@ -103,6 +103,35 @@ def test_runner_marks_failed_and_preserves_job_on_exception(engine):
         assert job.completed_at is not None
 
 
+def test_runner_logs_traceback_on_failure(engine, caplog):
+    # Regression test for issue #88: the failure log previously carried
+    # only the bare exception message, with no traceback -- making
+    # asset-specific failures slow to root-cause from logs alone.
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(operation=PipelineOperation.DETECT)
+
+        def detect_handler(progress):
+            raise RuntimeError("detector error")
+
+        runner = build_runner(
+            session,
+            {
+                PipelineOperation.DETECT: detect_handler,
+            },
+        )
+
+        with caplog.at_level("ERROR"), pytest.raises(RuntimeError):
+            runner.run_job(job.id)
+
+        failure_records = [
+            record for record in caplog.records if record.levelname == "ERROR"
+        ]
+
+        assert len(failure_records) == 1
+        assert failure_records[0].exc_info is not None
+
+
 def test_runner_rejects_execution_when_another_job_is_running(engine):
     with Session(engine) as session:
         repository = PipelineJobRepository(session)

@@ -145,7 +145,7 @@ class PipelineJobRunner:
                     error_message=message,
                 )
 
-                logger.error(
+                logger.exception(
                     "Job %d (%s) failed after %.2fs: %s",
                     job.id,
                     job.operation.value,
