@@ -364,3 +364,8 @@ class JobResponse(BaseModel):
             started_at=job.started_at,
             completed_at=job.completed_at,
         )
+
+
+class SettingsResponse(BaseModel):
+    immich_url: str
+    scanned_image_count: int

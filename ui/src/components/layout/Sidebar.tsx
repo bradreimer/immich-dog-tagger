@@ -8,6 +8,7 @@ import {
   IconLayoutSidebarLeftExpand,
   IconListDetails,
   IconPhoto,
+  IconSettings,
 } from "@tabler/icons-react";
 import { getReviewStats } from "../../lib/api";
 import { cn } from "../../lib/utils";
@@ -25,6 +26,7 @@ const links = [
   { label: "Dogs & Cats", path: "/dogs", icon: IconDog },
   { label: "Job Queue", path: "/jobs", icon: IconListDetails },
   { label: "Metrics", path: "/metrics", icon: IconChartBar },
+  { label: "Settings", path: "/settings", icon: IconSettings },
 ];
 
 const COLLAPSE_STORAGE_KEY = "dogtagger.sidebar-collapsed";

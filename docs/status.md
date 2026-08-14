@@ -82,6 +82,9 @@
   exhausted, so a full scan sees the entire library regardless of size; single-page libraries are
   unaffected.
 
+- #83 Settings tab showing the configured Immich URL and scanned-image count (read-only;
+  `GET /api/settings` never returns `immich_api_key`)
+
 ## Current Milestone
 v1.4.0 Trustworthy Photo Library -- released (DT-1111 through DT-1114). See
 [docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md).
