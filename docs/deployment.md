@@ -1,144 +1,43 @@
-# Immich Dog Tagger Deployment
+# Deployment
 
 ## Overview
 
-Immich Dog Tagger runs as two Docker services:
-
-* `dog-tagger`: FastAPI backend service
-* `dog-tagger-ui`: React frontend served by nginx
-
-The frontend is exposed through Traefik, while nginx proxies `/api/*` requests to the backend service over the Docker network.
-
-The intended deployment URL is:
+Immich Dog Tagger runs as two Docker services: `dog-tagger`, the FastAPI backend, and
+`dog-tagger-ui`, the React frontend served by nginx. Traefik exposes the frontend, and nginx
+proxies `/api/*` requests to the backend over the Docker network. The example deployment URL used
+throughout this doc is `https://dog-tagger.schnorbit.home.arpa` — replace it with your own host.
 
 ```
-https://dog-tagger.schnorbit.home.arpa
-```
-
-Architecture:
-
-```
-Browser
-   |
-   v
-Traefik
-   |
-   v
-dog-tagger-ui (nginx)
-   |
-   +---- /api/* ----> dog-tagger (FastAPI)
-                         |
-                         v
-                      state.db
+Browser → Traefik → dog-tagger-ui (nginx) → /api/* → dog-tagger (FastAPI) → state.db
 ```
 
 ## Docker Compose
 
-The application is deployed using the project `docker-compose.yml`.
+Deployment uses the project's `docker-compose.yml`.
 
-Services:
-
-### Backend
-
-Container:
-
-```
-immich-dog-tagger
-```
-
-Purpose:
-
-* Runs the FastAPI API
-* Provides review queue endpoints
-* Handles corrections and learning actions
-* Owns access to the state database
-
-The backend listens internally on:
-
-```
-http://dog-tagger:8000
-```
-
-Health endpoint:
-
-```
-GET /health
-```
-
-Example:
+**Backend** (`immich-dog-tagger`) runs the FastAPI API: review queue endpoints, corrections,
+learning actions, and the only process with access to `state.db`. It listens internally on
+`http://dog-tagger:8000` and exposes `GET /health`:
 
 ```bash
 curl http://dog-tagger:8000/health
+# {"status": "ok"}
 ```
 
-Expected response:
+**Frontend** (`immich-dog-tagger-ui`) serves the React review interface and proxies API requests
+to the backend. nginx listens internally on port 80; it doesn't need to expose ports directly
+since Traefik handles external routing.
 
-```json
-{
-  "status": "ok"
-}
-```
+## Docker network
 
-### Frontend
+Both services join the external `proxy` network, so Traefik can reach the frontend and nginx can
+reach the backend by Docker DNS (`dog-tagger`, `dog-tagger-ui`) — for example,
+`http://dog-tagger:8000` from inside the frontend container.
 
-Container:
+## nginx configuration
 
-```
-immich-dog-tagger-ui
-```
-
-Purpose:
-
-* Serves the React review interface
-* Provides browser access to review workflows
-* Proxies API requests to the backend
-
-The container exposes nginx internally on:
-
-```
-port 80
-```
-
-The frontend container does not need to expose ports directly because Traefik handles external routing.
-
-## Docker Network
-
-Both services join the external Docker network:
-
-```
-proxy
-```
-
-This allows:
-
-* Traefik to reach the frontend
-* nginx to reach the backend
-* Internal service discovery using Docker DNS
-
-The important service names are:
-
-```
-dog-tagger
-dog-tagger-ui
-```
-
-Example internal backend URL:
-
-```
-http://dog-tagger:8000
-```
-
-## nginx Configuration
-
-The frontend container uses nginx to serve static React assets and proxy API requests.
-
-Configuration:
-
-```
-/etc/nginx/conf.d/default.conf
-```
-
-Important routing behavior:
+The frontend container's nginx (`/etc/nginx/conf.d/default.conf`) serves the built React assets
+and proxies API calls:
 
 ```nginx
 location / {
@@ -150,33 +49,13 @@ location /api/ {
 }
 ```
 
-This means:
+So a browser request to `https://dog-tagger.schnorbit.home.arpa/api/health` becomes
+`http://dog-tagger:8000/health` inside the Docker network.
 
-Browser request:
+## Traefik configuration
 
-```
-https://dog-tagger.schnorbit.home.arpa/api/health
-```
-
-becomes:
-
-```
-http://dog-tagger:8000/health
-```
-
-inside Docker.
-
-## Traefik Configuration
-
-Traefik uses a dynamic file provider configuration.
-
-Example:
-
-```
-/tank/apps/traefik/dynamic/traefik-dog-tagger.yml
-```
-
-Configuration:
+Traefik picks this up via its dynamic file provider, e.g.
+`/tank/apps/traefik/dynamic/traefik-dog-tagger.yml`:
 
 ```yaml
 http:
@@ -197,130 +76,76 @@ http:
           - url: "http://dog-tagger-ui:80"
 ```
 
-Traefik routes all browser traffic to the frontend container.
+Traefik routes browser traffic to the frontend container, which then forwards `/api/*` traffic to
+the backend.
 
-The frontend then forwards API traffic to the backend.
+## Verifying a deployment
 
-## Verification
-
-### Check containers
+Check both containers are up:
 
 ```bash
 docker ps | grep dog-tagger
+# immich-dog-tagger
+# immich-dog-tagger-ui
 ```
 
-Expected:
-
-```
-immich-dog-tagger
-immich-dog-tagger-ui
-```
-
-### Check backend health
-
-From the UI container:
+Check the backend from inside the UI container:
 
 ```bash
 docker exec -it immich-dog-tagger-ui wget -qO- http://dog-tagger:8000/health
+# {"status":"ok"}
 ```
 
-Expected:
-
-```json
-{"status":"ok"}
-```
-
-### Check nginx frontend
+Check nginx is serving the frontend:
 
 ```bash
 docker exec -it immich-dog-tagger-ui wget -qO- http://127.0.0.1
+# <!doctype html> ...
 ```
 
-Expected:
-
-React HTML:
-
-```html
-<!doctype html>
-<html lang="en">
-...
-```
-
-### Check through Traefik
-
-Frontend:
+Check both through Traefik:
 
 ```bash
-curl -k https://dog-tagger.schnorbit.home.arpa
+curl -k https://dog-tagger.schnorbit.home.arpa            # React app HTML
+curl -k https://dog-tagger.schnorbit.home.arpa/api/health  # {"status":"ok"}
 ```
 
-Expected:
+## Making changes
 
-React application HTML.
-
-Backend API:
-
-```bash
-curl -k https://dog-tagger.schnorbit.home.arpa/api/health
-```
-
-Expected:
-
-```json
-{"status":"ok"}
-```
-
-## Development Workflow
-
-Frontend changes require rebuilding the UI image:
+Frontend changes need a rebuild of the UI image:
 
 ```bash
 docker compose build dog-tagger-ui
 docker compose up -d dog-tagger-ui
 ```
 
-Backend changes require rebuilding the API image:
+Backend changes need a rebuild of the API image:
 
 ```bash
 docker compose build dog-tagger
 docker compose up -d dog-tagger
 ```
 
-Full restart:
+Or rebuild everything at once:
 
 ```bash
 docker compose up -d --build
 ```
 
-## Unattended Operation
+## Unattended operation
 
-The backend contains a built-in scheduler that evaluates and dispatches schedules automatically as long as the `dog-tagger` container is running. No browser session is required.
+The backend runs a built-in scheduler as a background thread — no browser session needed. Every
+60 seconds it loads enabled schedules from `state.db`, finds any whose cron expression matches
+the current minute, creates a `PipelineJob` for each, and runs it through the existing job runner.
+It skips occurrences already covered by an existing job, so nothing double-runs. On startup it
+also runs one reconciliation tick to catch anything missed while the container was down.
 
-### How it works
+### Setting it up
 
-The scheduler runs as a background thread inside the FastAPI process. Every 60 seconds it:
-
-1. Loads all enabled schedules from `state.db`
-2. Identifies any schedule whose cron expression matches the current minute
-3. Creates a `PipelineJob` record for each due schedule
-4. Executes the job through the existing job runner
-5. Skips occurrences that are already covered by an existing job (duplicate prevention)
-
-On startup the scheduler also runs an immediate reconciliation tick so any occurrence missed during downtime is handled quickly.
-
-### Recommended setup
-
-1. Create at least one schedule in Overview (Automation Schedules section).
-   - Recommended: Full Pipeline on a regular cadence, e.g. `0 * * * *` (hourly).
-   - Optional: Sync after confident labels accumulate, e.g. `30 * * * *`.
-
-2. Keep the `dog-tagger` container running continuously:
-
-   ```bash
-   docker compose up -d
-   ```
-
-3. Configure Docker to restart the container automatically:
+1. Create at least one schedule in Overview → Automation Schedules. A full pipeline run on an
+   hourly cadence (`0 * * * *`) is a reasonable default; add a sync schedule (e.g. `30 * * * *`)
+   once confident labels start accumulating.
+2. Keep the container running and set it to restart automatically:
 
    ```yaml
    # docker-compose.yml
@@ -329,13 +154,11 @@ On startup the scheduler also runs an immediate reconciliation tick so any occur
        restart: unless-stopped
    ```
 
-4. Confirm the scheduler is active by checking the health endpoint:
+3. Confirm the scheduler is healthy:
 
    ```bash
    curl http://dog-tagger:8000/health
    ```
-
-   Expected response when the scheduler is running and healthy:
 
    ```json
    {
@@ -356,30 +179,31 @@ On startup the scheduler also runs an immediate reconciliation tick so any occur
 
 | Field | Meaning |
 |---|---|
-| `healthy` | `true` when the most recent tick succeeded after the most recent error (or no errors have occurred) |
-| `ticks` | Total number of evaluation ticks completed since startup |
-| `errors` | Total number of ticks that raised an unexpected exception |
+| `healthy` | `true` when the most recent tick succeeded after the most recent error (or there have been no errors) |
+| `ticks` | Evaluation ticks completed since startup |
+| `errors` | Ticks that raised an unexpected exception |
 | `started_at` | When the scheduler thread started |
 | `last_tick_at` | Timestamp of the last successful tick |
-| `last_error_at` | Timestamp of the most recent error (null if none) |
+| `last_error_at` | Timestamp of the most recent error, or null |
 | `last_error` | Error message from the most recent failed tick |
 
 ### Failure isolation
 
-A single failing schedule does not stop other schedules from running. Each schedule's dispatch is isolated — if one raises an error it is logged and skipped, and the remaining due schedules are still processed.
-
-If the entire tick fails (e.g. database unavailable), the error is logged and the scheduler sleeps until the next interval rather than exiting.
+One schedule failing doesn't stop the others — each dispatch is isolated, and a failure is logged
+and skipped while the rest of that tick's due schedules still run. If the whole tick fails (for
+example, the database is unavailable), the error is logged and the scheduler sleeps until the
+next interval instead of exiting.
 
 ### Missed occurrences
 
-If the container restarts and a schedule was due during the downtime, the startup reconciliation tick will dispatch it immediately on restart. Only the most recent due occurrence is recovered — the scheduler does not replay every missed interval, it catches up once.
+If the container was down when a schedule was due, the startup reconciliation tick dispatches it
+immediately on restart — but only the most recent missed occurrence, not a full replay of
+everything missed during the downtime.
 
-## Future Deployment Improvements
+## Possible future improvements
 
-Potential future improvements:
-
-* Add Docker health checks to the frontend container
-* Add version information to the UI
-* Add a production environment configuration file
-* Add automated image builds
-* Add Traefik middleware specific to application authentication if required
+- Docker health checks on the frontend container
+- Version information surfaced in the UI
+- A dedicated production environment configuration file
+- Automated image builds
+- Traefik middleware for application-level authentication, if that becomes necessary

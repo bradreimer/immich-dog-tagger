@@ -1,78 +1,47 @@
 # Contributing to Immich Dog Tagger
 
-Thanks for your interest in contributing to Immich Dog Tagger! 🐕
+Thanks for your interest in contributing. Immich Dog Tagger is a small, open-source project for
+detecting individual dogs and cats in an Immich photo library, learning from human corrections,
+and syncing those identities back to Immich.
 
-Immich Dog Tagger is a small, open-source side project for detecting individual dogs in an Immich photo library, learning from human corrections, and keeping those classifications synchronized back to Immich.
+This is a hobby project maintained by one person, not a team. Bug reports, documentation fixes,
+UI polish, tests, and small improvements are all useful — you don't need ML or Immich expertise
+to help.
 
-The project is still evolving, so contributions are very welcome. You don't need to be an expert in machine learning, Immich, or the entire codebase to help. Bug reports, documentation improvements, UI polish, tests, and small improvements are all valuable.
+## Before you start
 
-This guide explains how to get started and the conventions that help keep the project maintainable.
+For larger changes — new features, database model changes, changes to classification or
+learning, or changes to the CLI, API, or overall architecture — open an issue first. It saves you
+from writing code that goes in a direction the project doesn't want.
 
-**NOTE:** This is a hobby project. There is no team, only me.
+For small fixes, documentation, tests, and obvious improvements, open a pull request directly.
 
-## Before You Start
+If you're unsure whether an idea fits, open an issue and describe it. That's what issues are for.
 
-For larger changes, please open an issue first or start a discussion before writing a lot of code.
+## Development environment
 
-This is especially useful for:
+- Python 3.14+ and [`uv`](https://docs.astral.sh/uv/)
+- SQLite
+- FastAPI, React, TypeScript, Vite
+- Docker for deployment
+- An NVIDIA GPU for local inference, if you have one
 
-* New features
-* Changes to the database model
-* Changes to the classification or learning system
-* Changes to the CLI
-* Changes to the API
-* Changes to the overall architecture
-
-For small fixes, documentation changes, tests, and obvious improvements, feel free to open a pull request directly.
-
-If you're not sure whether an idea fits the project, that's perfectly fine. Open an issue and describe what you're thinking.
-
-## Development Environment
-
-The project currently uses:
-
-* Python 3.14+
-* [`uv`](https://docs.astral.sh/uv/)
-* SQLite
-* pytest
-* Ruff
-* FastAPI
-* React + TypeScript
-* Vite
-* Docker for deployment
-* NVIDIA GPU acceleration for local AI inference when available
-
-A fresh development environment can be bootstrapped with:
+Bootstrap a fresh environment:
 
 ```bash
 ./scripts/bootstrap.sh
-```
-
-Then install the Python dependencies:
-
-```bash
 uv sync
 ```
 
-The project README contains additional information about running the backend, frontend, and processing pipeline locally.
+See the [README](README.md) for running the backend, frontend, and processing pipeline locally.
 
-## Running the Tests
-
-The fastest way to run the Python test suite is:
+## Running the tests
 
 ```bash
 uv run pytest -q
 ```
 
-The project also provides a validation script:
-
-```bash
-./scripts/check.sh
-```
-
-Before submitting a pull request, please make sure the relevant checks pass.
-
-For Python changes, the usual development workflow is:
+Before opening a pull request:
 
 ```bash
 uv run ruff check --fix .
@@ -88,324 +57,176 @@ npm run build
 npm run lint
 ```
 
-If you're making a change that affects both backend and frontend code, run the complete validation script as well.
+If your change touches both backend and frontend, run `./scripts/check.sh` too.
 
-## How to Make Changes
+## Making changes
 
-The project favors **small, focused changes**.
+Favor small, focused pull requests. A good one:
 
-A good pull request usually:
+- Solves one problem
+- Makes the smallest reasonable change
+- Includes tests for new or changed behavior
+- Reuses an existing service, model, or component instead of adding a new one
+- Doesn't bundle in an unrelated refactor
 
-* Solves one problem
-* Makes the smallest reasonable change
-* Includes tests for new or changed behavior
-* Reuses existing patterns
-* Avoids unrelated refactoring
-* Leaves the project in a working state
+Look at the existing code and tests before introducing a new abstraction — there's usually
+something to extend already.
 
-Please inspect the existing code and tests before introducing a new abstraction. There is usually an existing service, model, helper, or test fixture that can be extended.
+### One logical change per commit
 
-In particular, avoid combining a feature with a large unrelated refactor. Smaller changes are easier to review, test, and revert.
-
-### One Logical Change Per Commit
-
-The project generally prefers commits that each represent one logical change.
-
-For example:
+Prefer several small commits over one large one:
 
 ```text
 Add candidate-conflict review filtering
 Add tests for candidate-conflict filtering
-Improve review queue documentation
+Update review queue documentation
 ```
 
-is preferable to one large commit containing all three plus an unrelated database refactor.
+This isn't a hard rule, but it keeps the project history readable.
 
-This isn't a rigid rule, but focused commits make the project's history much easier to understand.
+## Architecture principles
 
-## Architecture Principles
+### `state.db` is the source of truth
 
-There are a few architectural principles that are particularly important to this project.
+The local SQLite database owns processing state, detections, crops, classifications,
+identities, review history, and provenance. Immich is a photo source and a sync target — it does
+not hold application state, and the app never reconstructs its knowledge from Immich.
 
-### `state.db` Is the Source of Truth
-
-The local SQLite database is the system of record.
-
-It owns:
-
-* Processing state
-* Detections
-* Crops
-* Classifications
-* Identities
-* Review history
-* Learned examples
-* Provenance
-
-Immich is treated as the **photo source and presentation/export target**.
-
-In other words:
-
-```text
-Immich
-   ↓
-Dog Tagger
-   ↓
-state.db
-   ↓
-ML pipeline / Review UI
-   ↓
-Immich sync
+```
+Immich → Dog Tagger → state.db → ML pipeline / Review UI → Immich sync
 ```
 
-Please avoid designs that make Immich responsible for application state or require the application to reconstruct its knowledge from Immich.
+Avoid designs where Immich becomes responsible for state the app needs to remember.
 
-### Keep Layers Separate
+### Keep layers separate
 
-The project intentionally separates:
+CLI, application services, the database layer, ML processing, the API, the UI, and Immich sync
+each have a job. The API and UI call into application services rather than implementing business
+logic themselves, and database access stays behind those services instead of leaking SQLAlchemy
+queries into routes or components.
 
-* CLI operations
-* Application services
-* Database/state management
-* ML processing
-* FastAPI
-* React UI
-* Immich synchronization
+### Prefer simple, explicit code
 
-The API and UI should generally use application services rather than implementing business logic themselves.
+Strong typing, clear names, small services, explicit behavior, thin I/O boundaries. Skip a clever
+abstraction when a straightforward implementation reads just as easily. The goal isn't an
+elaborate ML platform — it's a small, reliable local tool that does one thing well.
 
-Similarly, database access should remain behind appropriate service/repository boundaries rather than leaking SQLAlchemy queries throughout API routes or UI-facing code.
+## Data and privacy
 
-### Prefer Simple, Explicit Code
+This project is local-first by design. Don't add code that:
 
-This project values:
+- Uploads photos or image data to an external or cloud service
+- Sends photo metadata anywhere it doesn't need to go
+- Stores secrets or credentials in the repository
 
-* Strong typing
-* Clear names
-* Small services
-* Dependency injection
-* Explicit behavior
-* Testable logic
-* Thin I/O boundaries
+Discuss any change involving external services before implementing it.
 
-Avoid clever abstractions when a straightforward implementation is easier to understand.
+## Machine learning changes
 
-The goal is not to build the most elaborate ML platform imaginable. The goal is to build a small, reliable local assistant that does one useful thing well.
+Classification uses embedding similarity against confirmed examples, not a retrained neural
+network — a more complex model or training pipeline isn't automatically an improvement.
 
-## Data and Privacy
+Unit tests can't tell you everything about an ML change, so when you open a PR, be clear about
+what kind of change it is: deterministic application logic, model configuration, classification
+behavior, or something that needs real-world image evaluation to judge.
 
-Immich Dog Tagger is designed around keeping personal photo data local.
+## Database changes
 
-Please do not introduce functionality that:
+`state.db` holds the project's accumulated review history and learned examples — data that can't
+be regenerated (cached assets and crops can be). When you change models or persistence:
 
-* Uploads personal photos to external services
-* Sends image data to cloud AI services
-* Collects personal photo metadata unnecessarily
-* Stores secrets or credentials in the repository
+- Consider existing databases, not just a fresh install
+- Add a migration or explicit compatibility behavior rather than a destructive change
+- Add tests for the persistence behavior that matters
 
-Changes involving external services or data transmission should be discussed before implementation.
+## UI changes
 
-## Machine Learning Changes
-
-The project uses local computer vision and embedding models to detect and classify dogs.
-
-The current learning approach uses confirmed examples and embedding similarity rather than retraining a large neural network.
-
-If you're changing classification or learning behavior, please include tests where practical and explain the behavioral change in the pull request.
-
-ML changes can be particularly difficult to evaluate from unit tests alone, so please distinguish between:
-
-* Changes to deterministic application logic
-* Changes to model configuration
-* Changes to classification behavior
-* Changes that require real-world image evaluation
-
-Don't assume that a more complicated model or training pipeline is automatically an improvement.
-
-## Database Changes
-
-Database changes deserve extra care because `state.db` contains the project's accumulated knowledge.
-
-When changing models or persistence behavior:
-
-* Consider existing databases, not just fresh installations
-* Preserve existing data where possible
-* Make migrations or compatibility behavior explicit when necessary
-* Avoid destructive changes without discussion
-* Add tests for important persistence behavior
-
-Remember that cached assets and crops can generally be rebuilt. The knowledge stored in the database is considerably more important.
-
-## UI Changes
-
-The web UI is primarily a human review and correction interface.
-
-When making UI changes, please consider:
-
-* Keyboard-friendly workflows
-* Clear review states
-* Loading and empty states
-* Error handling
-* Small-screen layouts
-* Keeping business logic in the backend/application layer
-
-A UI change should ideally make the review workflow clearer or faster rather than simply adding more controls.
+The web UI is primarily a review and correction tool. Keep it keyboard-friendly, with clear
+loading/empty/error states and a layout that works on a small screen. Keep business logic in the
+backend. A good UI change makes the review workflow clearer or faster — not just more configurable.
 
 ## Tests
 
-New behavior should normally come with tests.
+New behavior should come with tests, especially for classification logic, review queue behavior,
+database operations, and API/CLI behavior. A bug fix should come with a regression test. You don't
+need to test every line — focus on the behavior that matters.
 
-Tests are particularly important for:
+## Pull requests
 
-* Classification logic
-* Review queue behavior
-* Database operations
-* API behavior
-* CLI behavior
-* Data transformations
-* Edge cases
-
-When fixing a bug, a regression test is strongly preferred.
-
-You don't need to test every line of code. Focus on protecting behavior that matters.
-
-## Pull Requests
-
-A good pull request should explain:
-
-1. **What changed**
-2. **Why it changed**
-3. **How it was tested**
-4. **Anything reviewers should pay particular attention to**
-
-For example:
+Explain what changed, why, how you tested it, and anything a reviewer should look at closely:
 
 ```text
 ## Summary
-
 Adds candidate-conflict filtering to the review queue.
 
 ## Why
-
-Images where the top candidates are very close are particularly
-useful for human review.
+Images where the top candidates are very close are useful to review first.
 
 ## Testing
-
-- ./scripts/check.sh
+./scripts/check.sh
 ```
 
-Keep pull requests focused. If you discover an unrelated improvement while working, consider opening a separate issue or pull request rather than expanding the current change.
+Keep pull requests focused. If you find an unrelated improvement while working, open a separate
+issue or PR for it.
 
-## Commit Messages
+## Commit messages
 
-There is no elaborate commit-message bureaucracy here.
-
-Prefer short, descriptive messages that explain the intent of the change:
+Short and descriptive, explaining intent:
 
 ```text
 Add review queue candidate filtering
 Fix review correction provenance
 Add API tests for skipped reviews
-Improve review progress display
 ```
 
-Avoid messages such as:
+Not:
 
 ```text
 fix stuff
 changes
-updates
 wip
 ```
 
-## Reporting Bugs
+## Reporting bugs
 
-When reporting a bug, please include enough information to reproduce it.
+Include what you expected, what happened instead, the command or UI action involved, any error
+messages, the project version or commit, and whether the issue reproduces with a fresh database.
 
-Useful details include:
+Don't attach personal photos or private Immich data to an issue. If an example image is genuinely
+needed to explain an ML problem, describe it instead of sharing anything identifying.
 
-* What you expected to happen
-* What actually happened
-* The command or UI action involved
-* Relevant error messages
-* Project version or commit
-* Python/Node versions where relevant
-* Whether the issue occurs with a fresh database
-* Steps to reproduce the problem
+## Feature requests
 
-Please don't upload personal photographs or other private Immich data to an issue.
-
-If an example image is genuinely necessary to explain an ML problem, describe the characteristics of the image first and avoid sharing personally identifying material.
-
-## Feature Requests
-
-Feature requests are welcome.
-
-A useful feature request explains the problem before proposing the solution:
+Describe the problem before proposing a solution:
 
 ```text
-Problem:
-What is difficult or impossible today?
-
-Current behavior:
-What happens now?
-
-Desired behavior:
-What would make this better?
-
-Why:
-Why is this useful?
+Problem: what's difficult or impossible today?
+Current behavior: what happens now?
+Desired behavior: what would be better?
+Why: why does this matter?
 ```
 
-This helps avoid prematurely committing the project to a particular implementation.
+This keeps the project from committing to a specific implementation too early.
 
-## What Makes a Good Contribution?
+## What makes a good contribution
 
-Not every contribution needs to be a major feature.
+Not every contribution needs to be a feature. Bug fixes, missing tests, better error handling,
+documentation fixes, accessibility improvements, and diagnosing an existing issue are all
+valuable. If something in the project confused you, that's useful signal too — it's either a
+documentation gap or a design problem.
 
-Some particularly useful contributions include:
+## A note about this project
 
-* Fixing a bug
-* Adding a missing test
-* Improving error handling
-* Improving documentation
-* Making the review UI easier to use
-* Improving accessibility
-* Improving performance
-* Simplifying confusing code
-* Improving deployment documentation
-* Reproducing and diagnosing an issue
-* Reviewing an existing pull request
+Development happens in bursts, since this is a side project. A quiet period on an issue or PR
+isn't a lack of interest. The project stays intentionally small — not every reasonable feature
+will fit its direction.
 
-If you find something confusing, that's useful information too. A confusing part of the project may be a documentation problem or a design problem.
+## Code of conduct
 
-## A Note About This Project
-
-Immich Dog Tagger is maintained as a personal side project.
-
-That means development may sometimes happen in bursts, and pull requests or issues may not receive an immediate response. Please don't interpret a quiet period as a lack of interest.
-
-The project is intentionally kept relatively small and focused. Not every reasonable feature will necessarily fit the project's direction.
-
-Contributions are appreciated, but the goal is sustainable development rather than trying to turn this into a giant framework.
-
-## Code of Conduct
-
-Please be respectful and constructive.
-
-Assume good intentions, discuss technical disagreements directly, and remember that everyone contributing is giving some of their time to make the project better.
-
-Harassment, personal attacks, discrimination, and other inappropriate behavior are not welcome.
+Be respectful and constructive. Assume good intentions, discuss disagreements directly.
+Harassment, personal attacks, and discrimination aren't welcome here.
 
 ## License
 
-By contributing to this repository, you agree that your contributions will be licensed under the same license as the project.
-
-See [LICENSE](LICENSE) for details.
-
-## Thank You
-
-Whether you're fixing a typo, reporting a bug, improving the UI, writing tests, or building something substantial, thanks for helping make Immich Dog Tagger better.
-
-And yes, the dogs will probably take credit for the work. 🐶
+By contributing, you agree your contributions are licensed under the same license as the project.
+See [LICENSE](LICENSE).
