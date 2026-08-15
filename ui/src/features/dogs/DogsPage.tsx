@@ -1,6 +1,10 @@
 import { DogManagementCard } from "./components/DogManagementCard";
 
-export function DogsPage() {
+interface Props {
+  onNavigate: (path: string) => void;
+}
+
+export function DogsPage({ onNavigate }: Props) {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
@@ -10,7 +14,7 @@ export function DogsPage() {
         </p>
       </header>
 
-      <DogManagementCard />
+      <DogManagementCard onNavigate={onNavigate} />
     </section>
   );
 }

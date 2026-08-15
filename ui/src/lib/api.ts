@@ -10,6 +10,12 @@ import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
 import type { Settings } from "../types/settings";
+import type {
+  InsightsSummary,
+  PersonCount,
+  PlaceCount,
+  TimelineEntry,
+} from "../types/insights";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -381,6 +387,47 @@ export async function getSettings(): Promise<Settings> {
   const response = await fetch("/api/settings");
   if (!response.ok) {
     throw new Error("Failed to load settings");
+  }
+  return response.json();
+}
+
+export async function getInsightsSummary(identityId: number): Promise<InsightsSummary> {
+  const response = await fetch(`/api/dogs/${identityId}/insights/summary`);
+  if (!response.ok) {
+    throw new Error("Failed to load insights summary");
+  }
+  return response.json();
+}
+
+export async function getInsightsPlaces(identityId: number): Promise<PlaceCount[]> {
+  const response = await fetch(`/api/dogs/${identityId}/insights/places`);
+  if (!response.ok) {
+    throw new Error("Failed to load places");
+  }
+  return response.json();
+}
+
+export async function getInsightsPeople(identityId: number): Promise<PersonCount[]> {
+  const response = await fetch(`/api/dogs/${identityId}/insights/people`);
+  if (!response.ok) {
+    throw new Error("Failed to load people");
+  }
+  return response.json();
+}
+
+export async function getInsightsTimeline(
+  identityId: number,
+  options: { limit?: number; offset?: number } = {},
+): Promise<TimelineEntry[]> {
+  const params = new URLSearchParams();
+  params.set("limit", String(options.limit ?? 50));
+  params.set("offset", String(options.offset ?? 0));
+
+  const response = await fetch(
+    `/api/dogs/${identityId}/insights/timeline?${params.toString()}`,
+  );
+  if (!response.ok) {
+    throw new Error("Failed to load timeline");
   }
   return response.json();
 }
