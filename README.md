@@ -82,11 +82,12 @@ instance with an API key. GPU recommended, CPU works but is slower.
 cp .env.example .env
 # edit .env: set IMMICH_URL and IMMICH_API_KEY
 
-# 3. Run the pipeline once
-immich-dog-tagger scan
-immich-dog-tagger download
-immich-dog-tagger detect
-immich-dog-tagger classify
+# 3. Initialize the database, then run the pipeline once
+uv run immich-dog-tagger init-db
+uv run immich-dog-tagger scan
+uv run immich-dog-tagger download
+uv run immich-dog-tagger detect
+uv run immich-dog-tagger classify
 ```
 
 Expect almost everything to come back Unknown the first time — there are no reference examples
@@ -102,7 +103,7 @@ Open `http://localhost:5173`, review a batch (50–100 is a reasonable start), c
 in Overview, repeat until the queue is mostly empty. Then publish what you're confident in:
 
 ```bash
-immich-dog-tagger sync
+uv run immich-dog-tagger sync
 ```
 
 Full walkthrough — how much to review first, what "confident" vs "needs review" means, backing up
