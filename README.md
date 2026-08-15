@@ -1,186 +1,142 @@
 # Immich Dog Tagger
 
-Immich Dog Tagger finds dogs (and cats) in your [Immich](https://immich.app/) photo library,
-learns to tell individual animals apart from photos you review, and syncs the results back to
-Immich as albums.
+**Individual pet recognition for Immich.**
+
+Immich can already tell you a photo contains a dog. It can't tell you it's *Rex*. This project
+adds that layer: it finds each animal in your [Immich](https://immich.app/) photo library, learns
+to tell individual pets apart from corrections you make in a review UI, and syncs the results back
+to Immich as albums — one per pet.
+
+It's a sidecar, not a fork or a replacement. It runs next to your Immich instance, talks to it
+only through the API, and never touches Immich's own database. Everything it learns lives in its
+own local `state.db` — that file, not Immich, is the source of truth for every identity and every
+review decision. No photo or image data ever leaves your machine.
+
+Dogs and cats are supported today. The identity model isn't dog-specific — "Rex" and "Whiskers"
+below are just examples, you name your own pets — and the project is built toward any
+individually-recognizable pet, not a fixed species list.
 
 ![immich-dog-tagger project banner](banner.png)
 
-If your library has thousands of photos of the same few pets across years of lighting, cameras,
-and angles, tagging them by hand doesn't scale. This project detects each animal, asks you to
-confirm or correct its first guesses, and gets better at recognizing that animal every time you
-do. Everything runs on your own machine — no photo ever leaves it.
-
-## Screenshots
-
-| Review | Library | Overview |
-|---|---|---|
-| ![Review UI](docs/images/review-ui.png) | ![Library UI](docs/images/library-ui.png) | ![Overview UI](docs/images/overview-ui.png) |
-
-The review workspace has keyboard shortcuts for fast correction (one key per identity, plus
-`u` for Unknown), a queue filterable by unknown/low-confidence/candidate-conflict, and shows each
-match's ranked candidates, similarity score, and the photo's own capture date.
-
-## Quick start
-
-Requirements: Python 3.14+, [`uv`](https://docs.astral.sh/uv/), Node.js/npm, and a running Immich
-instance with an API key. See [Requirements](#requirements) for hardware notes.
-
-1. **Bootstrap dependencies.**
-
-   ```bash
-   ./scripts/bootstrap.sh
-   ```
-
-2. **Configure your Immich connection.** Copy `.env.example` to `.env` and fill in `IMMICH_URL`
-   and `IMMICH_API_KEY`.
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Run the pipeline once.** This scans your library, downloads new photos, detects dogs/cats,
-   and classifies each one.
-
-   ```bash
-   immich-dog-tagger scan
-   immich-dog-tagger download
-   immich-dog-tagger detect
-   immich-dog-tagger classify
-   ```
-
-   Expect almost everything to come back Unknown on this first run — there are no reference
-   examples yet. That's normal, not a bug.
-
-4. **Start the backend, then the frontend** (two terminals):
-
-   ```bash
-   uv run uvicorn immich_dog_tagger.api.app:app --reload
-   ```
-
-   ```bash
-   cd ui && npm install && npm run dev
-   ```
-
-5. **Review.** Open `http://localhost:5173`, correct a batch of predictions (50-100 is a
-   reasonable starting point), then click **Reclassify** in Overview to apply what you've
-   learned to everything else. Repeat until the review queue is mostly gone.
-
-6. **Publish to Immich** once you're happy with a batch of identities:
-
-   ```bash
-   immich-dog-tagger sync
-   ```
-
-For the full walkthrough — how many photos to review first, what "confident," "needs review," and
-"unknown" mean, and how to back up `state.db` — see [docs/workflow.md](docs/workflow.md). For a
-Docker + Traefik production setup, see [docs/deployment.md](docs/deployment.md).
+<!-- TODO: before/after screenshot here — Immich's own generic "dog" search result next to this
+     project's Library view showing a named identity. This is the single image that makes the
+     30-second pitch land; worth prioritizing over everything else in this file. -->
 
 ## How it works
 
 ```
-Immich → Scanner → Downloader → YOLO Detection → Crop Generation → OpenCLIP Embeddings
-       → Identity Classification → Human Review → Learning Examples → Improved Classification
-       → Immich Sync
+detect → classify → review → correct → learn → sync
 ```
 
 1. **Detect.** YOLO finds dogs and cats in each photo and crops them out.
-2. **Classify.** An OpenCLIP embedding of each crop is compared against your reviewed examples
-   to guess an identity, or leave it unknown if nothing matches well enough.
-3. **Review.** You confirm or correct guesses in a browser UI.
-4. **Learn.** Each correction becomes a new reference example, and future guesses improve —
-   no retraining, no model weights change.
-5. **Sync.** Confirmed identities are published back to Immich as albums (`Dog - Hermann`,
-   `Cat - Fibonacci`, ...).
+2. **Classify.** An embedding of each crop is compared against the reference examples you've
+   confirmed so far. If nothing matches well enough, it's left Unknown — no guessing.
+3. **Review.** You confirm or correct each guess in the browser.
+4. **Correct.** Wrong guesses get fixed with one click or keypress.
+5. **Learn.** Every correction becomes a new reference example. Future guesses get better because
+   there are more examples to compare against — no retraining, no model weights change.
+6. **Sync.** Confirmed identities are published back to Immich as albums (`Dog - Rex`,
+   `Cat - Whiskers`, ...).
 
-`state.db`, a local SQLite database, is the source of truth for everything the system knows.
-Immich is a photo source and a place to publish results — never the other way around. See
-[ADR-001](docs/adr/ADR-001-state-database-source-of-truth.md) for why.
+Run the loop, review a batch, hit Reclassify to re-score everything else against what you just
+taught it, repeat. The more you review, the less you need to.
 
-## Architecture
+## The Review Dashboard
 
+This is where you spend most of your time. It's a queue of detections that need a human
+decision — unknowns, low-confidence guesses, and cases where two candidate identities are close.
+
+![Review dashboard](docs/images/review-ui.png)
+
+- One keyboard shortcut per identity, plus `u` for Unknown — no mouse required to get through a
+  queue.
+- Filter by unknown / low-confidence / candidate-conflict.
+- Each item shows its ranked candidate identities, similarity score, and the photo's own capture
+  date, so you're not guessing why the model thinks what it thinks.
+- Corrections here (and from the Library page, below) feed directly back into classification —
+  there's no separate "training" step.
+
+<!-- TODO: short GIF of a correction happening — an identity hotkey pressed, queue count and
+     confidence updating live. Explains the review-driven learning loop faster than prose. -->
+
+Beyond Review, there's a searchable **Library** of every classified photo (reviewed or not,
+filterable by identity/species/date) and an **Overview** dashboard for pipeline status and
+learning progress over time:
+
+| Library | Overview | Pet identities |
+|---|---|---|
+| ![Library UI](docs/images/library-ui.png) | ![Overview UI](docs/images/overview-ui.png) | ![Pet identities UI](docs/images/dogs-ui.png) |
+
+The identities screen is where you define your own pets — nothing is hardcoded.
+
+## Getting started
+
+Requirements: Python 3.14+, [`uv`](https://docs.astral.sh/uv/), Node.js/npm, and a running Immich
+instance with an API key. GPU recommended, CPU works but is slower.
+
+```bash
+# 1. Install dependencies
+./scripts/bootstrap.sh
+
+# 2. Point it at your Immich instance
+cp .env.example .env
+# edit .env: set IMMICH_URL and IMMICH_API_KEY
+
+# 3. Run the pipeline once
+immich-dog-tagger scan
+immich-dog-tagger download
+immich-dog-tagger detect
+immich-dog-tagger classify
 ```
-Browser → Traefik → React UI (nginx) → FastAPI → Application Services → state.db
-                                                                              |
-                                                                  +-----------+-----------+
-                                                                  v                       v
-                                                            ML Pipeline              Immich Sync
+
+Expect almost everything to come back Unknown the first time — there are no reference examples
+yet. That's expected, not a bug.
+
+```bash
+# 4. Start the backend and frontend (two terminals)
+uv run uvicorn immich_dog_tagger.api.app:app --reload
+cd ui && npm install && npm run dev
 ```
 
-- **CLI** (`src/immich_dog_tagger/cli.py`) — runs pipeline stages and automation:
-  `scan`, `download`, `detect`, `classify`, `sync`, `backup`, `restore`, and more.
-- **Application services** (`src/immich_dog_tagger/services/`) — the business logic for
-  classification, correction, jobs, scheduling, sync, and learning. The API and UI call into
-  these rather than embedding logic of their own.
-- **FastAPI** (`src/immich_dog_tagger/api/`) — the review, jobs, schedules, dogs/cats, and
-  diagnostics endpoints behind the browser UI.
-- **React UI** (`ui/src/`) — the review workspace, the Library, and the Overview dashboard.
-- **ML pipeline** — YOLO detection, cropping, OpenCLIP embeddings, and nearest-neighbor
-  classification. See [docs/ml-classification.md](docs/ml-classification.md).
-- **state.db** — assets, detections, crops, classifications, identities, reference examples,
-  review history, provenance, jobs, and schedules, in SQLite.
+Open `http://localhost:5173`, review a batch (50–100 is a reasonable start), click **Reclassify**
+in Overview, repeat until the queue is mostly empty. Then publish what you're confident in:
 
-On disk, a project looks like this:
-
-```
-data/breimer/
-├── state/
-│   └── state.db      # knowledge: cannot be regenerated, back it up
-└── cache/
-    ├── assets/        # rebuildable
-    ├── crops/         # rebuildable
-    └── review/         # rebuildable
+```bash
+immich-dog-tagger sync
 ```
 
-## Requirements
+Full walkthrough — how much to review first, what "confident" vs "needs review" means, backing up
+`state.db` — in [docs/workflow.md](docs/workflow.md). Docker + Traefik production setup in
+[docs/deployment.md](docs/deployment.md).
 
-- Python 3.14+ and [`uv`](https://docs.astral.sh/uv/)
-- Node.js (for the UI) and `npm`
-- An Immich instance with API access
-- A GPU is recommended for detection and embedding — CPU works but is much slower
+## Current status
 
-Developed and tested on Ubuntu with an NVIDIA GPU.
+Solo-maintained, in daily use on the maintainer's own library, not a finished product. Before you
+rely on it:
 
-## Status: what to expect
-
-Current release: **v1.5.0**. The core loop — detect, classify, review, learn, sync — is in daily
-use on the maintainer's own library. Before you rely on it, know a few things:
-
-- **It's a solo-maintained hobby project.** Development happens in bursts, not on a schedule.
 - **No authentication on the API or UI.** Run it on a trusted network behind your own reverse
-  proxy, not exposed to the internet.
-- **Confidence isn't a calibrated probability.** It's a similarity score against your own
-  reviewed examples, not a validated accuracy estimate. See
+  proxy — don't expose it to the internet.
+- **Confidence is a similarity score, not a calibrated probability.** See
   [docs/ml-classification.md](docs/ml-classification.md).
-- **Large-library performance is validated with synthetic-scale tests, not a real 30,000-photo
-  run.** The pipeline is built to handle libraries that size, but if yours is that large, expect
-  to be an early real-world test of it.
-- **One pipeline or Reclassify operation runs at a time**, by design — queue a second one and it
-  waits rather than running in parallel.
+- **Validated at synthetic scale, not on a real 30,000-photo library yet.** It's built to handle
+  that, but if your library is that large, you're an early real-world test of it.
+- **One pipeline or Reclassify job runs at a time**, by design.
 
-See [docs/status.md](docs/status.md) for current known issues and what's actively in progress,
-and [docs/roadmap.md](docs/roadmap.md) for release history. Recent releases:
+See [docs/status.md](docs/status.md) for what's actively in progress and
+[docs/roadmap.md](docs/roadmap.md) for release history.
 
-- **v1.5.0 — Automatic temporal-recency classification.** Replaces v1.4's owner-configured
-  per-identity active date range with automatic weighting: each candidate match is scored by how
-  closely its own reference photo's capture date aligns with the photo being classified, so an
-  aging pet's changing look, a pet that has passed away, and a new visually similar pet are told
-  apart with no configuration. Details:
-  [docs/specs/v1.5-automatic-temporal-classification.md](docs/specs/v1.5-automatic-temporal-classification.md).
-- **v1.4.0 — Trustworthy photo library.** Every photo shows its own capture date next to its
-  prediction. A new Library page lists every classified photo — reviewed or not — filterable by
-  identity, species, review status, and date. Corrections work the same way from the Library as
-  from Review, and now correctly move an asset between Immich albums instead of leaving it in
-  both. Details:
-  [docs/specs/v1.4-trustworthy-photo-library.md](docs/specs/v1.4-trustworthy-photo-library.md).
-- **v1.3.0 — Cat support.** Detection, classification, review, and sync now cover cats alongside
-  dogs, sharing one review queue and correction UI — no separate cat mode. Details:
-  [issue #66](https://github.com/bradreimer/immich-dog-tagger/issues/66).
-- **v1.2.0 — Visual style refresh.** One consistent look across the app: sidebar navigation, a
-  single accent color, a shared stat-tile/chart pattern. Details:
-  [docs/specs/v1.2-visual-style-refresh.md](docs/specs/v1.2-visual-style-refresh.md).
+## Documentation
 
-## Development
+- [docs/workflow.md](docs/workflow.md) — the full review/correction workflow
+- [docs/deployment.md](docs/deployment.md) — Docker + Traefik production setup
+- [docs/ml-classification.md](docs/ml-classification.md) — how detection/classification work
+- [docs/adr/ADR-001-state-database-source-of-truth.md](docs/adr/ADR-001-state-database-source-of-truth.md) — why `state.db`, not Immich, is authoritative
+- [docs/project-overview.md](docs/project-overview.md) — fuller design rationale
+
+## Contributing
+
+Bugs, feature ideas, and questions:
+[open an issue](https://github.com/bradreimer/immich-dog-tagger/issues).
 
 ```bash
 ./scripts/bootstrap.sh   # fresh environment
@@ -191,15 +147,6 @@ uv run pytest -q         # tests
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
 [CLAUDE.md](CLAUDE.md) for the spec/ticket-driven workflow this project follows.
 
-## Design goals
-
-This project stays deliberately small:
-
-- No cloud AI services, and no photo or image data ever leaves your machine
-- No modifying Immich internals — Immich is only ever a source and a sync target
-- No retraining a neural network — "learning" means growing a set of reference examples, not
-  updating model weights
-
 ## License
 
-See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
