@@ -8,5 +8,9 @@ SUPPORTED_IMAGE_EXTENSIONS = {
 }
 
 
+def is_supported_extension(extension: str) -> bool:
+    return extension.lower() in SUPPORTED_IMAGE_EXTENSIONS
+
+
 def is_supported_image(path: Path) -> bool:
-    return path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+    return is_supported_extension(path.suffix)

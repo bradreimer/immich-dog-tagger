@@ -155,6 +155,23 @@ class DetectionService:
 
             processed += 1
 
+            if self.crop_writer:
+                # The original is only needed to run detection -- embed,
+                # classify, and sync never touch it again once crops
+                # exist. Removing it here is the main lever for keeping
+                # cache_dir proportional to what's actually needed rather
+                # than to the whole library; a future `detect --force` on
+                # this asset needs `download --force` first to get it back.
+                try:
+                    image_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning(
+                        "Failed to remove cached original after detection: "
+                        "asset=%s image=%s",
+                        asset.immich_asset_id,
+                        image_path,
+                    )
+
         self.session.commit()
 
         return DetectionSummary(

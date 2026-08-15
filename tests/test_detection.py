@@ -381,3 +381,75 @@ def test_detection_failure_is_enriched_with_asset_context(
         assert "boom" in str(excinfo.value)
         assert "broken-asset" in str(excinfo.value)
         assert "Detection failed for asset broken-asset" in caplog.text
+
+
+def test_detection_deletes_cached_original_after_crop_writer_succeeds(
+    engine,
+    tmp_path,
+):
+    # Regression test for issue #93: once crops exist, nothing downstream
+    # (embed/classify/sync) needs the original again -- keeping it around
+    # forever wastes disk space proportional to the whole library instead
+    # of what the app actually uses.
+    class FakeCropWriter:
+        def write(self, image_path, asset_id, detections):
+            crop_path = tmp_path / f"{asset_id}_0.jpg"
+            crop_path.write_bytes(b"fake crop")
+            return [(0, crop_path)]
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="abc123",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        original_path = asset.cache_path(tmp_path)
+        original_path.write_bytes(b"original bytes")
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+            crop_writer=FakeCropWriter(),
+        )
+
+        summary = service.run()
+
+        assert summary.processed == 1
+        assert not original_path.exists()
+        assert (tmp_path / "abc123_0.jpg").exists()
+
+
+def test_detection_keeps_cached_original_without_crop_writer(
+    engine,
+    tmp_path,
+):
+    # No crop_writer means no crop stands in for the original, so there's
+    # nothing to show for it if it's deleted -- leave it alone.
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="abc123",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        original_path = asset.cache_path(tmp_path)
+        original_path.write_bytes(b"original bytes")
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+        )
+
+        summary = service.run()
+
+        assert summary.processed == 1
+        assert original_path.exists()
