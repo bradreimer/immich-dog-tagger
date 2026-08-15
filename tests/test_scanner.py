@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus
-from immich_dog_tagger.immich import ImmichAsset
+from immich_dog_tagger.immich import ImmichAsset, ImmichPerson
 from immich_dog_tagger.models import Asset
 from immich_dog_tagger.scanner import Scanner
 
@@ -180,6 +180,68 @@ def test_scan_force_preserves_status_when_checksum_unchanged(
 
         assert asset.checksum == "same-checksum"
         assert asset.status is AssetStatus.DETECTED
+
+
+def test_scan_populates_immich_metadata_on_new_asset(engine):
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(
+                    id="abc123",
+                    filename="dog.jpg",
+                    checksum="xyz",
+                    city="Seattle",
+                    country="United States",
+                    is_favorite=True,
+                    people=(ImmichPerson(id="p1", name="Brad"),),
+                )
+            ]
+
+    with Session(engine) as session:
+        Scanner(FakeClient(), session).scan()
+
+        asset = session.scalar(select(Asset))
+
+        assert asset.city == "Seattle"
+        assert asset.country == "United States"
+        assert asset.is_favorite is True
+        assert asset.people == [{"id": "p1", "name": "Brad"}]
+        assert asset.metadata_synced_at is not None
+
+
+def test_scan_refreshes_immich_metadata_on_existing_asset(engine):
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(
+                    id="abc123",
+                    filename="dog.jpg",
+                    checksum="xyz",
+                    is_favorite=True,
+                    people=(ImmichPerson(id="p1", name="Brad"),),
+                )
+            ]
+
+    with Session(engine) as session:
+        session.add(
+            Asset(
+                immich_asset_id="abc123",
+                checksum="xyz",
+                extension=".jpg",
+                is_favorite=False,
+            )
+        )
+        session.commit()
+
+        # Same checksum, so this isn't a "new asset" -- but the favorite
+        # flag/recognized people can change in Immich without the photo
+        # file itself changing, so metadata still refreshes.
+        Scanner(FakeClient(), session).scan()
+
+        asset = session.scalar(select(Asset))
+
+        assert asset.is_favorite is True
+        assert asset.people == [{"id": "p1", "name": "Brad"}]
 
 
 def test_scan_force_resets_status_when_checksum_changes(

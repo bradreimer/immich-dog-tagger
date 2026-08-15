@@ -90,6 +90,85 @@ def test_list_assets_follows_pagination():
     assert isinstance(requests[1]["page"], int)
 
 
+def test_list_assets_parses_location_people_and_favorite():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "assets": {
+                    "items": [
+                        {
+                            "id": "abc123",
+                            "originalFileName": "dog.jpg",
+                            "checksum": "xyz",
+                            "isFavorite": True,
+                            "exifInfo": {
+                                "latitude": 47.6,
+                                "longitude": -122.3,
+                                "city": "Seattle",
+                                "state": "Washington",
+                                "country": "United States",
+                            },
+                            "people": [
+                                {"id": "p1", "name": "Brad"},
+                                {"id": "p2", "name": None},
+                            ],
+                        }
+                    ]
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    assets = client.list_assets()
+
+    assert len(assets) == 1
+    asset = assets[0]
+    assert asset.is_favorite is True
+    assert asset.latitude == 47.6
+    assert asset.longitude == -122.3
+    assert asset.city == "Seattle"
+    assert asset.state == "Washington"
+    assert asset.country == "United States"
+    assert [person.id for person in asset.people] == ["p1", "p2"]
+    assert asset.people[0].name == "Brad"
+    assert asset.people[1].name is None
+
+
+def test_list_assets_defaults_missing_metadata():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "assets": {
+                    "items": [
+                        {
+                            "id": "abc123",
+                            "originalFileName": "dog.jpg",
+                            "checksum": "xyz",
+                        }
+                    ]
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    asset = client.list_assets()[0]
+
+    assert asset.is_favorite is False
+    assert asset.latitude is None
+    assert asset.city is None
+    assert asset.people == ()
+
+
 def test_download_asset():
     def handler(request):
         return httpx.Response(

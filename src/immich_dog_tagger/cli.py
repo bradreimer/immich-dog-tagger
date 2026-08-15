@@ -22,6 +22,7 @@ from .services.derived_data import DerivedDataService
 from .services.job_execution import create_pipeline_job_runner
 from .services.jobs import PipelineJobService
 from .services.learner import Learner
+from .services.pet_occurrences import PetOccurrenceService
 from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
 from .services.sync import SyncService
@@ -120,6 +121,17 @@ def check_derived_data_command(args) -> None:
         for line in DerivedDataService.rebuild_guidance(report):
             print(line)
         raise SystemExit(1)
+
+
+def backfill_occurrences_command(args) -> None:
+    config = load_config()
+
+    engine = create_database(config.state_dir)
+
+    with Session(engine) as session:
+        processed = PetOccurrenceService(session).sync_all()
+
+    print(f"Processed {processed} classification(s)")
 
 
 def config_check_command(args) -> None:
@@ -852,6 +864,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Check for missing derived artifacts (crops, embeddings, downloads)",
     )
 
+    subparsers.add_parser(
+        "backfill-occurrences",
+        help="Rebuild pet occurrence facts from current classification state (issue #94)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "config-check":
@@ -916,6 +933,9 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "check-derived-data":
         check_derived_data_command(args)
+
+    elif args.command == "backfill-occurrences":
+        backfill_occurrences_command(args)
 
     else:
         parser.print_help()

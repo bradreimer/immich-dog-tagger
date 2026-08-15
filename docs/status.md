@@ -96,14 +96,19 @@
   and [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
 
 ## Current Milestone
-v1.5.0 Automatic Temporal Classification -- released (#91). See
-[docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md).
+v1.6.0 Pet Insights -- in progress (issue #94). A read-only "fun layer" on top of confirmed pet
+identifications: per-dog photo counts, date range, most-common places, and most-often-photographed
+-with people, derived at read time from a new `PetOccurrence` fact table (never stored as a
+conclusion -- see [ADR-004](adr/ADR-004-pet-occurrence-observations.md)). See
+[docs/specs/v1.6-pet-insights.md](specs/v1.6-pet-insights.md).
 
 ## Next Work
-No queued numbered milestone. Candidates: improved reference-example selection, reference-set
-curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
-or v1.5's own open questions (owner-tunable decay scale/floor, reporting how many reclassified
-items changed identity specifically due to temporal weighting).
+v1.6.0's own explicitly-deferred items (see spec Non-goals): Best Friends (pet-to-pet
+co-occurrence), On This Day, a Pet World Tour map, and Milestones. Otherwise: improved
+reference-example selection, reference-set curation workflows, and confidence analysis (see
+docs/roadmap.md "Active Learning Improvements"), or v1.5's own open questions (owner-tunable decay
+scale/floor, reporting how many reclassified items changed identity specifically due to temporal
+weighting).
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

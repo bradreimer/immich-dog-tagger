@@ -33,6 +33,7 @@ def create_database(state_dir: Path):
     _ensure_identity_species_column(engine)
     _ensure_crop_species_column(engine)
     _ensure_pipeline_job_visible_column(engine)
+    _ensure_asset_metadata_columns(engine)
 
     return engine
 
@@ -189,3 +190,52 @@ def _ensure_pipeline_job_visible_column(engine) -> None:
         connection.exec_driver_sql(
             "ALTER TABLE pipeline_jobs ADD COLUMN visible BOOLEAN NOT NULL DEFAULT 1"
         )
+
+
+def _ensure_asset_metadata_columns(engine) -> None:
+    """
+    Issue #94: assets gained cached location/people/favorite fields sourced
+    from Immich's own exifInfo/people/isFavorite. Plain ADD COLUMNs suffice
+    -- no uniqueness/constraint changes -- and every default is a correct
+    backfill for existing rows (nothing was known before this column
+    existed), not a guess.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("assets")}
+
+    statements = []
+
+    if "latitude" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN latitude FLOAT")
+
+    if "longitude" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN longitude FLOAT")
+
+    if "country" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN country VARCHAR(128)")
+
+    if "state" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN state VARCHAR(128)")
+
+    if "city" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN city VARCHAR(128)")
+
+    if "is_favorite" not in columns:
+        statements.append(
+            "ALTER TABLE assets ADD COLUMN is_favorite BOOLEAN NOT NULL DEFAULT 0"
+        )
+
+    if "people" not in columns:
+        statements.append(
+            "ALTER TABLE assets ADD COLUMN people JSON NOT NULL DEFAULT '[]'"
+        )
+
+    if "metadata_synced_at" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN metadata_synced_at DATETIME")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)

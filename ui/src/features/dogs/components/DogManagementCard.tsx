@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   IconCat,
+  IconChartBar,
   IconDog,
   IconEdit,
   IconPlayerPause,
@@ -24,7 +25,11 @@ function speciesLabel(species: Species): string {
   return species === "cat" ? "Cat" : "Dog";
 }
 
-export function DogManagementCard() {
+interface Props {
+  onNavigate: (path: string) => void;
+}
+
+export function DogManagementCard({ onNavigate }: Props) {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [name, setName] = useState("");
   const [species, setSpecies] = useState<Species>("dog");
@@ -192,6 +197,14 @@ export function DogManagementCard() {
                 </div>
 
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => onNavigate(`/dogs/${dog.id}/insights`)}
+                  >
+                    <IconChartBar className="h-4 w-4" aria-hidden="true" />
+                    Insights
+                  </Button>
+
                   <Button
                     variant="outline"
                     onClick={() => handleRename(dog)}
