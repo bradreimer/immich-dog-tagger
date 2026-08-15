@@ -1,87 +1,56 @@
-# Classification Pipeline
+# Classification pipeline
 
-## Overview
-
-The classification pipeline identifies dog identities from detected dog crops.
-
-The database is the source of truth.
+Identifies which dog or cat appears in a detected crop, using nearest-neighbor similarity against
+your reviewed examples. `state.db` is the source of truth for those examples; the model weights
+never change.
 
 ## Flow
 
-```plain
+```
 Crop image
-|
-v
-OpenCLIP embedding
-|
-v
-IdentityClassifier
-|
-v
-Cosine similarity against EmbeddingExample records
-|
-v
-CropClassification
+  → OpenCLIP embedding
+  → IdentityClassifier
+  → cosine similarity against each identity's EmbeddingExample records
+  → ranked candidates
+  → confident / needs-review / unknown decision (ClassifierPolicy)
+  → CropClassification
 ```
 
 ## Components
 
-### OpenClipEmbedder
+**`OpenClipEmbedder`** turns a crop image into a vector embedding.
 
-Creates vector embeddings from crop images.
+**`EmbeddingExample`** is one known example of an identity: an embedding vector, the crop it came
+from, and provenance (automatic prediction vs. human correction).
 
-### EmbeddingExample
+**`IdentityClassifier`** (`src/immich_dog_tagger/classifier.py`) does the matching:
 
-Stores known dog examples.
+1. Loads active examples for the crop's species (dog crops are never compared against cat
+   examples, and vice versa).
+2. Scores cosine similarity between the crop's embedding and every example.
+3. Weights each example's similarity by how closely its own capture date aligns with the crop
+   being classified (`temporal_weight`, a Gaussian decay with a ~1 year scale, fails open when a
+   date is missing on either side) — see [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
+4. Keeps each identity's best-matching example by that *weighted* score, then ranks identities the
+   same way — but reports the winning match's raw, unweighted similarity as confidence, so recency
+   decides which identity wins without inflating or discounting the number shown.
+5. Returns the top candidates (3 by default), not just the winner.
 
-Each example contains:
+**`ClassifierPolicy`** (`src/immich_dog_tagger/policy.py`) is the single place that owns the
+confidence threshold (0.80 by default), candidate-list size, and the confident/needs-review/unknown
+decision. The pipeline, `Reclassify`, and the review queue all read from it, so the meaning of
+"confident" is the same everywhere it appears. The policy version is stored alongside every
+`CropClassification`, so a prediction can always be traced back to the configuration that
+produced it.
 
-- identity
-- crop path
-- embedding vector
-- source provenance
+## What this doesn't do
 
-### IdentityClassifier
+- **No calibrated confidence.** Similarity is a raw cosine score against your own examples, not a
+  validated accuracy or probability estimate. Temporal weighting affects which identity wins, not
+  the confidence number reported for it.
+- **No owner-configured identity date ranges.** Removed in v1.5 in favor of automatic per-example
+  weighting — see [v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md).
+- **No retraining.** "Learning" means adding reference examples, not updating model weights.
 
-Current implementation:
-
-1. Loads all embedding examples (per species).
-2. Calculates cosine similarity between the query embedding and each example.
-3. Weights each example's similarity by how closely its own capture date (`EmbeddingExample.
-   captured_at`) aligns with the photo being classified (`captured_at` passed into `classify()`) --
-   see "Temporal-recency weighting" below.
-4. Per identity, selects the example maximizing `similarity * temporal_weight` and ranks
-   candidates by that combined score.
-5. Returns the winning identity along with its **raw, unweighted** cosine similarity as
-   confidence -- the temporal signal decides which identity wins, never what confidence number is
-   reported (see v1.0.0.md section 8 and ADR-003).
-
-### Temporal-recency weighting (v1.5, ADR-003)
-
-Each candidate example gets a `temporal_weight` in `[TEMPORAL_FLOOR, 1.0]` (`scoring.py`),
-computed from the gap between the query photo's `captured_at` and the example's own
-`captured_at`:
-
-- `1.0` when the two dates coincide, or when either date is missing (fail open -- absence of
-  date evidence is never a penalty).
-- Gaussian decay toward `TEMPORAL_FLOOR` (default `0.15`) as the gap grows, with
-  `TEMPORAL_SIGMA_DAYS` (default `365`, i.e. about a year) as the characteristic scale.
-- Never reaches zero -- a lone identity with only old examples and no closer-in-time competing
-  identity still classifies correctly, since its raw similarity is what gets reported regardless
-  of its own temporal_weight.
-
-Weighting is anchored to the query photo's own capture date, not wall-clock "now" -- classifying
-an old photo still correctly favors examples from that same era, which is what lets an identity
-whose pet has since passed away keep classifying correctly against its own historical photos,
-while a new, visually similar identity naturally wins recent photos instead. See
-[docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md)
-and [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md) for the full rationale.
-
-This replaced DT-1114's owner-configured `Identity.active_from`/`active_until` hard-boundary
-flag, which required manual upkeep per identity.
-
-## Current limitations
-
-- Only the top identity per candidate list is retained per identity (one winning example each).
-- Alternative candidates beyond the configured limit are discarded.
-- The temporal decay curve's scale/floor are fixed constants, not owner-tunable.
+See [docs/specs/v1.0.0.md](specs/v1.0.0.md) section 8 for the full list of things classification
+deliberately doesn't claim.

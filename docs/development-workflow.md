@@ -1,50 +1,45 @@
-# Development Workflow
+# Development workflow
 
 ## Flow
 
-Idea
- -> Specification
- -> Ticket
- -> Implementation
- -> Tests
- -> Documentation Update
- -> Commit
- -> Release
+Idea → spec → ticket → implementation → tests → documentation update → commit → release
+
+## Before starting work
+
+- Check [docs/specs/](specs/) for a spec covering the change. Write one first if it affects
+  user-facing behavior, workflow, or cross-cutting architecture.
+- Check GitHub Issues for a matching ticket, or open one with the template that fits: "User
+  Story" (`.github/ISSUE_TEMPLATE/user_story.md`), "Bug Report"
+  (`.github/ISSUE_TEMPLATE/bug_report.md`), or "Feature Request"
+  (`.github/ISSUE_TEMPLATE/feature_request.md`) for an idea that isn't scoped yet.
+- Update [docs/status.md](status.md) if this changes the current milestone or priorities.
 
 ## Commits
 
-Prefer:
-- small focused commits
-- descriptive commit messages
-- one logical change per commit
+Small, focused, one logical change per commit:
 
-Examples:
+```text
 feat(review): add review queue statistics
 fix(api): handle missing crop image
-
-## Before starting work
-- Review the relevant spec in docs/specs/.
-- Review or create a ticket as a GitHub Issue, using the template that matches the work: "User
-  Story" (`.github/ISSUE_TEMPLATE/user_story.md`), "Bug Report"
-  (`.github/ISSUE_TEMPLATE/bug_report.md`), or "Feature Request"
-  (`.github/ISSUE_TEMPLATE/feature_request.md`) for an unscoped idea.
-- Update docs/status.md if the milestone or priorities change.
+```
 
 ## Testing
 
-Before commits:
-- uv run ruff check --fix .
-- uv run ruff format
-- uv run pytest -q
+Before committing:
 
-UI changes:
-- npm run build
-- npm run lint
+```bash
+uv run ruff check --fix .
+uv run ruff format
+uv run pytest -q
+```
+
+For UI changes:
+
+```bash
+npm run build
+npm run lint
+```
 
 ## Releases
 
-A release should have:
-- completed tickets
-- passing tests
-- updated documentation
-- release tag
+A release needs: its tickets completed, tests passing, documentation updated, and a release tag.
