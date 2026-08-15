@@ -86,6 +86,27 @@ def test_report_healthy_when_all_files_present(session, tmp_path):
     assert report.healthy
 
 
+def test_report_ignores_missing_original_for_detected_asset(session, tmp_path):
+    # Regression test for issue #93: detect deletes an asset's cached
+    # original once its crops exist, moving the asset to DETECTED. The
+    # health check must only require an original for DOWNLOADED assets --
+    # a DETECTED asset with no cached original is the expected, healthy
+    # end state, not a missing-download report.
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+
+    det = _make_detection(session, asset)
+    crop_path = tmp_path / "crop.jpg"
+    crop_path.touch()
+    _make_crop(session, det, str(crop_path))
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    report = svc.check()
+    assert report.healthy
+    assert report.missing_downloads == []
+
+
 def test_report_detects_missing_download(session, tmp_path):
     cache_dir = tmp_path / "cache"
     _make_asset(session)

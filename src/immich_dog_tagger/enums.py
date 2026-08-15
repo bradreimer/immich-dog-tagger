@@ -22,6 +22,10 @@ class AssetStatus(StrEnum):
     DETECTION_FAILED = "detection_failed"
     CLASSIFICATION_FAILED = "classification_failed"
 
+    # Terminal: detect can never process this file type (see is_supported_image),
+    # so download skips it rather than fetching bytes nothing will use.
+    UNSUPPORTED = "unsupported"
+
 
 class EmbeddingSources(StrEnum):
     BOOTSTRAP = "bootstrap"

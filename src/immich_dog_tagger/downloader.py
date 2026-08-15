@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .enums import AssetStatus
 from .immich import ImmichClient, ImmichDownloadError
+from .media import is_supported_extension
 from .models import Asset
 
 
@@ -43,6 +44,18 @@ class Downloader:
 
         for asset in assets:
             path = asset.cache_path(self.cache_dir)
+
+            if not is_supported_extension(asset.extension):
+                # detect can never process this file type, so downloading
+                # it would just waste space -- covers both a freshly
+                # scanned asset and (via force) an already-downloaded one
+                # from before this check existed.
+                asset.status = AssetStatus.UNSUPPORTED
+
+                if path.exists():
+                    path.unlink()
+
+                continue
 
             try:
                 data = self.client.download_asset(asset.immich_asset_id)
