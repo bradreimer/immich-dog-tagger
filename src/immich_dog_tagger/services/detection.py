@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from immich_dog_tagger.detector import ObjectDetector
 from immich_dog_tagger.enums import AssetStatus, Species
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import Asset, Crop, Detection
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -87,18 +90,33 @@ class DetectionService:
 
                 self.session.flush()
 
-            detections = self.detector.detect(str(image_path))
+            try:
+                detections = self.detector.detect(str(image_path))
 
-            crop_map: dict[int, Path] = {}
+                crop_map: dict[int, Path] = {}
 
-            if self.crop_writer:
-                crop_results = self.crop_writer.write(
-                    image_path,
+                if self.crop_writer:
+                    crop_results = self.crop_writer.write(
+                        image_path,
+                        asset.immich_asset_id,
+                        detections,
+                    )
+
+                    crop_map = dict(crop_results)
+            except Exception as exc:
+                # A bare exception message (e.g. a Pillow decoding error)
+                # gives no way to tell which asset caused it without
+                # reproducing the failure -- fold that context into both
+                # the log (with a traceback) and the re-raised message, so
+                # it also reaches the job's error_message shown in the UI.
+                logger.exception(
+                    "Detection failed for asset %s (%s)",
                     asset.immich_asset_id,
-                    detections,
+                    image_path,
                 )
-
-                crop_map = dict(crop_results)
+                raise RuntimeError(
+                    f"{exc} (asset={asset.immich_asset_id}, image={image_path})"
+                ) from exc
 
             for index, detection in enumerate(detections):
                 detection_count += 1

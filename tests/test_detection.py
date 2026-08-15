@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.detector import DetectionResult
@@ -342,3 +343,41 @@ def test_detection_force_replaces_existing_crop(
 
         assert len(crops) == 1
         assert crops[0].path != str(old_crop)
+
+
+def test_detection_failure_is_enriched_with_asset_context(
+    engine,
+    tmp_path,
+    caplog,
+):
+    # Regression test for issue #88: a bare exception message (e.g. a
+    # Pillow error) gives no way to tell which asset caused a pipeline job
+    # failure without reproducing it. The service should fold the asset id
+    # and image path into the raised error and log a traceback.
+    class FailingCropWriter:
+        def write(self, image_path, asset_id, detections):
+            raise ValueError("boom")
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="broken-asset",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+            crop_writer=FailingCropWriter(),
+        )
+
+        with caplog.at_level("ERROR"), pytest.raises(RuntimeError) as excinfo:
+            service.run()
+
+        assert "boom" in str(excinfo.value)
+        assert "broken-asset" in str(excinfo.value)
+        assert "Detection failed for asset broken-asset" in caplog.text

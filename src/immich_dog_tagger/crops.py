@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 
 from PIL import Image
 
 from .enums import Species
+
+logger = logging.getLogger(__name__)
 
 _DETECTABLE_LABELS = {species.value for species in Species}
 
@@ -38,6 +41,32 @@ class CropWriter:
             if detection.label not in _DETECTABLE_LABELS:
                 continue
 
+            if (
+                detection.x1 < 0
+                or detection.y1 < 0
+                or detection.x2 > width
+                or detection.y2 > height
+            ):
+                # Detector output is external, untrusted input -- a
+                # mismatch between the detector's and Pillow's view of the
+                # image's dimensions has previously produced coordinates
+                # outside the actual image (see issue #88). Logging this
+                # makes a recurrence diagnosable without reproducing it.
+                logger.warning(
+                    "Detection box outside image bounds: asset=%s image=%s "
+                    "size=%dx%d label=%s confidence=%.3f box=(%d, %d, %d, %d)",
+                    asset_id,
+                    image_path,
+                    width,
+                    height,
+                    detection.label,
+                    detection.confidence,
+                    detection.x1,
+                    detection.y1,
+                    detection.x2,
+                    detection.y2,
+                )
+
             box = self._expand_box(
                 detection.x1,
                 detection.y1,
@@ -46,6 +75,15 @@ class CropWriter:
                 width,
                 height,
             )
+
+            if box[2] <= box[0] or box[3] <= box[1]:
+                logger.warning(
+                    "Skipping degenerate crop: asset=%s image=%s box=%s",
+                    asset_id,
+                    image_path,
+                    box,
+                )
+                continue
 
             crop = image.crop(box)
 
@@ -66,6 +104,13 @@ class CropWriter:
         width: int,
         height: int,
     ) -> tuple[int, int, int, int]:
+
+        # Clamp into image bounds (and sort, in case the raw box is
+        # already inverted) before padding, so the padded box below can
+        # never end up with its lower/right edge past its upper/left edge
+        # -- Image.crop() raises ValueError when that happens.
+        x1, x2 = (max(0, min(v, width)) for v in sorted((x1, x2)))
+        y1, y2 = (max(0, min(v, height)) for v in sorted((y1, y2)))
 
         box_width = x2 - x1
         box_height = y2 - y1
