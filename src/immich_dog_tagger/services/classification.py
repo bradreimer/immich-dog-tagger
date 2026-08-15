@@ -19,6 +19,7 @@ from immich_dog_tagger.models import (
 )
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
+from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class ClassificationService:
         self.embedder = embedder
         self.classifier = classifier
         self.policy = policy
+        self.occurrences = PetOccurrenceService(session)
 
     def classify(
         self,
@@ -153,6 +155,8 @@ class ClassificationService:
             )
 
             self.session.add(classification)
+
+        self.occurrences.sync_classification(classification)
 
         return classification
 

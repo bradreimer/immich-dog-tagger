@@ -13,6 +13,7 @@ from immich_dog_tagger.models import (
     ReviewAction,
 )
 from immich_dog_tagger.services.learner import Learner
+from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,8 @@ class ClassificationCorrectionService:
         classification.identity = identity
         classification.confidence = 1.0
         classification.source = ClassificationSources.REVIEW
+
+        PetOccurrenceService(self.session).sync_classification(classification)
 
         if self.learner is not None:
             crop_path = Path(classification.crop.path)

@@ -39,6 +39,7 @@ from immich_dog_tagger.policy import (
     ClassificationDecision,
     ClassifierPolicy,
 )
+from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 from immich_dog_tagger.services.review_query import ReviewQueryService
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ class ReclassifyService:
         self.embedder = embedder
         self.policy = policy
         self.batch_size = batch_size
+        self.occurrences = PetOccurrenceService(session)
 
     def reclassify(self, progress=None, job_id: int | None = None) -> ReclassifyResult:
         classification_pass = ClassificationPass(
@@ -265,6 +267,8 @@ class ReclassifyService:
                     needs_review += 1
                 else:
                     unknown += 1
+
+                self.occurrences.sync_classification(classification)
 
             processed += len(classifications)
 
