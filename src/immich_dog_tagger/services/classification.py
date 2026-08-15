@@ -123,7 +123,7 @@ class ClassificationService:
                 "identity": candidate.identity,
                 "similarity": candidate.similarity,
                 "matched_example_id": candidate.matched_example_id,
-                "date_conflict": candidate.date_conflict,
+                "temporal_weight": candidate.temporal_weight,
             }
             for candidate in result.candidates
         ]

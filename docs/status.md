@@ -62,7 +62,7 @@
   optional owner-set active date range (`Identity.active_from`/`active_until`, editable from the
   Dogs & Cats page via a new `set_active_range`/`PUT /dogs/{id}/active-range`), surfaced as a new
   `date-conflict` review/library reason; fails open with zero behavior change for crops with no
-  capture date or identities with no range set
+  capture date or identities with no range set (**superseded by v1.5, see below**)
 - DT-1116 fixed [GitHub issue #12](https://github.com/bradreimer/immich-dog-tagger/issues/12):
   "Clear list" in Job Queue > History only cleared frontend state, so a refresh brought every job
   straight back -- `PipelineJob` gained a `visible` flag, `POST /jobs/clear-history` hides
@@ -84,17 +84,26 @@
 
 - #83 Settings tab showing the configured Immich URL and scanned-image count (read-only;
   `GET /api/settings` never returns `immich_api_key`)
+- #91 v1.5.0 automatic temporal-recency classification: removed DT-1114's manual owner-set
+  `Identity.active_from`/`active_until` range entirely (schema, API, Dogs & Cats page UI) and
+  replaced it with continuous per-example weighting -- `SimilarityScorer` scores each candidate
+  example by how closely its own `captured_at` aligns with the photo being classified (Gaussian
+  decay, ~1 year scale, fail-open on a missing date, floor so a lone identity's old examples still
+  win with nothing closer-in-time to compete against), and `IdentityClassifier` ranks/selects by
+  that weighted score while still reporting each winning match's true, unweighted cosine
+  similarity as confidence. The `date-conflict` review/library reason is now `temporal-mismatch`.
+  See [docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md)
+  and [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
 
 ## Current Milestone
-v1.4.0 Trustworthy Photo Library -- released (DT-1111 through DT-1114). See
-[docs/specs/v1.4-trustworthy-photo-library.md](specs/v1.4-trustworthy-photo-library.md).
+v1.5.0 Automatic Temporal Classification -- released (#91). See
+[docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md).
 
 ## Next Work
 No queued numbered milestone. Candidates: improved reference-example selection, reference-set
 curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
-or the spec's own open questions (library as default landing page, hard-excluding vs. flagging a
-date conflict once there's real usage data, auto-suggesting an identity's active range from its
-reviewed examples' capture dates).
+or v1.5's own open questions (owner-tunable decay scale/floor, reporting how many reclassified
+items changed identity specifically due to temporal weighting).
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

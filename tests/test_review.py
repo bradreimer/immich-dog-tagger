@@ -1019,11 +1019,11 @@ def test_review_query_sets_reason_for_unknown(engine):
         assert result[0].reason == "unknown"
 
 
-def test_review_query_reason_date_conflict_takes_precedence_in_queue(engine):
-    """DT-1114: date-conflict is checked before candidate-conflict, so an
-    item with both gets the more specific, more actionable reason."""
+def test_review_query_reason_temporal_mismatch_takes_precedence_in_queue(engine):
+    """v1.5/ADR-003: temporal-mismatch is checked before candidate-conflict,
+    so an item with both gets the more specific, more actionable reason."""
     with Session(engine) as session:
-        crop = Crop(detection_id=1, path="date-conflict.jpg")
+        crop = Crop(detection_id=1, path="temporal-mismatch.jpg")
         session.add(crop)
         session.flush()
 
@@ -1035,7 +1035,7 @@ def test_review_query_reason_date_conflict_takes_precedence_in_queue(engine):
                 {
                     "identity": "Fibs",
                     "similarity": 0.50,
-                    "date_conflict": True,
+                    "temporal_weight": 0.2,
                 }
             ],
         )
@@ -1046,16 +1046,16 @@ def test_review_query_reason_date_conflict_takes_precedence_in_queue(engine):
         results = ReviewQueryService(session).active_review()
 
         assert len(results) == 1
-        assert results[0].reason == "date-conflict"
+        assert results[0].reason == "temporal-mismatch"
 
 
-def test_review_query_reason_date_conflict_surfaces_even_when_confident(engine):
-    """A date-conflicted match that would otherwise be confidently accepted
+def test_review_query_reason_temporal_mismatch_surfaces_even_when_confident(engine):
+    """A temporally weak match that would otherwise be confidently accepted
     -- and so never appear in the default review queue at all -- must still
-    be labeled as a date conflict wherever it *is* shown (e.g. the library),
-    rather than looking like an ordinary unflagged confident match."""
+    be labeled wherever it *is* shown (e.g. the library), rather than
+    looking like an ordinary unflagged confident match."""
     with Session(engine) as session:
-        crop = Crop(detection_id=1, path="confident-date-conflict.jpg")
+        crop = Crop(detection_id=1, path="confident-temporal-mismatch.jpg")
         session.add(crop)
         session.flush()
 
@@ -1067,7 +1067,7 @@ def test_review_query_reason_date_conflict_surfaces_even_when_confident(engine):
                 {
                     "identity": "Fibs",
                     "similarity": 0.95,
-                    "date_conflict": True,
+                    "temporal_weight": 0.2,
                 }
             ],
         )
@@ -1083,7 +1083,7 @@ def test_review_query_reason_date_conflict_surfaces_even_when_confident(engine):
         results = ReviewQueryService(session).classifications()
 
         assert len(results) == 1
-        assert results[0].reason == "date-conflict"
+        assert results[0].reason == "temporal-mismatch"
 
 
 def test_review_query_active_review_reason_unknown(engine):

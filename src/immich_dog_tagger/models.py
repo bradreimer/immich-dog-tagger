@@ -64,21 +64,6 @@ class Identity(Base):
         server_default="1",
     )
 
-    # Optional owner-set active date range (DT-1114) -- when set, a
-    # candidate match whose crop's capture date falls outside
-    # [active_from, active_until] is flagged as a date conflict rather than
-    # silently accepted. Both null (the default for every existing
-    # identity) means "no date signal available"; never penalize that.
-    active_from: Mapped[datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
-
-    active_until: Mapped[datetime | None] = mapped_column(
-        DateTime,
-        nullable=True,
-    )
-
     embeddings: Mapped[list[EmbeddingExample]] = relationship(
         back_populates="identity",
         cascade="all, delete-orphan",

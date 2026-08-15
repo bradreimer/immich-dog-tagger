@@ -20,11 +20,17 @@ class ClassificationCandidate:
     identity: str
     similarity: float
     matched_example_id: int
-    # DT-1114: True when the crop's capture date falls outside this
-    # candidate identity's known active date range -- a signal surfaced
+    # v1.5/ADR-003: how well this example's capture date aligns with the
+    # photo being classified, in [scoring.TEMPORAL_FLOOR, 1.0]. Surfaced
     # alongside the match, never folded into `similarity` (which stays a
-    # raw, uncalibrated embedding score; see v1.0.0.md section 8).
-    date_conflict: bool = False
+    # raw, uncalibrated embedding score; see v1.0.0.md section 8) -- it
+    # only influences which example/identity wins ranking (see
+    # `weighted_score`), not the reported confidence number.
+    temporal_weight: float = 1.0
+
+    @property
+    def weighted_score(self) -> float:
+        return self.similarity * self.temporal_weight
 
 
 @dataclass(frozen=True)
@@ -76,24 +82,26 @@ class IdentityClassifier:
 
             score = self.scorer.score(
                 similarity,
+                query_captured_at=captured_at,
+                example_captured_at=example.captured_at,
             )
 
             candidate = ClassificationCandidate(
                 identity=example.identity.name,
                 similarity=score.similarity,
                 matched_example_id=example.id,
-                date_conflict=self._date_conflict(captured_at, example.identity),
+                temporal_weight=score.temporal_weight,
             )
 
             existing = identity_scores.get(candidate.identity)
 
-            if existing is None or candidate.similarity > existing.similarity:
+            if existing is None or candidate.weighted_score > existing.weighted_score:
                 identity_scores[candidate.identity] = candidate
 
         candidates = list(identity_scores.values())
 
         candidates.sort(
-            key=lambda candidate: candidate.similarity,
+            key=lambda candidate: candidate.weighted_score,
             reverse=True,
         )
 
@@ -123,27 +131,6 @@ class IdentityClassifier:
             matched_example_id=best.matched_example_id,
             candidates=top_candidates,
         )
-
-    def _date_conflict(
-        self,
-        captured_at: datetime | None,
-        identity: Identity,
-    ) -> bool:
-        """
-        Fail-open by design: no crop capture date, or an identity with
-        neither bound set, means "no date signal available" -- never treat
-        that as suspicious. Either bound alone is unbounded on that side.
-        """
-        if captured_at is None:
-            return False
-
-        if identity.active_from is None and identity.active_until is None:
-            return False
-
-        if identity.active_from is not None and captured_at < identity.active_from:
-            return True
-
-        return identity.active_until is not None and captured_at > identity.active_until
 
     def _cosine_similarity(
         self,

@@ -5,6 +5,4 @@ export interface Dog {
   name: string;
   species: Species;
   active: boolean;
-  active_from: string | null;
-  active_until: string | null;
 }

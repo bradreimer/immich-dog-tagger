@@ -93,8 +93,23 @@ For a production-style deployment with Docker and Traefik, see:
 Current release:
 
 ```
-v1.4.0
+v1.5.0
 ```
+
+Release v1.5.0 replaces v1.4.0's manually maintained per-identity active date range with automatic
+temporal-recency classification, described in
+[docs/specs/v1.5-automatic-temporal-classification.md](docs/specs/v1.5-automatic-temporal-classification.md):
+
+* No more owner-configured `active_from`/`active_until` per identity -- removed entirely (schema,
+  API, Dogs & Cats page UI)
+* Each candidate match is weighted by how closely its own reference example's capture date aligns
+  with the photo being classified (Gaussian decay, ~1 year scale, fails open when a date is
+  missing on either side, floors out rather than reaching zero), anchored to the photo's own date
+  rather than wall-clock time -- so an aging pet's changing look, a pet that has passed away, and
+  a new visually similar pet are all told apart automatically
+* The winning match's reported confidence stays its true, unweighted cosine similarity -- the
+  temporal signal decides which identity wins, never the confidence number shown
+* The `date-conflict` review/library reason is now `temporal-mismatch`
 
 Release v1.4.0 shifts the primary mental model from "process a review queue" to "maintain a
 trustworthy, searchable library of tagged photos," described in
@@ -110,7 +125,7 @@ trustworthy, searchable library of tagged photos," described in
   album instead of leaving it in both
 * An optional owner-set active date range per identity (Dogs & Cats page): a candidate match whose
   photo falls outside it is flagged as a `date-conflict`, never silently accepted -- and never
-  penalized when date evidence is missing on either side
+  penalized when date evidence is missing on either side (**superseded by v1.5.0, above**)
 
 Release v1.3.0 extends detection, classification, review, and sync to cats alongside dogs,
 described in [DT-1110: Add cat support alongside dogs](https://github.com/bradreimer/immich-dog-tagger/issues/66):
@@ -213,7 +228,8 @@ Completed:
 * Dedicated Metrics tab with per-pass labeled-example/review-queue snapshots and a prominent automation-rate metric
 * One consistent visual identity: sidebar navigation shell, blue action accent, validated status/categorical palette, and a reusable stat-tile/chart pattern across all pages
 * Cat support alongside dogs: species-scoped identities, crops, and classification; one unified review queue and correction UI for both species; species-aware Immich album naming
-* Trustworthy Photo Library: photo capture dates throughout, a searchable/filterable Library of every classified photo, library-side corrections with correct Immich album cleanup on sync, and date-aware classification flagging via an optional owner-set active range per identity
+* Trustworthy Photo Library: photo capture dates throughout, a searchable/filterable Library of every classified photo, library-side corrections with correct Immich album cleanup on sync
+* Automatic temporal-recency classification: candidate matches weighted by how closely a reference example's own capture date aligns with the photo being classified, replacing a manually maintained per-identity active date range entirely
 
 ---
 

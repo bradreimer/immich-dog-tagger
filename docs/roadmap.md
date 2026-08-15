@@ -157,10 +157,37 @@ Completed:
   identity's Immich album, only added it to the new one
 - DT-1114: flag (not silently accept) a classification whose photo date falls outside a
   candidate identity's known active date range, via an optional owner-set active range per
-  identity (Dogs & Cats page) and a new `date-conflict` review/library reason
+  identity (Dogs & Cats page) and a new `date-conflict` review/library reason (**superseded by
+  v1.5.0**, below)
 
 Explicitly not planned (see spec Non-goals): review queue removal, undo/redo for classification
 actions.
+
+Exit criteria:
+Completed.
+
+## v1.5.0 - Automatic Temporal Classification
+
+See [docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md)
+and [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
+
+Goal:
+Replace DT-1114's manually maintained per-identity active date range with automatic, continuous
+recency weighting derived entirely from existing photo evidence -- so an aging pet's changing
+appearance, a pet passing away, and a new visually similar pet arriving are all handled without
+the owner configuring anything.
+
+Completed:
+- #91: removed `Identity.active_from`/`active_until` (schema, migration, API, Dogs & Cats page
+  UI) entirely; `SimilarityScorer` now weights each candidate example by how closely its own
+  capture date aligns with the photo being classified, and `IdentityClassifier` ranks/selects
+  using that weighted score while continuing to report each winning match's raw, unweighted
+  cosine similarity as confidence; the `date-conflict` review/library reason is now
+  `temporal-mismatch`.
+
+Explicitly not planned (see spec Non-goals): date-of-birth/date-of-death inference, an
+owner-facing setting to tune the decay curve, retroactive recomputation of existing
+classifications outside the normal Reclassify flow.
 
 Exit criteria:
 Completed.

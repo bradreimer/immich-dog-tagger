@@ -42,6 +42,13 @@ from immich_dog_tagger.policy import (
     ClassifierPolicy,
 )
 
+# v1.5/ADR-003: below this, a match's example is far enough out of alignment
+# with the photo's own capture date (roughly beyond a year and a half, given
+# scoring.TEMPORAL_SIGMA_DAYS/TEMPORAL_FLOOR) that it's worth surfacing to
+# the owner as a reason to double check, rather than presenting it as a
+# routine match.
+_TEMPORAL_MISMATCH_THRESHOLD = 0.5
+
 
 @dataclass(frozen=True)
 class ReviewPrediction:
@@ -420,9 +427,10 @@ class ReviewQueryService:
                     "matched_example_id",
                     -1,
                 ),
-                # Absent on candidates stored before DT-1114 -- read as "no
-                # conflict", the same fail-open default the field itself has.
-                date_conflict=candidate.get("date_conflict", False),
+                # Absent on candidates stored before v1.5/ADR-003 (or under
+                # the old date_conflict key) -- read as full alignment, the
+                # same fail-open default the field itself has.
+                temporal_weight=candidate.get("temporal_weight", 1.0),
             )
             for candidate in classification.candidates
         ]
@@ -502,12 +510,16 @@ class ReviewQueryService:
         # The top candidate is always classification.candidates[0] (see
         # IdentityClassifier.classify()'s sort-then-slice), and is the
         # accepted identity whenever one was accepted -- so this single
-        # check covers both "the accepted identity has a date conflict" and
-        # "the top candidate does" (DT-1114).
-        if classification.candidates and classification.candidates[0].get(
-            "date_conflict", False
+        # check covers both "the accepted identity's match is temporally
+        # weak" and "the top candidate's is" (v1.5/ADR-003). A weight of 1.0
+        # -- whether the dates aligned or a date was simply missing -- never
+        # triggers this, preserving the fail-open guarantee.
+        if (
+            classification.candidates
+            and classification.candidates[0].get("temporal_weight", 1.0)
+            < _TEMPORAL_MISMATCH_THRESHOLD
         ):
-            return "date-conflict"
+            return "temporal-mismatch"
 
         if classification.candidates:
             return "candidate-conflict"

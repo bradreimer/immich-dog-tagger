@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from immich_dog_tagger.api.dependencies import get_dog_service
 from immich_dog_tagger.api.schemas import (
-    DogActiveRangeRequest,
     DogCreateRequest,
     DogResponse,
     DogUpdateRequest,
@@ -57,28 +56,6 @@ def update_dog(
 ):
     try:
         return DogResponse.from_identity(service.rename_dog(dog_id, request.name))
-    except ValueError as exc:
-        status_code = 404 if "not found" in str(exc).lower() else 400
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-
-
-@router.put(
-    "/{dog_id}/active-range",
-    response_model=DogResponse,
-)
-def update_dog_active_range(
-    dog_id: int,
-    request: DogActiveRangeRequest,
-    service: Annotated[DogService, Depends(get_dog_service)],
-):
-    try:
-        return DogResponse.from_identity(
-            service.set_active_range(
-                dog_id,
-                request.active_from,
-                request.active_until,
-            )
-        )
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc).lower() else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
