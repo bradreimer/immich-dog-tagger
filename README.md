@@ -2,7 +2,7 @@
 
 **Individual pet recognition for Immich.**
 
-Immich can already tell you a photo contains a dog. It can't tell you it's *Rex*. This project
+Immich can already tell you a photo contains a dog. It can't tell you it's *Hermann*. This project
 adds that layer: it finds each animal in your [Immich](https://immich.app/) photo library, learns
 to tell individual pets apart from corrections you make in a review UI, and syncs the results back
 to Immich as albums — one per pet.
@@ -12,7 +12,7 @@ only through the API, and never touches Immich's own database. Everything it lea
 own local `state.db` — that file, not Immich, is the source of truth for every identity and every
 review decision. No photo or image data ever leaves your machine.
 
-Dogs and cats are supported today. The identity model isn't dog-specific — "Rex" and "Whiskers"
+Dogs and cats are supported today. The identity model isn't dog-specific — "Hermann" and "Rory"
 below are just examples, you name your own pets — and the project is built toward any
 individually-recognizable pet, not a fixed species list.
 
@@ -35,8 +35,8 @@ detect → classify → review → correct → learn → sync
 4. **Correct.** Wrong guesses get fixed with one click or keypress.
 5. **Learn.** Every correction becomes a new reference example. Future guesses get better because
    there are more examples to compare against — no retraining, no model weights change.
-6. **Sync.** Confirmed identities are published back to Immich as albums (`Dog - Rex`,
-   `Cat - Whiskers`, ...).
+6. **Sync.** Confirmed identities are published back to Immich as albums (`Dog - Hermann`,
+   `Cat - Rory`, ...).
 
 Run the loop, review a batch, hit Reclassify to re-score everything else against what you just
 taught it, repeat. The more you review, the less you need to.
