@@ -12,6 +12,7 @@ from immich_dog_tagger.api.routes import (
     dogs,
     embedding_examples,
     health,
+    insights,
     jobs,
     library,
     metrics,
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Immich Dog Tagger API",
-        version="1.4.0",
+        version="1.6.0",
         lifespan=lifespan,
     )
 
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(dogs.router)
     app.include_router(embedding_examples.router)
     app.include_router(health.router)
+    app.include_router(insights.router)
     app.include_router(jobs.router)
     app.include_router(library.router)
     app.include_router(metrics.router)

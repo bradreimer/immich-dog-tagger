@@ -360,3 +360,91 @@ class JobResponse(BaseModel):
 class SettingsResponse(BaseModel):
     immich_url: str
     scanned_image_count: int
+
+
+class PlaceCountResponse(BaseModel):
+    label: str
+    city: str | None
+    state: str | None
+    country: str | None
+    count: int
+
+    @classmethod
+    def from_place_count(cls, place):
+        return cls(
+            label=place.label,
+            city=place.city,
+            state=place.state,
+            country=place.country,
+            count=place.count,
+        )
+
+
+class PersonCountResponse(BaseModel):
+    label: str
+    person_id: str
+    name: str | None
+    count: int
+
+    @classmethod
+    def from_person_count(cls, person):
+        return cls(
+            label=person.label,
+            person_id=person.person_id,
+            name=person.name,
+            count=person.count,
+        )
+
+
+class TimelineEntryResponse(BaseModel):
+    asset_id: int
+    immich_asset_id: str
+    captured_at: datetime | None
+    city: str | None
+    state: str | None
+    country: str | None
+    confidence: float
+    source: str
+
+    @classmethod
+    def from_timeline_entry(cls, entry):
+        return cls(
+            asset_id=entry.asset_id,
+            immich_asset_id=entry.immich_asset_id,
+            captured_at=entry.captured_at,
+            city=entry.city,
+            state=entry.state,
+            country=entry.country,
+            confidence=entry.confidence,
+            source=entry.source,
+        )
+
+
+class InsightsSummaryResponse(BaseModel):
+    identity_id: int
+    identity_name: str
+    total_photos: int
+    first_seen: datetime | None
+    last_seen: datetime | None
+    photos_by_year: dict[int, int]
+    top_place: PlaceCountResponse | None
+    top_person: PersonCountResponse | None
+    favorite_photo_count: int
+
+    @classmethod
+    def from_summary(cls, summary):
+        return cls(
+            identity_id=summary.identity_id,
+            identity_name=summary.identity_name,
+            total_photos=summary.total_photos,
+            first_seen=summary.first_seen,
+            last_seen=summary.last_seen,
+            photos_by_year=summary.photos_by_year,
+            top_place=PlaceCountResponse.from_place_count(summary.top_place)
+            if summary.top_place
+            else None,
+            top_person=PersonCountResponse.from_person_count(summary.top_person)
+            if summary.top_person
+            else None,
+            favorite_photo_count=summary.favorite_photo_count,
+        )

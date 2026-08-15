@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { AppShell } from "./components/layout/AppShell";
+import { DogInsightsPage } from "./features/dogs/DogInsightsPage";
 import { DogsPage } from "./features/dogs/DogsPage";
 import { JobQueuePage } from "./features/jobs/JobQueuePage";
 import { LibraryPage } from "./features/library/LibraryPage";
@@ -37,8 +38,18 @@ function App() {
       return <ReviewPage />;
     }
 
+    const dogInsightsMatch = pathname.match(/^\/dogs\/(\d+)\/insights$/);
+    if (dogInsightsMatch) {
+      return (
+        <DogInsightsPage
+          dogId={Number(dogInsightsMatch[1])}
+          onNavigate={navigate}
+        />
+      );
+    }
+
     if (pathname === "/dogs") {
-      return <DogsPage />;
+      return <DogsPage onNavigate={navigate} />;
     }
 
     if (pathname === "/library") {

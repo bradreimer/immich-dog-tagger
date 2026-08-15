@@ -37,6 +37,17 @@ class ImmichRemoveAssetsFromAlbumError(Exception):
 
 
 @dataclass(frozen=True)
+class ImmichPerson:
+    """
+    A person Immich recognized in an asset (issue #94) -- a read-only
+    reference to Immich's own recognition, never Dog Tagger's own.
+    """
+
+    id: str
+    name: str | None
+
+
+@dataclass(frozen=True)
 class ImmichAsset:
     """
     Minimal representation of an Immich asset.
@@ -46,6 +57,17 @@ class ImmichAsset:
     filename: str
     checksum: str | None
     captured_at: datetime | None = None
+
+    # Cached from exifInfo/people/isFavorite in the same /api/search/metadata
+    # response (issue #94) -- no extra Immich API call. None/[] when Immich
+    # has no location/people data for this asset, not "not yet known".
+    latitude: float | None = None
+    longitude: float | None = None
+    country: str | None = None
+    state: str | None = None
+    city: str | None = None
+    is_favorite: bool = False
+    people: tuple[ImmichPerson, ...] = ()
 
     @property
     def extension(self) -> str:
@@ -57,6 +79,47 @@ def parse_immich_datetime(value: str | None) -> datetime | None:
         return None
 
     return datetime.fromisoformat(value)
+
+
+def _parse_immich_asset(item: dict) -> ImmichAsset:
+    """
+    Build an ImmichAsset from one /api/search/metadata result item,
+    including the exifInfo/people/isFavorite fields issue #94 needs for
+    insights. Every field is read with .get() -- an Immich response that
+    omits exifInfo or people (e.g. an older server version, or a photo with
+    no EXIF) yields None/[]/False rather than a parse error, matching how
+    checksum/originalFileName are already read defensively above.
+    """
+
+    exif = item.get("exifInfo") or {}
+
+    people = tuple(
+        ImmichPerson(
+            id=person["id"],
+            name=person.get("name") or None,
+        )
+        for person in item.get("people") or []
+        if person.get("id")
+    )
+
+    return ImmichAsset(
+        id=item["id"],
+        filename=item.get(
+            "originalFileName",
+            "",
+        ),
+        checksum=item.get(
+            "checksum",
+        ),
+        captured_at=parse_immich_datetime(item.get("fileCreatedAt")),
+        latitude=exif.get("latitude"),
+        longitude=exif.get("longitude"),
+        country=exif.get("country"),
+        state=exif.get("state"),
+        city=exif.get("city"),
+        is_favorite=bool(item.get("isFavorite", False)),
+        people=people,
+    )
 
 
 class ImmichClient:
@@ -108,20 +171,7 @@ class ImmichClient:
 
             result = response.json()["assets"]
 
-            assets.extend(
-                ImmichAsset(
-                    id=item["id"],
-                    filename=item.get(
-                        "originalFileName",
-                        "",
-                    ),
-                    checksum=item.get(
-                        "checksum",
-                    ),
-                    captured_at=parse_immich_datetime(item.get("fileCreatedAt")),
-                )
-                for item in result["items"]
-            )
+            assets.extend(_parse_immich_asset(item) for item in result["items"])
 
             next_page = result.get("nextPage")
             page = int(next_page) if next_page else None

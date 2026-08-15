@@ -192,6 +192,33 @@ classifications outside the normal Reclassify flow.
 Exit criteria:
 Completed.
 
+## v1.6.0 - Pet Insights
+
+See [docs/specs/v1.6-pet-insights.md](specs/v1.6-pet-insights.md) and
+[ADR-004](adr/ADR-004-pet-occurrence-observations.md).
+
+Goal:
+A read-only "fun layer" on top of confirmed pet identifications, combining existing
+`Identity`/`CropClassification` data with metadata Immich already computes per photo (capture
+time, GPS/location, recognized people) -- without turning the project into a general-purpose
+photo analytics tool, and without storing conclusions ("favorite human," "favorite place") as
+data. Tracking issue: [#94](https://github.com/bradreimer/immich-dog-tagger/issues/94).
+
+Completed:
+- #94: new `PetOccurrence` fact table, materialized as a side effect of AUTO
+  classification/review correction/reclassification settling an identity for a crop; `Asset`
+  gained cached location/people/favorite fields sourced from the same Immich response the
+  scanner already fetches; `InsightsService` computes summary/timeline/places/people at read
+  time; read-only `GET /api/dogs/{id}/insights/*` endpoints; a per-dog Insights page in the UI;
+  `immich-dog-tagger backfill-occurrences` for existing libraries.
+
+Explicitly not planned this iteration (see spec Non-goals): Best Friends (pet-to-pet
+co-occurrence), On This Day, a Pet World Tour map, Milestones, any personality inference, AI
+slideshows, writing conclusions back to Immich, or a precomputed insights cache.
+
+Exit criteria:
+Completed.
+
 ## Active Learning Improvements
 
 Goal:
