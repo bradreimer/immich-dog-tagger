@@ -161,6 +161,11 @@ use on the maintainer's own library. Before you rely on it, know a few things:
 See [docs/status.md](docs/status.md) for current known issues and what's actively in progress,
 and [docs/roadmap.md](docs/roadmap.md) for release history. Recent releases:
 
+- **v1.6.0 — Pet Insights.** A read-only "fun layer" on top of confirmed identifications: each
+  dog/cat gets a per-identity Insights page with photo counts, date range, most-common places,
+  and who they're most often photographed with — all derived at read time from existing
+  classification history and metadata Immich already computes, never stored as a conclusion.
+  Details: [docs/specs/v1.6-pet-insights.md](docs/specs/v1.6-pet-insights.md).
 - **v1.5.0 — Automatic temporal-recency classification.** Replaces v1.4's owner-configured
   per-identity active date range with automatic weighting: each candidate match is scored by how
   closely its own reference photo's capture date aligns with the photo being classified, so an
