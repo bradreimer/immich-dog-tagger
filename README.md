@@ -11,6 +11,71 @@ and angles, tagging them by hand doesn't scale. This project detects each animal
 confirm or correct its first guesses, and gets better at recognizing that animal every time you
 do. Everything runs on your own machine — no photo ever leaves it.
 
+## Screenshots
+
+| Review | Library | Overview |
+|---|---|---|
+| ![Review UI](docs/images/review-ui.png) | ![Library UI](docs/images/library-ui.png) | ![Overview UI](docs/images/overview-ui.png) |
+
+The review workspace has keyboard shortcuts for fast correction (one key per identity, plus
+`u` for Unknown), a queue filterable by unknown/low-confidence/candidate-conflict, and shows each
+match's ranked candidates, similarity score, and the photo's own capture date.
+
+## Quick start
+
+Requirements: Python 3.14+, [`uv`](https://docs.astral.sh/uv/), Node.js/npm, and a running Immich
+instance with an API key. See [Requirements](#requirements) for hardware notes.
+
+1. **Bootstrap dependencies.**
+
+   ```bash
+   ./scripts/bootstrap.sh
+   ```
+
+2. **Configure your Immich connection.** Copy `.env.example` to `.env` and fill in `IMMICH_URL`
+   and `IMMICH_API_KEY`.
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Run the pipeline once.** This scans your library, downloads new photos, detects dogs/cats,
+   and classifies each one.
+
+   ```bash
+   immich-dog-tagger scan
+   immich-dog-tagger download
+   immich-dog-tagger detect
+   immich-dog-tagger classify
+   ```
+
+   Expect almost everything to come back Unknown on this first run — there are no reference
+   examples yet. That's normal, not a bug.
+
+4. **Start the backend, then the frontend** (two terminals):
+
+   ```bash
+   uv run uvicorn immich_dog_tagger.api.app:app --reload
+   ```
+
+   ```bash
+   cd ui && npm install && npm run dev
+   ```
+
+5. **Review.** Open `http://localhost:5173`, correct a batch of predictions (50-100 is a
+   reasonable starting point), then click **Reclassify** in Overview to apply what you've
+   learned to everything else. Repeat until the review queue is mostly gone.
+
+6. **Publish to Immich** once you're happy with a batch of identities:
+
+   ```bash
+   immich-dog-tagger sync
+   ```
+
+For the full walkthrough — how many photos to review first, what "confident," "needs review," and
+"unknown" mean, and how to back up `state.db` — see [docs/workflow.md](docs/workflow.md). For a
+Docker + Traefik production setup, see [docs/deployment.md](docs/deployment.md).
+
 ## How it works
 
 ```
@@ -31,65 +96,6 @@ Immich → Scanner → Downloader → YOLO Detection → Crop Generation → Ope
 `state.db`, a local SQLite database, is the source of truth for everything the system knows.
 Immich is a photo source and a place to publish results — never the other way around. See
 [ADR-001](docs/adr/ADR-001-state-database-source-of-truth.md) for why.
-
-## Quick start
-
-Bootstrap Python and UI dependencies on a fresh machine:
-
-```bash
-./scripts/bootstrap.sh
-```
-
-Copy `.env.example` to `.env` and fill in your Immich URL and API key:
-
-```bash
-cp .env.example .env
-```
-
-Run the pipeline once to scan, download, detect, and classify:
-
-```bash
-immich-dog-tagger scan
-immich-dog-tagger download
-immich-dog-tagger detect
-immich-dog-tagger classify
-```
-
-Start the backend and, in a second terminal, the frontend:
-
-```bash
-uv run uvicorn immich_dog_tagger.api.app:app --reload
-```
-
-```bash
-cd ui && npm install && npm run dev
-```
-
-Open `http://localhost:5173`, review a batch of predictions, then click **Reclassify** in
-Overview to apply what you've learned to everything else. Repeat until the review queue is
-mostly gone. The first pipeline run will classify almost everything as Unknown — that's expected,
-since there are no reference examples yet.
-
-For the full walkthrough — how many photos to review first, what "confident," "needs review," and
-"unknown" mean, and how to back up `state.db` — see [docs/workflow.md](docs/workflow.md).
-
-When you're happy with a batch of identities, publish them to Immich:
-
-```bash
-immich-dog-tagger sync
-```
-
-For a Docker + Traefik production setup, see [docs/deployment.md](docs/deployment.md).
-
-## Screenshots
-
-| Review | Library | Overview |
-|---|---|---|
-| ![Review UI](docs/images/review-ui.png) | ![Library UI](docs/images/library-ui.png) | ![Overview UI](docs/images/overview-ui.png) |
-
-The review workspace has keyboard shortcuts for fast correction (one key per identity, plus
-`u` for Unknown), a queue filterable by unknown/low-confidence/candidate-conflict, and shows each
-match's ranked candidates, similarity score, and the photo's own capture date.
 
 ## Architecture
 
@@ -135,21 +141,25 @@ data/breimer/
 
 Developed and tested on Ubuntu with an NVIDIA GPU.
 
-## Development
+## Status: what to expect
 
-```bash
-./scripts/bootstrap.sh   # fresh environment
-uv run pytest -q         # tests
-./scripts/check.sh       # full validation (Python + UI)
-```
+Current release: **v1.4.0**. The core loop — detect, classify, review, learn, sync — is in daily
+use on the maintainer's own library. Before you rely on it, know a few things:
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
-[CLAUDE.md](CLAUDE.md) for the spec/ticket-driven workflow this project follows.
+- **It's a solo-maintained hobby project.** Development happens in bursts, not on a schedule.
+- **No authentication on the API or UI.** Run it on a trusted network behind your own reverse
+  proxy, not exposed to the internet.
+- **Confidence isn't a calibrated probability.** It's a similarity score against your own
+  reviewed examples, not a validated accuracy estimate. See
+  [docs/ml-classification.md](docs/ml-classification.md).
+- **Large-library performance is validated with synthetic-scale tests, not a real 30,000-photo
+  run.** The pipeline is built to handle libraries that size, but if yours is that large, expect
+  to be an early real-world test of it.
+- **One pipeline or Reclassify operation runs at a time**, by design — queue a second one and it
+  waits rather than running in parallel.
 
-## Project status
-
-Current release: **v1.4.0**. See [docs/roadmap.md](docs/roadmap.md) for the full release history
-and [docs/status.md](docs/status.md) for what's in progress now. The most recent releases:
+See [docs/status.md](docs/status.md) for current known issues and what's actively in progress,
+and [docs/roadmap.md](docs/roadmap.md) for release history. Recent releases:
 
 - **v1.4.0 — Trustworthy photo library.** Every photo shows its own capture date next to its
   prediction. A new Library page lists every classified photo — reviewed or not — filterable by
@@ -164,6 +174,17 @@ and [docs/status.md](docs/status.md) for what's in progress now. The most recent
 - **v1.2.0 — Visual style refresh.** One consistent look across the app: sidebar navigation, a
   single accent color, a shared stat-tile/chart pattern. Details:
   [docs/specs/v1.2-visual-style-refresh.md](docs/specs/v1.2-visual-style-refresh.md).
+
+## Development
+
+```bash
+./scripts/bootstrap.sh   # fresh environment
+uv run pytest -q         # tests
+./scripts/check.sh       # full validation (Python + UI)
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
+[CLAUDE.md](CLAUDE.md) for the spec/ticket-driven workflow this project follows.
 
 ## Design goals
 
