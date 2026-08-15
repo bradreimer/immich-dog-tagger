@@ -14,6 +14,10 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.classification import ClassificationService
 
 
+def _naive(*args) -> datetime:
+    return datetime(*args, tzinfo=UTC).replace(tzinfo=None)
+
+
 def test_classifier_finds_closest_identity(engine):
     with Session(engine) as session:
         hermann = Identity(name="Hermann")
@@ -162,52 +166,69 @@ def test_classifier_never_returns_cross_species_candidate(engine):
         }
 
 
-def test_classifier_flags_date_conflict_for_out_of_range_identity(engine):
-    """DT-1114: two identities with overlapping-looking embeddings but
-    non-overlapping active date ranges must be distinguishable -- a photo
-    matching one identity's embedding closely, but captured outside that
-    identity's active range, is flagged rather than silently accepted."""
+def test_classifier_prefers_temporally_closer_identity_when_visually_tied(engine):
+    """v1.5/ADR-003: two identities with identical-looking embeddings (e.g.
+    a pet that has passed away and a new, visually similar pet) must be
+    disambiguated by which one's own reference examples are closer in time
+    to the photo being classified -- automatically, using only each
+    identity's own photo history."""
     with Session(engine) as session:
-        old_fibs = Identity(
-            name="Fibs",
-            active_from=datetime(2015, 1, 1, tzinfo=UTC),
-            active_until=datetime(2018, 12, 31, tzinfo=UTC),
-        )
+        old_dog = Identity(name="OldDog")
+        new_dog = Identity(name="NewDog")
 
-        session.add(old_fibs)
+        session.add_all([old_dog, new_dog])
         session.flush()
 
-        session.add(
-            EmbeddingExample(
-                identity_id=old_fibs.id,
-                crop_path="fibs.jpg",
-                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
-                source=EmbeddingSources.BOOTSTRAP,
-            )
+        shared_embedding = embedding_to_blob(np.array([1, 0, 0], dtype=np.float32))
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=old_dog.id,
+                    crop_path="old.jpg",
+                    embedding=shared_embedding,
+                    source=EmbeddingSources.BOOTSTRAP,
+                    captured_at=_naive(2015, 6, 1),
+                ),
+                EmbeddingExample(
+                    identity_id=new_dog.id,
+                    crop_path="new.jpg",
+                    embedding=shared_embedding,
+                    source=EmbeddingSources.BOOTSTRAP,
+                    captured_at=_naive(2026, 5, 1),
+                ),
+            ]
         )
         session.commit()
 
         classifier = IdentityClassifier(session)
         probe = np.array([1, 0, 0], dtype=np.float32)
 
-        # A photo of the exact same-looking dog, but taken in 2021 -- three
-        # years after Fibs's known active range ended.
-        result = classifier.classify(
+        # A recent photo favors NewDog, whose examples are close in time.
+        recent_result = classifier.classify(
             probe,
-            captured_at=datetime(2021, 6, 1, tzinfo=UTC).replace(tzinfo=None),
+            captured_at=_naive(2026, 6, 1),
         )
+        assert recent_result.identity == "NewDog"
 
-        assert result.identity == "Fibs"  # similarity/ranking unaffected
-        assert result.candidates[0].date_conflict is True
+        # The exact same probe and reference examples, but an old photo,
+        # correctly favors OldDog instead.
+        old_result = classifier.classify(
+            probe,
+            captured_at=_naive(2015, 7, 1),
+        )
+        assert old_result.identity == "OldDog"
 
 
-def test_classifier_date_conflict_fails_open_without_crop_date(engine):
+def test_classifier_single_identity_confidence_unaffected_by_temporal_distance(
+    engine,
+):
+    """A lone identity's only known example being from years earlier must
+    not, by itself, demote an otherwise-confident match to needs-review --
+    there is no competing identity to disambiguate against yet, so the
+    reported confidence stays the example's true raw similarity."""
     with Session(engine) as session:
-        fibs = Identity(
-            name="Fibs",
-            active_from=datetime(2015, 1, 1, tzinfo=UTC),
-            active_until=datetime(2018, 12, 31, tzinfo=UTC),
-        )
+        fibs = Identity(name="Fibs")
 
         session.add(fibs)
         session.flush()
@@ -218,6 +239,38 @@ def test_classifier_date_conflict_fails_open_without_crop_date(engine):
                 crop_path="fibs.jpg",
                 embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
                 source=EmbeddingSources.BOOTSTRAP,
+                captured_at=_naive(2015, 1, 1),
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        result = classifier.classify(probe, captured_at=_naive(2026, 6, 1))
+
+        assert result.identity == "Fibs"
+        assert result.similarity > 0.99
+        # The match itself is heavily temporally decayed...
+        assert result.candidates[0].temporal_weight < 0.2
+        # ...but that never touches the reported confidence.
+        assert result.candidates[0].similarity > 0.99
+
+
+def test_classifier_temporal_weight_fails_open_without_crop_date(engine):
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs")
+
+        session.add(fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+                captured_at=_naive(2015, 1, 1),
             )
         )
         session.commit()
@@ -226,16 +279,15 @@ def test_classifier_date_conflict_fails_open_without_crop_date(engine):
         probe = np.array([1, 0, 0], dtype=np.float32)
 
         # No captured_at at all -- "no date signal available" must never
-        # be treated as suspicious, even though the range would otherwise
-        # exclude any date.
+        # be treated as suspicious, no matter how old the example is.
         result = classifier.classify(probe)
 
-        assert result.candidates[0].date_conflict is False
+        assert result.candidates[0].temporal_weight == 1.0
 
 
-def test_classifier_date_conflict_fails_open_without_identity_range(engine):
+def test_classifier_temporal_weight_fails_open_without_example_date(engine):
     with Session(engine) as session:
-        fibs = Identity(name="Fibs")  # no active_from/active_until set
+        fibs = Identity(name="Fibs")
 
         session.add(fibs)
         session.flush()
@@ -246,6 +298,7 @@ def test_classifier_date_conflict_fails_open_without_identity_range(engine):
                 crop_path="fibs.jpg",
                 embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
                 source=EmbeddingSources.BOOTSTRAP,
+                # captured_at left unset.
             )
         )
         session.commit()
@@ -253,12 +306,9 @@ def test_classifier_date_conflict_fails_open_without_identity_range(engine):
         classifier = IdentityClassifier(session)
         probe = np.array([1, 0, 0], dtype=np.float32)
 
-        result = classifier.classify(
-            probe,
-            captured_at=datetime(2021, 6, 1, tzinfo=UTC).replace(tzinfo=None),
-        )
+        result = classifier.classify(probe, captured_at=_naive(2026, 6, 1))
 
-        assert result.candidates[0].date_conflict is False
+        assert result.candidates[0].temporal_weight == 1.0
 
 
 def test_classification_service_handles_no_pending_crops(engine):

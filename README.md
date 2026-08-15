@@ -143,7 +143,7 @@ Developed and tested on Ubuntu with an NVIDIA GPU.
 
 ## Status: what to expect
 
-Current release: **v1.4.0**. The core loop — detect, classify, review, learn, sync — is in daily
+Current release: **v1.5.0**. The core loop — detect, classify, review, learn, sync — is in daily
 use on the maintainer's own library. Before you rely on it, know a few things:
 
 - **It's a solo-maintained hobby project.** Development happens in bursts, not on a schedule.
@@ -161,12 +161,17 @@ use on the maintainer's own library. Before you rely on it, know a few things:
 See [docs/status.md](docs/status.md) for current known issues and what's actively in progress,
 and [docs/roadmap.md](docs/roadmap.md) for release history. Recent releases:
 
+- **v1.5.0 — Automatic temporal-recency classification.** Replaces v1.4's owner-configured
+  per-identity active date range with automatic weighting: each candidate match is scored by how
+  closely its own reference photo's capture date aligns with the photo being classified, so an
+  aging pet's changing look, a pet that has passed away, and a new visually similar pet are told
+  apart with no configuration. Details:
+  [docs/specs/v1.5-automatic-temporal-classification.md](docs/specs/v1.5-automatic-temporal-classification.md).
 - **v1.4.0 — Trustworthy photo library.** Every photo shows its own capture date next to its
   prediction. A new Library page lists every classified photo — reviewed or not — filterable by
   identity, species, review status, and date. Corrections work the same way from the Library as
   from Review, and now correctly move an asset between Immich albums instead of leaving it in
-  both. Identities can have an optional active date range, and a match outside that range is
-  flagged, never silently accepted. Details:
+  both. Details:
   [docs/specs/v1.4-trustworthy-photo-library.md](docs/specs/v1.4-trustworthy-photo-library.md).
 - **v1.3.0 — Cat support.** Detection, classification, review, and sync now cover cats alongside
   dogs, sharing one review queue and correction UI — no separate cat mode. Details:

@@ -162,31 +162,6 @@ export async function renameDog(id: number, name: string): Promise<Dog> {
   return response.json();
 }
 
-export async function setDogActiveRange(
-  id: number,
-  activeFrom: string | null,
-  activeUntil: string | null,
-): Promise<Dog> {
-  const response = await fetch(`/api/dogs/${id}/active-range`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      active_from: activeFrom,
-      active_until: activeUntil,
-    }),
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    const detail = payload?.detail;
-    throw new Error(typeof detail === "string" ? detail : "Failed to update active range");
-  }
-
-  return response.json();
-}
-
 export async function activateDog(id: number): Promise<Dog> {
   const response = await fetch(`/api/dogs/${id}/activate`, {
     method: "POST",

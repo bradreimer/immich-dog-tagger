@@ -26,8 +26,6 @@ def test_dogs_crud(api_client, engine):
             "name": "Fibs",
             "species": "dog",
             "active": True,
-            "active_from": None,
-            "active_until": None,
         }
     ]
 
@@ -91,46 +89,6 @@ def test_dogs_reject_duplicate_and_reserved_names(api_client):
     )
 
     assert reserved.status_code == 400
-
-
-def test_dogs_set_active_range(api_client):
-    created = api_client.post("/dogs", json={"name": "Fibs"}).json()
-
-    response = api_client.put(
-        f"/dogs/{created['id']}/active-range",
-        json={
-            "active_from": "2015-01-01T00:00:00",
-            "active_until": "2019-12-31T00:00:00",
-        },
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["active_from"] == "2015-01-01T00:00:00"
-    assert body["active_until"] == "2019-12-31T00:00:00"
-
-
-def test_dogs_set_active_range_rejects_from_after_until(api_client):
-    created = api_client.post("/dogs", json={"name": "Fibs"}).json()
-
-    response = api_client.put(
-        f"/dogs/{created['id']}/active-range",
-        json={
-            "active_from": "2020-01-01T00:00:00",
-            "active_until": "2019-01-01T00:00:00",
-        },
-    )
-
-    assert response.status_code == 400
-
-
-def test_dogs_set_active_range_missing_dog_returns_404(api_client):
-    response = api_client.put(
-        "/dogs/999/active-range",
-        json={"active_from": None, "active_until": None},
-    )
-
-    assert response.status_code == 404
 
 
 def test_dogs_list_can_include_inactive(api_client):

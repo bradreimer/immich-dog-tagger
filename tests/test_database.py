@@ -1,5 +1,4 @@
 import sqlite3
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -310,55 +309,6 @@ def test_database_adds_crop_species_column(tmp_path: Path):
         ).all()
 
     assert rows == [("fibs.jpg", "DOG")]
-
-
-def test_database_adds_identity_active_range_columns(tmp_path: Path):
-    database_path = tmp_path / "state.db"
-    connection = sqlite3.connect(database_path)
-
-    # Pre-DT-1114 shape: full DT-1110 identities table, no active_from/
-    # active_until yet.
-    connection.execute(
-        "CREATE TABLE identities ("
-        "id INTEGER PRIMARY KEY, "
-        "species VARCHAR(8) NOT NULL DEFAULT 'DOG', "
-        "name VARCHAR(64) NOT NULL, "
-        "is_active BOOLEAN NOT NULL DEFAULT 1, "
-        "UNIQUE (species, name)"
-        ")"
-    )
-    connection.execute(
-        "INSERT INTO identities (species, name, is_active) VALUES ('DOG', 'Fibs', 1)"
-    )
-    connection.commit()
-    connection.close()
-
-    from immich_dog_tagger.database import create_database
-
-    engine = create_database(tmp_path)
-
-    with Session(engine) as session:
-        existing = session.scalars(select(Identity)).all()
-
-        assert len(existing) == 1
-        assert existing[0].name == "Fibs"
-        # Purely additive: an existing identity migrates in with no active
-        # range set, which is exactly the "no date signal available" state
-        # the classifier must never penalize.
-        assert existing[0].active_from is None
-        assert existing[0].active_until is None
-
-        existing[0].active_from = datetime(2015, 1, 1, tzinfo=UTC)
-        existing[0].active_until = datetime(2019, 12, 31, tzinfo=UTC)
-        session.commit()
-
-        session.refresh(existing[0])
-        assert existing[0].active_from == datetime(2015, 1, 1, tzinfo=UTC).replace(
-            tzinfo=None
-        )
-        assert existing[0].active_until == datetime(2019, 12, 31, tzinfo=UTC).replace(
-            tzinfo=None
-        )
 
 
 def test_database_adds_pipeline_job_visible_column(tmp_path: Path):

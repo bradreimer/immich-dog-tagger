@@ -1,6 +1,3 @@
-from datetime import UTC, datetime
-
-import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.database import create_database
@@ -58,54 +55,6 @@ def test_dog_service_rejects_reserved_and_blank_names(engine):
             assert "reserved" in str(exc)
         else:
             raise AssertionError("Expected reserved dog name to be rejected")
-
-
-def test_dog_service_sets_active_range(engine):
-    with Session(engine) as session:
-        service = DogService(session)
-
-        dog = service.create_dog("Fibs")
-        assert dog.active_from is None
-        assert dog.active_until is None
-
-        active_from = datetime(2015, 1, 1, tzinfo=UTC)
-        active_until = datetime(2019, 12, 31, tzinfo=UTC)
-
-        updated = service.set_active_range(dog.id, active_from, active_until)
-
-        assert updated.active_from == active_from.replace(tzinfo=None)
-        assert updated.active_until == active_until.replace(tzinfo=None)
-
-    with Session(engine) as session:
-        persisted = DogService(session).get_dog(dog.id)
-
-    assert persisted.active_from == active_from.replace(tzinfo=None)
-    assert persisted.active_until == active_until.replace(tzinfo=None)
-
-
-def test_dog_service_set_active_range_accepts_one_bound_only(engine):
-    with Session(engine) as session:
-        service = DogService(session)
-        dog = service.create_dog("Fibs")
-
-        active_from = datetime(2019, 1, 1, tzinfo=UTC)
-        updated = service.set_active_range(dog.id, active_from, None)
-
-        assert updated.active_from == active_from.replace(tzinfo=None)
-        assert updated.active_until is None
-
-
-def test_dog_service_rejects_active_from_after_active_until(engine):
-    with Session(engine) as session:
-        service = DogService(session)
-        dog = service.create_dog("Fibs")
-
-        with pytest.raises(ValueError, match="active_from"):
-            service.set_active_range(
-                dog.id,
-                datetime(2020, 1, 1, tzinfo=UTC),
-                datetime(2019, 1, 1, tzinfo=UTC),
-            )
 
 
 def test_dog_service_persists_identity_is_active(engine):

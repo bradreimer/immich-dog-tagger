@@ -24,6 +24,10 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.reclassify import ReclassifyService
 
 
+def _naive(*args) -> datetime:
+    return datetime(*args, tzinfo=UTC).replace(tzinfo=None)
+
+
 class FakeBatchEmbedder:
     """Returns a fixed embedding per call, tracking which paths it was asked to embed."""
 
@@ -306,20 +310,23 @@ def test_reclassify_is_idempotent_when_rerun_with_unchanged_inputs(engine):
         assert second.pass_id != first.pass_id
 
 
-def test_reclassify_idempotent_with_active_ranges_set(engine):
-    """DT-1114: rerunning Reclassify with identities that have active date
-    ranges set must still be idempotent -- date-aware scoring is a new
-    signal surfaced on candidates, not something that should make results
-    unstable across passes with no new reviews in between."""
+def test_reclassify_idempotent_with_temporal_weighting(engine):
+    """v1.5/ADR-003: rerunning Reclassify against examples with capture
+    dates must still be idempotent -- temporal weighting is a new signal
+    surfaced on candidates, not something that should make results unstable
+    across passes with no new reviews in between."""
     with Session(engine) as session:
         identity = _add_identity(session, "Hermann", [1, 0, 0])
-        identity.active_from = datetime(2015, 1, 1, tzinfo=UTC)
-        identity.active_until = datetime(2025, 1, 1, tzinfo=UTC)
+
+        example = session.scalar(
+            select(EmbeddingExample).where(EmbeddingExample.identity_id == identity.id)
+        )
+        example.captured_at = _naive(2020, 1, 1)
 
         asset = Asset(
             immich_asset_id="asset-1",
             extension=".jpg",
-            captured_at=datetime(2020, 6, 1, tzinfo=UTC),
+            captured_at=_naive(2020, 6, 1),
         )
         detection = Detection(
             asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
@@ -350,7 +357,7 @@ def test_reclassify_idempotent_with_active_ranges_set(engine):
         assert second.confident_count == 1
 
         classification = session.scalar(select(CropClassification))
-        assert classification.candidates[0]["date_conflict"] is False
+        assert classification.candidates[0]["temporal_weight"] > 0.9
 
 
 def test_reclassify_processes_in_batches_committing_progress(engine):

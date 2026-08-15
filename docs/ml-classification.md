@@ -28,10 +28,13 @@ from, and provenance (automatic prediction vs. human correction).
 1. Loads active examples for the crop's species (dog crops are never compared against cat
    examples, and vice versa).
 2. Scores cosine similarity between the crop's embedding and every example.
-3. Keeps each identity's single best-matching example, then ranks identities by that score.
-4. Returns the top candidates (3 by default), not just the winner.
-5. Flags — never silently excludes — a candidate whose identity has an owner-set active date
-   range that the crop's capture date falls outside (`date_conflict`).
+3. Weights each example's similarity by how closely its own capture date aligns with the crop
+   being classified (`temporal_weight`, a Gaussian decay with a ~1 year scale, fails open when a
+   date is missing on either side) — see [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
+4. Keeps each identity's best-matching example by that *weighted* score, then ranks identities the
+   same way — but reports the winning match's raw, unweighted similarity as confidence, so recency
+   decides which identity wins without inflating or discounting the number shown.
+5. Returns the top candidates (3 by default), not just the winner.
 
 **`ClassifierPolicy`** (`src/immich_dog_tagger/policy.py`) is the single place that owns the
 confidence threshold (0.80 by default), candidate-list size, and the confident/needs-review/unknown
@@ -43,9 +46,10 @@ produced it.
 ## What this doesn't do
 
 - **No calibrated confidence.** Similarity is a raw cosine score against your own examples, not a
-  validated accuracy or probability estimate.
-- **No temporal weighting.** A capture date can flag a candidate as out-of-range, but it never
-  boosts or discounts a similarity score.
+  validated accuracy or probability estimate. Temporal weighting affects which identity wins, not
+  the confidence number reported for it.
+- **No owner-configured identity date ranges.** Removed in v1.5 in favor of automatic per-example
+  weighting — see [v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md).
 - **No retraining.** "Learning" means adding reference examples, not updating model weights.
 
 See [docs/specs/v1.0.0.md](specs/v1.0.0.md) section 8 for the full list of things classification
