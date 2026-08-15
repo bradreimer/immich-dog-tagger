@@ -171,6 +171,42 @@ class Asset(Base):
         nullable=True,
     )
 
+    # Cached from Immich's own exifInfo/people/isFavorite (issue #94) -- read
+    # from the same /api/search/metadata response the scanner already
+    # fetches, never a separate Dog Tagger-side computation. Genuinely absent
+    # for photos with no GPS/location data, not "not yet synced".
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    is_favorite: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+    )
+
+    # Immich-recognized people on this asset, cached as [{"id": ..., "name": ...}].
+    # Not Dog Tagger's own face recognition -- a read-only cache of what
+    # Immich already computed.
+    people: Mapped[list[dict]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+
+    metadata_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    pet_occurrences: Mapped[list[PetOccurrence]] = relationship(
+        back_populates="asset",
+        cascade="all, delete-orphan",
+    )
+
     def cache_path(
         self,
         cache_dir: Path,
@@ -283,6 +319,75 @@ class CropClassification(Base):
     review_actions: Mapped[list[ReviewAction]] = relationship(
         cascade="all, delete-orphan",
     )
+
+
+class PetOccurrence(Base):
+    """
+    A settled fact: this identity was confirmed in this asset (issue #94).
+
+    Materialized by PetOccurrenceService as a side effect of a
+    CropClassification's identity being settled by AUTO classification,
+    review correction, or reclassification -- never written directly by an
+    API/UI action, and never itself the input to a further conclusion (see
+    ADR-004). One row per crop_classification_id: a classification cleared
+    to None/"Unknown" has no row, and a corrected/reclassified identity
+    replaces rather than duplicates the row.
+    """
+
+    __tablename__ = "pet_occurrences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    crop_classification_id: Mapped[int] = mapped_column(
+        ForeignKey("crop_classifications.id"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    asset_id: Mapped[int] = mapped_column(
+        ForeignKey("assets.id"),
+        nullable=False,
+        index=True,
+    )
+
+    identity_id: Mapped[int] = mapped_column(
+        ForeignKey("identities.id"),
+        nullable=False,
+        index=True,
+    )
+
+    confidence: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    source: Mapped[ClassificationSources] = mapped_column(
+        Enum(
+            ClassificationSources,
+            native_enum=False,
+        ),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    classification: Mapped[CropClassification] = relationship()
+
+    asset: Mapped[Asset] = relationship(back_populates="pet_occurrences")
+
+    identity: Mapped[Identity] = relationship()
 
 
 class ClassificationPass(Base):
