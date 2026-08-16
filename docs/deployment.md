@@ -1,5 +1,10 @@
 # Deployment
 
+This doc covers a production-style deployment behind Traefik with TLS and GPU scheduling, layered
+on top of the base `docker-compose.yml` via `docker-compose.prod.yml`. For a minimal local setup
+with directly-exposed ports and no reverse proxy, see the
+[README quick start](../README.md#getting-started) — that's just `docker-compose.yml` on its own.
+
 ## Overview
 
 Immich Dog Tagger runs as two Docker services: `dog-tagger`, the FastAPI backend, and
@@ -13,7 +18,20 @@ Browser → Traefik → dog-tagger-ui (nginx) → /api/* → dog-tagger (FastAPI
 
 ## Docker Compose
 
-Deployment uses the project's `docker-compose.yml`.
+Deployment layers two files: the base `docker-compose.yml` (image references, environment,
+volumes, health check — shared with the plain local setup in the README) and
+`docker-compose.prod.yml`, an override that adds the `proxy` network, drops the base's directly
+published host ports (Traefik reaches the containers over the Docker network instead), and
+reserves a GPU. Always pass both, base first:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+Everything below in this doc assumes that combined invocation. Consider a shell alias or a
+`COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml` entry in a local `.env` if typing both
+`-f` flags each time is tedious (`docker compose` also picks up `COMPOSE_FILE` from the
+environment).
 
 **Backend** (`immich-dog-tagger`) runs the FastAPI API: review queue endpoints, corrections,
 learning actions, and the only process with access to `state.db`. It listens internally on
@@ -110,27 +128,36 @@ curl -k https://dog-tagger.schnorbit.home.arpa            # React app HTML
 curl -k https://dog-tagger.schnorbit.home.arpa/api/health  # {"status":"ok"}
 ```
 
-## Making changes
+## Picking up a new release
 
-Frontend changes need a rebuild of the UI image:
-
-```bash
-docker compose build dog-tagger-ui
-docker compose up -d dog-tagger-ui
-```
-
-Backend changes need a rebuild of the API image:
+Both files reference the published GHCR images (`ghcr.io/<owner>/immich-dog-tagger` and
+`-ui`), not a local build, so there's nothing to compile — pull the latest tag and recreate:
 
 ```bash
-docker compose build dog-tagger
-docker compose up -d dog-tagger
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-Or rebuild everything at once:
+## Testing an unreleased local change
 
-```bash
-docker compose up -d --build
-```
+Neither compose file has a `build:` section, so `docker compose ... up -d --build` has nothing to
+build against. To try out a change before it's merged to `main` and published:
+
+- Fastest: run it from source instead (see the README's "Running from source" section) — no image
+  build involved.
+- To actually exercise it inside a container, add a temporary local override, e.g.
+  `docker-compose.local.yml`:
+
+  ```yaml
+  services:
+    dog-tagger:
+      build:
+        context: .
+      image: immich-dog-tagger:local
+  ```
+
+  then `docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.local.yml
+  up -d --build dog-tagger`. Don't commit that file — it's a local-only override.
 
 ## Unattended operation
 
@@ -200,10 +227,17 @@ If the container was down when a schedule was due, the startup reconciliation ti
 immediately on restart — but only the most recent missed occurrence, not a full replay of
 everything missed during the downtime.
 
+## Automated image builds
+
+`.github/workflows/docker-publish.yml` builds and pushes both images to GitHub Container Registry
+(`ghcr.io/<owner>/immich-dog-tagger` and `ghcr.io/<owner>/immich-dog-tagger-ui`) on every push to
+`main`, tagged `latest` and with the short commit SHA. It can also be run manually via
+`workflow_dispatch`. This publishes prebuilt images to the registry; it does not deploy them — see
+"Picking up a new release" above to pull a new image into a running deployment.
+
 ## Possible future improvements
 
 - Docker health checks on the frontend container
 - Version information surfaced in the UI
 - A dedicated production environment configuration file
-- Automated image builds
 - Traefik middleware for application-level authentication, if that becomes necessary

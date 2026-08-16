@@ -14,7 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
  && rm -rf /var/lib/apt/lists/*
 
-COPY certs/mkcert-rootCA.crt /usr/local/share/ca-certificates/mkcert-rootCA.crt
+# Optional: trust a local mkcert root CA if present (glob copy is a no-op when absent,
+# so this doesn't require the untracked certs/ directory to exist, e.g. in CI).
+COPY certs/mkcert-rootCA.cr[t] /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
 # 2. Get uv binary

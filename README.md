@@ -71,8 +71,50 @@ The identities screen is where you define your own pets — nothing is hardcoded
 
 ## Getting started
 
-Requirements: Python 3.14+, [`uv`](https://docs.astral.sh/uv/), Node.js/npm, and a running Immich
+Requirements: Docker + [Docker Compose](https://docs.docker.com/compose/), and a running Immich
 instance with an API key. GPU recommended, CPU works but is slower.
+
+```bash
+# 1. Grab the compose file and env template
+curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/.env.example
+mv .env.example .env
+# edit .env: set IMMICH_URL and IMMICH_API_KEY
+
+# 2. Pull the latest published images and start both containers
+docker compose up -d
+
+# 3. Run the pipeline once
+docker compose exec dog-tagger immich-dog-tagger init-db
+docker compose exec dog-tagger immich-dog-tagger scan
+docker compose exec dog-tagger immich-dog-tagger download
+docker compose exec dog-tagger immich-dog-tagger detect
+docker compose exec dog-tagger immich-dog-tagger classify
+```
+
+Expect almost everything to come back Unknown the first time — there are no reference examples
+yet. That's expected, not a bug.
+
+Open `http://localhost:8080`, review a batch (50–100 is a reasonable start), click **Reclassify**
+in Overview, repeat until the queue is mostly empty. Then publish what you're confident in:
+
+```bash
+docker compose exec dog-tagger immich-dog-tagger sync
+```
+
+Images are published to `ghcr.io/bradreimer/immich-dog-tagger` on every push to `main`, tagged
+`latest`. If `docker compose pull` fails with `unauthorized`, the package is set to private —
+either make it public in the repo's GitHub Packages settings, or run
+`docker login ghcr.io` first with a token that has `read:packages`.
+
+Full walkthrough — how much to review first, what "confident" vs "needs review" means, backing up
+`state.db` — in [docs/workflow.md](docs/workflow.md). A production setup behind Traefik with TLS
+and GPU scheduling — `docker-compose.yml` plus a `docker-compose.prod.yml` overlay — is in
+[docs/deployment.md](docs/deployment.md).
+
+### Running from source (development)
+
+Requirements: Python 3.14+, [`uv`](https://docs.astral.sh/uv/), Node.js/npm.
 
 ```bash
 # 1. Install dependencies
@@ -88,27 +130,13 @@ uv run immich-dog-tagger scan
 uv run immich-dog-tagger download
 uv run immich-dog-tagger detect
 uv run immich-dog-tagger classify
-```
 
-Expect almost everything to come back Unknown the first time — there are no reference examples
-yet. That's expected, not a bug.
-
-```bash
 # 4. Start the backend and frontend (two terminals)
 uv run uvicorn immich_dog_tagger.api.app:app --reload
 cd ui && npm install && npm run dev
 ```
 
-Open `http://localhost:5173`, review a batch (50–100 is a reasonable start), click **Reclassify**
-in Overview, repeat until the queue is mostly empty. Then publish what you're confident in:
-
-```bash
-uv run immich-dog-tagger sync
-```
-
-Full walkthrough — how much to review first, what "confident" vs "needs review" means, backing up
-`state.db` — in [docs/workflow.md](docs/workflow.md). Docker + Traefik production setup in
-[docs/deployment.md](docs/deployment.md).
+Open `http://localhost:5173` for the dev UI (proxies `/api` to the backend on port 8000).
 
 ## Current status
 

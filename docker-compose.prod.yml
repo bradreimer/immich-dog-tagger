@@ -1,0 +1,33 @@
+# Production overlay: adds Traefik routing and GPU scheduling on top of docker-compose.yml.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Requires the external `proxy` Docker network Traefik attaches to, and (for the GPU block)
+# the NVIDIA Container Toolkit installed on the host. See docs/deployment.md.
+
+services:
+  dog-tagger:
+    # Traefik reaches the container over the `proxy` network directly; no need to
+    # publish ports on the host as well.
+    ports: !reset []
+
+    networks:
+      - proxy
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities:
+                - gpu
+
+  dog-tagger-ui:
+    ports: !reset []
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
