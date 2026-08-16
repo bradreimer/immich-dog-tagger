@@ -75,21 +75,21 @@ Requirements: Docker + [Docker Compose](https://docs.docker.com/compose/), and a
 instance with an API key. GPU recommended, CPU works but is slower.
 
 ```bash
-# 1. Grab the quick-start compose file and env template
-curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/docker-compose.quickstart.yml
+# 1. Grab the compose file and env template
+curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/docker-compose.yml
 curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/.env.example
 mv .env.example .env
 # edit .env: set IMMICH_URL and IMMICH_API_KEY
 
 # 2. Pull the latest published images and start both containers
-docker compose -f docker-compose.quickstart.yml up -d
+docker compose up -d
 
 # 3. Run the pipeline once
-docker compose -f docker-compose.quickstart.yml exec dog-tagger immich-dog-tagger init-db
-docker compose -f docker-compose.quickstart.yml exec dog-tagger immich-dog-tagger scan
-docker compose -f docker-compose.quickstart.yml exec dog-tagger immich-dog-tagger download
-docker compose -f docker-compose.quickstart.yml exec dog-tagger immich-dog-tagger detect
-docker compose -f docker-compose.quickstart.yml exec dog-tagger immich-dog-tagger classify
+docker compose exec dog-tagger immich-dog-tagger init-db
+docker compose exec dog-tagger immich-dog-tagger scan
+docker compose exec dog-tagger immich-dog-tagger download
+docker compose exec dog-tagger immich-dog-tagger detect
+docker compose exec dog-tagger immich-dog-tagger classify
 ```
 
 Expect almost everything to come back Unknown the first time — there are no reference examples
@@ -99,7 +99,7 @@ Open `http://localhost:8080`, review a batch (50–100 is a reasonable start), c
 in Overview, repeat until the queue is mostly empty. Then publish what you're confident in:
 
 ```bash
-docker compose -f docker-compose.quickstart.yml exec dog-tagger immich-dog-tagger sync
+docker compose exec dog-tagger immich-dog-tagger sync
 ```
 
 Images are published to `ghcr.io/bradreimer/immich-dog-tagger` on every push to `main`, tagged
@@ -109,7 +109,8 @@ either make it public in the repo's GitHub Packages settings, or run
 
 Full walkthrough — how much to review first, what "confident" vs "needs review" means, backing up
 `state.db` — in [docs/workflow.md](docs/workflow.md). A production setup behind Traefik with TLS
-and GPU scheduling is in [docs/deployment.md](docs/deployment.md).
+and GPU scheduling — `docker-compose.yml` plus a `docker-compose.prod.yml` overlay — is in
+[docs/deployment.md](docs/deployment.md).
 
 ### Running from source (development)
 

@@ -1,32 +1,27 @@
 services:
   dog-tagger:
-    build:
-      context: .
-      network: host
-    image: immich-dog-tagger:latest
+    image: ghcr.io/bradreimer/immich-dog-tagger:latest
+    pull_policy: always
     container_name: immich-dog-tagger
     restart: unless-stopped
 
     environment:
       - IMMICH_URL=${IMMICH_URL}
       - IMMICH_API_KEY=${IMMICH_API_KEY}
-      # Pass internal paths to app (overrides host .env if necessary)
       - STATE_DIR=/app/state
       - CACHE_DIR=/app/cache
       - YOLO_MODEL=/app/models/yolo11n.pt
       - CROP_PADDING=${CROP_PADDING:-0.15}
 
     volumes:
-      # Host Path : Container Path
       - ${HOST_STATE_DIR:-./data/state}:/app/state
       - ${HOST_CACHE_DIR:-./data/cache}:/app/cache
       - ${HOST_MODEL_DIR:-./data/models}:/app/models
 
-    env_file:
-      - .env
+    ports:
+      - "8000:8000"
 
     entrypoint: ["uvicorn"]
-
     command:
       [
         "immich_dog_tagger.api.app:app",
@@ -35,18 +30,6 @@ services:
         "--port",
         "8000",
       ]
-
-    networks:
-      - proxy
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities:
-                - gpu
 
     healthcheck:
       test:
@@ -60,20 +43,24 @@ services:
       timeout: 5s
       retries: 3
 
+    # Have an NVIDIA GPU with the nvidia-container-toolkit installed? Uncomment to use it
+    # (CPU works fine without this, just slower on detect/classify):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities:
+    #             - gpu
+
   dog-tagger-ui:
-    build:
-      context: ./ui
-      network: host
-
-    image: immich-dog-tagger-ui:latest
+    image: ghcr.io/bradreimer/immich-dog-tagger-ui:latest
+    pull_policy: always
     container_name: immich-dog-tagger-ui
-
+    restart: unless-stopped
     depends_on:
       - dog-tagger
 
-    networks:
-      - proxy
-
-networks:
-  proxy:
-    external: true
+    ports:
+      - "8080:80"
