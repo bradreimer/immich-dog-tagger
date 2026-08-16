@@ -276,6 +276,44 @@ def test_download_skips_non_pending_assets(
         assert result == 0
 
 
+def test_download_pending_retries_previously_failed_asset(
+    engine,
+    tmp_path,
+):
+    # A DOWNLOAD_FAILED asset (e.g. from a timeout) must be retried by a
+    # plain, non-force download -- otherwise it's stuck forever unless
+    # someone remembers to pass --force, which redownloads everything.
+    with Session(engine) as session:
+        failed = Asset(
+            immich_asset_id="previously-failed",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOAD_FAILED,
+        )
+
+        session.add(failed)
+        session.commit()
+
+        class FakeClient:
+            def download_asset(self, asset_id):
+                return b"image data"
+
+        downloader = Downloader(
+            FakeClient(),
+            session,
+            tmp_path,
+        )
+
+        result = downloader.download_pending()
+
+        assert result == 1
+
+        session.refresh(failed)
+
+        assert failed.status == AssetStatus.DOWNLOADED
+        assert (tmp_path / "previously-failed.jpg").exists()
+
+
 def test_download_skips_unsupported_extension(
     engine,
     tmp_path,

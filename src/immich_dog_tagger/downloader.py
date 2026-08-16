@@ -35,7 +35,19 @@ class Downloader:
         if force:
             query = select(Asset)
         else:
-            query = select(Asset).where(Asset.status == AssetStatus.PENDING)
+            # DOWNLOAD_FAILED is included alongside PENDING (not just
+            # PENDING) so a transient failure -- a timeout, an Immich
+            # blip -- gets retried by the very next plain scan/download
+            # without needing --force, which would redownload everything
+            # rather than just what's missing (issue #99 follow-up).
+            query = select(Asset).where(
+                Asset.status.in_(
+                    [
+                        AssetStatus.PENDING,
+                        AssetStatus.DOWNLOAD_FAILED,
+                    ]
+                )
+            )
 
         if limit is not None:
             query = query.limit(limit)
