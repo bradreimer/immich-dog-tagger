@@ -1,10 +1,11 @@
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.immich import ImmichAsset, ImmichPerson
 from immich_dog_tagger.models import Asset
-from immich_dog_tagger.scanner import Scanner
+from immich_dog_tagger.scanner import BATCH_SIZE, Scanner
 
 
 class FakeImmich:
@@ -284,3 +285,83 @@ def test_scan_force_resets_status_when_checksum_changes(
         assert asset.checksum == "new-checksum"
         assert asset.extension == ".jpg"
         assert asset.status is AssetStatus.PENDING
+
+
+def test_scan_commits_in_batches_of_1000(engine):
+    total = BATCH_SIZE + 500
+
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(
+                    id=str(i),
+                    filename=f"{i}.jpg",
+                    checksum=str(i),
+                )
+                for i in range(total)
+            ]
+
+    with Session(engine) as session:
+        scanner = Scanner(FakeClient(), session)
+
+        commit_calls = []
+        original_commit = session.commit
+
+        def counting_commit():
+            commit_calls.append(1)
+            original_commit()
+
+        session.commit = counting_commit
+
+        count = scanner.scan()
+
+        assert count == total
+        # One commit at the BATCH_SIZE boundary, one final commit for the
+        # remaining 500 -- proves the loop doesn't hold everything for a
+        # single commit at the end.
+        assert len(commit_calls) == 2
+        assert session.query(Asset).count() == total
+
+
+def test_scan_failure_leaves_only_prior_batches_committed(engine):
+    # Regression test for issue #99: a failure partway through a run must
+    # not discard batches already committed, so a retry only has to redo
+    # what wasn't durable yet.
+    total = BATCH_SIZE + 500
+    fail_at = BATCH_SIZE + 200
+
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(
+                    id=str(i),
+                    filename=f"{i}.jpg",
+                    checksum=str(i),
+                )
+                for i in range(total)
+            ]
+
+    class FlakyScanner(Scanner):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._calls = 0
+
+        def _process_asset(self, immich_asset, force):
+            self._calls += 1
+
+            if self._calls == fail_at:
+                raise RuntimeError("simulated failure")
+
+            return super()._process_asset(immich_asset, force)
+
+    with Session(engine) as session:
+        scanner = FlakyScanner(FakeClient(), session)
+
+        with pytest.raises(RuntimeError, match="simulated failure"):
+            scanner.scan()
+
+    with Session(engine) as verify_session:
+        # Only the first full batch (1000) was committed; the failure at
+        # 1200 happened inside the still-uncommitted second batch, which
+        # was rolled back in full.
+        assert verify_session.query(Asset).count() == BATCH_SIZE

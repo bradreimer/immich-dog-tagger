@@ -82,6 +82,18 @@
   exhausted, so a full scan sees the entire library regardless of size; single-page libraries are
   unaffected.
 
+- #99 fixed scan/download stability: `Scanner.scan()` and `Downloader.download_pending()` each
+  called `session.commit()` exactly once, after processing every asset in the run, so a failure
+  anywhere in a large run discarded all progress back to the run's start. Both now commit every
+  1000 assets (rolling back and re-raising with the failing asset id and how many were already
+  committed if a batch commit itself fails), so a mid-run failure leaves fewer than 1000 assets to
+  redo -- the next scan/download retries only those. `Downloader` also widened its per-asset error
+  handling from `ImmichDownloadError` only to any unexpected exception (disk I/O, unwrapped
+  network errors), so one bad asset no longer aborts the rest of the batch. Follow-up: a plain
+  (non-force) `download_pending()` now also retries `DOWNLOAD_FAILED` assets, not just `PENDING`
+  ones -- previously a transient failure (e.g. a timeout) left an asset stuck forever unless
+  someone remembered to pass `--force`, which redownloads everything rather than just what's
+  missing.
 - #83 Settings tab showing the configured Immich URL and scanned-image count (read-only;
   `GET /api/settings` never returns `immich_api_key`)
 - #91 v1.5.0 automatic temporal-recency classification: removed DT-1114's manual owner-set
