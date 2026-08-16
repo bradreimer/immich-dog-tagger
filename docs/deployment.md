@@ -200,10 +200,19 @@ If the container was down when a schedule was due, the startup reconciliation ti
 immediately on restart — but only the most recent missed occurrence, not a full replay of
 everything missed during the downtime.
 
+## Automated image builds
+
+`.github/workflows/docker-publish.yml` builds and pushes both images to GitHub Container Registry
+(`ghcr.io/<owner>/immich-dog-tagger` and `ghcr.io/<owner>/immich-dog-tagger-ui`) on every push to
+`main`, tagged `latest` and with the short commit SHA. It can also be run manually via
+`workflow_dispatch`. This publishes prebuilt images to the registry; it does not deploy them —
+pulling a new image into a running deployment is still a manual `docker compose pull && docker
+compose up -d` (or update `docker-compose.yml` to reference the registry image instead of building
+locally).
+
 ## Possible future improvements
 
 - Docker health checks on the frontend container
 - Version information surfaced in the UI
 - A dedicated production environment configuration file
-- Automated image builds
 - Traefik middleware for application-level authentication, if that becomes necessary
