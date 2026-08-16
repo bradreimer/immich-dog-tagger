@@ -1,5 +1,9 @@
 # Deployment
 
+This doc covers a production-style deployment behind Traefik with TLS and optional GPU scheduling.
+For a minimal local setup with directly-exposed ports and no reverse proxy, see the
+[README quick start](../README.md#getting-started) and `docker-compose.quickstart.yml`.
+
 ## Overview
 
 Immich Dog Tagger runs as two Docker services: `dog-tagger`, the FastAPI backend, and
