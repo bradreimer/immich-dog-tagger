@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 function formatOperation(operation: string): string {
   return operation
@@ -38,6 +39,11 @@ function progressLabel(job: PipelineJob): string {
 }
 
 function JobRow({ job }: { job: PipelineJob }) {
+  const hasProgressBar = job.progress_total !== null && job.progress_total > 0;
+  const progressPercent = hasProgressBar
+    ? (job.progress_current / job.progress_total!) * 100
+    : 0;
+
   return (
     <div className={`rounded-md border p-3 ${jobCardClassName(job.status)}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -50,6 +56,8 @@ function JobRow({ job }: { job: PipelineJob }) {
           <span className="text-xs text-muted-foreground">{progressLabel(job)}</span>
         </div>
       </div>
+
+      {hasProgressBar && <Progress value={progressPercent} className="mt-2" />}
 
       <div className="mt-2 text-sm text-muted-foreground">{job.progress_message ?? "No progress details"}</div>
 

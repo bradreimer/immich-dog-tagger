@@ -443,3 +443,74 @@ def test_pipeline_small_library_processes_in_a_single_batch(caplog):
     assert batch_logs == [
         f"Full pipeline batch 1 complete: {total}/{total} asset(s) processed this run",
     ]
+
+
+def test_pipeline_reports_numeric_batch_progress():
+    # Regression test for issue #103's UI acceptance criterion: the pipeline
+    # must surface machine-readable (current, total) progress -- not just
+    # human-readable messages -- so a caller can drive a real progress bar
+    # (JobProgressReporter.set(current=, total=)) instead of only the
+    # stage-label text it showed before.
+    total = BATCH_SIZE + 500
+
+    scanner = FakeScanner(scanned=total)
+    downloader = PoolDownloader(total)
+    detector = PoolDetector(total)
+    classifier = PoolClassifier(total)
+
+    service = PipelineService(
+        scanner,
+        downloader,
+        detector,
+        classifier,
+    )
+
+    progress_updates: list[tuple[int, int]] = []
+
+    service.run(
+        on_batch_progress=lambda current, total: progress_updates.append(
+            (current, total)
+        ),
+    )
+
+    # An initial 0/scanned baseline before any batch runs, then current
+    # climbing to the full total across batches -- including the final
+    # empty probe batch that confirms nothing's left (a harmless repeat of
+    # the last value, not a regression).
+    assert progress_updates == [
+        (0, total),
+        (BATCH_SIZE, total),
+        (total, total),
+        (total, total),
+    ]
+
+
+def test_pipeline_force_mode_still_reports_final_batch_progress():
+    # force mode doesn't batch (see test_pipeline_force_mode_does_not_batch)
+    # but must still report a final numeric update -- otherwise a forced
+    # reprocessing run would leave the UI's progress bar at its initial
+    # state for the entire run.
+    downloader = FakeDownloader(count=5000)
+    detector = FakeDetector(dogs=5000)
+    classifier = FakeClassifier(classified=5000)
+
+    service = PipelineService(
+        FakeScanner(scanned=0),
+        downloader,
+        detector,
+        classifier,
+    )
+
+    progress_updates: list[tuple[int, int]] = []
+
+    service.run(
+        on_batch_progress=lambda current, total: progress_updates.append(
+            (current, total)
+        ),
+        force=True,
+    )
+
+    # scanned=0 (force's query has no relation to what scan reported), but
+    # the total grows to cover what was actually processed rather than
+    # staying stuck at 0.
+    assert progress_updates == [(0, 0), (5000, 5000)]

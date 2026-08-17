@@ -41,12 +41,17 @@ class PipelineService:
     def run(
         self,
         progress: Callable[[str], None] | None = None,
+        on_batch_progress: Callable[[int, int], None] | None = None,
         limit: int | None = None,
         force: bool = False,
     ) -> PipelineSummary:
         def report(message: str) -> None:
             if progress:
                 progress(message)
+
+        def report_progress(current: int, total: int) -> None:
+            if on_batch_progress:
+                on_batch_progress(current, total)
 
         # Scan Immich for new assets
         report("Scanning Immich")
@@ -57,6 +62,7 @@ class PipelineService:
         )
 
         report(f"Scanned {scanned} assets")
+        report_progress(0, scanned)
 
         mode = ClassificationMode.ALL if force else ClassificationMode.PENDING
 
@@ -125,9 +131,15 @@ class PipelineService:
                 or classified.classified > 0
             )
 
+            # Grown unconditionally (not just on a batch that made progress)
+            # so force mode's single unbatched pass -- which can process far
+            # more than `scanned` reported, since its query has no status
+            # filter to size against -- still ends with a sensible total
+            # rather than one stuck at the scan count.
+            progress_total = max(progress_total, total_downloaded)
+
             if batched and made_progress:
                 batch_number += 1
-                progress_total = max(progress_total, total_downloaded)
 
                 batch_message = (
                     f"Full pipeline batch {batch_number} complete: "
@@ -136,6 +148,8 @@ class PipelineService:
 
                 report(batch_message)
                 logger.info(batch_message)
+
+            report_progress(total_downloaded, progress_total)
 
             if remaining is not None:
                 remaining -= batch_limit
