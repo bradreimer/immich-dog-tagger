@@ -2,6 +2,7 @@ import { IconCheck } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDate } from "@/lib/utils";
 import type { ReviewCandidate } from "@/types/review";
 
 interface Props {
@@ -23,18 +24,6 @@ function confidenceLabel(similarity: number): string {
   }
 
   return "Low confidence";
-}
-
-function formatCapturedAt(capturedAt: string | null): string {
-  if (!capturedAt) {
-    return "Date unknown";
-  }
-
-  return new Date(capturedAt).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 }
 
 export function PredictionCard({
@@ -69,7 +58,7 @@ export function PredictionCard({
         </div>
 
         <div className="text-sm text-muted-foreground">
-          Photo taken: {formatCapturedAt(capturedAt)}
+          Photo taken: {formatDate(capturedAt)}
         </div>
 
         {candidates.length > 1 && (

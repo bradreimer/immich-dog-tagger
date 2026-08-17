@@ -3,20 +3,9 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReviewReason } from "@/features/review/components/ReviewReason";
+import { formatDate } from "@/lib/utils";
 import type { Dog } from "@/types/dogs";
 import type { LibraryEntry } from "@/types/library";
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "Date unknown";
-  }
-
-  return new Date(value).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
 
 function speciesLabel(species: string): string {
   return species === "cat" ? "Cat" : "Dog";
