@@ -4,6 +4,7 @@ import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react"
 import {
   getDogs,
   correctClassification,
+  correctSpecies,
   getReview,
   getReviewStats,
   skipClassification,
@@ -110,6 +111,43 @@ export function ReviewPage() {
   );
 
   
+  const correctSpeciesForCurrentItem = useCallback(
+    async (species: "dog" | "cat") => {
+      const item = items[index];
+
+      if (!item) {
+        return;
+      }
+
+      setActionError(null);
+
+      try {
+        setSaving(true);
+
+        const updated = await correctSpecies(
+          item.classification_id,
+          species,
+        );
+
+        setItems((current) =>
+          current.map((existing, i) => (i === index ? updated : existing)),
+        );
+
+        setStats(await getReviewStats());
+      } catch (err) {
+        setActionError(
+          err instanceof Error
+          ? err.message
+          : "Failed to correct species",
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [items, index],
+  );
+
+
   const skip = useCallback(async () => {
     const item = items[index];
     if (!item) {
@@ -269,6 +307,7 @@ export function ReviewPage() {
       item={item}
       identities={speciesIdentities}
       onCorrect={correct}
+      onCorrectSpecies={correctSpeciesForCurrentItem}
       onSkip={skip}
       disabled={saving}
     />
