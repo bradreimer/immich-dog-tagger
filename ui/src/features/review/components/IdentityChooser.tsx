@@ -1,10 +1,11 @@
-import { IconArrowRight } from "@tabler/icons-react";
+import { IconArrowRight, IconStarFilled } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
   identities: string[];
   species?: string;
+  predictedIdentity?: string | null;
   onCorrect: (identity: string) => void;
   onSkip: () => void;
   disabled?: boolean;
@@ -13,6 +14,7 @@ interface Props {
 export function IdentityChooser({
   identities,
   species,
+  predictedIdentity,
   onCorrect,
   onSkip,
   disabled,
@@ -29,15 +31,23 @@ export function IdentityChooser({
       <CardContent className="space-y-3">
         {identities.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {identities.map((identity) => (
-              <Button
-                key={identity}
-                onClick={() => onCorrect(identity)}
-                disabled={disabled}
-              >
-                {identity}
-              </Button>
-            ))}
+            {identities.map((identity) => {
+              const isPredicted = identity === predictedIdentity;
+              return (
+                <Button
+                  key={identity}
+                  variant={isPredicted ? "default" : "outline"}
+                  onClick={() => onCorrect(identity)}
+                  disabled={disabled}
+                  aria-label={isPredicted ? `${identity} (predicted)` : identity}
+                >
+                  {isPredicted && (
+                    <IconStarFilled className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {identity}
+                </Button>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">

@@ -30,6 +30,7 @@ export function ReviewCard({
       <ReviewActions
         identities={identities}
         species={item.species}
+        predictedIdentity={item.prediction.identity}
         onCorrect={onCorrect}
         onSkip={onSkip}
         disabled={disabled}

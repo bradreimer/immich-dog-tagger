@@ -161,6 +161,12 @@
   Milestone, e.g. "1000th confirmed photo"). See
   [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md) and
   [ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md).
+- #117 highlight the predicted identity button on the review page: `item.prediction.identity` is
+  now threaded through `ReviewCard` -> `ReviewActions` -> `IdentityChooser`, and the
+  `IdentityChooser` button matching the prediction renders with the app's existing filled
+  (`default`) button variant plus a star icon, while the rest use `outline` -- the same
+  selected/unselected visual language already used for the review queue's filter buttons, so no
+  new accent color was introduced.
 
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
