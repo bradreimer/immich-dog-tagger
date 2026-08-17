@@ -1,4 +1,5 @@
 import type { ReviewItem } from "../../types/review";
+import { formatDate } from "../../lib/utils";
 
 import { ReviewImage } from "./components/ReviewImage";
 import { PredictionCard } from "./components/PredictionCard";
@@ -25,7 +26,13 @@ export function ReviewCard({
     <section className="space-y-8">
       <ReviewImage cropId={item.crop_id} />
 
-      <ReviewReason reason={item.reason} />
+      <div className="flex items-center gap-2">
+        <ReviewReason reason={item.reason} />
+
+        <span className="text-sm text-muted-foreground">
+          {formatDate(item.captured_at)}
+        </span>
+      </div>
 
       <ReviewActions
         identities={identities}

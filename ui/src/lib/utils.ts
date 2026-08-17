@@ -5,6 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Long-form date ("January 5, 2026") for a photo capture timestamp, or a fallback when unknown. */
+export function formatDate(value: string | null): string {
+  if (!value) {
+    return "Date unknown";
+  }
+
+  return new Date(value).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 /** Short relative time ("just now", "5m ago", "2h ago", "3d ago") for glanceable freshness. */
 export function formatRelativeTime(date: Date, now: Date = new Date()): string {
   const seconds = Math.max(0, Math.round((now.getTime() - date.getTime()) / 1000));
