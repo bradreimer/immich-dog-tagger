@@ -4,7 +4,7 @@ Database initialization and access.
 
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, event, inspect
 
 from .models import Base
 
@@ -30,6 +30,23 @@ def create_database(state_dir: Path):
         # moment it takes for the lock to clear (issue #104).
         connect_args={"timeout": 30},
     )
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
+        # Default rollback-journal mode lets a plain SELECT's implicit read
+        # transaction hold a SHARED lock for as long as it stays open --
+        # which, across a batch of slow per-item pipeline work (downloads,
+        # embedding), can outlast the busy_timeout above and still surface
+        # as "database is locked" for an unrelated writer (issue #107). WAL
+        # mode lets readers and a writer proceed concurrently, leaving only
+        # writer-vs-writer contention for busy_timeout to smooth over.
+        # synchronous=NORMAL is WAL's recommended companion: safe against
+        # application/OS crashes, only losing durability on a power loss
+        # (acceptable for a local, single-host deployment).
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
     Base.metadata.create_all(engine)
 
