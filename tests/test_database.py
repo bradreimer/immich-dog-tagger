@@ -399,3 +399,74 @@ def test_engine_waits_for_a_concurrent_writer_instead_of_failing_immediately(
         names = {identity.name for identity in verify_session.query(Identity).all()}
 
     assert names == {"Blocker", "Waiter"}
+
+
+def test_database_uses_wal_journal_mode(tmp_path: Path):
+    # Regression test for issue #107: state.db must run in WAL mode, not
+    # SQLite's default rollback journal, so readers and a writer can
+    # proceed concurrently.
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with engine.connect() as connection:
+        mode = connection.exec_driver_sql("PRAGMA journal_mode").scalar()
+
+    assert mode == "wal"
+
+
+def test_writer_is_not_blocked_by_a_concurrent_long_lived_reader(tmp_path: Path):
+    # Regression test for issue #107: batching commits and adding a
+    # busy_timeout (#104) only shrank the window during which a pipeline
+    # job's read transaction could block a writer -- for a long-running
+    # batch (a slow download, an embedding pass) that window can still
+    # exceed the busy_timeout, surfacing as "database is locked" for an
+    # unrelated write like creating a dog. WAL mode removes the contention
+    # entirely: a writer isn't blocked by any reader's open transaction.
+    import threading
+    import time
+
+    from immich_dog_tagger.database import create_database
+    from immich_dog_tagger.models import Identity
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        session.add(Identity(name="Existing"))
+        session.commit()
+
+    # check_same_thread=False: the connection is created here but committed
+    # from the releaser thread below -- safe since only one thread ever
+    # touches it at a time (the two are joined, not run concurrently).
+    reader = sqlite3.connect(
+        str(tmp_path / "state.db"), timeout=0, check_same_thread=False
+    )
+    reader.execute("BEGIN")
+    reader.execute("SELECT * FROM identities").fetchall()
+
+    def release_after_delay():
+        time.sleep(0.5)
+        reader.commit()
+        reader.close()
+
+    releaser = threading.Thread(target=release_after_delay)
+    releaser.start()
+
+    started = time.monotonic()
+
+    with Session(engine) as session:
+        session.add(Identity(name="Writer"))
+        session.commit()
+
+    elapsed = time.monotonic() - started
+    releaser.join()
+
+    # The write went through immediately rather than waiting out the
+    # reader's still-open transaction -- proof WAL mode, not just
+    # busy_timeout, is what let it through.
+    assert elapsed < 0.4
+
+    with Session(engine) as verify_session:
+        names = {identity.name for identity in verify_session.query(Identity).all()}
+
+    assert names == {"Existing", "Writer"}

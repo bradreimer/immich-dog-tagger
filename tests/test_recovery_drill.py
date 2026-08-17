@@ -75,16 +75,26 @@ def test_recovery_drill_backup_restore_and_state_verification(engine, tmp_path):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
-    # Write the engine's DB to a state_dir so BackupService can find it
+    # Write the engine's DB to a state_dir so BackupService can find it. The
+    # engine runs in WAL mode, where a committed row can live in the
+    # `-wal` sidecar file rather than the main file yet -- a raw copy of
+    # just `state.db` would silently miss it, so checkpoint (merge the WAL
+    # back into the main file) before every copy.
     db_path = engine.url.database
     import shutil
 
+    def _checkpoint_wal() -> None:
+        with engine.connect() as connection:
+            connection.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    _checkpoint_wal()
     shutil.copy(db_path, state_dir / "state.db")
 
     with Session(engine) as session:
         ids = _seed_authoritative_state(session, tmp_path)
 
     # Copy seeded DB into state_dir
+    _checkpoint_wal()
     shutil.copy(db_path, state_dir / "state.db")
 
     # Step 2: backup
