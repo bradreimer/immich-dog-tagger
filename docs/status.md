@@ -149,20 +149,44 @@
   `sqlalchemy` `"connect"` event listener, so readers and a writer can proceed concurrently instead
   of contending for the same single lock; the existing `busy_timeout` remains as the safety net for
   writer-vs-writer contention.
+- #111 cancel a running pipeline job: the Job Queue's Cancel action previously only worked on a
+  `PENDING` job (`PipelineJobService.cancel_job()` rejected anything else), and no Cancel button
+  existed in the UI at all, for any status. `PipelineJob` gained a `cancel_requested` flag (status
+  stays `RUNNING` while a cancellation is pending, not a new status value, so `has_running_job()`/
+  the dispatcher/the scheduler need no changes); `cancel_job()` now sets it for a `RUNNING` job via
+  an atomic `UPDATE ... WHERE status='RUNNING'` (closing a TOCTOU race against the job finishing
+  concurrently) for the operations with an incremental commit checkpoint to roll back to --
+  scan/detect/classify/full_pipeline; `embed`/`learn`/`sync` have no partial checkpoint to preserve
+  and stay `PENDING`-only, same as before. A `should_cancel` callable is threaded down to each
+  service's existing batch-commit checkpoint; on a hit, the uncommitted slice since the last commit
+  is rolled back and only the already-committed counts are kept, and
+  `PipelineJobRunner._run()` finalizes the job as `CANCELED` (a new `finish_canceled_job()`, not
+  `complete_job()`) once its handler returns having honored the flag. `DetectionService`/
+  `ClassificationService`'s commit-checkpoint size is also reduced (1000/500 -> 50/25): SQLite
+  allows only one writer at a time even under #107's WAL mode, and a GPU/CPU-bound batch that large
+  could hold that lock for minutes, well past a concurrent Cancel click's 30-second `busy_timeout`
+  budget. `ClassificationService.classify()` is also restructured to select/embed/commit in
+  internal chunks rather than embedding its whole selection up front, so an unlimited standalone
+  Classify job has a cancellation checkpoint at all. Also fixed alongside this: `DetectionService`
+  deleted each asset's cached original file immediately per-asset, before that asset's batch
+  committed -- a cancellation (or any mid-batch failure) rolling back the tail of a batch could
+  leave an asset reverted to `DOWNLOADED` with its cache file already gone, permanently stuck since
+  `download_pending()` only re-fetches `PENDING`/`DOWNLOAD_FAILED` assets; the unlink is now
+  deferred until the batch actually commits.
 
 ## Current Milestone
 No queued numbered milestone. v1.6.0 Pet Insights (#94) shipped and is recorded as completed in
-[docs/roadmap.md](roadmap.md); recent work since then (#99, #100, #101, #102, #103, #104, #105,
-#106) has been reliability/infra fixes rather than a new milestone.
+[docs/roadmap.md](roadmap.md); recent work since then (#99-#107, #111) has been reliability/infra
+fixes rather than a new milestone.
 
 ## Next Work
 v1.6.0's own explicitly-deferred items (see spec Non-goals): Best Friends (pet-to-pet
 co-occurrence), On This Day, a Pet World Tour map, and Milestones. Otherwise: improved
 reference-example selection, reference-set curation workflows, and confidence analysis (see
-docs/roadmap.md "Active Learning Improvements"), or v1.5's own open questions (owner-tunable decay
+docs/roadmap.md "Active Learning Improvements"), v1.5's own open questions (owner-tunable decay
 scale/floor, reporting how many reclassified items changed identity specifically due to temporal
-weighting). Also open: [#107](https://github.com/bradreimer/immich-dog-tagger/issues/107), a
-"database is locked" error when creating a dog/cat while a pipeline job is running.
+weighting), or extending #111's cancel-while-running support to `reclassify` (already batches the
+same way; deliberately left out of #111 to keep that change smaller).
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

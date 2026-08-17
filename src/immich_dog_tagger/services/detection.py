@@ -17,12 +17,14 @@ logger = logging.getLogger(__name__)
 # See scanner.BATCH_SIZE -- same rationale (issue #99), extended to `detect`
 # because a single commit at the end of the whole run held state.db's write
 # lock for the run's entire duration, blocking every other reader (issue
-# #104). Kept much smaller than scan/download's 1000: this is GPU/CPU-bound
-# ML inference, so a batch can take minutes rather than seconds, and a
-# should_cancel() cancellation request (issue #111) needs a concurrent
-# writer -- it has to wait for whichever batch is currently open to commit
-# and release SQLite's write lock, which must stay comfortably under the
-# 30s busy_timeout (database.py) for a Cancel click to feel responsive.
+# #104; WAL mode, issue #107, has since made reader-vs-writer concurrent,
+# but SQLite still allows only one writer at a time). Kept much smaller
+# than scan/download's 1000: this is GPU/CPU-bound ML inference, so a batch
+# can take minutes rather than seconds, and a should_cancel() cancellation
+# request (issue #111) is itself a writer -- it has to wait for whichever
+# batch is currently open to commit and release SQLite's write lock, which
+# must stay comfortably under the 30s busy_timeout (database.py) for a
+# Cancel click to feel responsive.
 BATCH_SIZE = 50
 
 
