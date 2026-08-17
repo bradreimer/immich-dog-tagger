@@ -12,6 +12,7 @@ echo "==> UI checks"
   cd ui
   npm run build
   npm run lint
+  npm test
 )
 
 echo "==> All checks passed"
