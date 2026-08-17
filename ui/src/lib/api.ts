@@ -11,6 +11,7 @@ import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
 import type { Settings } from "../types/settings";
 import type {
+  InsightCard,
   InsightsSummary,
   PersonCount,
   PlaceCount,
@@ -428,6 +429,14 @@ export async function getInsightsTimeline(
   );
   if (!response.ok) {
     throw new Error("Failed to load timeline");
+  }
+  return response.json();
+}
+
+export async function getInsightsCards(identityId: number): Promise<InsightCard[]> {
+  const response = await fetch(`/api/dogs/${identityId}/insights/cards`);
+  if (!response.ok) {
+    throw new Error("Failed to load insight cards");
   }
   return response.json();
 }

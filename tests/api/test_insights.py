@@ -85,6 +85,32 @@ def test_insights_endpoints_return_derived_data(api_client, engine):
     assert timeline.json()[0]["immich_asset_id"] == "a1"
 
 
+def test_insights_cards_404_for_unknown_dog(api_client):
+    response = api_client.get("/dogs/999/insights/cards")
+
+    assert response.status_code == 404
+
+
+def test_insights_cards_return_provider_results(api_client, engine):
+    identity_id = _seed_occurrence(engine, identity_name="Hermann")
+
+    response = api_client.get(f"/dogs/{identity_id}/insights/cards")
+    assert response.status_code == 200
+
+    cards = {card["slug"]: card for card in response.json()}
+    assert cards["favourite-place"]["value"] == "Seattle, United States"
+    assert cards["favourite-human"]["value"] == "Brad"
+
+
+def test_insights_cards_empty_for_dog_with_no_photos(api_client):
+    created = api_client.post("/dogs", json={"name": "Cooper"}).json()
+
+    response = api_client.get(f"/dogs/{created['id']}/insights/cards")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_insights_summary_zero_state_for_dog_with_no_photos(api_client):
     created = api_client.post("/dogs", json={"name": "Cooper"}).json()
 

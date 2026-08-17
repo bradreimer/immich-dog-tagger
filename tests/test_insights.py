@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.orm import Session
@@ -171,6 +171,80 @@ def test_timeline_paginates(session):
 
     assert [e.immich_asset_id for e in first_page] == ["a0", "a1"]
     assert [e.immich_asset_id for e in second_page] == ["a2", "a3"]
+
+
+def test_cards_raises_for_missing_identity(session):
+    with pytest.raises(IdentityNotFoundError):
+        InsightsService(session).cards(999)
+
+
+def test_cards_empty_for_identity_with_no_occurrences(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    assert InsightsService(session).cards(identity.id) == []
+
+
+def test_cards_includes_favourite_place_human_and_favorites(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a1",
+        captured_at=datetime(2023, 1, 1, tzinfo=UTC),
+        city="Seattle",
+        country="United States",
+        is_favorite=True,
+        people=[{"id": "p1", "name": "Brad"}],
+    )
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a2",
+        captured_at=datetime(2023, 6, 1, tzinfo=UTC),
+        city="Seattle",
+        country="United States",
+        people=[{"id": "p1", "name": "Brad"}],
+    )
+
+    cards = InsightsService(session).cards(identity.id)
+    by_slug = {card.slug: card for card in cards}
+
+    assert by_slug["favourite-place"].value == "Seattle, United States"
+    assert by_slug["favourite-human"].value == "Brad"
+    assert by_slug["immich-favorites"].value == "1"
+    # only 2 confirmed photos -- below the smallest milestone threshold
+    assert "milestone-total-photos" not in by_slug
+
+
+def test_cards_includes_milestone_once_threshold_reached(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    for i in range(100):
+        _add_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id=f"milestone-{i}",
+            captured_at=datetime(2020, 1, 1, tzinfo=UTC) + timedelta(days=i),
+        )
+
+    cards = InsightsService(session).cards(identity.id)
+    milestone = next(card for card in cards if card.slug == "milestone-total-photos")
+
+    assert milestone.value == "100th confirmed photo"
 
 
 def test_insights_only_include_this_identitys_occurrences(session):

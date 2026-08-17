@@ -7,40 +7,26 @@ All aggregation happens in Python over one identity's own occurrences,
 which is bounded to a single pet's photo count -- not a library-wide scan.
 Deterministic and explainable: every count here is directly re-derivable
 from the rows that produced it.
+
+Single-fact insights (favourite place/human, milestones, ...) are
+determined by the pluggable InsightProvider mechanism in providers.py
+(ADR-005); this service assembles the typed summary/places/people/timeline
+responses that predate that mechanism, reusing the same aggregation
+helpers so there is one computation behind each fact either way, and
+orchestrates the provider registry for the generic cards() surface.
 """
 
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from immich_dog_tagger.models import Asset, Identity, PetOccurrence
+from immich_dog_tagger.models import Identity, PetOccurrence
 
-
-@dataclass(frozen=True)
-class PlaceCount:
-    city: str | None
-    state: str | None
-    country: str | None
-    count: int
-
-    @property
-    def label(self) -> str:
-        parts = [part for part in (self.city, self.state, self.country) if part]
-        return ", ".join(parts) if parts else "Unknown location"
-
-
-@dataclass(frozen=True)
-class PersonCount:
-    person_id: str
-    name: str | None
-    count: int
-
-    @property
-    def label(self) -> str:
-        return self.name or self.person_id
+from .aggregations import PersonCount, PlaceCount, person_counts, place_counts
+from .providers import INSIGHT_PROVIDERS, InsightCard, InsightContext
 
 
 @dataclass(frozen=True)
@@ -89,8 +75,8 @@ class InsightsService:
             asset.captured_at.year for asset in assets if asset.captured_at is not None
         )
 
-        places = self._place_counts(assets)
-        people = self._person_counts(assets)
+        places = place_counts(assets)
+        people = person_counts(assets)
 
         return InsightsSummary(
             identity_id=identity.id,
@@ -141,13 +127,28 @@ class InsightsService:
         self._require_identity(identity_id)
         occurrences = self._occurrences(identity_id)
 
-        return self._place_counts([occurrence.asset for occurrence in occurrences])
+        return place_counts([occurrence.asset for occurrence in occurrences])
 
     def people(self, identity_id: int) -> list[PersonCount]:
         self._require_identity(identity_id)
         occurrences = self._occurrences(identity_id)
 
-        return self._person_counts([occurrence.asset for occurrence in occurrences])
+        return person_counts([occurrence.asset for occurrence in occurrences])
+
+    def cards(self, identity_id: int) -> list[InsightCard]:
+        identity = self._require_identity(identity_id)
+        occurrences = self._occurrences(identity_id)
+
+        context = InsightContext(
+            identity=identity,
+            occurrences=occurrences,
+            session=self.session,
+            now=datetime.now(UTC),
+        )
+
+        cards = [provider.compute(context) for provider in INSIGHT_PROVIDERS]
+
+        return [card for card in cards if card is not None]
 
     def _require_identity(self, identity_id: int) -> Identity:
         identity = self.session.get(Identity, identity_id)
@@ -165,43 +166,3 @@ class InsightsService:
                 .options(joinedload(PetOccurrence.asset))
             ).all()
         )
-
-    @staticmethod
-    def _place_counts(assets: list[Asset]) -> list[PlaceCount]:
-        keyed = [
-            (asset.city, asset.state, asset.country)
-            for asset in assets
-            if asset.city or asset.state or asset.country
-        ]
-
-        counts = Counter(keyed)
-
-        return [
-            PlaceCount(city=city, state=state, country=country, count=count)
-            for (city, state, country), count in counts.most_common()
-        ]
-
-    @staticmethod
-    def _person_counts(assets: list[Asset]) -> list[PersonCount]:
-        # Keyed by person_id alone, not (id, name) -- a renamed Immich
-        # person shouldn't be double-counted as two different people.
-        counts: Counter[str] = Counter()
-        names: dict[str, str | None] = {}
-
-        for asset in assets:
-            seen_in_asset: set[str] = set()
-
-            for person in asset.people:
-                person_id = person.get("id")
-
-                if not person_id or person_id in seen_in_asset:
-                    continue
-
-                seen_in_asset.add(person_id)
-                counts[person_id] += 1
-                names[person_id] = person.get("name") or names.get(person_id)
-
-        return [
-            PersonCount(person_id=person_id, name=names.get(person_id), count=count)
-            for person_id, count in counts.most_common()
-        ]

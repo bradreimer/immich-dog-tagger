@@ -420,6 +420,24 @@ class TimelineEntryResponse(BaseModel):
         )
 
 
+class InsightCardResponse(BaseModel):
+    slug: str
+    title: str
+    value: str
+    subtext: str | None
+    category: str
+
+    @classmethod
+    def from_card(cls, card):
+        return cls(
+            slug=card.slug,
+            title=card.title,
+            value=card.value,
+            subtext=card.subtext,
+            category=card.category,
+        )
+
+
 class InsightsSummaryResponse(BaseModel):
     identity_id: int
     identity_name: str
