@@ -618,7 +618,7 @@ def test_correct_species_rescores_against_new_species_pool(engine):
 
         assert crop.species == Species.CAT
         assert result.identity == "Max"
-        assert result.similarity > 0.9
+        assert result.confidence > 0.9
         assert result.source == ClassificationSources.AUTO
 
         # No ReviewAction should be written -- a species correction doesn't
