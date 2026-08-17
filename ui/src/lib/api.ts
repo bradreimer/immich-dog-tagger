@@ -353,6 +353,30 @@ export async function correctClassification(
   }
 }
 
+export async function correctSpecies(
+  classificationId: number,
+  species: "dog" | "cat",
+): Promise<ReviewItem> {
+  const response = await fetch(
+    `/api/classifications/${classificationId}/species`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        species,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to correct species");
+  }
+
+  return response.json();
+}
+
 export async function skipClassification(
   classificationId: number,
 ): Promise<void> {

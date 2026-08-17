@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import ClassificationPassStatus, ReviewActions
+from immich_dog_tagger.enums import ClassificationPassStatus, ReviewActions, Species
 from immich_dog_tagger.models import (
     ClassificationPass,
     Crop,
@@ -13,8 +13,12 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.metrics import MetricsService
 
 
-def _classification(session, *, identity, confidence):
-    crop = Crop(detection_id=1, path=f"{identity or 'unknown'}-{confidence}.jpg")
+def _classification(session, *, identity, confidence, species=Species.DOG):
+    crop = Crop(
+        detection_id=1,
+        path=f"{identity or 'unknown'}-{confidence}.jpg",
+        species=species,
+    )
     session.add(crop)
     session.flush()
 
@@ -176,3 +180,31 @@ def test_learning_metrics_history_limit(engine):
         assert len(metrics.pass_history) == 5
         # Most recent 5, oldest-first.
         assert [p.eligible_count for p in metrics.pass_history] == [10, 11, 12, 13, 14]
+
+
+def test_species_breakdown_keys_off_crop_species_not_detection_label(engine):
+    """
+    A species-corrected crop must be counted under its corrected species
+    (Crop.species), not whatever the detector originally guessed
+    (Detection.label) -- the two only ever diverge after a species
+    correction, which this test simulates directly by giving the crop a
+    species with no backing Detection row at all.
+    """
+    with Session(engine) as session:
+        _classification(
+            session, identity="Whiskers", confidence=0.95, species=Species.CAT
+        )
+        _classification(
+            session, identity="Hermann", confidence=0.95, species=Species.DOG
+        )
+
+        session.commit()
+
+        metrics = MetricsService(session).learning_metrics()
+
+        by_species = {entry.species: entry for entry in metrics.by_species}
+
+        assert by_species["cat"].eligible_count == 1
+        assert by_species["cat"].confident_count == 1
+        assert by_species["dog"].eligible_count == 1
+        assert by_species["dog"].confident_count == 1

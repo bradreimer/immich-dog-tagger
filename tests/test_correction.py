@@ -1,8 +1,11 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import numpy as np
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.classifier import IdentityClassifier
+from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import (
     ClassificationSources,
     EmbeddingSources,
@@ -15,6 +18,7 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
     EmbeddingExample,
+    Identity,
     ReviewAction,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
@@ -563,3 +567,138 @@ def test_correcting_to_unknown_removes_stale_embedding_example(engine, tmp_path)
 
         result = session.get(CropClassification, classification.id)
         assert result.identity == "Unknown"
+
+
+def test_correct_species_rescores_against_new_species_pool(engine):
+    with Session(engine) as session:
+        # A dog "Max" and a cat "Max" whose examples would be each other's
+        # nearest neighbor if species scoping were broken.
+        dog_max = Identity(name="Max", species=Species.DOG)
+        cat_max = Identity(name="Max", species=Species.CAT)
+        session.add_all([dog_max, cat_max])
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=dog_max.id,
+                crop_path="dog-max.jpg",
+                embedding=embedding_to_blob(np.array([0, 1, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+        session.add(
+            EmbeddingExample(
+                identity_id=cat_max.id,
+                crop_path="cat-max.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+
+        crop = Crop(detection_id=1, path="mystery.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=-1.0,
+            source=ClassificationSources.AUTO,
+            embedding=embedding_to_blob(np.array([0.95, 0.05, 0], dtype=np.float32)),
+        )
+        session.add(classification)
+        session.commit()
+
+        service = ClassificationCorrectionService(
+            session,
+            classifier=IdentityClassifier(session),
+        )
+
+        result = service.correct_species(classification.id, Species.CAT)
+
+        assert crop.species == Species.CAT
+        assert result.identity == "Max"
+        assert result.similarity > 0.9
+        assert result.source == ClassificationSources.AUTO
+
+        # No ReviewAction should be written -- a species correction doesn't
+        # decide an identity, so it must not mark the item as reviewed and
+        # drop it from the active review queue.
+        assert session.query(ReviewAction).count() == 0
+
+
+def test_correct_species_noop_when_unchanged(engine):
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="dog.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Hermann",
+            confidence=0.95,
+            source=ClassificationSources.REVIEW,
+            embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+        )
+        session.add(classification)
+        session.commit()
+
+        service = ClassificationCorrectionService(session)
+
+        result = service.correct_species(classification.id, Species.DOG)
+
+        assert result.identity == "Hermann"
+        assert result.confidence == 0.95
+        assert result.source == ClassificationSources.REVIEW
+
+
+def test_correct_species_forgets_stale_learning_example(engine, tmp_path):
+    image_path = tmp_path / "dog.jpg"
+    image_path.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        dog_hermann = Identity(name="Hermann", species=Species.DOG)
+        session.add(dog_hermann)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=dog_hermann.id,
+                crop_path=str(image_path),
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.REVIEW,
+            )
+        )
+
+        crop = Crop(detection_id=1, path=str(image_path), species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Hermann",
+            confidence=1.0,
+            source=ClassificationSources.REVIEW,
+            embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+        )
+        session.add(classification)
+        session.commit()
+
+        learner = Learner(embedder=None, session=session)
+        service = ClassificationCorrectionService(session, learner=learner)
+
+        service.correct_species(classification.id, Species.CAT)
+
+        assert session.query(EmbeddingExample).count() == 0
+
+
+def test_correct_species_rejects_unknown_classification(engine):
+    with Session(engine) as session:
+        service = ClassificationCorrectionService(session)
+
+        try:
+            service.correct_species(999, Species.CAT)
+        except ValueError as exc:
+            assert str(exc) == "Classification 999 not found"
+        else:
+            raise AssertionError("Expected ValueError")

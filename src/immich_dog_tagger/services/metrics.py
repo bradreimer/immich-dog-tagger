@@ -20,7 +20,6 @@ from immich_dog_tagger.models import (
     ClassificationPass,
     Crop,
     CropClassification,
-    Detection,
     EmbeddingExample,
     Identity,
     ReviewAction,
@@ -202,55 +201,56 @@ class MetricsService:
         Grouped queries, not one query per species -- stays cheap regardless
         of how many crops/examples exist, matching this file's existing
         "explicit denominators, no per-row Python loop" style.
+
+        Keyed off `Crop.species` -- the corrected, authoritative value a
+        reviewer may have overridden via species correction -- not
+        `Detection.label` (the detector's original, possibly-wrong raw
+        output). The two always matched before species correction existed,
+        so this only changes behavior for crops whose species a reviewer
+        has since corrected.
         """
         eligible_by_species = dict(
             self.session.execute(
-                select(Detection.label, func.count())
+                select(Crop.species, func.count())
                 .select_from(CropClassification)
                 .join(Crop, CropClassification.crop_id == Crop.id)
-                .join(Detection, Crop.detection_id == Detection.id)
-                .group_by(Detection.label)
+                .group_by(Crop.species)
             ).all()
         )
 
         confident_by_species = dict(
             self.session.execute(
-                select(Detection.label, func.count())
+                select(Crop.species, func.count())
                 .select_from(CropClassification)
                 .join(Crop, CropClassification.crop_id == Crop.id)
-                .join(Detection, Crop.detection_id == Detection.id)
                 .where(
                     CropClassification.identity.is_not(None),
                     CropClassification.confidence >= self.policy.confident_threshold,
                 )
-                .group_by(Detection.label)
+                .group_by(Crop.species)
             ).all()
         )
 
         unknown_by_species = dict(
             self.session.execute(
-                select(Detection.label, func.count())
+                select(Crop.species, func.count())
                 .select_from(CropClassification)
                 .join(Crop, CropClassification.crop_id == Crop.id)
-                .join(Detection, Crop.detection_id == Detection.id)
                 .where(CropClassification.identity.is_(None))
-                .group_by(Detection.label)
+                .group_by(Crop.species)
             ).all()
         )
 
         reviewed_by_species = dict(
             self.session.execute(
-                select(
-                    Detection.label, func.count(func.distinct(CropClassification.id))
-                )
+                select(Crop.species, func.count(func.distinct(CropClassification.id)))
                 .select_from(CropClassification)
                 .join(Crop, CropClassification.crop_id == Crop.id)
-                .join(Detection, Crop.detection_id == Detection.id)
                 .join(
                     ReviewAction,
                     ReviewAction.classification_id == CropClassification.id,
                 )
-                .group_by(Detection.label)
+                .group_by(Crop.species)
             ).all()
         )
 
@@ -266,16 +266,16 @@ class MetricsService:
         breakdown = []
 
         for species in Species:
-            eligible_count = eligible_by_species.get(species.value, 0)
-            confident_count = confident_by_species.get(species.value, 0)
+            eligible_count = eligible_by_species.get(species, 0)
+            confident_count = confident_by_species.get(species, 0)
 
             breakdown.append(
                 SpeciesMetrics(
                     species=species.value,
                     eligible_count=eligible_count,
                     confident_count=confident_count,
-                    unknown_count=unknown_by_species.get(species.value, 0),
-                    reviewed_count=reviewed_by_species.get(species.value, 0),
+                    unknown_count=unknown_by_species.get(species, 0),
+                    reviewed_count=reviewed_by_species.get(species, 0),
                     labeled_example_count=labeled_by_species.get(species, 0),
                     coverage=(confident_count / eligible_count)
                     if eligible_count

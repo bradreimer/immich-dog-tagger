@@ -130,6 +130,10 @@ class CorrectionRequest(BaseModel):
     identity: str
 
 
+class SpeciesCorrectionRequest(BaseModel):
+    species: Species
+
+
 class ReviewItemResponse(BaseModel):
     classification_id: int
     crop_id: int

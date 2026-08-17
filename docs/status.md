@@ -162,6 +162,25 @@
   [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md) and
   [ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md).
 
+- [#116](https://github.com/bradreimer/immich-dog-tagger/issues/116) explicit dog/cat species
+  correction on the Review page: YOLO occasionally mixes up dogs and cats, and `Crop.species` was
+  previously set once at crop-creation time with no way to fix it afterward. New
+  `POST /classifications/{id}/species` endpoint and
+  `ClassificationCorrectionService.correct_species()` rescore the crop's already-stored embedding
+  against the corrected species' reference pool via `IdentityClassifier` (no re-download/
+  re-embedding), forget any stale learning example filed under the wrong species
+  (`Learner.forget_image`), and deliberately write no `ReviewAction` -- a species change doesn't
+  decide an identity, so recording one would make `ReviewQueryService.review_queue_count()` treat
+  the item as already reviewed and drop it from the active queue while still effectively
+  unclassified. Also fixed a latent inconsistency this feature would otherwise have exposed:
+  `services/metrics.py`'s per-species Learning Progress breakdown grouped by `Detection.label`
+  (the detector's raw, possibly-wrong output) instead of `Crop.species` (the corrected,
+  authoritative value) -- the two always matched before this feature existed, so it was invisible
+  until species became correctable. Review page gained two distinctly colored "Dog"/"Cat" buttons
+  (reusing the existing validated categorical chart palette, not new colors) alongside the
+  existing identity chooser. See
+  [docs/specs/species-correction.md](specs/species-correction.md).
+
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md).
