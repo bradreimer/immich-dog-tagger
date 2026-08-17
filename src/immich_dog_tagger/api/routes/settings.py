@@ -8,6 +8,7 @@ from immich_dog_tagger.api.dependencies import get_config, get_session
 from immich_dog_tagger.api.schemas import SettingsResponse
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.models import Asset
+from immich_dog_tagger.version import get_version
 
 router = APIRouter(
     prefix="/settings",
@@ -27,4 +28,5 @@ def get_settings(
     return SettingsResponse(
         immich_url=config.immich_url,
         scanned_image_count=scanned_image_count,
+        version=get_version(),
     )

@@ -34,6 +34,7 @@ from immich_dog_tagger.api.routes import (
 from immich_dog_tagger.config import load_config
 from immich_dog_tagger.services.job_recovery import recover_interrupted_jobs
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth, run_scheduler
+from immich_dog_tagger.version import get_version
 
 
 @asynccontextmanager
@@ -64,7 +65,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Immich Dog Tagger API",
-        version="1.6.0",
+        version=get_version(),
         lifespan=lifespan,
     )
 

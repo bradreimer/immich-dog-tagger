@@ -211,11 +211,22 @@
   existing identity chooser. See
   [docs/specs/species-correction.md](specs/species-correction.md).
 
+- [#125](https://github.com/bradreimer/immich-dog-tagger/issues/125) show the running app version
+  in the sidebar footer and on the Settings page, so a maintainer can tell what release they're on
+  without checking `pyproject.toml` or a container tag. Added
+  `immich_dog_tagger.version.get_version()` (reads installed package metadata via
+  `importlib.metadata`) as the single source of truth, replacing the separate hardcoded
+  `version="1.6.0"` literal previously passed to the `FastAPI(...)` constructor. Surfaced via the
+  existing `/health` response (sidebar, fetched once on mount) and a new `version` field on
+  `SettingsResponse` (Settings page's existing `/settings` fetch). Also added `afterEach(cleanup)`
+  to the Vitest setup, a latent gap from the framework's initial setup that only surfaced once a
+  test file asserted DOM uniqueness/absence across multiple tests.
+
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
-as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job) and #116/#117 (review
-page species correction, predicted-identity highlight) followed as additional reliability/UX
-fixes.
+as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
+page species correction, predicted-identity highlight), and #125 (version display) followed as
+additional reliability/UX fixes.
 
 ## Next Work
 v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet

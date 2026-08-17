@@ -5,3 +5,4 @@ def test_health(api_client):
     data = response.json()
     assert data["status"] == "ok"
     assert "scheduler" in data
+    assert data["version"]
