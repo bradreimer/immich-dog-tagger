@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { clearJobHistory, getJobs } from "../../lib/api";
+import { cancelJob, clearJobHistory, getJobs } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
-import type { PipelineJob } from "../../types/jobs";
-import { IconLoader2, IconRefresh, IconTrash } from "@tabler/icons-react";
+import type { JobOperation, PipelineJob } from "../../types/jobs";
+import { IconLoader2, IconPlayerStop, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+
+// Mirrors CANCELABLE_WHILE_RUNNING in services/jobs.py -- these are the
+// only operations with an incremental commit checkpoint to roll back to
+// (issue #111), so they're the only ones whose Cancel button works once
+// already running. Keep in sync with the backend list.
+const CANCELABLE_WHILE_RUNNING = new Set<JobOperation>([
+  "scan",
+  "detect",
+  "classify",
+  "full_pipeline",
+]);
+
+function canCancel(job: PipelineJob): boolean {
+  if (job.status === "pending") {
+    return true;
+  }
+
+  return job.status === "running" && CANCELABLE_WHILE_RUNNING.has(job.operation);
+}
 
 function formatOperation(operation: string): string {
   return operation
@@ -37,7 +57,22 @@ function progressLabel(job: PipelineJob): string {
   return `${job.progress_current}/${job.progress_total}`;
 }
 
-function JobRow({ job }: { job: PipelineJob }) {
+function JobRow({
+  job,
+  canceling,
+  onCancel,
+}: {
+  job: PipelineJob;
+  canceling: boolean;
+  onCancel: (id: number) => void;
+}) {
+  const hasProgressBar = job.progress_total !== null && job.progress_total > 0;
+  const progressPercent = hasProgressBar
+    ? (job.progress_current / job.progress_total!) * 100
+    : 0;
+
+  const isCanceling = job.status === "running" && job.cancel_requested;
+
   return (
     <div className={`rounded-md border p-3 ${jobCardClassName(job.status)}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -48,8 +83,30 @@ function JobRow({ job }: { job: PipelineJob }) {
         <div className="flex items-center gap-2">
           <Badge className={jobBadgeClassName(job.status)}>{job.status}</Badge>
           <span className="text-xs text-muted-foreground">{progressLabel(job)}</span>
+
+          {isCanceling ? (
+            <Button variant="outline" size="sm" disabled aria-label="Canceling">
+              <IconLoader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Canceling…
+            </Button>
+          ) : (
+            canCancel(job) && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onCancel(job.id)}
+                disabled={canceling}
+                aria-label={`Cancel job #${job.id}`}
+              >
+                <IconPlayerStop className="h-4 w-4" aria-hidden="true" />
+                Cancel
+              </Button>
+            )
+          )}
         </div>
       </div>
+
+      {hasProgressBar && <Progress value={progressPercent} className="mt-2" />}
 
       <div className="mt-2 text-sm text-muted-foreground">{job.progress_message ?? "No progress details"}</div>
 
@@ -69,6 +126,7 @@ export function JobQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [cancelingIds, setCancelingIds] = useState<Set<number>>(new Set());
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -122,6 +180,27 @@ export function JobQueuePage() {
       setClearing(false);
     }
   }, [groups.history, load]);
+
+  const handleCancel = useCallback(
+    async (id: number) => {
+      setError(null);
+      setCancelingIds((prev) => new Set(prev).add(id));
+
+      try {
+        await cancelJob(id);
+        await load({ silent: true });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to cancel job");
+      } finally {
+        setCancelingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [load],
+  );
 
   const hasActiveJobs = groups.running.length + groups.pending.length > 0;
 
@@ -180,7 +259,14 @@ export function JobQueuePage() {
           {groups.running.length === 0 ? (
             <p className="text-sm text-muted-foreground">No running jobs.</p>
           ) : (
-            groups.running.map((job) => <JobRow key={job.id} job={job} />)
+            groups.running.map((job) => (
+              <JobRow
+                key={job.id}
+                job={job}
+                canceling={cancelingIds.has(job.id)}
+                onCancel={handleCancel}
+              />
+            ))
           )}
         </CardContent>
       </Card>
@@ -194,7 +280,14 @@ export function JobQueuePage() {
           {groups.pending.length === 0 ? (
             <p className="text-sm text-muted-foreground">No pending jobs.</p>
           ) : (
-            groups.pending.map((job) => <JobRow key={job.id} job={job} />)
+            groups.pending.map((job) => (
+              <JobRow
+                key={job.id}
+                job={job}
+                canceling={cancelingIds.has(job.id)}
+                onCancel={handleCancel}
+              />
+            ))
           )}
         </CardContent>
       </Card>
@@ -215,7 +308,9 @@ export function JobQueuePage() {
           {groups.history.length === 0 ? (
             <p className="text-sm text-muted-foreground">No job history yet.</p>
           ) : (
-            groups.history.map((job) => <JobRow key={job.id} job={job} />)
+            groups.history.map((job) => (
+              <JobRow key={job.id} job={job} canceling={false} onCancel={handleCancel} />
+            ))
           )}
         </CardContent>
       </Card>

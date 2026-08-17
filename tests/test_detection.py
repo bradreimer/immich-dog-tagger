@@ -424,6 +424,69 @@ def test_detection_deletes_cached_original_after_crop_writer_succeeds(
         assert (tmp_path / "abc123_0.jpg").exists()
 
 
+def test_detection_cancellation_keeps_cache_files_for_the_rolled_back_batch(
+    engine,
+    tmp_path,
+):
+    # Issue #111: the cached-original unlink is deferred until an asset's
+    # batch actually commits. Without that, a cancellation rolling back the
+    # tail of a batch would revert those assets to DOWNLOADED in the DB
+    # while their cache file was already gone -- and download_pending()
+    # only re-fetches PENDING/DOWNLOAD_FAILED assets, not DOWNLOADED ones,
+    # so they'd be stuck needing a manual --force redownload.
+    total = 2 * BATCH_SIZE
+    cancel_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+
+    class FakeCropWriter:
+        def write(self, image_path, asset_id, detections):
+            crop_path = tmp_path / f"{asset_id}_0.jpg"
+            crop_path.write_bytes(b"fake crop")
+            return [(0, crop_path)]
+
+    with Session(engine) as session:
+        assets = [
+            Asset(
+                immich_asset_id=f"asset-{index}",
+                checksum=f"checksum-{index}",
+                extension=".jpg",
+                status=AssetStatus.DOWNLOADED,
+            )
+            for index in range(total)
+        ]
+        session.add_all(assets)
+        session.commit()
+
+        original_paths = [asset.cache_path(tmp_path) for asset in assets]
+        for path in original_paths:
+            path.write_bytes(b"original bytes")
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+            crop_writer=FakeCropWriter(),
+        )
+
+        calls = {"count": 0}
+
+        def should_cancel():
+            calls["count"] += 1
+            return calls["count"] > cancel_at
+
+        summary = service.run(should_cancel=should_cancel)
+
+        assert summary.processed == BATCH_SIZE
+
+        # The committed batch's cache files are gone (crops exist instead)...
+        for path in original_paths[:BATCH_SIZE]:
+            assert not path.exists()
+
+        # ...but the rolled-back batch's assets are still DOWNLOADED in the
+        # DB, so their cache files must still be there for a future run.
+        for path in original_paths[BATCH_SIZE:]:
+            assert path.exists()
+
+
 def test_detection_keeps_cached_original_without_crop_writer(
     engine,
     tmp_path,
@@ -455,14 +518,14 @@ def test_detection_keeps_cached_original_without_crop_writer(
         assert original_path.exists()
 
 
-def test_detection_commits_in_batches_of_1000(
+def test_detection_commits_in_batches(
     engine,
     tmp_path,
 ):
     # Regression test for issue #104: a single commit at the end of the
     # whole run held state.db's write lock for the run's entire duration,
     # blocking every other reader for as long as the run took.
-    total = BATCH_SIZE + 500
+    total = BATCH_SIZE + BATCH_SIZE // 2
 
     with Session(engine) as session:
         assets = [
@@ -496,8 +559,8 @@ def test_detection_commits_in_batches_of_1000(
 
         assert summary.processed == total
         # One commit at the BATCH_SIZE boundary, one final commit for the
-        # remaining 500 -- proves the loop doesn't hold everything for a
-        # single commit at the end.
+        # remainder -- proves the loop doesn't hold everything for a single
+        # commit at the end.
         assert len(commit_calls) == 2
         assert session.query(Detection).count() == total
 
@@ -510,7 +573,7 @@ def test_detection_failure_leaves_only_prior_batches_committed(
     # not discard batches already committed, the same guarantee issue #99
     # established for scan/download.
     total = BATCH_SIZE + 500
-    fail_at = BATCH_SIZE + 200
+    fail_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
 
     class FlakyDetector:
         def __init__(self):
@@ -547,7 +610,53 @@ def test_detection_failure_leaves_only_prior_batches_committed(
             service.run()
 
     with Session(engine) as verify_session:
-        # Only the first full batch (1000) was committed; the failure at
-        # 1200 happened inside the still-uncommitted second batch, which
-        # was never flushed to disk.
+        # Only the first full batch was committed; the failure happened
+        # inside the still-uncommitted second batch, which was never
+        # flushed to disk.
         assert verify_session.query(Detection).count() == BATCH_SIZE
+
+
+def test_detection_honors_should_cancel_and_keeps_only_committed_batches(
+    engine,
+    tmp_path,
+):
+    # Issue #111: cancellation reuses the same commit checkpoint as a
+    # crash-safety failure would.
+    total = 2 * BATCH_SIZE
+    cancel_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+
+    with Session(engine) as session:
+        assets = [
+            Asset(
+                immich_asset_id=f"asset-{index}",
+                checksum=f"checksum-{index}",
+                extension=".jpg",
+                status=AssetStatus.DOWNLOADED,
+            )
+            for index in range(total)
+        ]
+        session.add_all(assets)
+        session.commit()
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+        )
+
+        calls = {"count": 0}
+
+        def should_cancel():
+            calls["count"] += 1
+            return calls["count"] > cancel_at
+
+        summary = service.run(should_cancel=should_cancel)
+
+        assert summary.processed == BATCH_SIZE
+
+    with Session(engine) as verify_session:
+        assert verify_session.query(Detection).count() == BATCH_SIZE
+        assert (
+            verify_session.query(Asset).filter_by(status=AssetStatus.DETECTED).count()
+            == BATCH_SIZE
+        )

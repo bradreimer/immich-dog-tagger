@@ -331,6 +331,20 @@ export async function createJob(
   return response.json();
 }
 
+export async function cancelJob(id: number): Promise<PipelineJob> {
+  const response = await fetch(`/api/jobs/${id}/cancel`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to cancel job");
+  }
+
+  return response.json();
+}
+
 export async function correctClassification(
   classificationId: number,
   identity: string,

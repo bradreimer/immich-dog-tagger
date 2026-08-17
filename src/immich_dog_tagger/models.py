@@ -673,6 +673,19 @@ class PipelineJob(Base):
         server_default="1",
     )
 
+    # Set by cancel_job() while this job is RUNNING (issue #111) -- status
+    # deliberately stays RUNNING rather than moving to a separate
+    # "canceling" state, so has_running_job()/the dispatcher/the scheduler
+    # (all of which key off RUNNING) need no changes. The job's own
+    # execution loop polls this flag at its existing batch-commit
+    # checkpoints and transitions itself to CANCELED once it honors it.
+    cancel_requested: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+    )
+
     schedule: Mapped[PipelineSchedule | None] = relationship(
         back_populates="jobs",
     )
@@ -689,6 +702,7 @@ class PipelineJob(Base):
             PipelineJobStatus.RUNNING: {
                 PipelineJobStatus.COMPLETED,
                 PipelineJobStatus.FAILED,
+                PipelineJobStatus.CANCELED,
             },
             PipelineJobStatus.COMPLETED: set(),
             PipelineJobStatus.FAILED: set(),

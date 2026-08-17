@@ -4,6 +4,7 @@ Crop classification pipeline.
 
 import logging
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session, joinedload
@@ -23,13 +24,16 @@ from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 
 logger = logging.getLogger(__name__)
 
-# Matches PetOccurrenceService.sync_all's batch size -- classifying a crop
-# does comparable per-item DB work (a classification row plus an occurrence
-# sync, each involving their own queries). A single commit at the end of the
-# whole batch held state.db's write lock for the run's entire duration,
-# blocking every other reader (issue #104); see scanner.BATCH_SIZE/issue #99
-# for the same fix applied to `scan`.
-BATCH_SIZE = 500
+# Both the query-and-embed chunk size and the commit checkpoint (issue
+# #104/#111): each chunk is selected, embedded, and committed as one unit,
+# so should_cancel() (issue #111) is only ever checked between chunks, never
+# mid-chunk -- keeping this small bounds both how long a single
+# embed_batch() call runs uninterruptibly and how long SQLite's write lock
+# is held, so a concurrent cancel request doesn't have to wait past the
+# busy_timeout. Smaller than detect's BATCH_SIZE=50 since classifying does
+# comparable-or-more per-item DB work (a classification row plus an
+# occurrence sync, each with their own queries) per unit of embedding cost.
+BATCH_SIZE = 25
 
 
 @dataclass
@@ -57,73 +61,89 @@ class ClassificationService:
         mode: ClassificationMode = ClassificationMode.PENDING,
         limit: int | None = None,
         threshold: float | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> ClassificationSummary:
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold
         )
-        query = self._classification_query(
-            mode,
-            threshold,
-        )
 
-        if limit is not None:
-            query = query.limit(limit)
+        total = 0
+        counts = Counter()
+        remaining = limit
+        last_id = 0
 
-        crops = query.all()
+        # Selects, embeds, and commits one BATCH_SIZE-sized chunk at a time
+        # (issue #111) rather than embedding every eligible crop up front --
+        # for a `mode=ALL`/`LOW_CONFIDENCE` run a crop can still match the
+        # query's own filter after being reclassified (e.g. it's still low
+        # confidence), so `Crop.id > last_id` is what guarantees each chunk
+        # makes forward progress, not the mode's WHERE clause narrowing on
+        # its own the way PENDING's does.
+        while True:
+            if should_cancel and should_cancel():
+                break
 
-        if not crops:
-            logger.info("Classify (mode=%s): no eligible crops", mode.value)
-            return ClassificationSummary(
-                classified=0,
-                identities={},
+            chunk_size = BATCH_SIZE if remaining is None else min(BATCH_SIZE, remaining)
+
+            if chunk_size <= 0:
+                break
+
+            crops = (
+                self._classification_query(mode, threshold)
+                .filter(Crop.id > last_id)
+                .order_by(Crop.id)
+                .limit(chunk_size)
+                .all()
             )
 
-        counts = Counter()
+            if not crops:
+                break
 
-        embeddings = self.embedder.embed_batch(
-            [crop.path for crop in crops],
-        )
+            embeddings = self.embedder.embed_batch(
+                [crop.path for crop in crops],
+            )
 
-        since_commit = 0
+            try:
+                for crop, embedding in zip(crops, embeddings):
+                    classification = self._classify_crop(
+                        crop,
+                        embedding,
+                        threshold,
+                    )
 
-        try:
-            for crop, embedding in zip(crops, embeddings):
-                classification = self._classify_crop(
-                    crop,
-                    embedding,
-                    threshold,
-                )
+                    if classification.identity:
+                        counts[classification.identity] += 1
+                    else:
+                        counts["Unknown"] += 1
+            except Exception:
+                # Discard the still-uncommitted chunk before propagating --
+                # otherwise the caller's own failure-handling commit (job
+                # status update, sharing this same session) would silently
+                # persist it anyway, defeating the point of batching commits
+                # in the first place (issue #104).
+                self.session.rollback()
+                raise
 
-                if classification.identity:
-                    counts[classification.identity] += 1
-                else:
-                    counts["Unknown"] += 1
+            self._commit(len(crops))
 
-                since_commit += 1
+            total += len(crops)
+            last_id = crops[-1].id
 
-                if since_commit >= BATCH_SIZE:
-                    self._commit(since_commit)
-                    since_commit = 0
-        except Exception:
-            # Discard the still-uncommitted batch before propagating --
-            # otherwise the caller's own failure-handling commit (job status
-            # update, sharing this same session) would silently persist it
-            # anyway, defeating the point of batching commits in the first
-            # place (issue #104).
-            self.session.rollback()
-            raise
+            if remaining is not None:
+                remaining -= chunk_size
 
-        self._commit(since_commit)
-
-        logger.info(
-            "Classify (mode=%s): classified %d crop(s), %d unknown",
-            mode.value,
-            len(crops),
-            counts.get("Unknown", 0),
-        )
+        if total == 0:
+            logger.info("Classify (mode=%s): no eligible crops", mode.value)
+        else:
+            logger.info(
+                "Classify (mode=%s): classified %d crop(s), %d unknown",
+                mode.value,
+                total,
+                counts.get("Unknown", 0),
+            )
 
         return ClassificationSummary(
-            classified=len(crops),
+            classified=total,
             identities=dict(counts),
         )
 

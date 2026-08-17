@@ -23,6 +23,7 @@ export interface PipelineJob {
   progress_total: number | null;
   progress_message: string | null;
   error_message: string | null;
+  cancel_requested: boolean;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;

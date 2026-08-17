@@ -506,13 +506,16 @@ def test_classify_all_includes_classified_crops(engine):
     assert summary.classified == 1
 
 
-def test_classification_service_commits_in_batches_of_500(engine):
+def test_classification_service_commits_in_batches(engine):
     from unittest.mock import Mock
 
     # Regression test for issue #104: a single commit at the end of the
     # whole batch held state.db's write lock for the run's entire duration,
     # blocking every other reader for as long as classification took.
-    total = BATCH_SIZE + 200
+    # BATCH_SIZE is also this service's select/embed/commit chunk size
+    # (issue #111), so a chunk-and-a-half gives exactly one full chunk plus
+    # one partial one -- two commits, regardless of BATCH_SIZE's value.
+    total = BATCH_SIZE + BATCH_SIZE // 2
 
     with Session(engine) as session:
         crops = [
@@ -559,9 +562,9 @@ def test_classification_service_commits_in_batches_of_500(engine):
         )
 
         assert summary.classified == total
-        # One commit at the BATCH_SIZE boundary, one final commit for the
-        # remaining 200 -- proves the loop doesn't hold everything for a
-        # single commit at the end.
+        # One commit for the first full chunk, one final commit for the
+        # remainder -- proves the loop doesn't hold everything for a single
+        # commit at the end.
         assert len(commit_calls) == 2
         assert session.query(CropClassification).count() == total
 
@@ -577,7 +580,7 @@ def test_classification_service_failure_leaves_only_prior_batches_committed(
     # batch must not survive either, since PipelineJobRunner commits the
     # job's own failure status on this same session right after.
     total = BATCH_SIZE + 200
-    fail_at = BATCH_SIZE + 100
+    fail_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
 
     with Session(engine) as session:
         crops = [
@@ -626,8 +629,116 @@ def test_classification_service_failure_leaves_only_prior_batches_committed(
             )
 
     with Session(engine) as verify_session:
-        # Only the first full batch (500) was committed; the failure at
-        # 600 happened inside the still-uncommitted second batch, which
-        # was rolled back in full rather than left for a later commit
-        # (e.g. the caller's job-failure commit) to persist by accident.
+        # Only the first full batch was committed; the failure happened
+        # inside the still-uncommitted second batch, which was rolled back
+        # in full rather than left for a later commit (e.g. the caller's
+        # job-failure commit) to persist by accident.
         assert verify_session.query(CropClassification).count() == BATCH_SIZE
+
+
+def test_classification_service_honors_should_cancel(engine):
+    from unittest.mock import Mock
+
+    # Issue #111: should_cancel is checked between chunks (each chunk is
+    # select+embed+commit as one atomic unit here, see BATCH_SIZE's
+    # docstring), so cancellation never loses a chunk that already
+    # committed.
+    total = 3 * BATCH_SIZE
+
+    with Session(engine) as session:
+        crops = [
+            Crop(
+                detection_id=index,
+                path=f"{index}.jpg",
+            )
+            for index in range(total)
+        ]
+        session.add_all(crops)
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.side_effect = lambda paths: np.zeros(
+            (len(paths), 3), dtype=np.float32
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity=None,
+            similarity=0.0,
+            matched_example_id=None,
+            candidates=[],
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        calls = {"count": 0}
+
+        def should_cancel():
+            calls["count"] += 1
+            # Let the first two chunks through, stop before the third.
+            return calls["count"] > 2
+
+        summary = service.classify(
+            mode=ClassificationMode.ALL,
+            should_cancel=should_cancel,
+        )
+
+        assert summary.classified == 2 * BATCH_SIZE
+
+    with Session(engine) as verify_session:
+        assert verify_session.query(CropClassification).count() == 2 * BATCH_SIZE
+
+
+def test_classification_service_chunks_without_an_explicit_limit(engine):
+    """Issue #111: without this, an unlimited Classify job would embed
+    every eligible crop in one uninterruptible call before should_cancel
+    ever got checked -- classify() must select/embed/commit in its own
+    internal chunks regardless of whether a limit was passed."""
+    from unittest.mock import Mock
+
+    total = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+
+    with Session(engine) as session:
+        crops = [
+            Crop(
+                detection_id=index,
+                path=f"{index}.jpg",
+            )
+            for index in range(total)
+        ]
+        session.add_all(crops)
+        session.commit()
+
+        embedder = Mock()
+        embed_call_sizes = []
+
+        def fake_embed_batch(paths):
+            embed_call_sizes.append(len(paths))
+            return np.zeros((len(paths), 3), dtype=np.float32)
+
+        embedder.embed_batch.side_effect = fake_embed_batch
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity=None,
+            similarity=0.0,
+            matched_example_id=None,
+            candidates=[],
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify(mode=ClassificationMode.ALL)
+
+        assert summary.classified == total
+        # Never one call embedding everything -- each call is bounded by
+        # BATCH_SIZE.
+        assert embed_call_sizes == [BATCH_SIZE, total - BATCH_SIZE]

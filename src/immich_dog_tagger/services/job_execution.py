@@ -102,6 +102,7 @@ def _scan_handler(
         scanned = scanner.scan(
             limit=options.get("limit"),
             force=options.get("force", False),
+            should_cancel=progress.is_cancel_requested,
         )
 
         progress.message(f"Scanned {scanned} assets")
@@ -132,6 +133,7 @@ def _detect_handler(
         summary = service.run(
             limit=options.get("limit"),
             force=options.get("force", False),
+            should_cancel=progress.is_cancel_requested,
         )
 
         progress.message(f"Detected {summary.dogs} dog(s) and {summary.cats} cat(s)")
@@ -199,6 +201,7 @@ def _classify_handler(
             mode=options.get("mode", ClassificationMode.PENDING),
             limit=options.get("limit"),
             threshold=options.get("threshold"),
+            should_cancel=progress.is_cancel_requested,
         )
 
         progress.message(f"Classified {summary.classified} crops")
@@ -408,10 +411,25 @@ def _full_pipeline_handler(
             if progress_callback is not None:
                 progress_callback(message)
 
+        def report_batch_progress(current: int, total: int) -> None:
+            # Separate from report() above -- current/total drive the Jobs
+            # page's progress bar, independent of (and in addition to) the
+            # stage-label text messages, matching the existing
+            # progress.set(current=, total=) pattern used by _embed_handler/
+            # _learn_handler/ReclassifyService (issue #103 acceptance
+            # criterion: the UI should reflect batch-level count/total, not
+            # only a stage-label message).
+            progress.set(
+                current=current,
+                total=total,
+            )
+
         summary = pipeline.run(
             progress=report,
+            on_batch_progress=report_batch_progress,
             limit=options.get("limit"),
             force=options.get("force", False),
+            should_cancel=progress.is_cancel_requested,
         )
 
         return {

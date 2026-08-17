@@ -365,3 +365,41 @@ def test_scan_failure_leaves_only_prior_batches_committed(engine):
         # 1200 happened inside the still-uncommitted second batch, which
         # was rolled back in full.
         assert verify_session.query(Asset).count() == BATCH_SIZE
+
+
+def test_scan_honors_should_cancel_and_keeps_only_committed_batches(engine):
+    # Issue #111: cancellation reuses the same commit checkpoint as a
+    # crash-safety failure would -- whatever's committed through the last
+    # full batch stays, whatever's since accumulated is rolled back.
+    total = 2 * BATCH_SIZE
+    cancel_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(
+                    id=str(i),
+                    filename=f"{i}.jpg",
+                    checksum=str(i),
+                )
+                for i in range(total)
+            ]
+
+    with Session(engine) as session:
+        scanner = Scanner(FakeClient(), session)
+
+        calls = {"count": 0}
+
+        def should_cancel():
+            calls["count"] += 1
+            return calls["count"] > cancel_at
+
+        count = scanner.scan(should_cancel=should_cancel)
+
+        # Only the first full batch's worth was returned/committed -- the
+        # partial second batch (in progress when cancellation was noticed)
+        # is discarded, not counted.
+        assert count == BATCH_SIZE
+
+    with Session(engine) as verify_session:
+        assert verify_session.query(Asset).count() == BATCH_SIZE
