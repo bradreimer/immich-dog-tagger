@@ -337,6 +337,7 @@ class JobResponse(BaseModel):
     progress_total: int | None
     progress_message: str | None
     error_message: str | None
+    cancel_requested: bool
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
@@ -351,6 +352,7 @@ class JobResponse(BaseModel):
             progress_total=job.progress_total,
             progress_message=job.progress_message,
             error_message=job.error_message,
+            cancel_requested=job.cancel_requested,
             created_at=job.created_at,
             started_at=job.started_at,
             completed_at=job.completed_at,

@@ -219,6 +219,67 @@ def test_runner_requires_registered_operation_handler(engine):
             runner.run_job(job.id)
 
 
+def test_runner_marks_job_canceled_when_cancel_was_honored(engine):
+    # Issue #111: when a handler notices should_cancel() and stops (rather
+    # than raising), the runner must finalize as CANCELED, not COMPLETED --
+    # checked once, after the handler returns successfully, via a fresh
+    # is_cancel_requested() read.
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(
+            operation=PipelineOperation.SCAN,
+            progress_total=100,
+        )
+
+        def scan_handler(progress):
+            # Simulate a cancel request landing mid-run and the handler
+            # having already committed 40/100 before honoring it.
+            progress.set(current=40, total=100, message="Batch complete")
+            service.cancel_job(job)
+            return {"scanned": 40}
+
+        runner = build_runner(
+            session,
+            {
+                PipelineOperation.SCAN: scan_handler,
+            },
+        )
+
+        result = runner.run_job(job.id)
+        session.refresh(job)
+
+        assert result == {"scanned": 40}
+        assert job.status is PipelineJobStatus.CANCELED
+        assert job.cancel_requested is False
+        # Not forced up to progress_total the way complete_job() would --
+        # it should reflect the last completed batch.
+        assert job.progress_current == 40
+        assert job.progress_message == "Batch complete"
+
+
+def test_runner_falls_back_to_generic_message_when_canceled_without_one(engine):
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(operation=PipelineOperation.DETECT)
+
+        def detect_handler(progress):
+            service.cancel_job(job)
+            return {"processed": 0}
+
+        runner = build_runner(
+            session,
+            {
+                PipelineOperation.DETECT: detect_handler,
+            },
+        )
+
+        runner.run_job(job.id)
+        session.refresh(job)
+
+        assert job.status is PipelineJobStatus.CANCELED
+        assert job.progress_message == "detect canceled"
+
+
 def test_runner_rejects_non_pending_job(engine):
     with Session(engine) as session:
         service = PipelineJobService(session)

@@ -136,7 +136,29 @@ def test_jobs_clear_history(api_client, engine):
     assert direct.status_code == 200
 
 
-def test_jobs_cancel_running_job_conflict(api_client, engine):
+def test_jobs_cancel_running_job_without_checkpoint_conflict(api_client, engine):
+    # SYNC does one big commit at the end of its run with no partial
+    # checkpoint to preserve, so cancelling it mid-run has never been
+    # supported (issue #111) -- Cancel stays PENDING-only for it, same as
+    # before this feature existed.
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(operation=PipelineOperation.SYNC)
+        service.start_job(job)
+
+    response = api_client.post(f"/jobs/{job.id}/cancel")
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "sync jobs cannot be canceled once running",
+    }
+
+
+def test_jobs_cancel_running_cancelable_job_flags_it(api_client, engine):
+    # Issue #111: SCAN/DETECT/CLASSIFY/FULL_PIPELINE have an incremental
+    # commit checkpoint to roll back to, so a RUNNING job can be flagged for
+    # cancellation -- status stays "running" (the job's own execution loop
+    # honors the flag and transitions itself), but cancel_requested flips.
     with Session(engine) as session:
         service = PipelineJobService(session)
         job = service.create_job(operation=PipelineOperation.SCAN)
@@ -144,7 +166,29 @@ def test_jobs_cancel_running_job_conflict(api_client, engine):
 
     response = api_client.post(f"/jobs/{job.id}/cancel")
 
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "running"
+    assert body["cancel_requested"] is True
+
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        persisted = service.repository.get(job.id)
+        assert persisted is not None
+        assert persisted.status is PipelineJobStatus.RUNNING
+        assert persisted.cancel_requested is True
+
+
+def test_jobs_cancel_already_terminal_job_conflict(api_client, engine):
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(operation=PipelineOperation.SCAN)
+        service.start_job(job)
+        service.complete_job(job)
+
+    response = api_client.post(f"/jobs/{job.id}/cancel")
+
     assert response.status_code == 409
     assert response.json() == {
-        "detail": "Only pending jobs can be canceled",
+        "detail": "Job is not pending or running and cannot be canceled",
     }

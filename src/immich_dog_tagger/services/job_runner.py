@@ -45,6 +45,16 @@ class JobProgressReporter:
         )
         return self.job
 
+    def is_cancel_requested(self) -> bool:
+        """
+        A fresh DB read, not `self.job.cancel_requested` -- that attribute
+        was only as current as the last time this job's own ORM object was
+        loaded/refreshed, but the flag is set by a *different* session
+        (the API request handling the Cancel click) via a separate commit
+        (issue #111).
+        """
+        return self.service.is_cancel_requested(self.job.id)
+
 
 class PipelineJobRunner:
     _execution_lock = Lock()
@@ -114,6 +124,21 @@ class PipelineJobRunner:
             try:
                 result = handler(reporter)
                 duration = time.monotonic() - started_at
+
+                if reporter.is_cancel_requested():
+                    self.service.finish_canceled_job(
+                        job,
+                        progress_message=job.progress_message
+                        or f"{job.operation.value} canceled",
+                    )
+
+                    logger.info(
+                        "Job %d (%s) canceled after %.2fs",
+                        job.id,
+                        job.operation.value,
+                        duration,
+                    )
+                    return result
 
                 # Preserve whatever informative final message the handler
                 # already set via progress.message()/.set() -- every

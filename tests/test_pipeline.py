@@ -27,6 +27,7 @@ class FakeScanner:
         self,
         limit=None,
         force=False,
+        should_cancel=None,
     ):
         self.called = True
         self.limit = limit
@@ -47,6 +48,7 @@ class FakeDownloader:
         self,
         limit=None,
         force=False,
+        should_cancel=None,
     ):
         self.called = True
         self.calls += 1
@@ -63,6 +65,7 @@ class FakeDetector:
         self,
         limit=None,
         force=False,
+        should_cancel=None,
     ):
         self.called = True
         self.calls += 1
@@ -81,6 +84,7 @@ class FakeClassifier:
         self,
         limit=None,
         mode=None,
+        should_cancel=None,
     ):
         self.called = True
         self.calls += 1
@@ -97,7 +101,7 @@ class PoolDownloader:
         self.remaining = total
         self.limits = []
 
-    def download_pending(self, limit=None, force=False):
+    def download_pending(self, limit=None, force=False, should_cancel=None):
         self.limits.append(limit)
         n = min(limit, self.remaining) if limit is not None else self.remaining
         self.remaining -= n
@@ -109,7 +113,7 @@ class PoolDetector:
         self.remaining = total
         self.limits = []
 
-    def run(self, limit=None, force=False):
+    def run(self, limit=None, force=False, should_cancel=None):
         self.limits.append(limit)
         n = min(limit, self.remaining) if limit is not None else self.remaining
         self.remaining -= n
@@ -121,7 +125,7 @@ class PoolClassifier:
         self.remaining = total
         self.limits = []
 
-    def classify(self, limit=None, mode=None):
+    def classify(self, limit=None, mode=None, should_cancel=None):
         self.limits.append(limit)
         n = min(limit, self.remaining) if limit is not None else self.remaining
         self.remaining -= n
@@ -158,7 +162,7 @@ def test_pipeline_runs_steps_in_order():
     calls = []
 
     class OrderedScanner:
-        def scan(self, limit=None, force=False):
+        def scan(self, limit=None, force=False, should_cancel=None):
             calls.append("scan")
             return 1
 
@@ -166,7 +170,7 @@ def test_pipeline_runs_steps_in_order():
         def __init__(self):
             self.n = 0
 
-        def download_pending(self, limit=None, force=False):
+        def download_pending(self, limit=None, force=False, should_cancel=None):
             calls.append("download")
             self.n += 1
             return 1 if self.n == 1 else 0
@@ -175,7 +179,7 @@ def test_pipeline_runs_steps_in_order():
         def __init__(self):
             self.n = 0
 
-        def run(self, limit=None, force=False):
+        def run(self, limit=None, force=False, should_cancel=None):
             calls.append("detect")
             self.n += 1
 
@@ -187,7 +191,7 @@ def test_pipeline_runs_steps_in_order():
         def __init__(self):
             self.n = 0
 
-        def classify(self, limit=None, mode=None):
+        def classify(self, limit=None, mode=None, should_cancel=None):
             calls.append("classify")
             self.n += 1
 
@@ -254,17 +258,17 @@ def test_pipeline_passes_limit_to_steps():
     received = {}
 
     class LimitedDownloader:
-        def download_pending(self, limit=None, force=False):
+        def download_pending(self, limit=None, force=False, should_cancel=None):
             received["download"] = limit
             return 0
 
     class LimitedDetector:
-        def run(self, limit=None, force=False):
+        def run(self, limit=None, force=False, should_cancel=None):
             received["detect"] = limit
             return FakeDetectionSummary(dogs=0)
 
     class LimitedClassifier:
-        def classify(self, limit=None, mode=None):
+        def classify(self, limit=None, mode=None, should_cancel=None):
             received["classify"] = limit
             return FakeClassificationSummary(classified=0)
 
@@ -292,22 +296,22 @@ def test_pipeline_passes_force_to_steps():
     received = {}
 
     class ForcedScanner:
-        def scan(self, limit=None, force=False):
+        def scan(self, limit=None, force=False, should_cancel=None):
             received["scan"] = force
             return 0
 
     class ForcedDownloader:
-        def download_pending(self, limit=None, force=False):
+        def download_pending(self, limit=None, force=False, should_cancel=None):
             received["download"] = force
             return 0
 
     class ForcedDetector:
-        def run(self, limit=None, force=False):
+        def run(self, limit=None, force=False, should_cancel=None):
             received["detect"] = force
             return FakeDetectionSummary(dogs=0)
 
     class ForcedClassifier:
-        def classify(self, limit=None, mode=None):
+        def classify(self, limit=None, mode=None, should_cancel=None):
             received["classify"] = mode == ClassificationMode.ALL
             return FakeClassificationSummary(classified=0)
 
@@ -514,3 +518,81 @@ def test_pipeline_force_mode_still_reports_final_batch_progress():
     # the total grows to cover what was actually processed rather than
     # staying stuck at 0.
     assert progress_updates == [(0, 0), (5000, 5000)]
+
+
+def test_pipeline_honors_should_cancel_between_batches():
+    # Issue #111: PipelineService.run() checks should_cancel() at the top
+    # of its own outer batch loop, so it stops *before* starting a new
+    # batch rather than after -- no partial next-batch work is attempted.
+    total = 3 * BATCH_SIZE
+
+    scanner = FakeScanner(scanned=total)
+    downloader = PoolDownloader(total)
+    detector = PoolDetector(total)
+    classifier = PoolClassifier(total)
+
+    service = PipelineService(
+        scanner,
+        downloader,
+        detector,
+        classifier,
+    )
+
+    calls = {"count": 0}
+
+    def should_cancel():
+        calls["count"] += 1
+        # Let the first two batches through, stop before the third.
+        return calls["count"] > 2
+
+    summary = service.run(should_cancel=should_cancel)
+
+    assert summary.downloaded == 2 * BATCH_SIZE
+    assert summary.detected == 2 * BATCH_SIZE
+    assert summary.classified == 2 * BATCH_SIZE
+
+    # Only two batches were ever requested -- no wasted third call.
+    assert downloader.limits == [BATCH_SIZE, BATCH_SIZE]
+
+
+def test_pipeline_passes_should_cancel_through_to_every_stage():
+    received = {}
+
+    class RecordingDownloader:
+        def download_pending(self, limit=None, force=False, should_cancel=None):
+            received["download"] = should_cancel
+            return 0
+
+    class RecordingDetector:
+        def run(self, limit=None, force=False, should_cancel=None):
+            received["detect"] = should_cancel
+            return FakeDetectionSummary(dogs=0)
+
+    class RecordingClassifier:
+        def classify(self, limit=None, mode=None, should_cancel=None):
+            received["classify"] = should_cancel
+            return FakeClassificationSummary(classified=0)
+
+    class RecordingScanner:
+        def scan(self, limit=None, force=False, should_cancel=None):
+            received["scan"] = should_cancel
+            return 0
+
+    def marker():
+        return False
+
+    service = PipelineService(
+        RecordingScanner(),
+        RecordingDownloader(),
+        RecordingDetector(),
+        RecordingClassifier(),
+    )
+
+    service.run(should_cancel=marker)
+
+    assert received == {
+        "scan": marker,
+        "download": marker,
+        "detect": marker,
+        "classify": marker,
+    }

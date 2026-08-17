@@ -73,7 +73,7 @@ def test_scan_runs_through_job_runner_and_persists_job(capsys):
         def __init__(self, client, session):
             pass
 
-        def scan(self, limit=None, force=False):
+        def scan(self, limit=None, force=False, should_cancel=None):
             return 3
 
     with (
@@ -106,7 +106,7 @@ def test_scan_failure_returns_nonzero_and_persists_failed_job():
         def __init__(self, client, session):
             pass
 
-        def scan(self, limit=None, force=False):
+        def scan(self, limit=None, force=False, should_cancel=None):
             raise RuntimeError("scan exploded")
 
     with (

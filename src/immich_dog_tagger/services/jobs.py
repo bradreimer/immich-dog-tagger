@@ -10,6 +10,20 @@ _TERMINAL_STATUSES = (
     PipelineJobStatus.CANCELED,
 )
 
+# Operations whose services commit incrementally (issues #99/#104/#105) and
+# so have a checkpoint to roll back to -- the only ones a RUNNING job can be
+# cancelled mid-run for (issue #111). EMBED/LEARN/SYNC each do one big
+# commit at the end (nothing partial to preserve); RECLASSIFY already
+# batches the same way but is a deliberately separate follow-up.
+CANCELABLE_WHILE_RUNNING = frozenset(
+    {
+        PipelineOperation.SCAN,
+        PipelineOperation.DETECT,
+        PipelineOperation.CLASSIFY,
+        PipelineOperation.FULL_PIPELINE,
+    }
+)
+
 
 class PipelineJobRepository:
     def __init__(
@@ -164,14 +178,80 @@ class PipelineJobService:
         self,
         job: PipelineJob,
     ) -> PipelineJob:
-        if job.status is not PipelineJobStatus.PENDING:
-            raise ValueError("Only pending jobs can be canceled")
+        if job.status is PipelineJobStatus.PENDING:
+            job.transition_to(PipelineJobStatus.CANCELED)
+            self.session.commit()
+            self.session.refresh(job)
+            return job
 
+        if (
+            job.status is PipelineJobStatus.RUNNING
+            and job.operation in CANCELABLE_WHILE_RUNNING
+        ):
+            # Atomic UPDATE...WHERE, not a read-then-write on the already
+            # loaded `job` -- the job could finish (complete_job) between
+            # this request being received and committed, and a plain
+            # attribute-mutate-then-commit would silently set
+            # cancel_requested on an already-terminal row.
+            result = self.session.execute(
+                update(PipelineJob)
+                .where(
+                    PipelineJob.id == job.id,
+                    PipelineJob.status == PipelineJobStatus.RUNNING,
+                )
+                .values(cancel_requested=True)
+            )
+            self.session.commit()
+
+            if result.rowcount == 0:
+                raise ValueError("Job is not running and cannot be canceled")
+
+            self.session.refresh(job)
+            return job
+
+        if job.status is PipelineJobStatus.RUNNING:
+            raise ValueError(
+                f"{job.operation.value} jobs cannot be canceled once running"
+            )
+
+        raise ValueError("Job is not pending or running and cannot be canceled")
+
+    def finish_canceled_job(
+        self,
+        job: PipelineJob,
+        *,
+        progress_message: str | None = None,
+    ) -> PipelineJob:
+        """
+        Finalizes a RUNNING job that honored a cancel_requested flag
+        (issue #111). Unlike complete_job(), this never forces
+        progress_current up to progress_total -- the progress fields
+        already reflect the last completed batch, and rounding them up to
+        100% would misrepresent a run that stopped partway through.
+        """
+        if progress_message is not None:
+            job.progress_message = progress_message
+
+        job.cancel_requested = False
         job.transition_to(PipelineJobStatus.CANCELED)
 
         self.session.commit()
         self.session.refresh(job)
         return job
+
+    def is_cancel_requested(self, job_id: int) -> bool:
+        """
+        A fresh, single-column read straight from the DB -- selecting an
+        individual column (rather than the full PipelineJob entity) always
+        issues real SQL rather than returning a possibly-stale value from
+        the session's identity map, which matters here since the flag is
+        set by a different session (issue #111).
+        """
+        return bool(
+            self.session.execute(
+                select(PipelineJob.cancel_requested).where(PipelineJob.id == job_id)
+            ).scalar_one()
+        )
 
     def clear_history(self) -> int:
         cleared = self.repository.hide_finished_jobs()

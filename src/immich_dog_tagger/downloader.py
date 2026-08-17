@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy import select
@@ -31,6 +32,7 @@ class Downloader:
         self,
         limit: int | None = None,
         force: bool = False,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> int:
         if force:
             query = select(Asset)
@@ -55,6 +57,7 @@ class Downloader:
         assets = self.session.scalars(query).all()
 
         count = 0
+        committed_count = 0
         since_commit = 0
 
         self.cache_dir.mkdir(
@@ -63,6 +66,10 @@ class Downloader:
         )
 
         for asset in assets:
+            if should_cancel and should_cancel():
+                self.session.rollback()
+                return committed_count
+
             path = asset.cache_path(self.cache_dir)
 
             if not is_supported_extension(asset.extension):
@@ -81,6 +88,7 @@ class Downloader:
 
             if since_commit >= BATCH_SIZE:
                 self._commit(since_commit)
+                committed_count = count
                 since_commit = 0
 
         self._commit(since_commit)

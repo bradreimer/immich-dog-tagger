@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,8 +17,13 @@ logger = logging.getLogger(__name__)
 # See scanner.BATCH_SIZE -- same rationale (issue #99), extended to `detect`
 # because a single commit at the end of the whole run held state.db's write
 # lock for the run's entire duration, blocking every other reader (issue
-# #104).
-BATCH_SIZE = 1000
+# #104). Kept much smaller than scan/download's 1000: this is GPU/CPU-bound
+# ML inference, so a batch can take minutes rather than seconds, and a
+# should_cancel() cancellation request (issue #111) needs a concurrent
+# writer -- it has to wait for whichever batch is currently open to commit
+# and release SQLite's write lock, which must stay comfortably under the
+# 30s busy_timeout (database.py) for a Cancel click to feel responsive.
+BATCH_SIZE = 50
 
 
 @dataclass
@@ -45,6 +51,7 @@ class DetectionService:
         self,
         limit: int | None = None,
         force: bool = False,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> DetectionSummary:
 
         query = select(Asset).where(
@@ -71,9 +78,29 @@ class DetectionService:
         detection_count = 0
         dog_count = 0
         cat_count = 0
+        committed_processed = 0
+        committed_detection_count = 0
+        committed_dog_count = 0
+        committed_cat_count = 0
         since_commit = 0
+        pending_unlinks: list[tuple[str, Path]] = []
 
         for asset in assets:
+            if should_cancel and should_cancel():
+                # Discard whatever's accumulated since the last commit, and
+                # the cache-file removals queued for it -- those assets
+                # revert to DOWNLOADED, so their cache file must still
+                # exist for a future detect run (issue #111).
+                self.session.rollback()
+                pending_unlinks.clear()
+
+                return DetectionSummary(
+                    processed=committed_processed,
+                    detections=committed_detection_count,
+                    dogs=committed_dog_count,
+                    cats=committed_cat_count,
+                )
+
             image_path = asset.cache_path(self.cache_dir)
 
             if not is_supported_image(image_path):
@@ -177,21 +204,26 @@ class DetectionService:
                 # cache_dir proportional to what's actually needed rather
                 # than to the whole library; a future `detect --force` on
                 # this asset needs `download --force` first to get it back.
-                try:
-                    image_path.unlink(missing_ok=True)
-                except OSError:
-                    logger.warning(
-                        "Failed to remove cached original after detection: "
-                        "asset=%s image=%s",
-                        asset.immich_asset_id,
-                        image_path,
-                    )
+                # Deferred until this asset's batch actually commits (issue
+                # #111) -- unlinking immediately meant a rolled-back batch
+                # (a mid-batch failure, or now a cancellation) could leave
+                # an asset back at DOWNLOADED with its cache file already
+                # gone, and download_pending() only re-fetches PENDING/
+                # DOWNLOAD_FAILED assets, so it would get stuck.
+                pending_unlinks.append((asset.immich_asset_id, image_path))
 
             if since_commit >= BATCH_SIZE:
                 self._commit(since_commit)
+                committed_processed = processed
+                committed_detection_count = detection_count
+                committed_dog_count = dog_count
+                committed_cat_count = cat_count
                 since_commit = 0
+                self._unlink_all(pending_unlinks)
+                pending_unlinks.clear()
 
         self._commit(since_commit)
+        self._unlink_all(pending_unlinks)
 
         return DetectionSummary(
             processed=processed,
@@ -199,6 +231,21 @@ class DetectionService:
             dogs=dog_count,
             cats=cat_count,
         )
+
+    def _unlink_all(
+        self,
+        pending_unlinks: list[tuple[str, Path]],
+    ) -> None:
+        for immich_asset_id, image_path in pending_unlinks:
+            try:
+                image_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning(
+                    "Failed to remove cached original after detection: "
+                    "asset=%s image=%s",
+                    immich_asset_id,
+                    image_path,
+                )
 
     def _commit(
         self,

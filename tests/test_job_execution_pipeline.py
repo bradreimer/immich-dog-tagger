@@ -21,12 +21,15 @@ class RecordingProgress:
         if message is not None:
             self.messages.append(message)
 
+    def is_cancel_requested(self):
+        return False
+
 
 class FakeScanner:
     def __init__(self, client, session):
         pass
 
-    def scan(self, limit=None, force=False):
+    def scan(self, limit=None, force=False, should_cancel=None):
         return BATCH_SIZE + 500
 
 
@@ -48,7 +51,7 @@ class FakeDownloader(PoolStage):
     def __init__(self, client, session, cache_dir):
         super().__init__(BATCH_SIZE + 500)
 
-    def download_pending(self, limit=None, force=False):
+    def download_pending(self, limit=None, force=False, should_cancel=None):
         return self._take(limit)
 
 
@@ -56,7 +59,7 @@ class FakeDetectionService(PoolStage):
     def __init__(self, detector, session, cache_dir, crop_writer=None):
         super().__init__(BATCH_SIZE + 500)
 
-    def run(self, limit=None, force=False):
+    def run(self, limit=None, force=False, should_cancel=None):
         from immich_dog_tagger.services.detection import DetectionSummary
 
         n = self._take(limit)
@@ -67,7 +70,7 @@ class FakeClassificationService(PoolStage):
     def __init__(self, session, embedder, classifier, policy=None):
         super().__init__(BATCH_SIZE + 500)
 
-    def classify(self, mode=None, limit=None, threshold=None):
+    def classify(self, mode=None, limit=None, threshold=None, should_cancel=None):
         from immich_dog_tagger.services.classification import ClassificationSummary
 
         n = self._take(limit)

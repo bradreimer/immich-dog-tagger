@@ -39,6 +39,7 @@ def create_database(state_dir: Path):
     _ensure_identity_species_column(engine)
     _ensure_crop_species_column(engine)
     _ensure_pipeline_job_visible_column(engine)
+    _ensure_pipeline_job_cancel_requested_column(engine)
     _ensure_asset_metadata_columns(engine)
 
     return engine
@@ -195,6 +196,20 @@ def _ensure_pipeline_job_visible_column(engine) -> None:
     with engine.begin() as connection:
         connection.exec_driver_sql(
             "ALTER TABLE pipeline_jobs ADD COLUMN visible BOOLEAN NOT NULL DEFAULT 1"
+        )
+
+
+def _ensure_pipeline_job_cancel_requested_column(engine) -> None:
+    """Issue #111: lets cancel_job() flag a RUNNING job for cancellation."""
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("pipeline_jobs")}
+
+    if "cancel_requested" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE pipeline_jobs ADD COLUMN cancel_requested BOOLEAN NOT NULL DEFAULT 0"
         )
 
 

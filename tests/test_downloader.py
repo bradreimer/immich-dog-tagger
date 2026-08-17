@@ -206,6 +206,52 @@ def test_download_pending_batch_commit_failure_leaves_prior_batch_committed(
         assert downloaded == BATCH_SIZE
 
 
+def test_download_pending_honors_should_cancel_and_keeps_only_committed_batches(
+    engine,
+    tmp_path,
+):
+    # Issue #111: cancellation reuses the same commit checkpoint as a
+    # crash-safety failure would.
+    total = 2 * BATCH_SIZE
+    cancel_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+
+    with Session(engine) as session:
+        session.add_all(
+            [
+                Asset(
+                    immich_asset_id=f"asset-{i}",
+                    checksum=str(i),
+                    extension=".jpg",
+                )
+                for i in range(total)
+            ]
+        )
+        session.commit()
+
+        class FakeClient:
+            def download_asset(self, asset_id):
+                return b"data"
+
+        downloader = Downloader(FakeClient(), session, tmp_path)
+
+        calls = {"count": 0}
+
+        def should_cancel():
+            calls["count"] += 1
+            return calls["count"] > cancel_at
+
+        downloaded = downloader.download_pending(should_cancel=should_cancel)
+
+        assert downloaded == BATCH_SIZE
+
+    with Session(engine) as verify_session:
+        count = (
+            verify_session.query(Asset).filter_by(status=AssetStatus.DOWNLOADED).count()
+        )
+
+        assert count == BATCH_SIZE
+
+
 def test_download_force_reprocesses_existing_asset(
     engine,
     tmp_path,

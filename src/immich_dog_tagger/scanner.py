@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -30,6 +31,7 @@ class Scanner:
         self,
         limit: int | None = None,
         force: bool = False,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> int:
         """
         Discover new Immich assets.
@@ -47,6 +49,12 @@ class Scanner:
         since_commit = 0
 
         for immich_asset in immich_assets:
+            if should_cancel and should_cancel():
+                # Discard whatever's accumulated since the last commit --
+                # only fully-committed batches are kept (issue #111).
+                self.session.rollback()
+                return committed_new_count
+
             try:
                 new_count += self._process_asset(immich_asset, force)
                 since_commit += 1

@@ -44,6 +44,7 @@ class PipelineService:
         on_batch_progress: Callable[[int, int], None] | None = None,
         limit: int | None = None,
         force: bool = False,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> PipelineSummary:
         def report(message: str) -> None:
             if progress:
@@ -59,6 +60,7 @@ class PipelineService:
         scanned = self.scanner.scan(
             limit=limit,
             force=force,
+            should_cancel=should_cancel,
         )
 
         report(f"Scanned {scanned} assets")
@@ -84,6 +86,9 @@ class PipelineService:
         progress_total = scanned
 
         while True:
+            if should_cancel and should_cancel():
+                break
+
             batch_limit = BATCH_SIZE if batched else limit
 
             if batched and remaining is not None:
@@ -97,6 +102,7 @@ class PipelineService:
             downloaded = self.downloader.download_pending(
                 limit=batch_limit,
                 force=force,
+                should_cancel=should_cancel,
             )
 
             report(f"Downloaded {downloaded} assets")
@@ -106,6 +112,7 @@ class PipelineService:
             detected = self.detector.run(
                 limit=batch_limit,
                 force=force,
+                should_cancel=should_cancel,
             )
 
             report(f"Detected {detected.dogs} dog(s) and {detected.cats} cat(s)")
@@ -115,6 +122,7 @@ class PipelineService:
             classified = self.classifier.classify(
                 limit=batch_limit,
                 mode=mode,
+                should_cancel=should_cancel,
             )
 
             report(f"Classified {classified.classified} crops")
