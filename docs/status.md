@@ -131,6 +131,16 @@
   silently persist a still-uncommitted straggler batch. The SQLite engine also now sets a
   30-second `busy_timeout`, so any connection that does land on a brief lock window waits for it
   to clear instead of failing instantly.
+- #107 fixed a follow-up to #104: batching `detect`/`classify` commits and adding a 30-second
+  `busy_timeout` shrank the write-lock window but didn't remove it -- a full pipeline run's
+  `Downloader.download_pending()` and `ClassificationService.classify()` still hold an implicit
+  read transaction open across a whole batch of slow per-item work (an HTTP download, an embedding
+  pass), and that window can exceed 30 seconds, so a concurrent write (e.g. creating a dog/cat from
+  the UI) still failed with `database is locked`. `create_database()` now sets `state.db` to
+  SQLite's WAL journal mode (plus its recommended `synchronous=NORMAL` companion) via a
+  `sqlalchemy` `"connect"` event listener, so readers and a writer can proceed concurrently instead
+  of contending for the same single lock; the existing `busy_timeout` remains as the safety net for
+  writer-vs-writer contention.
 
 ## Current Milestone
 v1.6.0 Pet Insights -- in progress (issue #94). A read-only "fun layer" on top of confirmed pet
