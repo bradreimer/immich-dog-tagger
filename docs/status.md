@@ -119,6 +119,14 @@
   similarity as confidence. The `date-conflict` review/library reason is now `temporal-mismatch`.
   See [docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md)
   and [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
+- #94 v1.6.0 Pet Insights: a new `PetOccurrence` fact table, materialized as a side effect of AUTO
+  classification/review correction/reclassification settling an identity for a crop; `Asset`
+  gained cached location/people/favorite fields sourced from the same Immich response the scanner
+  already fetches; `InsightsService` computes summary/timeline/places/people at read time
+  (never stored as a conclusion -- see [ADR-004](adr/ADR-004-pet-occurrence-observations.md));
+  read-only `GET /api/dogs/{id}/insights/*` endpoints; a per-dog Insights page in the UI; and
+  `immich-dog-tagger backfill-occurrences` for existing libraries. See
+  [docs/specs/v1.6-pet-insights.md](specs/v1.6-pet-insights.md).
 - #104 fixed `detect`/`classify` holding state.db's write lock for the duration of the entire run:
   `DetectionService.run()` and `ClassificationService.classify()` each committed exactly once,
   after processing every eligible asset/crop, so a large run (minutes of YOLO inference or
@@ -133,11 +141,9 @@
   to clear instead of failing instantly.
 
 ## Current Milestone
-v1.6.0 Pet Insights -- in progress (issue #94). A read-only "fun layer" on top of confirmed pet
-identifications: per-dog photo counts, date range, most-common places, and most-often-photographed
--with people, derived at read time from a new `PetOccurrence` fact table (never stored as a
-conclusion -- see [ADR-004](adr/ADR-004-pet-occurrence-observations.md)). See
-[docs/specs/v1.6-pet-insights.md](specs/v1.6-pet-insights.md).
+No queued numbered milestone. v1.6.0 Pet Insights (#94) shipped and is recorded as completed in
+[docs/roadmap.md](roadmap.md); recent work since then (#99, #100, #101, #102, #103, #104, #105,
+#106) has been reliability/infra fixes rather than a new milestone.
 
 ## Next Work
 v1.6.0's own explicitly-deferred items (see spec Non-goals): Best Friends (pet-to-pet
@@ -145,7 +151,8 @@ co-occurrence), On This Day, a Pet World Tour map, and Milestones. Otherwise: im
 reference-example selection, reference-set curation workflows, and confidence analysis (see
 docs/roadmap.md "Active Learning Improvements"), or v1.5's own open questions (owner-tunable decay
 scale/floor, reporting how many reclassified items changed identity specifically due to temporal
-weighting).
+weighting). Also open: [#107](https://github.com/bradreimer/immich-dog-tagger/issues/107), a
+"database is locked" error when creating a dog/cat while a pipeline job is running.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.
