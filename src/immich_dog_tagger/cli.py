@@ -3,6 +3,7 @@ Command line interface for Immich Dog Tagger.
 """
 
 import argparse
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -625,6 +626,14 @@ def pipeline_command(args) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    # Without a root handler, logger.info(...) calls throughout the app
+    # (e.g. pipeline batch progress) are silently dropped -- see
+    # api/app.py's identical setup for the uvicorn-served process.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     parser = argparse.ArgumentParser(
         prog="immich-dog-tagger",
         description="AI-assisted dog detection and tagging for Immich",

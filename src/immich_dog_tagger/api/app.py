@@ -1,9 +1,20 @@
+import logging
 import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+
+# uvicorn configures its own "uvicorn"/"uvicorn.access" loggers but never
+# the root logger, so without this every `logging.getLogger(__name__).info(...)`
+# call throughout the app (pipeline batch progress, classification/scan
+# summaries, scheduler activity, ...) is silently dropped instead of
+# reaching `docker logs` (issue #103).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 from immich_dog_tagger.api.routes import (
     classifications,
