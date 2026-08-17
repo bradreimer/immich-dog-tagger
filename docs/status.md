@@ -151,18 +151,23 @@
   writer-vs-writer contention.
 
 ## Current Milestone
-No queued numbered milestone. v1.6.0 Pet Insights (#94) shipped and is recorded as completed in
-[docs/roadmap.md](roadmap.md); recent work since then (#99, #100, #101, #102, #103, #104, #105,
-#106) has been reliability/infra fixes rather than a new milestone.
+v1.7.0 Pluginable Insight Providers ([#110](https://github.com/bradreimer/immich-dog-tagger/issues/110)):
+turns the mechanism that determines a v1.6.0-style fun insight (favourite human, favourite place,
+and future ones like a Milestones "1000th confirmed photo") into a pluggable `InsightProvider`
+unit with an explicit registry, so v1.6.0's deferred Best Friends/On This Day/Milestones can each
+land as an independent addition instead of growing `InsightsService`'s core methods one bespoke
+endpoint at a time. See [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md)
+and [ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md). Not started.
 
 ## Next Work
-v1.6.0's own explicitly-deferred items (see spec Non-goals): Best Friends (pet-to-pet
-co-occurrence), On This Day, a Pet World Tour map, and Milestones. Otherwise: improved
-reference-example selection, reference-set curation workflows, and confidence analysis (see
-docs/roadmap.md "Active Learning Improvements"), or v1.5's own open questions (owner-tunable decay
-scale/floor, reporting how many reclassified items changed identity specifically due to temporal
-weighting). Also open: [#107](https://github.com/bradreimer/immich-dog-tagger/issues/107), a
-"database is locked" error when creating a dog/cat while a pipeline job is running.
+v1.7.0's own explicitly-deferred items once the provider architecture lands: On This Day, Best
+Friends (pet-to-pet co-occurrence), and a Pet World Tour map (see spec Non-goals) -- each becomes a
+new provider, not a core change. Otherwise: improved reference-example selection, reference-set
+curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
+or v1.5's own open questions (owner-tunable decay scale/floor, reporting how many reclassified
+items changed identity specifically due to temporal weighting). Also open:
+[#107](https://github.com/bradreimer/immich-dog-tagger/issues/107), a "database is locked" error
+when creating a dog/cat while a pipeline job is running.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

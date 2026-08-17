@@ -219,6 +219,35 @@ slideshows, writing conclusions back to Immich, or a precomputed insights cache.
 Exit criteria:
 Completed.
 
+## v1.7.0 - Pluginable Insight Providers
+
+See [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md) and
+[ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md). Tracking issue:
+[#110](https://github.com/bradreimer/immich-dog-tagger/issues/110).
+
+Goal:
+Turn the mechanism that determines a v1.6.0-style fun insight (favourite human, favourite place,
+and future ones like a Milestones "1000th confirmed photo") into a pluggable unit — one
+self-contained provider per insight, registered explicitly -- so v1.6.0's deferred Milestones, On
+This Day, and Best Friends can each land as an independent addition instead of growing
+`InsightsService`'s core methods and API surface one bespoke endpoint at a time.
+
+Planned:
+- `InsightProvider` protocol + explicit `INSIGHT_PROVIDERS` registry (no dynamic/third-party plugin
+  loading -- this stays an in-codebase extensibility mechanism)
+- Migrate the existing favourite-place/favourite-human/Immich-favorite-count logic inline in
+  `InsightsService.summary()` onto the same provider mechanism, as a behavior-preserving refactor
+- New `GET /api/dogs/{id}/insights/cards` endpoint and a UI card grid that renders whatever's
+  registered, so future providers need no endpoint or frontend change
+- A first new provider landed under this architecture as proof: Milestones (round-number confirmed
+  photo counts)
+
+Explicitly not planned this iteration (see spec Non-goals): On This Day, Best Friends, Pet World
+Tour map, per-provider enable/disable settings, any dynamic/third-party plugin loading.
+
+Exit criteria:
+Not started.
+
 ## Active Learning Improvements
 
 Goal:
