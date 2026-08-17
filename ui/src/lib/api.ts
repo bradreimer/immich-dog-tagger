@@ -10,6 +10,7 @@ import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
 import type { Settings } from "../types/settings";
+import type { Health } from "../types/health";
 import type {
   InsightCard,
   InsightsSummary,
@@ -426,6 +427,14 @@ export async function getSettings(): Promise<Settings> {
   const response = await fetch("/api/settings");
   if (!response.ok) {
     throw new Error("Failed to load settings");
+  }
+  return response.json();
+}
+
+export async function getHealth(): Promise<Health> {
+  const response = await fetch("/api/health");
+  if (!response.ok) {
+    throw new Error("Failed to load health");
   }
   return response.json();
 }

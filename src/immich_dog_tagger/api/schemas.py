@@ -366,6 +366,7 @@ class JobResponse(BaseModel):
 class SettingsResponse(BaseModel):
     immich_url: str
     scanned_image_count: int
+    version: str
 
 
 class PlaceCountResponse(BaseModel):

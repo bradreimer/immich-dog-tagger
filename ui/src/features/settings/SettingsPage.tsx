@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getSettings } from "../../lib/api";
 import type { Settings } from "../../types/settings";
-import { IconPhoto, IconRefresh, IconServer2 } from "@tabler/icons-react";
+import { IconPhoto, IconRefresh, IconServer2, IconTag } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -90,6 +90,19 @@ export function SettingsPage() {
                 value={settings.scanned_image_count}
                 subtext="assets synced from Immich"
               />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {settings && (
+        <Card>
+          <CardHeader>
+            <CardTitle>About</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StatTile icon={IconTag} tone="neutral" label="Version" value={`v${settings.version}`} />
             </div>
           </CardContent>
         </Card>

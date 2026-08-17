@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth
+from immich_dog_tagger.version import get_version
 
 router = APIRouter()
 
@@ -12,5 +13,6 @@ def health(request: Request):
     )
     return {
         "status": "ok",
+        "version": get_version(),
         "scheduler": scheduler_health.as_dict() if scheduler_health else None,
     }

@@ -10,7 +10,7 @@ import {
   IconPhoto,
   IconSettings,
 } from "@tabler/icons-react";
-import { getReviewStats } from "../../lib/api";
+import { getHealth, getReviewStats } from "../../lib/api";
 import { cn } from "../../lib/utils";
 import { ThemeToggle } from "../theme/ThemeToggle";
 
@@ -42,12 +42,19 @@ function readStoredCollapsed(): boolean {
 export function Sidebar({ currentPath, onNavigate }: Props) {
   const [reviewRemaining, setReviewRemaining] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(readStoredCollapsed);
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     getReviewStats()
       .then((stats) => setReviewRemaining(stats.remaining))
       .catch(() => setReviewRemaining(null));
   }, [currentPath]);
+
+  useEffect(() => {
+    getHealth()
+      .then((health) => setVersion(health.version))
+      .catch(() => setVersion(null));
+  }, []);
 
   useEffect(() => {
     try {
@@ -112,26 +119,39 @@ export function Sidebar({ currentPath, onNavigate }: Props) {
         })}
       </nav>
 
-      <div
-        className={cn(
-          "flex shrink-0 gap-2 border-t border-sidebar-border p-3",
-          collapsed ? "flex-col items-center" : "flex-row items-center justify-between",
-        )}
-      >
-        <ThemeToggle />
-        <button
-          type="button"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex size-10 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          onClick={() => setCollapsed((current) => !current)}
-        >
-          {collapsed ? (
-            <IconLayoutSidebarLeftExpand className="h-5 w-5" aria-hidden="true" />
-          ) : (
-            <IconLayoutSidebarLeftCollapse className="h-5 w-5" aria-hidden="true" />
+      <div className="flex shrink-0 flex-col gap-2 border-t border-sidebar-border p-3">
+        <div
+          className={cn(
+            "flex gap-2",
+            collapsed ? "flex-col items-center" : "flex-row items-center justify-between",
           )}
-        </button>
+        >
+          <ThemeToggle />
+          <button
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="flex size-10 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            {collapsed ? (
+              <IconLayoutSidebarLeftExpand className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <IconLayoutSidebarLeftCollapse className="h-5 w-5" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+        {version && (
+          <p
+            className={cn(
+              "truncate text-xs text-sidebar-foreground/40",
+              collapsed ? "text-center" : "px-1",
+            )}
+            title={`Immich Dog Tagger v${version}`}
+          >
+            v{version}
+          </p>
+        )}
       </div>
     </aside>
   );
