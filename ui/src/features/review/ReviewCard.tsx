@@ -5,11 +5,13 @@ import { PredictionCard } from "./components/PredictionCard";
 import { SimilarExample } from "./components/SimilarExample";
 import { ReviewActions } from "./components/ReviewActions";
 import { ReviewReason } from "./components/ReviewReason";
+import { SpeciesChooser } from "./components/SpeciesChooser";
 
 interface Props {
   item: ReviewItem;
   identities: string[];
   onCorrect: (identity: string) => void;
+  onCorrectSpecies: (species: "dog" | "cat") => void;
   onSkip: () => void;
   disabled: boolean;
 }
@@ -18,6 +20,7 @@ export function ReviewCard({
   item,
   identities,
   onCorrect,
+  onCorrectSpecies,
   onSkip,
   disabled,
 }: Props) {
@@ -27,9 +30,16 @@ export function ReviewCard({
 
       <ReviewReason reason={item.reason} />
 
+      <SpeciesChooser
+        species={item.species}
+        onCorrectSpecies={onCorrectSpecies}
+        disabled={disabled}
+      />
+
       <ReviewActions
         identities={identities}
         species={item.species}
+        predictedIdentity={item.prediction.identity}
         onCorrect={onCorrect}
         onSkip={onSkip}
         disabled={disabled}

@@ -35,6 +35,17 @@ import {
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 
+const JOB_OPERATIONS: JobOperation[] = [
+  "scan",
+  "detect",
+  "embed",
+  "classify",
+  "reclassify",
+  "learn",
+  "sync",
+  "full_pipeline",
+];
+
 function formatOperation(operation: string): string {
   return operation
     .split("_")
@@ -500,6 +511,11 @@ export function OverviewPage() {
               value={scheduleForm.operation}
               onChange={(event) => setScheduleForm((current) => ({ ...current, operation: event.target.value as JobOperation }))}
             >
+              {JOB_OPERATIONS.map((operation) => (
+                <option key={operation} value={operation}>
+                  {formatOperation(operation)}
+                </option>
+              ))}
             </select>
             <input
               className="rounded-md border bg-background px-3 py-2 text-sm"

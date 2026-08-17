@@ -149,6 +149,18 @@
   `sqlalchemy` `"connect"` event listener, so readers and a writer can proceed concurrently instead
   of contending for the same single lock; the existing `busy_timeout` remains as the safety net for
   writer-vs-writer contention.
+- #110 v1.7.0 Pluginable Insight Providers: `InsightProvider` protocol + explicit
+  `INSIGHT_PROVIDERS` registry (`services/insights/providers.py`); `services/insights.py` split
+  into a package (`aggregations.py`, `providers.py`, `service.py`), with the favourite-place/
+  favourite-human/Immich-favorite-count logic previously inline in `InsightsService.summary()`
+  reorganized onto shared aggregation helpers the providers also use -- a behavior-preserving
+  refactor, `InsightsService.summary()`'s signature and response shape unchanged; new read-only
+  `GET /api/dogs/{id}/insights/cards` endpoint and a `DogInsightsPage` card grid rendering
+  whatever's registered, so future providers need no endpoint or frontend change; a first new
+  provider landed as proof, `TotalPhotosMilestoneProvider` (a round-number confirmed-photo-count
+  Milestone, e.g. "1000th confirmed photo"). See
+  [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md) and
+  [ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md).
 - #111 cancel a running pipeline job: the Job Queue's Cancel action previously only worked on a
   `PENDING` job (`PipelineJobService.cancel_job()` rejected anything else), and no Cancel button
   existed in the UI at all, for any status. `PipelineJob` gained a `cancel_requested` flag (status
@@ -159,34 +171,61 @@
   scan/detect/classify/full_pipeline; `embed`/`learn`/`sync` have no partial checkpoint to preserve
   and stay `PENDING`-only, same as before. A `should_cancel` callable is threaded down to each
   service's existing batch-commit checkpoint; on a hit, the uncommitted slice since the last commit
-  is rolled back and only the already-committed counts are kept, and
-  `PipelineJobRunner._run()` finalizes the job as `CANCELED` (a new `finish_canceled_job()`, not
-  `complete_job()`) once its handler returns having honored the flag. `DetectionService`/
-  `ClassificationService`'s commit-checkpoint size is also reduced (1000/500 -> 50/25): SQLite
-  allows only one writer at a time even under #107's WAL mode, and a GPU/CPU-bound batch that large
-  could hold that lock for minutes, well past a concurrent Cancel click's 30-second `busy_timeout`
-  budget. `ClassificationService.classify()` is also restructured to select/embed/commit in
-  internal chunks rather than embedding its whole selection up front, so an unlimited standalone
-  Classify job has a cancellation checkpoint at all. Also fixed alongside this: `DetectionService`
-  deleted each asset's cached original file immediately per-asset, before that asset's batch
-  committed -- a cancellation (or any mid-batch failure) rolling back the tail of a batch could
-  leave an asset reverted to `DOWNLOADED` with its cache file already gone, permanently stuck since
+  is rolled back and only the already-committed counts are kept, and `PipelineJobRunner._run()`
+  finalizes the job as `CANCELED` (a new `finish_canceled_job()`, not `complete_job()`) once its
+  handler returns having honored the flag. `DetectionService`/`ClassificationService`'s
+  commit-checkpoint size is also reduced (1000/500 -> 50/25): SQLite allows only one writer at a
+  time even under #107's WAL mode, and a GPU/CPU-bound batch that large could hold that lock for
+  minutes, well past a concurrent Cancel click's 30-second `busy_timeout` budget.
+  `ClassificationService.classify()` is also restructured to select/embed/commit in internal
+  chunks rather than embedding its whole selection up front, so an unlimited standalone Classify
+  job has a cancellation checkpoint at all. Also fixed alongside this: `DetectionService` deleted
+  each asset's cached original file immediately per-asset, before that asset's batch committed --
+  a cancellation (or any mid-batch failure) rolling back the tail of a batch could leave an asset
+  reverted to `DOWNLOADED` with its cache file already gone, permanently stuck since
   `download_pending()` only re-fetches `PENDING`/`DOWNLOAD_FAILED` assets; the unlink is now
   deferred until the batch actually commits.
+- #117 highlight the predicted identity button on the review page: `item.prediction.identity` is
+  now threaded through `ReviewCard` -> `ReviewActions` -> `IdentityChooser`, and the
+  `IdentityChooser` button matching the prediction renders with the app's existing filled
+  (`default`) button variant plus a star icon, while the rest use `outline` -- the same
+  selected/unselected visual language already used for the review queue's filter buttons, so no
+  new accent color was introduced.
+
+- [#116](https://github.com/bradreimer/immich-dog-tagger/issues/116) explicit dog/cat species
+  correction on the Review page: YOLO occasionally mixes up dogs and cats, and `Crop.species` was
+  previously set once at crop-creation time with no way to fix it afterward. New
+  `POST /classifications/{id}/species` endpoint and
+  `ClassificationCorrectionService.correct_species()` rescore the crop's already-stored embedding
+  against the corrected species' reference pool via `IdentityClassifier` (no re-download/
+  re-embedding), forget any stale learning example filed under the wrong species
+  (`Learner.forget_image`), and deliberately write no `ReviewAction` -- a species change doesn't
+  decide an identity, so recording one would make `ReviewQueryService.review_queue_count()` treat
+  the item as already reviewed and drop it from the active queue while still effectively
+  unclassified. Also fixed a latent inconsistency this feature would otherwise have exposed:
+  `services/metrics.py`'s per-species Learning Progress breakdown grouped by `Detection.label`
+  (the detector's raw, possibly-wrong output) instead of `Crop.species` (the corrected,
+  authoritative value) -- the two always matched before this feature existed, so it was invisible
+  until species became correctable. Review page gained two distinctly colored "Dog"/"Cat" buttons
+  (reusing the existing validated categorical chart palette, not new colors) alongside the
+  existing identity chooser. See
+  [docs/specs/species-correction.md](specs/species-correction.md).
 
 ## Current Milestone
-No queued numbered milestone. v1.6.0 Pet Insights (#94) shipped and is recorded as completed in
-[docs/roadmap.md](roadmap.md); recent work since then (#99-#107, #111) has been reliability/infra
-fixes rather than a new milestone.
+No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job) and #116/#117 (review
+page species correction, predicted-identity highlight) followed as additional reliability/UX
+fixes.
 
 ## Next Work
-v1.6.0's own explicitly-deferred items (see spec Non-goals): Best Friends (pet-to-pet
-co-occurrence), On This Day, a Pet World Tour map, and Milestones. Otherwise: improved
-reference-example selection, reference-set curation workflows, and confidence analysis (see
-docs/roadmap.md "Active Learning Improvements"), v1.5's own open questions (owner-tunable decay
-scale/floor, reporting how many reclassified items changed identity specifically due to temporal
-weighting), or extending #111's cancel-while-running support to `reclassify` (already batches the
-same way; deliberately left out of #111 to keep that change smaller).
+v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
+co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
+#110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
+curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
+v1.5's own open questions (owner-tunable decay scale/floor, reporting how many reclassified items
+changed identity specifically due to temporal weighting), or extending #111's cancel-while-running
+support to `reclassify` (already batches the same way; deliberately left out of #111 to keep that
+change smaller).
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/.

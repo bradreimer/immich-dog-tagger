@@ -121,6 +121,26 @@ class ReviewQueryService:
         self.session = session
         self.policy = policy
 
+    def item_for_classification(
+        self,
+        classification_id: int,
+    ) -> ReviewItem | None:
+        """
+        Build a single ReviewItem for a classification that was just
+        mutated elsewhere (e.g. a species correction) and needs to be
+        reflected back to the caller without a full queue reload.
+        """
+        classification = self.session.scalars(
+            select(CropClassification)
+            .options(*_REVIEW_ITEM_RELATIONSHIPS)
+            .where(CropClassification.id == classification_id)
+        ).first()
+
+        if classification is None:
+            return None
+
+        return self._to_review_item(classification)
+
     def classifications(
         self,
         *,

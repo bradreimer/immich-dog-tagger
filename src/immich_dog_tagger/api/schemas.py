@@ -130,6 +130,10 @@ class CorrectionRequest(BaseModel):
     identity: str
 
 
+class SpeciesCorrectionRequest(BaseModel):
+    species: Species
+
+
 class ReviewItemResponse(BaseModel):
     classification_id: int
     crop_id: int
@@ -419,6 +423,24 @@ class TimelineEntryResponse(BaseModel):
             country=entry.country,
             confidence=entry.confidence,
             source=entry.source,
+        )
+
+
+class InsightCardResponse(BaseModel):
+    slug: str
+    title: str
+    value: str
+    subtext: str | None
+    category: str
+
+    @classmethod
+    def from_card(cls, card):
+        return cls(
+            slug=card.slug,
+            title=card.title,
+            value=card.value,
+            subtext=card.subtext,
+            category=card.category,
         )
 
 

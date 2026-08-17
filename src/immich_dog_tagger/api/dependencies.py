@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.config import load_config
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.embedder import Embedder
@@ -121,4 +122,5 @@ def get_correction_service(
     return ClassificationCorrectionService(
         session=session,
         learner=learner,
+        classifier=IdentityClassifier(session),
     )
