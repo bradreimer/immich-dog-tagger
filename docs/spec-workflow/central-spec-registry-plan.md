@@ -4,6 +4,9 @@ How a team keeps specs living **in** each repository — reviewed alongside the 
 them — while a central group normalizes their shape, publishes shared standards, and gets a
 cross-repo view.
 
+![Spec lifecycle: the seven steps a change goes through in a repo, and the pull, push, and promote
+flows between that repo and a central spec registry](spec-lifecycle.svg)
+
 ## 1. The problem
 
 Specs want to be in two places at once.

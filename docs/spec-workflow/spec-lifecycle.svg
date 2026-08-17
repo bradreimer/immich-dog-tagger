@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 880" width="1240" height="880" role="img" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <title>Spec lifecycle under a central registry</title>
+  <desc>How a spec is written, reviewed, shipped, and updated in a repository, and how standards flow down from a central registry while the spec index and promotions flow back up.</desc>
+
+  <defs>
+    <marker id="ah-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#3F4A55"/></marker>
+    <marker id="ah-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#1F5B94"/></marker>
+    <marker id="ah-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#2E6B4F"/></marker>
+    <marker id="ah-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#B24A3E"/></marker>
+  </defs>
+
+  <rect x="0" y="0" width="1240" height="880" fill="#FBFAF8"/>
+
+  <!-- Title -->
+  <text x="40" y="46" font-size="25" font-weight="700" fill="#1B242D">Spec lifecycle: writing, reviewing, and updating a spec</text>
+  <text x="40" y="72" font-size="13.5" fill="#55616D">The repo owns its specs and never waits on the central team to land one. The registry owns the shape they take.</text>
+
+  <!-- Column headers -->
+  <text x="80" y="122" font-size="12" font-weight="700" fill="#2E6B4F" letter-spacing="1.2">IN YOUR REPO</text>
+  <text x="720" y="122" font-size="12" font-weight="700" fill="#1F5B94" letter-spacing="1.2">IN THE REGISTRY</text>
+
+  <!-- ============ LEFT COLUMN: 7 STEPS ============ -->
+
+  <!-- Step 1 -->
+  <rect x="80" y="150" width="520" height="62" rx="10" fill="#EEF5F0" stroke="#CBDFD3" stroke-width="1.4"/>
+  <circle cx="112" cy="181" r="15" fill="#2E6B4F"/>
+  <text x="112" y="186" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+  <text x="140" y="176" font-size="14.5" font-weight="600" fill="#1B242D">Idea, gap, or bug</text>
+  <text x="140" y="196" font-size="11.5" fill="#55616D">Feature Request issue, a gap in status.md, or an exception that just expired</text>
+
+  <!-- Step 2 -->
+  <rect x="80" y="238" width="520" height="62" rx="10" fill="#EEF5F0" stroke="#CBDFD3" stroke-width="1.4"/>
+  <circle cx="112" cy="269" r="15" fill="#2E6B4F"/>
+  <text x="112" y="274" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+  <text x="140" y="264" font-size="14.5" font-weight="600" fill="#1B242D">Search docs/specs/ first</text>
+  <text x="140" y="284" font-size="11.5" fill="#55616D">reuse an active spec, extend it, or supersede it — never start a parallel one</text>
+
+  <!-- Step 3 -->
+  <rect x="80" y="326" width="520" height="62" rx="10" fill="#EEF5F0" stroke="#CBDFD3" stroke-width="1.4"/>
+  <circle cx="112" cy="357" r="15" fill="#2E6B4F"/>
+  <text x="112" y="362" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+  <text x="140" y="352" font-size="14.5" font-weight="600" fill="#1B242D">Write or update the spec</text>
+  <text x="140" y="372" font-size="11.5" fill="#55616D">vendored template + front matter: id, status, owner, extends, tracking_issue</text>
+
+  <!-- Step 4 -->
+  <rect x="80" y="414" width="520" height="62" rx="10" fill="#EEF5F0" stroke="#CBDFD3" stroke-width="1.4"/>
+  <circle cx="112" cy="445" r="15" fill="#2E6B4F"/>
+  <text x="112" y="450" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+  <text x="140" y="440" font-size="14.5" font-weight="600" fill="#1B242D">Open a ticket</text>
+  <text x="140" y="460" font-size="11.5" fill="#55616D">User Story or Bug Report; it links the spec id, its number is the ticket id</text>
+
+  <!-- Step 5 -->
+  <rect x="80" y="502" width="520" height="62" rx="10" fill="#EEF5F0" stroke="#CBDFD3" stroke-width="1.4"/>
+  <circle cx="112" cy="533" r="15" fill="#2E6B4F"/>
+  <text x="112" y="538" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">5</text>
+  <text x="140" y="528" font-size="14.5" font-weight="600" fill="#1B242D">Implement — spec and code in one PR</text>
+  <text x="140" y="548" font-size="11.5" fill="#55616D">the reviewer reads intent and diff together, so neither can drift from the other</text>
+
+  <!-- Step 6: CI gate (amber) -->
+  <rect x="80" y="590" width="520" height="62" rx="10" fill="#FDF4E6" stroke="#EFD9B4" stroke-width="1.4"/>
+  <circle cx="112" cy="621" r="15" fill="#96590F"/>
+  <text x="112" y="626" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">6</text>
+  <text x="140" y="616" font-size="14.5" font-weight="600" fill="#1B242D">CI gate — where standardization actually happens</text>
+  <text x="140" y="636" font-size="11.5" fill="#55616D">specctl lint: schema, required sections, exceptions · verify: vendor hashes</text>
+
+  <!-- Step 7 -->
+  <rect x="80" y="678" width="520" height="62" rx="10" fill="#EEF5F0" stroke="#CBDFD3" stroke-width="1.4"/>
+  <circle cx="112" cy="709" r="15" fill="#2E6B4F"/>
+  <text x="112" y="714" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">7</text>
+  <text x="140" y="704" font-size="14.5" font-weight="600" fill="#1B242D">Review, merge, publish</text>
+  <text x="140" y="724" font-size="11.5" fill="#55616D">status: shipped and updated: bumped; the spec index publishes upward on merge</text>
+
+  <!-- Step-to-step arrows -->
+  <path d="M340,214 V233" stroke="#3F4A55" stroke-width="1.6" fill="none" marker-end="url(#ah-n)"/>
+  <path d="M340,302 V321" stroke="#3F4A55" stroke-width="1.6" fill="none" marker-end="url(#ah-n)"/>
+  <path d="M340,390 V409" stroke="#3F4A55" stroke-width="1.6" fill="none" marker-end="url(#ah-n)"/>
+  <path d="M340,478 V497" stroke="#3F4A55" stroke-width="1.6" fill="none" marker-end="url(#ah-n)"/>
+  <path d="M340,566 V585" stroke="#3F4A55" stroke-width="1.6" fill="none" marker-end="url(#ah-n)"/>
+  <path d="M340,654 V673" stroke="#3F4A55" stroke-width="1.6" fill="none" marker-end="url(#ah-n)"/>
+  <text x="352" y="670" font-size="10.5" fill="#55616D">passes</text>
+
+  <!-- Fail loop: CI gate back to step 3 -->
+  <path d="M80,621 H44 V357 H75" stroke="#B24A3E" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#ah-r)"/>
+  <text x="50" y="496" font-size="10.5" fill="#B24A3E">lint fails</text>
+
+  <!-- ============ RIGHT COLUMN ============ -->
+
+  <!-- R1: registry release -->
+  <rect x="720" y="150" width="460" height="140" rx="10" fill="#EDF3FA" stroke="#C6D9EE" stroke-width="1.4"/>
+  <text x="740" y="176" font-size="15" font-weight="600" fill="#1B242D">Central registry</text>
+  <rect x="1090" y="161" width="70" height="21" rx="10.5" fill="#1F5B94"/>
+  <text x="1125" y="176" font-size="11.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">v1.2.0</text>
+  <text x="740" y="202" font-size="11.5" fill="#55616D">· Spec and ADR templates, issue templates, spec.schema.json</text>
+  <text x="740" y="221" font-size="11.5" fill="#55616D">· Standard specs — org-wide constraints a repo extends</text>
+  <text x="740" y="240" font-size="11.5" fill="#55616D">· The lint rules the CI gate enforces</text>
+  <text x="740" y="266" font-size="11" font-style="italic" fill="#7A848F">repos pin a tag; upgrading is an ordinary reviewable commit</text>
+
+  <!-- R2: central team -->
+  <rect x="720" y="400" width="460" height="120" rx="10" fill="#EDF3FA" stroke="#C6D9EE" stroke-width="1.4"/>
+  <text x="740" y="426" font-size="15" font-weight="600" fill="#1B242D">Central team</text>
+  <text x="740" y="452" font-size="11.5" fill="#55616D">· reviews catalog PRs and accepts promoted specs as standards</text>
+  <text x="740" y="471" font-size="11.5" fill="#55616D">· owns templates, schema, standard specs — not your specs</text>
+  <text x="740" y="490" font-size="11.5" fill="#55616D">· chases exceptions as they approach expiry</text>
+  <text x="740" y="512" font-size="11" font-style="italic" fill="#7A848F">no central sign-off is needed to land a spec in your repo</text>
+
+  <!-- R3: catalog + dashboard -->
+  <rect x="720" y="620" width="460" height="140" rx="10" fill="#EDF3FA" stroke="#C6D9EE" stroke-width="1.4"/>
+  <text x="740" y="646" font-size="15" font-weight="600" fill="#1B242D">Catalog + dashboard</text>
+  <text x="740" y="672" font-size="11.5" fill="#55616D">· one read-only index entry per repo (metadata by default)</text>
+  <text x="740" y="691" font-size="11.5" fill="#55616D">· template version and lint status, per repo</text>
+  <text x="740" y="710" font-size="11.5" fill="#55616D">· every active exception and the date it expires</text>
+  <text x="740" y="736" font-size="11" font-style="italic" fill="#7A848F">a mirror for search and reporting — never a second source of truth</text>
+
+  <!-- ============ CROSS-COLUMN FLOWS ============ -->
+
+  <!-- Weekly upgrade PR: R1 -> step 1 -->
+  <path d="M716,181 H609" stroke="#1F5B94" stroke-width="1.6" fill="none" marker-end="url(#ah-b)"/>
+  <text x="712" y="172" font-size="10.5" fill="#1F5B94" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">specctl pull --check</text>
+  <text x="712" y="197" font-size="10.5" fill="#55616D" text-anchor="end">weekly upgrade PR</text>
+
+  <!-- Pull: R1 -> step 3 -->
+  <path d="M780,290 V357 H609" stroke="#1F5B94" stroke-width="1.6" fill="none" marker-end="url(#ah-b)"/>
+  <text x="790" y="318" font-size="10.5" fill="#1F5B94" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">specctl pull</text>
+  <text x="790" y="334" font-size="10.5" fill="#55616D">standards vendored at the pinned tag</text>
+
+  <!-- Promote: step 7 -> R2 -->
+  <path d="M604,690 H664 V505 H715" stroke="#2E6B4F" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#ah-g)"/>
+  <text x="712" y="497" font-size="10.5" fill="#2E6B4F" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">specctl promote</text>
+
+  <!-- Push: step 7 -> R3 -->
+  <path d="M604,712 H715" stroke="#2E6B4F" stroke-width="1.6" fill="none" marker-end="url(#ah-g)"/>
+  <text x="608" y="730" font-size="10.5" fill="#2E6B4F" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">specctl push</text>
+
+  <!-- Dashboard -> team -->
+  <path d="M1150,614 V529" stroke="#1F5B94" stroke-width="1.6" fill="none" marker-end="url(#ah-b)"/>
+  <text x="1142" y="575" font-size="10.5" fill="#55616D" text-anchor="end">reports</text>
+
+  <!-- Team -> next release -->
+  <path d="M1150,394 V299" stroke="#1F5B94" stroke-width="1.6" fill="none" marker-end="url(#ah-b)"/>
+  <text x="1142" y="350" font-size="10.5" fill="#55616D" text-anchor="end">tags the next release</text>
+
+  <!-- ============ FOOTER RULES ============ -->
+  <rect x="40" y="776" width="1160" height="80" rx="10" fill="#F3F1EE" stroke="#E0DCD6" stroke-width="1.2"/>
+  <text x="60" y="801" font-size="11.5" fill="#55616D"><tspan font-weight="700" fill="#1B242D">One writer per file</tspan> — your repo owns docs/specs/ and docs/adr/; the registry owns docs/specs/_standards/ and .github/ISSUE_TEMPLATE/. Neither side edits the other's, so sync is a copy, not a merge.</text>
+  <text x="60" y="823" font-size="11.5" fill="#55616D"><tspan font-weight="700" fill="#1B242D">Updating a spec</tspan> — edit it in the PR that changes the behavior and bump the updated: date. When a later spec replaces one, the old gets status: superseded and superseded_by: — nothing is deleted.</text>
+  <text x="60" y="845" font-size="11.5" fill="#55616D"><tspan font-weight="700" fill="#1B242D">Deviating from a standard</tspan> — declare it in exceptions: with a reason and an expires: date. It surfaces on the dashboard, and comes back as a step 1 idea when it expires.</text>
+</svg>
