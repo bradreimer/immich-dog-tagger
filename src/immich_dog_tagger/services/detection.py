@@ -13,6 +13,12 @@ from immich_dog_tagger.models import Asset, Crop, Detection
 
 logger = logging.getLogger(__name__)
 
+# See scanner.BATCH_SIZE -- same rationale (issue #99), extended to `detect`
+# because a single commit at the end of the whole run held state.db's write
+# lock for the run's entire duration, blocking every other reader (issue
+# #104).
+BATCH_SIZE = 1000
+
 
 @dataclass
 class DetectionSummary:
@@ -65,6 +71,7 @@ class DetectionService:
         detection_count = 0
         dog_count = 0
         cat_count = 0
+        since_commit = 0
 
         for asset in assets:
             image_path = asset.cache_path(self.cache_dir)
@@ -104,6 +111,13 @@ class DetectionService:
 
                     crop_map = dict(crop_results)
             except Exception as exc:
+                # Discard the still-uncommitted batch before propagating --
+                # otherwise the caller's own failure-handling commit (job
+                # status update, sharing this same session) would silently
+                # persist it anyway, defeating the point of batching commits
+                # in the first place (issue #104).
+                self.session.rollback()
+
                 # A bare exception message (e.g. a Pillow decoding error)
                 # gives no way to tell which asset caused it without
                 # reproducing the failure -- fold that context into both
@@ -154,6 +168,7 @@ class DetectionService:
             asset.status = AssetStatus.DETECTED
 
             processed += 1
+            since_commit += 1
 
             if self.crop_writer:
                 # The original is only needed to run detection -- embed,
@@ -172,7 +187,11 @@ class DetectionService:
                         image_path,
                     )
 
-        self.session.commit()
+            if since_commit >= BATCH_SIZE:
+                self._commit(since_commit)
+                since_commit = 0
+
+        self._commit(since_commit)
 
         return DetectionSummary(
             processed=processed,
@@ -180,3 +199,22 @@ class DetectionService:
             dogs=dog_count,
             cats=cat_count,
         )
+
+    def _commit(
+        self,
+        batch_size: int,
+    ) -> None:
+        if batch_size == 0:
+            return
+
+        try:
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            logger.exception(
+                "Failed to commit a batch of %d detected asset(s)",
+                batch_size,
+            )
+            raise RuntimeError(
+                f"Failed to commit a batch of {batch_size} detected asset(s): {exc}"
+            ) from exc

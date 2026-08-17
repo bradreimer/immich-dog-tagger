@@ -345,3 +345,57 @@ def test_database_adds_pipeline_job_visible_column(tmp_path: Path):
     # Existing jobs stay visible on migration -- clearing is something an
     # operator does going forward, not a retroactive change.
     assert rows == [("scan", 1)]
+
+
+def test_engine_waits_for_a_concurrent_writer_instead_of_failing_immediately(
+    tmp_path: Path,
+):
+    # Regression test for issue #104: with no busy_timeout configured, any
+    # connection that landed on another writer's lock window (even a brief
+    # one, e.g. a batch commit) failed immediately with "database is
+    # locked" instead of waiting the moment it takes for that lock to
+    # clear.
+    import threading
+    import time
+
+    from immich_dog_tagger.database import create_database
+    from immich_dog_tagger.models import Identity
+
+    engine = create_database(tmp_path)
+
+    # check_same_thread=False: the connection is created here but committed
+    # from the releaser thread below -- safe since only one thread ever
+    # touches it at a time (the two are joined, not run concurrently).
+    blocker = sqlite3.connect(
+        str(tmp_path / "state.db"), timeout=0, check_same_thread=False
+    )
+    blocker.execute("BEGIN IMMEDIATE")
+    blocker.execute(
+        "INSERT INTO identities (species, name, is_active) VALUES ('DOG', 'Blocker', 1)"
+    )
+
+    def release_after_delay():
+        time.sleep(0.5)
+        blocker.commit()
+        blocker.close()
+
+    releaser = threading.Thread(target=release_after_delay)
+    releaser.start()
+
+    started = time.monotonic()
+
+    with Session(engine) as session:
+        session.add(Identity(name="Waiter"))
+        session.commit()
+
+    elapsed = time.monotonic() - started
+    releaser.join()
+
+    # It waited for the blocker's lock to clear rather than raising
+    # "database is locked" the instant it hit contention.
+    assert elapsed >= 0.4
+
+    with Session(engine) as verify_session:
+        names = {identity.name for identity in verify_session.query(Identity).all()}
+
+    assert names == {"Blocker", "Waiter"}

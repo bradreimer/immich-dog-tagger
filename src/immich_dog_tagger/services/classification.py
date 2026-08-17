@@ -23,6 +23,14 @@ from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 
 logger = logging.getLogger(__name__)
 
+# Matches PetOccurrenceService.sync_all's batch size -- classifying a crop
+# does comparable per-item DB work (a classification row plus an occurrence
+# sync, each involving their own queries). A single commit at the end of the
+# whole batch held state.db's write lock for the run's entire duration,
+# blocking every other reader (issue #104); see scanner.BATCH_SIZE/issue #99
+# for the same fix applied to `scan`.
+BATCH_SIZE = 500
+
 
 @dataclass
 class ClassificationSummary:
@@ -76,19 +84,36 @@ class ClassificationService:
             [crop.path for crop in crops],
         )
 
-        for crop, embedding in zip(crops, embeddings):
-            classification = self._classify_crop(
-                crop,
-                embedding,
-                threshold,
-            )
+        since_commit = 0
 
-            if classification.identity:
-                counts[classification.identity] += 1
-            else:
-                counts["Unknown"] += 1
+        try:
+            for crop, embedding in zip(crops, embeddings):
+                classification = self._classify_crop(
+                    crop,
+                    embedding,
+                    threshold,
+                )
 
-        self.session.commit()
+                if classification.identity:
+                    counts[classification.identity] += 1
+                else:
+                    counts["Unknown"] += 1
+
+                since_commit += 1
+
+                if since_commit >= BATCH_SIZE:
+                    self._commit(since_commit)
+                    since_commit = 0
+        except Exception:
+            # Discard the still-uncommitted batch before propagating --
+            # otherwise the caller's own failure-handling commit (job status
+            # update, sharing this same session) would silently persist it
+            # anyway, defeating the point of batching commits in the first
+            # place (issue #104).
+            self.session.rollback()
+            raise
+
+        self._commit(since_commit)
 
         logger.info(
             "Classify (mode=%s): classified %d crop(s), %d unknown",
@@ -101,6 +126,25 @@ class ClassificationService:
             classified=len(crops),
             identities=dict(counts),
         )
+
+    def _commit(
+        self,
+        batch_size: int,
+    ) -> None:
+        if batch_size == 0:
+            return
+
+        try:
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            logger.exception(
+                "Failed to commit a batch of %d classified crop(s)",
+                batch_size,
+            )
+            raise RuntimeError(
+                f"Failed to commit a batch of {batch_size} classified crop(s): {exc}"
+            ) from exc
 
     def _classify_crop(
         self,

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import ClassificationResult
@@ -10,7 +11,7 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
 )
-from immich_dog_tagger.services.classification import ClassificationService
+from immich_dog_tagger.services.classification import BATCH_SIZE, ClassificationService
 
 
 class FakeBatchEmbedder:
@@ -503,3 +504,130 @@ def test_classify_all_includes_classified_crops(engine):
         )
 
     assert summary.classified == 1
+
+
+def test_classification_service_commits_in_batches_of_500(engine):
+    from unittest.mock import Mock
+
+    # Regression test for issue #104: a single commit at the end of the
+    # whole batch held state.db's write lock for the run's entire duration,
+    # blocking every other reader for as long as classification took.
+    total = BATCH_SIZE + 200
+
+    with Session(engine) as session:
+        crops = [
+            Crop(
+                detection_id=index,
+                path=f"{index}.jpg",
+            )
+            for index in range(total)
+        ]
+        session.add_all(crops)
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.zeros(
+            (total, 3),
+            dtype=np.float32,
+        )
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity=None,
+            similarity=0.0,
+            matched_example_id=None,
+            candidates=[],
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        commit_calls = []
+        original_commit = session.commit
+
+        def counting_commit():
+            commit_calls.append(1)
+            original_commit()
+
+        session.commit = counting_commit
+
+        summary = service.classify(
+            mode=ClassificationMode.ALL,
+        )
+
+        assert summary.classified == total
+        # One commit at the BATCH_SIZE boundary, one final commit for the
+        # remaining 200 -- proves the loop doesn't hold everything for a
+        # single commit at the end.
+        assert len(commit_calls) == 2
+        assert session.query(CropClassification).count() == total
+
+
+def test_classification_service_failure_leaves_only_prior_batches_committed(
+    engine,
+):
+    from unittest.mock import Mock
+
+    # Regression test for issue #104: a failure partway through a run must
+    # not discard batches already committed, the same guarantee issue #99
+    # established for scan/download -- and the still-uncommitted straggler
+    # batch must not survive either, since PipelineJobRunner commits the
+    # job's own failure status on this same session right after.
+    total = BATCH_SIZE + 200
+    fail_at = BATCH_SIZE + 100
+
+    with Session(engine) as session:
+        crops = [
+            Crop(
+                detection_id=index,
+                path=f"{index}.jpg",
+            )
+            for index in range(total)
+        ]
+        session.add_all(crops)
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.zeros(
+            (total, 3),
+            dtype=np.float32,
+        )
+
+        calls = {"count": 0}
+
+        def flaky_classify(*args, **kwargs):
+            calls["count"] += 1
+
+            if calls["count"] == fail_at:
+                raise ValueError("simulated failure")
+
+            return ClassificationResult(
+                identity=None,
+                similarity=0.0,
+                matched_example_id=None,
+                candidates=[],
+            )
+
+        classifier = Mock()
+        classifier.classify.side_effect = flaky_classify
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        with pytest.raises(ValueError, match="simulated failure"):
+            service.classify(
+                mode=ClassificationMode.ALL,
+            )
+
+    with Session(engine) as verify_session:
+        # Only the first full batch (500) was committed; the failure at
+        # 600 happened inside the still-uncommitted second batch, which
+        # was rolled back in full rather than left for a later commit
+        # (e.g. the caller's job-failure commit) to persist by accident.
+        assert verify_session.query(CropClassification).count() == BATCH_SIZE
