@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from immich_dog_tagger.api.dependencies import get_insights_service
 from immich_dog_tagger.api.schemas import (
+    InsightCardResponse,
     InsightsSummaryResponse,
     PersonCountResponse,
     PlaceCountResponse,
@@ -78,3 +79,19 @@ def get_people(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return [PersonCountResponse.from_person_count(person) for person in people]
+
+
+@router.get(
+    "/cards",
+    response_model=list[InsightCardResponse],
+)
+def get_cards(
+    identity_id: int,
+    service: Annotated[InsightsService, Depends(get_insights_service)],
+):
+    try:
+        cards = service.cards(identity_id)
+    except IdentityNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return [InsightCardResponse.from_card(card) for card in cards]

@@ -3,23 +3,37 @@ import { useEffect, useState } from "react";
 import {
   IconArrowLeft,
   IconCalendarStats,
+  IconClock,
   IconHeart,
   IconMapPin,
   IconPhoto,
+  IconTrophy,
   IconUsers,
 } from "@tabler/icons-react";
 import {
+  getInsightsCards,
   getInsightsPeople,
   getInsightsPlaces,
   getInsightsSummary,
   getInsightsTimeline,
 } from "../../lib/api";
 import type {
+  InsightCard,
   InsightsSummary,
   PersonCount,
   PlaceCount,
   TimelineEntry,
 } from "../../types/insights";
+
+// One icon per category, not per specific insight -- so a new
+// InsightProvider (ADR-005) appears here with no frontend change.
+const CARD_ICONS: Record<InsightCard["category"], typeof IconPhoto> = {
+  volume: IconPhoto,
+  place: IconMapPin,
+  social: IconUsers,
+  milestone: IconTrophy,
+  time: IconClock,
+};
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -42,6 +56,7 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
   const [places, setPlaces] = useState<PlaceCount[]>([]);
   const [people, setPeople] = useState<PersonCount[]>([]);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [cards, setCards] = useState<InsightCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,18 +68,21 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
       setError(null);
 
       try {
-        const [summaryData, placesData, peopleData, timelineData] = await Promise.all([
-          getInsightsSummary(dogId),
-          getInsightsPlaces(dogId),
-          getInsightsPeople(dogId),
-          getInsightsTimeline(dogId, { limit: 25 }),
-        ]);
+        const [summaryData, placesData, peopleData, timelineData, cardsData] =
+          await Promise.all([
+            getInsightsSummary(dogId),
+            getInsightsPlaces(dogId),
+            getInsightsPeople(dogId),
+            getInsightsTimeline(dogId, { limit: 25 }),
+            getInsightsCards(dogId),
+          ]);
 
         if (!cancelled) {
           setSummary(summaryData);
           setPlaces(placesData);
           setPeople(peopleData);
           setTimeline(timelineData);
+          setCards(cardsData);
         }
       } catch (err) {
         if (!cancelled) {
@@ -158,6 +176,21 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
               <IconHeart className="h-4 w-4 text-status-serious" aria-hidden="true" />
               {summary.favorite_photo_count} of these photos are marked as favorites in Immich.
             </p>
+          )}
+
+          {cards.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {cards.map((card) => (
+                <StatTile
+                  key={card.slug}
+                  icon={CARD_ICONS[card.category]}
+                  tone="accent"
+                  label={card.title}
+                  value={card.value}
+                  subtext={card.subtext ?? undefined}
+                />
+              ))}
+            </div>
           )}
 
           <div className="grid gap-6 lg:grid-cols-2">

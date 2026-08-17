@@ -149,20 +149,27 @@
   `sqlalchemy` `"connect"` event listener, so readers and a writer can proceed concurrently instead
   of contending for the same single lock; the existing `busy_timeout` remains as the safety net for
   writer-vs-writer contention.
+- #110 v1.7.0 Pluginable Insight Providers: `InsightProvider` protocol + explicit
+  `INSIGHT_PROVIDERS` registry (`services/insights/providers.py`); `services/insights.py` split
+  into a package (`aggregations.py`, `providers.py`, `service.py`), with the favourite-place/
+  favourite-human/Immich-favorite-count logic previously inline in `InsightsService.summary()`
+  reorganized onto shared aggregation helpers the providers also use -- a behavior-preserving
+  refactor, `InsightsService.summary()`'s signature and response shape unchanged; new read-only
+  `GET /api/dogs/{id}/insights/cards` endpoint and a `DogInsightsPage` card grid rendering
+  whatever's registered, so future providers need no endpoint or frontend change; a first new
+  provider landed as proof, `TotalPhotosMilestoneProvider` (a round-number confirmed-photo-count
+  Milestone, e.g. "1000th confirmed photo"). See
+  [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md) and
+  [ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md).
 
 ## Current Milestone
-v1.7.0 Pluginable Insight Providers ([#110](https://github.com/bradreimer/immich-dog-tagger/issues/110)):
-turns the mechanism that determines a v1.6.0-style fun insight (favourite human, favourite place,
-and future ones like a Milestones "1000th confirmed photo") into a pluggable `InsightProvider`
-unit with an explicit registry, so v1.6.0's deferred Best Friends/On This Day/Milestones can each
-land as an independent addition instead of growing `InsightsService`'s core methods one bespoke
-endpoint at a time. See [docs/specs/v1.7-pluginable-insights.md](specs/v1.7-pluginable-insights.md)
-and [ADR-005](adr/ADR-005-insight-provider-plugin-architecture.md). Not started.
+No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+as completed in [docs/roadmap.md](roadmap.md).
 
 ## Next Work
-v1.7.0's own explicitly-deferred items once the provider architecture lands: On This Day, Best
-Friends (pet-to-pet co-occurrence), and a Pet World Tour map (see spec Non-goals) -- each becomes a
-new provider, not a core change. Otherwise: improved reference-example selection, reference-set
+v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
+co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
+#110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
 curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
 or v1.5's own open questions (owner-tunable decay scale/floor, reporting how many reclassified
 items changed identity specifically due to temporal weighting). Also open:
