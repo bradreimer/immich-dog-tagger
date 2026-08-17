@@ -114,6 +114,7 @@ UI (from `ui/`):
 ```bash
 npm run build
 npm run lint
+npm test
 ```
 
 Combined project validation script: `./scripts/check.sh`. Fresh environment bootstrap:

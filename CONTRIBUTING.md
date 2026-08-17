@@ -55,6 +55,7 @@ For UI changes:
 cd ui
 npm run build
 npm run lint
+npm test
 ```
 
 If your change touches both backend and frontend, run `./scripts/check.sh` too.
