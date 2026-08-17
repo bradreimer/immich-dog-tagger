@@ -232,21 +232,24 @@ self-contained provider per insight, registered explicitly -- so v1.6.0's deferr
 This Day, and Best Friends can each land as an independent addition instead of growing
 `InsightsService`'s core methods and API surface one bespoke endpoint at a time.
 
-Planned:
-- `InsightProvider` protocol + explicit `INSIGHT_PROVIDERS` registry (no dynamic/third-party plugin
-  loading -- this stays an in-codebase extensibility mechanism)
-- Migrate the existing favourite-place/favourite-human/Immich-favorite-count logic inline in
-  `InsightsService.summary()` onto the same provider mechanism, as a behavior-preserving refactor
-- New `GET /api/dogs/{id}/insights/cards` endpoint and a UI card grid that renders whatever's
-  registered, so future providers need no endpoint or frontend change
-- A first new provider landed under this architecture as proof: Milestones (round-number confirmed
-  photo counts)
+Completed:
+- #110: `InsightProvider` protocol + explicit `INSIGHT_PROVIDERS` registry
+  (`services/insights/providers.py`; no dynamic/third-party plugin loading -- this stays an
+  in-codebase extensibility mechanism); `services/insights.py` split into a package
+  (`aggregations.py`, `providers.py`, `service.py`) with the favourite-place/favourite-human/
+  Immich-favorite-count logic previously inline in `InsightsService.summary()` reorganized onto
+  shared aggregation helpers the providers also use, as a behavior-preserving refactor --
+  `InsightsService.summary()`'s method signature and response shape are unchanged; new read-only
+  `GET /api/dogs/{id}/insights/cards` endpoint and a `DogInsightsPage` card grid that render
+  whatever's registered, so future providers need no endpoint or frontend change; a first new
+  provider landed under this architecture as proof -- `TotalPhotosMilestoneProvider`, a
+  round-number confirmed-photo-count Milestone (e.g. "1000th confirmed photo").
 
 Explicitly not planned this iteration (see spec Non-goals): On This Day, Best Friends, Pet World
 Tour map, per-provider enable/disable settings, any dynamic/third-party plugin loading.
 
 Exit criteria:
-Not started.
+Completed.
 
 ## Active Learning Improvements
 
