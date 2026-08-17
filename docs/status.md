@@ -94,6 +94,19 @@
   ones -- previously a transient failure (e.g. a timeout) left an asset stuck forever unless
   someone remembered to pass `--force`, which redownloads everything rather than just what's
   missing.
+- #103 batched full-pipeline runs: `PipelineService.run()` (the `full_pipeline` job driving "run
+  pipeline") now downloads/detects/classifies in chunks of 1000 assets rather than running each
+  stage to completion across the entire library before the next starts, so a first-time run
+  against a large library produces reviewable crops after the first ~1000 assets instead of only
+  once everything has finished (`force=True` reprocessing still runs as a single unbatched pass,
+  since its query has no status filter to advance through on repeated calls). Each completed batch
+  now also logs a `Full pipeline batch N complete: count/total asset(s) processed this run` line
+  via the standard logger; fixed alongside this that INFO-level `logger.info(...)` calls
+  throughout the app (this one and pre-existing ones in scanner/downloader/classification/
+  scheduler) were being silently dropped everywhere -- neither `api/app.py` (served via uvicorn
+  per `docker-compose.yml`) nor `cli.py`'s `main()` configured a root logging handler, so nothing
+  below WARNING ever reached `docker logs`. Both now call `logging.basicConfig(level=logging.INFO)`
+  on startup.
 - #83 Settings tab showing the configured Immich URL and scanned-image count (read-only;
   `GET /api/settings` never returns `immich_api_key`)
 - #91 v1.5.0 automatic temporal-recency classification: removed DT-1114's manual owner-set

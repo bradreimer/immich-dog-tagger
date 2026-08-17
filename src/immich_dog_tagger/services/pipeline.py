@@ -1,7 +1,20 @@
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from immich_dog_tagger.enums import ClassificationMode
+
+logger = logging.getLogger(__name__)
+
+# Download/detect/classify run in chunks of this size rather than one pass
+# across the whole library, so a large first-time run starts producing
+# reviewable crops after the first batch instead of only once every asset
+# has been processed (issue #103). Matches scanner.BATCH_SIZE /
+# downloader.BATCH_SIZE (issue #99/#100), which batch DB commits for a
+# related reason; kept as its own constant since this module deliberately
+# stays decoupled from those concrete classes (its dependencies are
+# duck-typed, see __init__ below).
+BATCH_SIZE = 1000
 
 
 @dataclass
@@ -31,59 +44,108 @@ class PipelineService:
         limit: int | None = None,
         force: bool = False,
     ) -> PipelineSummary:
+        def report(message: str) -> None:
+            if progress:
+                progress(message)
+
         # Scan Immich for new assets
-        if progress:
-            progress("Scanning Immich")
+        report("Scanning Immich")
 
         scanned = self.scanner.scan(
             limit=limit,
             force=force,
         )
 
-        if progress:
-            progress(f"Scanned {scanned} assets")
-
-        # Download pending assets
-        if progress:
-            progress("Downloading assets")
-
-        downloaded = self.downloader.download_pending(
-            limit=limit,
-            force=force,
-        )
-
-        if progress:
-            progress(f"Downloaded {downloaded} assets")
-
-        # Detect dogs and cats in downloaded assets
-        if progress:
-            progress("Detecting dogs and cats")
-
-        detected = self.detector.run(
-            limit=limit,
-            force=force,
-        )
-
-        if progress:
-            progress(f"Detected {detected.dogs} dog(s) and {detected.cats} cat(s)")
-
-        # Classify detected crops
-        if progress:
-            progress("Classifying crops")
+        report(f"Scanned {scanned} assets")
 
         mode = ClassificationMode.ALL if force else ClassificationMode.PENDING
 
-        classified = self.classifier.classify(
-            limit=limit,
-            mode=mode,
-        )
+        # `force` reprocesses rows via an unfiltered query (see
+        # Downloader.download_pending), so repeated calls have no notion of
+        # "what's left" to advance through -- batching it would just replay
+        # the same first BATCH_SIZE rows forever. Only the default
+        # (non-force) path, whose per-stage queries filter by status, can
+        # safely be looped in batches.
+        batched = not force
 
-        if progress:
-            progress(f"Classified {classified.classified} crops")
+        total_downloaded = 0
+        total_dogs = 0
+        total_cats = 0
+        total_classified = 0
+
+        remaining = limit
+        batch_number = 0
+        progress_total = scanned
+
+        while True:
+            batch_limit = BATCH_SIZE if batched else limit
+
+            if batched and remaining is not None:
+                batch_limit = min(batch_limit, remaining)
+
+                if batch_limit <= 0:
+                    break
+
+            report("Downloading assets")
+
+            downloaded = self.downloader.download_pending(
+                limit=batch_limit,
+                force=force,
+            )
+
+            report(f"Downloaded {downloaded} assets")
+
+            report("Detecting dogs and cats")
+
+            detected = self.detector.run(
+                limit=batch_limit,
+                force=force,
+            )
+
+            report(f"Detected {detected.dogs} dog(s) and {detected.cats} cat(s)")
+
+            report("Classifying crops")
+
+            classified = self.classifier.classify(
+                limit=batch_limit,
+                mode=mode,
+            )
+
+            report(f"Classified {classified.classified} crops")
+
+            total_downloaded += downloaded
+            total_dogs += detected.dogs
+            total_cats += detected.cats
+            total_classified += classified.classified
+
+            made_progress = (
+                downloaded > 0
+                or detected.dogs > 0
+                or detected.cats > 0
+                or classified.classified > 0
+            )
+
+            if batched and made_progress:
+                batch_number += 1
+                progress_total = max(progress_total, total_downloaded)
+
+                batch_message = (
+                    f"Full pipeline batch {batch_number} complete: "
+                    f"{total_downloaded}/{progress_total} asset(s) processed this run"
+                )
+
+                report(batch_message)
+                logger.info(batch_message)
+
+            if remaining is not None:
+                remaining -= batch_limit
+
+            if not batched or not made_progress:
+                break
 
         return PipelineSummary(
             scanned=scanned,
-            downloaded=downloaded,
-            detected=detected.dogs + detected.cats,
-            classified=classified.classified,
+            downloaded=total_downloaded,
+            detected=total_dogs + total_cats,
+            classified=total_classified,
         )
