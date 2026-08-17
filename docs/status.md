@@ -106,6 +106,18 @@
   similarity as confidence. The `date-conflict` review/library reason is now `temporal-mismatch`.
   See [docs/specs/v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md)
   and [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
+- #104 fixed `detect`/`classify` holding state.db's write lock for the duration of the entire run:
+  `DetectionService.run()` and `ClassificationService.classify()` each committed exactly once,
+  after processing every eligible asset/crop, so a large run (minutes of YOLO inference or
+  embedding+classification work) blocked every other reader -- the API's review/jobs/schedules
+  endpoints and the background scheduler tick -- with an immediate `database is locked` error for
+  as long as it ran. Both now commit every batch (1000 assets for detect, 500 crops for classify,
+  matching scanner/downloader's existing #99 convention and PetOccurrenceService.sync_all's
+  existing batch size respectively), rolling back and re-raising if a batch fails so a mid-run
+  failure -- and the caller's own failure-status commit, which shares the same session -- can't
+  silently persist a still-uncommitted straggler batch. The SQLite engine also now sets a
+  30-second `busy_timeout`, so any connection that does land on a brief lock window waits for it
+  to clear instead of failing instantly.
 
 ## Current Milestone
 v1.6.0 Pet Insights -- in progress (issue #94). A read-only "fun layer" on top of confirmed pet

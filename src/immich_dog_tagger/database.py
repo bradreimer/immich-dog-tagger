@@ -23,6 +23,12 @@ def create_database(state_dir: Path):
 
     engine = create_engine(
         f"sqlite:///{database_path}",
+        # A write transaction (a pipeline job committing a batch, a review
+        # action) briefly holds SQLite's single write lock. Without a
+        # busy_timeout, any other connection that lands on that window fails
+        # immediately with "database is locked" instead of waiting the
+        # moment it takes for the lock to clear (issue #104).
+        connect_args={"timeout": 30},
     )
 
     Base.metadata.create_all(engine)

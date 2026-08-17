@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import Asset, Crop, Detection
-from immich_dog_tagger.services.detection import DetectionService
+from immich_dog_tagger.services.detection import BATCH_SIZE, DetectionService
 
 
 class FakeDetector:
@@ -453,3 +453,101 @@ def test_detection_keeps_cached_original_without_crop_writer(
 
         assert summary.processed == 1
         assert original_path.exists()
+
+
+def test_detection_commits_in_batches_of_1000(
+    engine,
+    tmp_path,
+):
+    # Regression test for issue #104: a single commit at the end of the
+    # whole run held state.db's write lock for the run's entire duration,
+    # blocking every other reader for as long as the run took.
+    total = BATCH_SIZE + 500
+
+    with Session(engine) as session:
+        assets = [
+            Asset(
+                immich_asset_id=f"asset-{index}",
+                checksum=f"checksum-{index}",
+                extension=".jpg",
+                status=AssetStatus.DOWNLOADED,
+            )
+            for index in range(total)
+        ]
+        session.add_all(assets)
+        session.commit()
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+        )
+
+        commit_calls = []
+        original_commit = session.commit
+
+        def counting_commit():
+            commit_calls.append(1)
+            original_commit()
+
+        session.commit = counting_commit
+
+        summary = service.run()
+
+        assert summary.processed == total
+        # One commit at the BATCH_SIZE boundary, one final commit for the
+        # remaining 500 -- proves the loop doesn't hold everything for a
+        # single commit at the end.
+        assert len(commit_calls) == 2
+        assert session.query(Detection).count() == total
+
+
+def test_detection_failure_leaves_only_prior_batches_committed(
+    engine,
+    tmp_path,
+):
+    # Regression test for issue #104: a failure partway through a run must
+    # not discard batches already committed, the same guarantee issue #99
+    # established for scan/download.
+    total = BATCH_SIZE + 500
+    fail_at = BATCH_SIZE + 200
+
+    class FlakyDetector:
+        def __init__(self):
+            self._calls = 0
+
+        def detect(self, image_path):
+            self._calls += 1
+
+            if self._calls == fail_at:
+                raise ValueError("simulated failure")
+
+            return FakeDetector().detect(image_path)
+
+    with Session(engine) as session:
+        assets = [
+            Asset(
+                immich_asset_id=f"asset-{index}",
+                checksum=f"checksum-{index}",
+                extension=".jpg",
+                status=AssetStatus.DOWNLOADED,
+            )
+            for index in range(total)
+        ]
+        session.add_all(assets)
+        session.commit()
+
+        service = DetectionService(
+            FlakyDetector(),
+            session,
+            tmp_path,
+        )
+
+        with pytest.raises(RuntimeError, match="simulated failure"):
+            service.run()
+
+    with Session(engine) as verify_session:
+        # Only the first full batch (1000) was committed; the failure at
+        # 1200 happened inside the still-uncommitted second batch, which
+        # was never flushed to disk.
+        assert verify_session.query(Detection).count() == BATCH_SIZE
