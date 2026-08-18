@@ -560,6 +560,58 @@ def test_review_query_includes_photo_captured_at(engine):
         assert results[0].captured_at == captured_at.replace(tzinfo=None)
 
 
+def test_review_query_includes_immich_asset_id(engine):
+    """#128: ReviewItem carries the Immich asset the crop came from, so the
+    review card can deep link to the original photo."""
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-42",
+            extension=".jpg",
+            captured_at=datetime(2019, 3, 3, 12, 0, 0, tzinfo=UTC),
+        )
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path="crop.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).classifications()
+
+        assert len(results) == 1
+        assert results[0].immich_asset_id == "asset-42"
+
+
+def test_review_query_immich_asset_id_is_none_without_asset(engine):
+    """Same fail-open stance as captured_at: a missing detection/asset chain
+    yields None rather than raising."""
+    with Session(engine) as session:
+        create_test_classification(session)
+
+        results = ReviewQueryService(session).classifications()
+
+        assert len(results) == 1
+        assert results[0].immich_asset_id is None
+
+
 def test_review_query_captured_at_is_none_without_asset(engine):
     """A crop whose detection/asset chain is missing (orphaned rows, or test
     fixtures that don't bother with it) must yield captured_at=None rather

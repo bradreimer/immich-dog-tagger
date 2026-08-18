@@ -222,8 +222,18 @@
   to the Vitest setup, a latent gap from the framework's initial setup that only surfaced once a
   test file asserted DOM uniqueness/absence across multiple tests.
 
-- [#129](https://github.com/bradreimer/immich-dog-tagger/issues/129) fixed the Insights page's "Most photographed place" and "Most often photographed with"
-  tiles (and the Places/People cards) always being blank: `ImmichClient.list_assets()` posted to
+- [#128](https://github.com/bradreimer/immich-dog-tagger/issues/128) "View in Immich" link on the
+  Review page, on the same line as the review-reason badge and the capture date, so an ambiguous
+  crop can be checked against the full original photo without leaving the app to hunt for it by
+  date. `ReviewItem`/`ReviewItemResponse` now carry the crop's `immich_asset_id` (read from the
+  already-eager-loaded Crop -> Detection -> Asset chain, so no extra query), and the link is built
+  client-side by `immichAssetUrl()` from the `immich_url` the Settings endpoint already exposes --
+  no image data or metadata leaves the local deployment. Fails open the same way `captured_at`
+  does: no configured Immich URL or no asset behind the crop simply renders no link.
+
+- [#129](https://github.com/bradreimer/immich-dog-tagger/issues/129) fixed the Insights page's
+  "Most photographed place" and "Most often photographed with" tiles (and the Places/People
+  cards) always being blank: `ImmichClient.list_assets()` posted to
   `/api/search/metadata` without `withExif`/`withPeople`, which Immich gates `exifInfo` and
   `people` behind, so every asset parsed to `latitude=None`/`city=None`/`people=()` and the
   location/people cache #94 added to `Asset` never held anything. `isFavorite` (a top-level,
@@ -235,7 +245,8 @@
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
 page species correction, predicted-identity highlight), and #125 (version display) followed as
-additional reliability/UX fixes.
+additional reliability/UX fixes, along with #128 (link from a review item to its original photo
+in Immich).
 
 ## Next Work
 v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet

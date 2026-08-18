@@ -13,6 +13,7 @@ function buildItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     species: "dog",
     reason: "unknown",
     captured_at: "2026-01-05T12:00:00Z",
+    immich_asset_id: "asset-42",
     prediction: {
       identity: null,
       similarity: 0.4,
@@ -38,6 +39,66 @@ describe("ReviewCard", () => {
 
     expect(screen.getByText("Unknown identity")).toBeInTheDocument();
     expect(screen.getByText("January 5, 2026")).toBeInTheDocument();
+  });
+
+  it("links to the original photo in Immich beside the reason and date", () => {
+    render(
+      <ReviewCard
+        item={buildItem()}
+        identities={["Rex"]}
+        immichUrl="http://immich.local:2283/"
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        disabled={false}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: /view in immich/i });
+
+    expect(link).toHaveAttribute(
+      "href",
+      "http://immich.local:2283/photos/asset-42",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("omits the Immich link when no Immich URL is configured", () => {
+    render(
+      <ReviewCard
+        item={buildItem()}
+        identities={["Rex"]}
+        immichUrl={null}
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        disabled={false}
+      />,
+    );
+
+    expect(screen.getByText("Unknown identity")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /view in immich/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("omits the Immich link when the item has no Immich asset", () => {
+    render(
+      <ReviewCard
+        item={buildItem({ immich_asset_id: null })}
+        identities={["Rex"]}
+        immichUrl="http://immich.local:2283"
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        disabled={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("link", { name: /view in immich/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("falls back to a placeholder when the capture date is unknown", () => {
