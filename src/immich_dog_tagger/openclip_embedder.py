@@ -7,7 +7,8 @@ from pathlib import Path
 import numpy as np
 import open_clip
 import torch
-from PIL import Image
+
+from .images import open_upright
 
 
 class OpenClipEmbedder:
@@ -32,7 +33,7 @@ class OpenClipEmbedder:
         image_path: Path,
     ) -> np.ndarray:
 
-        image = Image.open(image_path).convert("RGB")
+        image = open_upright(image_path).convert("RGB")
 
         tensor = self.preprocess(image).unsqueeze(0).to(self.device)
 
@@ -51,7 +52,7 @@ class OpenClipEmbedder:
         image_paths: list[Path],
     ) -> np.ndarray:
         images = [
-            self.preprocess(Image.open(path).convert("RGB")) for path in image_paths
+            self.preprocess(open_upright(path).convert("RGB")) for path in image_paths
         ]
 
         tensor = torch.stack(images).to(self.device)

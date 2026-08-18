@@ -115,7 +115,52 @@ Back up before any risky operation (a restore, a manual database edit, an
 upgrade you're unsure about) and on a regular schedule for an actively used
 project.
 
-## 7. Known v1.0.0 limitations
+## 7. Regenerating crops after the image-orientation fix
+
+Applies only to projects that ran a version before the EXIF-orientation fix
+([#137](https://github.com/bradreimer/immich-dog-tagger/issues/137)). Skip
+this if you started on a version that includes it.
+
+Before the fix, photos carrying an EXIF orientation tag (most phone photos not
+shot in the sensor's native landscape orientation) were cropped in the wrong
+coordinate space: the crop came from the wrong region of the photo and was
+saved rotated. Those crop files stay wrong until they are regenerated, and the
+embeddings computed from them stay stale.
+
+Nothing is regenerated automatically -- the fix changes how new crops are
+written, it does not rewrite existing data. Regenerate deliberately:
+
+1. **Back up first**: `immich-dog-tagger backup`.
+2. **Re-run the pipeline with `--force`**:
+   `immich-dog-tagger pipeline --force`. This is the one command that does the
+   whole job: `--force` re-downloads the originals, re-detects, re-crops, and
+   classifies the regenerated crops. Re-downloading is not optional -- detection
+   deletes each cached original once crops exist, so there is nothing left on
+   disk to re-crop from.
+
+Expect this to take about as long as the initial import: it re-fetches and
+re-runs detection over the whole library.
+
+What survives and what doesn't:
+
+- **Your review decisions survive.** The identity labels you confirmed are
+  human ground truth in `state.db` and are not touched by any of this.
+- **`EmbeddingExample` rows survive**, and keep pointing at the same crop
+  filenames -- `crop_path` is a path, not a foreign key. But an example added
+  before the fix stores an embedding computed from the *rotated* crop, so it no
+  longer describes the file it now names. There is no command that re-embeds
+  existing examples; correcting a few items in the review queue is the
+  practical way to seed upright reference examples for an identity.
+- **Detection, crop, and classification rows are recreated** with new ids.
+
+Regenerating is not urgent for a library that is already classifying well: the
+rotated crops were at least *consistently* rotated, so the reference set and
+the crops matched against it shared the same distortion. The gain is accuracy
+on newly added photos, which are now upright while pre-fix examples are not --
+which also means a library with many pre-fix examples benefits from doing this
+sooner rather than accumulating more of them.
+
+## 8. Known v1.0.0 limitations
 
 - **No temporal weighting.** A photo's capture date is stored and shown as
   context on matched examples, but it does not influence classification --

@@ -16,6 +16,17 @@ Crop image
   → CropClassification
 ```
 
+## Image decoding
+
+Every image the pipeline decodes goes through `open_upright()`
+(`src/immich_dog_tagger/images.py`), which applies the source photo's EXIF
+orientation. Detection, cropping, and embedding have to agree on one pixel
+coordinate space -- a detector box is meaningless to the cropper otherwise --
+and they only do if they decode identically. Decode images through that helper
+rather than calling `PIL.Image.open` directly; see
+[#137](https://github.com/bradreimer/immich-dog-tagger/issues/137) for what
+went wrong when they diverged.
+
 ## Components
 
 **`OpenClipEmbedder`** turns a crop image into a vector embedding.

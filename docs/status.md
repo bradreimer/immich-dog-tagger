@@ -262,6 +262,24 @@
   `except RuntimeError, ValueError:` clause -- a `SyntaxError` that took down the whole FastAPI app,
   since `api/dependencies.py` imports the dispatcher at import time.
 
+- [#137](https://github.com/bradreimer/immich-dog-tagger/issues/137) fixed crops being rotated and
+  cut from the wrong region of the photo: the detector and the crop writer decoded the same file
+  into two different coordinate spaces. Pillow ignores the EXIF `Orientation` tag (274) and returns
+  the raw stored pixels, while ultralytics decodes a path through OpenCV, which applies it -- so
+  for any photo not tagged `Orientation=1` (most phone photos), YOLO returned boxes in the upright
+  frame and `CropWriter` applied them to the unrotated buffer. Rotation was the visible symptom;
+  the crop also came from the wrong part of the photo, and `OpenClipEmbedder` embedded the result
+  into the learned reference set. This is also the root cause of the out-of-bounds detection boxes
+  in #88 -- a swapped width/height is exactly what produced them, and #88's clamping treated the
+  symptom. New `images.open_upright()` is now the single decoding path for detection, cropping, and
+  embedding: it applies `ImageOps.exif_transpose` (all eight orientations, including the mirrored
+  2/4/5/7) and registers the `pi-heif` opener, which nothing in `src/` did -- HEIC decoding had
+  been working only because ultralytics monkeypatches `PIL.Image.open` globally. `YOLODetector`
+  now decodes through it and passes the image to `model.predict()` rather than handing over a
+  path, so detector and cropper agree for every supported format including the HEIC fallback path,
+  where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
+  are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
+
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review

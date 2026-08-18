@@ -6,6 +6,7 @@ from .detector import (
     DetectionResult,
     ObjectDetector,
 )
+from .images import open_upright
 
 
 class YOLODetector(ObjectDetector):
@@ -23,8 +24,17 @@ class YOLODetector(ObjectDetector):
         image_path: str,
     ) -> list[DetectionResult]:
 
+        # Decoded here rather than handed to ultralytics as a path, so the
+        # boxes below are expressed in the same coordinate space CropWriter
+        # crops from. Ultralytics decodes a path with OpenCV, which applies
+        # EXIF orientation, except for HEIC, where it falls back to Pillow,
+        # which doesn't -- so which space its boxes came back in depended on
+        # the file's format (issue #137). open_upright() is one defined
+        # answer for every format.
+        image = open_upright(image_path).convert("RGB")
+
         results = self.model.predict(
-            source=image_path,
+            source=image,
             device=self.device,
             verbose=False,
         )
