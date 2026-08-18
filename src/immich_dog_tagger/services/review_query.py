@@ -76,6 +76,10 @@ class ReviewItem:
     suggestion: ReviewSuggestion | None
     captured_at: datetime | None = None
     reason: str = "review"
+    # The Immich asset the crop came from, so the UI can deep link to the
+    # original photo. None whenever the detection or asset is missing --
+    # the same fail-open stance _captured_at() takes.
+    immich_asset_id: str | None = None
 
     @property
     def filename(self) -> str:
@@ -495,6 +499,7 @@ class ReviewQueryService:
             suggestion=self._suggestion(classification),
             captured_at=self._captured_at(classification),
             reason=self._review_reason(classification),
+            immich_asset_id=self._immich_asset_id(classification),
         )
 
     def _captured_at(
@@ -507,6 +512,17 @@ class ReviewQueryService:
             return None
 
         return detection.asset.captured_at
+
+    def _immich_asset_id(
+        self,
+        classification: CropClassification,
+    ) -> str | None:
+        detection = classification.crop.detection
+
+        if detection is None or detection.asset is None:
+            return None
+
+        return detection.asset.immich_asset_id
 
     def _has_review_action(self):
         return exists(

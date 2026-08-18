@@ -220,6 +220,74 @@ def test_review_item_captured_at_is_null_without_asset(api_client, engine):
     assert item["captured_at"] is None
 
 
+def test_review_item_returns_immich_asset_id(api_client, engine):
+    """#128: GET /review items carry the Immich asset id so the review card
+    can link to the original photo."""
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-42",
+            extension=".jpg",
+            captured_at=datetime(2019, 3, 3, 12, 0, 0, tzinfo=UTC),
+        )
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path="fibs.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+
+    item = response.json()[0]
+
+    assert item["immich_asset_id"] == "asset-42"
+
+
+def test_review_item_immich_asset_id_is_null_without_asset(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(
+            detection_id=1,
+            path="unknown.jpg",
+        )
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.5,
+        )
+
+        session.add(classification)
+        session.commit()
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+
+    item = response.json()[0]
+
+    assert item["immich_asset_id"] is None
+
+
 def test_review_queue_interleaves_both_species(api_client, engine):
     # DT-1110 acceptance criterion 4: dog and cat items share one queue,
     # sorted by the existing priority rules -- no species grouping/filter.

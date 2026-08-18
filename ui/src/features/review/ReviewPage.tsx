@@ -7,6 +7,7 @@ import {
   correctSpecies,
   getReview,
   getReviewStats,
+  getSettings,
   skipClassification,
 } from "../../lib/api";
 
@@ -31,6 +32,7 @@ export function ReviewPage() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
+  const [immichUrl, setImmichUrl] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,17 +47,21 @@ export function ReviewPage() {
     setActionError(null);
     
     try {
-      const [queue, queueStats, dogItems] = await Promise.all([
+      const [queue, queueStats, dogItems, settings] = await Promise.all([
         getReview(
           getReviewQuery(filter),
         ),
         getReviewStats(),
         getDogs({ includeInactive: false }).catch(() => []),
+        // The Immich deep link is a convenience; failing to read the
+        // configured URL must not take the review queue down with it.
+        getSettings().catch(() => null),
       ]);
       
       setItems(queue);
       setStats(queueStats);
       setDogs(dogItems);
+      setImmichUrl(settings?.immich_url || null);
       setIndex(0);
     } catch (err) {
       setError(
@@ -306,6 +312,7 @@ export function ReviewPage() {
     <ReviewCard
       item={item}
       identities={speciesIdentities}
+      immichUrl={immichUrl}
       onCorrect={correct}
       onCorrectSpecies={correctSpeciesForCurrentItem}
       onSkip={skip}

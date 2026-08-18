@@ -14,6 +14,7 @@ export interface ReviewItem {
   species: string;
   reason: string;
   captured_at: string | null;
+  immich_asset_id: string | null;
 
   prediction: {
     identity: string | null;
