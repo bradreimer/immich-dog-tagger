@@ -57,6 +57,7 @@ def create_database(state_dir: Path):
     _ensure_crop_species_column(engine)
     _ensure_pipeline_job_visible_column(engine)
     _ensure_pipeline_job_cancel_requested_column(engine)
+    _ensure_pipeline_job_heartbeat_column(engine)
     _ensure_asset_metadata_columns(engine)
 
     return engine
@@ -227,6 +228,24 @@ def _ensure_pipeline_job_cancel_requested_column(engine) -> None:
     with engine.begin() as connection:
         connection.exec_driver_sql(
             "ALTER TABLE pipeline_jobs ADD COLUMN cancel_requested BOOLEAN NOT NULL DEFAULT 0"
+        )
+
+
+def _ensure_pipeline_job_heartbeat_column(engine) -> None:
+    """Issue #134: liveness signal used to tell an active job from a stuck one."""
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("pipeline_jobs")}
+
+    if "heartbeat_at" in columns:
+        return
+
+    # Left NULL for existing rows rather than backfilled to now(): a job
+    # that was already RUNNING before this column existed falls back to
+    # started_at/created_at (PipelineJob.last_activity_at), so its real age
+    # is preserved instead of being reset to "just seen alive".
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE pipeline_jobs ADD COLUMN heartbeat_at DATETIME"
         )
 
 

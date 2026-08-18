@@ -247,6 +247,21 @@
   falls back to `IMMICH_URL` when unset, so single-address deployments are unchanged;
   `GET /api/settings` now returns both and the Settings page shows them separately
 
+- [#134](https://github.com/bradreimer/immich-dog-tagger/issues/134) fixed the Overview tab warning
+  "1 stuck job(s) -- manual recovery may be required." for every job the moment it was started:
+  `GET /diagnostics` classified *any* `RUNNING`/`PENDING` job as stuck, with no staleness test at
+  all, so the warning fired on healthy work and cleared only when the job finished. `PipelineJob`
+  gained a `heartbeat_at` liveness column (additive migration, left NULL for existing rows so a
+  job's real age survives via `last_activity_at`'s `started_at`/`created_at` fallback), stamped
+  when a job starts and refreshed by every progress report -- the job's own commit checkpoints,
+  never an extra mid-batch write a service might still roll back. A new
+  `job_recovery.find_stuck_jobs()` reports only jobs idle past `STUCK_JOB_IDLE_THRESHOLD` (1 hour),
+  and never a `PENDING` job queued behind a `RUNNING` one, which is just waiting its turn; the
+  Overview warning now names the threshold and each job's idle time instead of asserting
+  stuckness. Fixed alongside it: `services/job_dispatcher.py` carried a Python 2
+  `except RuntimeError, ValueError:` clause -- a `SyntaxError` that took down the whole FastAPI app,
+  since `api/dependencies.py` imports the dispatcher at import time.
+
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review

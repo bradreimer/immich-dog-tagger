@@ -150,6 +150,32 @@ def test_pipeline_job_service_progress_and_completion(engine):
         assert job.completed_at is not None
 
 
+def test_starting_a_job_and_reporting_progress_stamps_the_heartbeat(engine):
+    """Issue #134: heartbeats are what separate an active job from a stuck one."""
+
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+
+        job = service.create_job(operation=PipelineOperation.DETECT)
+
+        assert job.heartbeat_at is None
+        assert job.last_activity_at == job.created_at
+
+        service.start_job(job)
+
+        started_heartbeat = job.heartbeat_at
+        assert started_heartbeat == job.started_at
+
+        # Backdate so the next progress report has to move it forward.
+        job.heartbeat_at = started_heartbeat - timedelta(hours=2)
+        session.commit()
+
+        service.update_progress(job, current=1, total=10)
+
+        assert job.heartbeat_at > started_heartbeat - timedelta(hours=2)
+        assert job.last_activity_at == job.heartbeat_at
+
+
 def test_pipeline_job_service_rejects_invalid_progress(engine):
     with Session(engine) as session:
         service = PipelineJobService(session)

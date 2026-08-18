@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createJob, createSchedule, disableSchedule, enableSchedule, getDiagnostics, getJobs, getReviewStats, getSchedules, runScheduleNow } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName, jobTextClassName } from "../../lib/statusColors";
-import { formatRelativeTime } from "../../lib/utils";
+import { formatDuration, formatRelativeTime } from "../../lib/utils";
 import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
@@ -429,11 +429,12 @@ export function OverviewPage() {
             {diagnostics.jobs.stuck.length > 0 && (
               <div className="rounded-md border border-status-warning/40 bg-status-warning/5 p-3">
                 <p className="text-sm font-medium text-status-warning">
-                  {diagnostics.jobs.stuck.length} stuck job(s) — manual recovery may be required.
+                  {diagnostics.jobs.stuck.length} job(s) with no progress for over{" "}
+                  {formatDuration(diagnostics.jobs.stuck_threshold_seconds)} — manual recovery may be required.
                 </p>
                 {diagnostics.jobs.stuck.map((j) => (
                   <p key={j.id} className="mt-1 text-xs text-muted-foreground">
-                    #{j.id} {j.operation} ({j.status})
+                    #{j.id} {j.operation} ({j.status}) — idle {formatDuration(j.idle_seconds)}
                   </p>
                 ))}
               </div>
