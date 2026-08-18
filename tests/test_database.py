@@ -347,6 +347,103 @@ def test_database_adds_pipeline_job_visible_column(tmp_path: Path):
     assert rows == [("scan", 1)]
 
 
+def test_database_adds_asset_metadata_columns_without_losing_classifications(
+    tmp_path: Path,
+):
+    """
+    Issue #94's cached Immich location/people/favorite fields must land on an
+    existing library by migration, not by recreating `state.db` -- the
+    accumulated classification and review history in there cannot be
+    regenerated.
+
+    Rather than hand-writing a stale schema, this builds a current database,
+    drops the #94 columns to reproduce the pre-#94 `assets` shape, and
+    reopens it: every pre-existing row (including the classification) has to
+    survive, with the new columns defaulted rather than populated with
+    guesses.
+    """
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-1",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.PENDING,
+        )
+        session.add(asset)
+        session.flush()
+
+        detection = Detection(
+            asset_id=asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=10,
+            y2=10,
+        )
+        session.add(detection)
+        session.flush()
+
+        crop = Crop(detection_id=detection.id, path="hermann.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        session.add(
+            CropClassification(
+                crop_id=crop.id,
+                identity="Hermann",
+                confidence=0.87,
+            )
+        )
+        session.commit()
+
+    engine.dispose()
+
+    # Reproduce the pre-#94 `assets` shape.
+    metadata_columns = (
+        "latitude",
+        "longitude",
+        "country",
+        "state",
+        "city",
+        "is_favorite",
+        "people",
+        "metadata_synced_at",
+    )
+
+    connection = sqlite3.connect(tmp_path / "state.db")
+
+    for column in metadata_columns:
+        connection.execute(f"ALTER TABLE assets DROP COLUMN {column}")
+
+    connection.commit()
+    connection.close()
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        migrated = session.scalar(select(Asset))
+
+        assert migrated is not None
+        assert migrated.immich_asset_id == "asset-1"
+        assert migrated.latitude is None
+        assert migrated.city is None
+        assert migrated.is_favorite is False
+        assert migrated.people == []
+        assert migrated.metadata_synced_at is None
+
+        classification = session.scalar(select(CropClassification))
+
+        assert classification is not None
+        assert classification.identity == "Hermann"
+        assert classification.confidence == 0.87
+
+
 def test_engine_waits_for_a_concurrent_writer_instead_of_failing_immediately(
     tmp_path: Path,
 ):
