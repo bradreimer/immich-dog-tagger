@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getSettings } from "../../lib/api";
 import type { Settings } from "../../types/settings";
-import { IconPhoto, IconRefresh, IconServer2, IconTag } from "@tabler/icons-react";
+import {
+  IconExternalLink,
+  IconPhoto,
+  IconRefresh,
+  IconServer2,
+  IconTag,
+} from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -71,8 +77,9 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle>Immich Connection</CardTitle>
             <CardDescription>
-              Configured via the <code>IMMICH_URL</code> environment variable. Read-only here --
-              edit your deployment's environment to change it.
+              Configured via the <code>IMMICH_URL</code> and <code>IMMICH_EXTERNAL_URL</code>
+              environment variables. Read-only here -- edit your deployment's environment to
+              change them.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -80,8 +87,16 @@ export function SettingsPage() {
               <StatTile
                 icon={IconServer2}
                 tone="info"
-                label="Immich URL"
+                label="Immich API URL"
                 value={settings.immich_url || "Not configured"}
+                subtext="used by the backend to reach Immich"
+              />
+              <StatTile
+                icon={IconExternalLink}
+                tone="info"
+                label="Immich Link URL"
+                value={settings.immich_external_url || "Not configured"}
+                subtext="used by 'View in Immich' links in your browser"
               />
               <StatTile
                 icon={IconPhoto}

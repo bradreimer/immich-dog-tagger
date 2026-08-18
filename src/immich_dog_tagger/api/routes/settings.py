@@ -27,6 +27,7 @@ def get_settings(
 
     return SettingsResponse(
         immich_url=config.immich_url,
+        immich_external_url=config.immich_link_base_url,
         scanned_image_count=scanned_image_count,
         version=get_version(),
     )

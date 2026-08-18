@@ -80,6 +80,7 @@ curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/dock
 curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/.env.example
 mv .env.example .env
 # edit .env: set IMMICH_URL and IMMICH_API_KEY
+# (also set IMMICH_EXTERNAL_URL if your browser reaches Immich at a different address)
 
 # 2. Pull the latest published images and start both containers
 docker compose up -d
@@ -123,6 +124,7 @@ Requirements: Python 3.14+, [`uv`](https://docs.astral.sh/uv/), Node.js/npm.
 # 2. Point it at your Immich instance
 cp .env.example .env
 # edit .env: set IMMICH_URL and IMMICH_API_KEY
+# (also set IMMICH_EXTERNAL_URL if your browser reaches Immich at a different address)
 
 # 3. Initialize the database, then run the pipeline once
 uv run immich-dog-tagger init-db

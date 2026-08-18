@@ -367,6 +367,7 @@ class JobResponse(BaseModel):
 
 class SettingsResponse(BaseModel):
     immich_url: str
+    immich_external_url: str
     scanned_image_count: int
     version: str
 
