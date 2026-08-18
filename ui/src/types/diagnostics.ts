@@ -27,6 +27,8 @@ export interface StuckJob {
   operation: string;
   status: string;
   created_at: string | null;
+  last_activity_at: string | null;
+  idle_seconds: number;
 }
 
 export interface RecentFailure {
@@ -38,6 +40,8 @@ export interface RecentFailure {
 
 export interface JobSummary {
   counts: Record<string, number>;
+  /** How long a job may go without progress before it counts as stuck. */
+  stuck_threshold_seconds: number;
   stuck: StuckJob[];
   recent_failures: RecentFailure[];
 }

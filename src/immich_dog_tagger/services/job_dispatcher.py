@@ -1,9 +1,12 @@
+import logging
 from collections.abc import Callable
 from threading import Lock, Thread
 
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.services.job_runner import PipelineJobRunner
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineJobDispatcher:
@@ -56,6 +59,9 @@ class PipelineJobDispatcher:
 
                     try:
                         runner.run_job(job.id)
-                    except RuntimeError, ValueError:
-                        # Failed jobs are persisted by the runner itself.
+                    except (RuntimeError, ValueError) as exc:
+                        # Failed jobs are persisted (and logged with their
+                        # traceback) by the runner itself; the dispatcher only
+                        # needs to keep draining the queue.
+                        logger.debug("Job %d raised while dispatching: %s", job.id, exc)
                         continue

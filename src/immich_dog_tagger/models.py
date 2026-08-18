@@ -657,6 +657,16 @@ class PipelineJob(Base):
         nullable=True,
     )
 
+    # Liveness signal for an active job (issue #134): stamped when the job
+    # starts and refreshed every time its own execution reports progress.
+    # started_at alone can't tell a job that is working from one whose
+    # process died mid-run, which is why Overview used to report every
+    # RUNNING/PENDING job as "stuck" the moment it was started.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
     schedule_id: Mapped[int | None] = mapped_column(
         ForeignKey("pipeline_schedules.id"),
         nullable=True,
@@ -689,6 +699,16 @@ class PipelineJob(Base):
     schedule: Mapped[PipelineSchedule | None] = relationship(
         back_populates="jobs",
     )
+
+    @property
+    def last_activity_at(self) -> datetime:
+        """
+        Most recent evidence this job was alive. Falls back through
+        started_at to created_at so jobs written before heartbeats existed
+        (and PENDING jobs, which have never run) still have a usable age.
+        """
+
+        return self.heartbeat_at or self.started_at or self.created_at
 
     def can_transition_to(
         self,
@@ -728,6 +748,7 @@ class PipelineJob(Base):
 
         if next_status is PipelineJobStatus.RUNNING:
             self.started_at = timestamp
+            self.heartbeat_at = timestamp
 
         if next_status in {
             PipelineJobStatus.COMPLETED,

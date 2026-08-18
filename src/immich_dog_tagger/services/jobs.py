@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -285,6 +287,13 @@ class PipelineJobService:
 
         if message is not None:
             job.progress_message = message
+
+        # Every progress report is also proof the job is still alive
+        # (issue #134). This is the only safe place to stamp it: the
+        # heartbeat has to ride along with a commit the job was already
+        # making at a checkpoint of its own, never an extra write squeezed
+        # into the middle of a batch a service may still roll back.
+        job.heartbeat_at = datetime.now(UTC).replace(tzinfo=None)
 
         self.session.commit()
         self.session.refresh(job)

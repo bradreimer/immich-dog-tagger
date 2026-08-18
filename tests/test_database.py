@@ -347,6 +347,46 @@ def test_database_adds_pipeline_job_visible_column(tmp_path: Path):
     assert rows == [("scan", 1)]
 
 
+def test_database_adds_pipeline_job_heartbeat_column(tmp_path: Path):
+    database_path = tmp_path / "state.db"
+    connection = sqlite3.connect(database_path)
+
+    # Pre-#134 shape: no heartbeat_at column yet.
+    connection.execute(
+        "CREATE TABLE pipeline_jobs ("
+        "id INTEGER PRIMARY KEY, "
+        "operation VARCHAR(32) NOT NULL, "
+        "status VARCHAR(16) NOT NULL, "
+        "progress_current INTEGER NOT NULL DEFAULT 0, "
+        "progress_total INTEGER, "
+        "progress_message VARCHAR(512), "
+        "error_message VARCHAR(2048), "
+        "created_at DATETIME NOT NULL, "
+        "started_at DATETIME, "
+        "completed_at DATETIME, "
+        "schedule_id INTEGER"
+        ")"
+    )
+    connection.execute(
+        "INSERT INTO pipeline_jobs (operation, status, created_at, started_at) "
+        "VALUES ('SCAN', 'RUNNING', '2026-08-01 10:00:00', '2026-08-01 10:00:05')"
+    )
+    connection.commit()
+    connection.close()
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        job = session.scalars(select(PipelineJob)).one()
+
+        # Not backfilled: an already-running job keeps its real age via
+        # started_at rather than looking freshly alive.
+        assert job.heartbeat_at is None
+        assert job.last_activity_at == job.started_at
+
+
 def test_database_adds_asset_metadata_columns_without_losing_classifications(
     tmp_path: Path,
 ):

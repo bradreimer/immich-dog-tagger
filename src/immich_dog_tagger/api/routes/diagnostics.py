@@ -12,6 +12,10 @@ from immich_dog_tagger.enums import PipelineJobStatus
 from immich_dog_tagger.models import PipelineJob
 from immich_dog_tagger.services.backup import BackupService
 from immich_dog_tagger.services.derived_data import DerivedDataService
+from immich_dog_tagger.services.job_recovery import (
+    STUCK_JOB_IDLE_THRESHOLD,
+    find_stuck_jobs,
+)
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth
 
 router = APIRouter()
@@ -42,13 +46,9 @@ def diagnostics(
         .limit(5)
     ).all()
 
-    stuck_jobs = session.scalars(
-        select(PipelineJob).where(
-            PipelineJob.status.in_(
-                [PipelineJobStatus.RUNNING, PipelineJobStatus.PENDING]
-            )
-        )
-    ).all()
+    # Not "every RUNNING/PENDING job" -- an active job is a healthy job
+    # until it stops making progress (issue #134).
+    stuck_jobs = find_stuck_jobs(session)
 
     # Backup status
     backup_svc = BackupService(config.state_dir)
@@ -66,14 +66,21 @@ def diagnostics(
         "scheduler": scheduler_health.as_dict() if scheduler_health else None,
         "jobs": {
             "counts": job_counts,
+            "stuck_threshold_seconds": int(STUCK_JOB_IDLE_THRESHOLD.total_seconds()),
             "stuck": [
                 {
-                    "id": j.id,
-                    "operation": j.operation.value,
-                    "status": j.status.value,
-                    "created_at": j.created_at.isoformat() if j.created_at else None,
+                    "id": entry.job.id,
+                    "operation": entry.job.operation.value,
+                    "status": entry.job.status.value,
+                    "created_at": entry.job.created_at.isoformat()
+                    if entry.job.created_at
+                    else None,
+                    "last_activity_at": entry.job.last_activity_at.isoformat()
+                    if entry.job.last_activity_at
+                    else None,
+                    "idle_seconds": entry.idle_seconds,
                 }
-                for j in stuck_jobs
+                for entry in stuck_jobs
             ],
             "recent_failures": [
                 {
