@@ -10,7 +10,7 @@ from immich_dog_tagger.models import Asset
 from immich_dog_tagger.version import get_version
 
 
-def _fake_config(tmp_path, immich_url: str) -> Config:
+def _fake_config(tmp_path, immich_url: str, immich_external_url: str = "") -> Config:
     return Config(
         immich_url=immich_url,
         immich_api_key="super-secret-key",
@@ -18,6 +18,7 @@ def _fake_config(tmp_path, immich_url: str) -> Config:
         cache_dir=tmp_path / "cache",
         yolo_model=tmp_path / "yolo11n.pt",
         crop_padding=0.1,
+        immich_external_url=immich_external_url,
     )
 
 
@@ -70,3 +71,29 @@ def test_settings_returns_app_version(api_client, tmp_path):
     response = api_client.get("/settings")
     assert response.status_code == 200
     assert response.json()["version"] == get_version()
+
+
+def test_settings_returns_the_external_url_for_browser_links(api_client, tmp_path):
+    fake_config = _fake_config(
+        tmp_path,
+        "http://immich-server:2283",
+        immich_external_url="https://immich.example.com",
+    )
+    api_client.app.dependency_overrides[get_config] = lambda: fake_config
+
+    response = api_client.get("/settings")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["immich_url"] == "http://immich-server:2283"
+    assert data["immich_external_url"] == "https://immich.example.com"
+
+
+def test_settings_external_url_falls_back_to_the_api_url(api_client, tmp_path):
+    fake_config = _fake_config(tmp_path, "http://localhost:2283")
+    api_client.app.dependency_overrides[get_config] = lambda: fake_config
+
+    response = api_client.get("/settings")
+    assert response.status_code == 200
+
+    assert response.json()["immich_external_url"] == "http://localhost:2283"

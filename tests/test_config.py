@@ -5,6 +5,7 @@ from immich_dog_tagger.config import load_config
 
 def test_default_configuration(monkeypatch):
     monkeypatch.delenv("IMMICH_URL", raising=False)
+    monkeypatch.delenv("IMMICH_EXTERNAL_URL", raising=False)
     monkeypatch.delenv("IMMICH_API_KEY", raising=False)
     monkeypatch.delenv("STATE_DIR", raising=False)
     monkeypatch.delenv("CACHE_DIR", raising=False)
@@ -64,3 +65,33 @@ def test_config_separates_state_and_cache(monkeypatch):
     assert config.state_dir == Path("/tmp/state")
     assert config.cache_dir == Path("/tmp/cache")
     assert config.crop_dir == Path("/tmp/cache/crops")
+
+
+def test_immich_external_url_defaults_to_the_api_url(monkeypatch):
+    monkeypatch.setenv("IMMICH_URL", "http://immich-server:2283")
+    monkeypatch.delenv("IMMICH_EXTERNAL_URL", raising=False)
+
+    config = load_config(load_env_file=False)
+
+    assert config.immich_external_url == ""
+    assert config.immich_link_base_url == "http://immich-server:2283"
+
+
+def test_immich_external_url_overrides_the_browser_facing_link(monkeypatch):
+    monkeypatch.setenv("IMMICH_URL", "http://immich-server:2283")
+    monkeypatch.setenv("IMMICH_EXTERNAL_URL", "https://immich.example.com")
+
+    config = load_config(load_env_file=False)
+
+    # The API base is untouched -- only the link the browser follows changes.
+    assert config.immich_url == "http://immich-server:2283"
+    assert config.immich_link_base_url == "https://immich.example.com"
+
+
+def test_blank_immich_external_url_falls_back_to_the_api_url(monkeypatch):
+    monkeypatch.setenv("IMMICH_URL", "http://immich-server:2283")
+    monkeypatch.setenv("IMMICH_EXTERNAL_URL", "   ")
+
+    config = load_config(load_env_file=False)
+
+    assert config.immich_link_base_url == "http://immich-server:2283"

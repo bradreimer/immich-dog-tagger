@@ -61,7 +61,7 @@ export function ReviewPage() {
       setItems(queue);
       setStats(queueStats);
       setDogs(dogItems);
-      setImmichUrl(settings?.immich_url || null);
+      setImmichUrl(settings?.immich_external_url || null);
       setIndex(0);
     } catch (err) {
       setError(

@@ -46,6 +46,23 @@ curl http://dog-tagger:8000/health
 to the backend. nginx listens internally on port 80; it doesn't need to expose ports directly
 since Traefik handles external routing.
 
+## Immich URLs
+
+Two environment variables describe Immich, because two different clients talk to it:
+
+| Variable | Used by | Example |
+| --- | --- | --- |
+| `IMMICH_URL` | the backend container, calling the Immich API | `http://immich-server:2283` |
+| `IMMICH_EXTERNAL_URL` | the reviewer's browser, following **View in Immich** links | `https://immich.example.com` |
+
+`IMMICH_EXTERNAL_URL` is optional and falls back to `IMMICH_URL` when unset, so a deployment where
+Immich answers at one address everywhere needs only `IMMICH_URL`. Set it when the backend reaches
+Immich over a Docker network or a private hostname the browser can't resolve — otherwise the review
+card's **View in Immich** link points at an address that only exists inside the container.
+
+The UI reads this value at runtime from `GET /api/settings`, so changing it needs a backend restart
+(`docker compose up -d dog-tagger`) — not a frontend image rebuild.
+
 ## Docker network
 
 Both services join the external `proxy` network, so Traefik can reach the frontend and nginx can

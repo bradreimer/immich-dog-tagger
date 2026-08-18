@@ -7,7 +7,8 @@ reclassify loop. It assumes no machine-learning background.
 ## 1. First-project setup
 
 1. Configure `.env` (see [README.md](../README.md#quick-start)): `IMMICH_URL`,
-   `IMMICH_API_KEY`, `STATE_DIR`, `CACHE_DIR`, `YOLO_MODEL`.
+   `IMMICH_API_KEY`, `STATE_DIR`, `CACHE_DIR`, `YOLO_MODEL`, and — when your browser reaches
+   Immich at a different address than this app's backend does — `IMMICH_EXTERNAL_URL`.
 2. Initialize the database: `immich-dog-tagger init-db` (or just run the pipeline --
    it creates the database on first use).
 3. Run the full pipeline once: `immich-dog-tagger pipeline`, or from Mission

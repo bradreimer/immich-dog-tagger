@@ -240,6 +240,12 @@
   ungated field) worked throughout, which is why only the place/person facts were affected. No
   schema change: existing libraries pick the data up on their next `scan`, which already refreshes
   cached location/people/favorite for assets it has seen before.
+- #132 browser-facing Immich URL split out from the API URL: `IMMICH_URL` was doing double duty
+  as both the address the backend calls Immich at and the base for the "View in Immich" deep link
+  handed to the browser (#130), so a Docker-internal `IMMICH_URL` produced a link the reviewer's
+  browser couldn't resolve. New optional `IMMICH_EXTERNAL_URL` supplies the browser-facing base and
+  falls back to `IMMICH_URL` when unset, so single-address deployments are unchanged;
+  `GET /api/settings` now returns both and the Settings page shows them separately
 
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
