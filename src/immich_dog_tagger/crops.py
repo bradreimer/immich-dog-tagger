@@ -1,9 +1,8 @@
 import logging
 from pathlib import Path
 
-from PIL import Image
-
 from .enums import Species
+from .images import open_upright
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class CropWriter:
             exist_ok=True,
         )
 
-        image = Image.open(image_path).convert("RGB")
+        image = open_upright(image_path).convert("RGB")
 
         width, height = image.size
 
