@@ -1,6 +1,7 @@
 import type { ReviewItem } from "../../types/review";
 import { formatDate } from "../../lib/utils";
 
+import { ImmichPhotoLink } from "./components/ImmichPhotoLink";
 import { ReviewImage } from "./components/ReviewImage";
 import { PredictionCard } from "./components/PredictionCard";
 import { SimilarExample } from "./components/SimilarExample";
@@ -11,6 +12,7 @@ import { SpeciesChooser } from "./components/SpeciesChooser";
 interface Props {
   item: ReviewItem;
   identities: string[];
+  immichUrl?: string | null;
   onCorrect: (identity: string) => void;
   onCorrectSpecies: (species: "dog" | "cat") => void;
   onSkip: () => void;
@@ -20,6 +22,7 @@ interface Props {
 export function ReviewCard({
   item,
   identities,
+  immichUrl = null,
   onCorrect,
   onCorrectSpecies,
   onSkip,
@@ -29,12 +32,17 @@ export function ReviewCard({
     <section className="space-y-8">
       <ReviewImage cropId={item.crop_id} />
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <ReviewReason reason={item.reason} />
 
         <span className="text-sm text-muted-foreground">
           {formatDate(item.captured_at)}
         </span>
+
+        <ImmichPhotoLink
+          immichUrl={immichUrl}
+          assetId={item.immich_asset_id}
+        />
       </div>
 
       <SpeciesChooser
