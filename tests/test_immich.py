@@ -90,6 +90,33 @@ def test_list_assets_follows_pagination():
     assert isinstance(requests[1]["page"], int)
 
 
+def test_list_assets_requests_exif_and_people():
+    """
+    Immich only includes `exifInfo`/`people` in a /api/search/metadata
+    response when the request opts in. Without these flags every asset comes
+    back without location or recognized-people data, so the Asset cache
+    behind the insights place/person facts (issue #94) stays empty and the
+    parsing above never sees anything to parse.
+    """
+
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+
+        return httpx.Response(200, json={"assets": {"items": []}})
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.list_assets()
+
+    assert bodies[0]["withExif"] is True
+    assert bodies[0]["withPeople"] is True
+
+
 def test_list_assets_parses_location_people_and_favorite():
     def handler(request):
         return httpx.Response(

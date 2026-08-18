@@ -231,6 +231,16 @@
   no image data or metadata leaves the local deployment. Fails open the same way `captured_at`
   does: no configured Immich URL or no asset behind the crop simply renders no link.
 
+- [#129](https://github.com/bradreimer/immich-dog-tagger/issues/129) fixed the Insights page's
+  "Most photographed place" and "Most often photographed with" tiles (and the Places/People
+  cards) always being blank: `ImmichClient.list_assets()` posted to
+  `/api/search/metadata` without `withExif`/`withPeople`, which Immich gates `exifInfo` and
+  `people` behind, so every asset parsed to `latitude=None`/`city=None`/`people=()` and the
+  location/people cache #94 added to `Asset` never held anything. `isFavorite` (a top-level,
+  ungated field) worked throughout, which is why only the place/person facts were affected. No
+  schema change: existing libraries pick the data up on their next `scan`, which already refreshes
+  cached location/people/favorite for assets it has seen before.
+
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review

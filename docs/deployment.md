@@ -138,6 +138,29 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
+### Schema and data upgrades
+
+Schema changes are applied automatically. `create_database()` runs on every startup and every CLI
+command: it creates any missing tables and applies each additive column/table migration in
+`src/immich_dog_tagger/database.py` in place. Existing rows are preserved — assets, detections,
+crops, classifications, review actions, and learned embedding examples are never dropped or
+recreated. Nothing needs to be run by hand, and `state.db` should not be deleted to pick up a new
+schema.
+
+Two things a release can need that a schema migration cannot do for itself, because they depend on
+data that lives in Immich or has to be recomputed:
+
+- **Cached Immich metadata** (capture location, recognized people, favorite flag on `Asset`). A
+  scan refreshes these for every asset it has already seen, not just new ones, so running `scan`
+  (CLI or the Scan job) after an upgrade backfills them. This is what populates the Insights
+  page's place and person facts.
+- **Pet occurrence facts.** `immich-dog-tagger backfill-occurrences` rebuilds `PetOccurrence` from
+  current classification state. Needed once when upgrading a library whose classification history
+  predates v1.6.0; after that the table is kept in sync as classifications settle.
+
+Both are idempotent and derived — running either again is safe, and neither touches reviewed
+labels.
+
 ## Testing an unreleased local change
 
 Neither compose file has a `build:` section, so `docker compose ... up -d --build` has nothing to

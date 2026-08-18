@@ -152,7 +152,17 @@ class ImmichClient:
         page: int | None = None
 
         while True:
-            body: dict = {"size": PAGE_SIZE}
+            # withExif/withPeople are opt-in on /api/search/metadata: without
+            # them Immich omits `exifInfo` and `people` from every item, so
+            # the location/people fields cached on Asset for insights (issue
+            # #94) silently stay NULL/[] -- which is what left "Most
+            # photographed place" and "Most often photographed with" blank
+            # while `isFavorite` (a top-level, ungated field) worked.
+            body: dict = {
+                "size": PAGE_SIZE,
+                "withExif": True,
+                "withPeople": True,
+            }
 
             if page is not None:
                 body["page"] = page
