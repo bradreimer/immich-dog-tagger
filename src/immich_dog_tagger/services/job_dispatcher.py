@@ -56,6 +56,6 @@ class PipelineJobDispatcher:
 
                     try:
                         runner.run_job(job.id)
-                    except RuntimeError, ValueError:
+                    except (RuntimeError, ValueError):
                         # Failed jobs are persisted by the runner itself.
                         continue
