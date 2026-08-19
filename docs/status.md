@@ -279,6 +279,16 @@
   path, so detector and cropper agree for every supported format including the HEIC fallback path,
   where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
+- #140 v1.8.0 FR-1 Library scoped to one pet: the Library's species and identity filters became a
+  selection step -- a species chooser (Dogs / Cats / All species) plus a pet chooser listing the
+  active identities -- backed by a `LibraryWorkspaceProvider` context so the clustering, sorting,
+  and approval stories under #139 read the same selection rather than a filter row's local state.
+  Changing species clears a pet that no longer applies (no stale dog selected under Cats), every
+  selection change still resets pagination, the flat "all photos" view keeps its review-status and
+  capture-date filters and pagination unchanged, and a library with no identities configured points
+  the owner at Dogs & Cats instead of showing a blank chooser. No API change: `GET /api/library`
+  already accepted `identity` and `species`. See
+  [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
 - #148 merge two identities (v1.8 FR-10): `DogService.merge_dogs()` absorbs one identity into
   another -- every `CropClassification` naming the source (scoped to crops of the merged species,
   since `identity` is a bare name and names are unique per species) is re-pointed at the target,
@@ -296,7 +306,14 @@
   Dogs & Cats page
 
 ## Current Milestone
-No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
+[docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
+progress: FR-1 (#140, species -> pet selection as the Library's primary axis) and FR-10 (#148,
+merging two identities) have landed; clustering and cluster approval (#141), in-cluster selection
+(#142), sorting (#143), rejection (#144), and cold start (#145) are still open, as are the
+remaining supporting gaps #146, #147 and #149.
+
+Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
 page species correction, predicted-identity highlight), and #125 (version display) followed as
 additional reliability/UX fixes, along with #128 (link from a review item to its original photo
@@ -304,7 +321,11 @@ in Immich). `pyproject.toml`/`uv.lock`/the API app version had lagged at 1.6.0 t
 that; this catches them up to 1.7.0 and tags the release.
 
 ## Next Work
-v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
+Next under v1.8.0: #141 (cluster recommendations for the selected pet and approve a cluster in one
+action), which depends on #140 and on settling the spec's first open question -- which clustering
+algorithm, and whether it runs on demand or as a job with cached assignments.
+
+Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
 #110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
 curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),

@@ -251,6 +251,40 @@ Tour map, per-provider enable/disable settings, any dynamic/third-party plugin l
 Exit criteria:
 Completed.
 
+## v1.8.0 - Library as an Approval Workspace
+
+See [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+Tracking issue: [#139](https://github.com/bradreimer/immich-dog-tagger/issues/139).
+
+Goal:
+Turn the flat, photo-first Library into an identity-first approval workspace -- select a species,
+select a dog or cat, then approve clusters of recommendations for that pet -- so labeling cost
+scales with the number of pets rather than the number of photos. Clustering runs over the
+`CropClassification.embedding` values that already exist, and a cluster approval is N ordinary
+corrections through `ClassificationCorrectionService`, not a new kind of state.
+
+Completed:
+- #140 (FR-1): species -> pet selection as the Library's primary axis, held in a
+  `LibraryWorkspaceProvider` context the later stories read from; the flat "all photos" view, its
+  review-status and capture-date filters, and pagination are unchanged.
+- #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
+  reference examples and pet occurrences move to the target, review history is left intact, the
+  source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
+
+In progress / open:
+- #141 (FR-2/FR-3) cluster and approve, #142 (FR-4) in-cluster selection, #143 (FR-5) sorting,
+  #145 (FR-7) cold start; supporting gaps #144 (FR-6) rejection, #146 (FR-8) detection coverage,
+  #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch
+  reclassification.
+
+Explicitly not planned this iteration (see spec Non-goals): removing or changing the review queue,
+changing classification policy/thresholds/the embedding model, changing `GET /api/library`'s query
+semantics, or a fully automatic label-without-the-owner model.
+
+Exit criteria:
+The core workflow issues (#140-#143, #145) are closed and the owner can confirm a group of photos
+for one pet in a single action.
+
 ## Active Learning Improvements
 
 Goal:

@@ -53,7 +53,7 @@ function App() {
     }
 
     if (pathname === "/library") {
-      return <LibraryPage />;
+      return <LibraryPage onNavigate={navigate} />;
     }
 
     if (pathname === "/jobs") {
