@@ -10,6 +10,10 @@ from immich_dog_tagger.config import load_config
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.runtime import get_embedder
+from immich_dog_tagger.services.clusters import (
+    ClusterApprovalService,
+    RecommendationClusterService,
+)
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.dogs import DogService
 from immich_dog_tagger.services.insights import InsightsService
@@ -123,4 +127,23 @@ def get_correction_service(
         session=session,
         learner=learner,
         classifier=IdentityClassifier(session),
+    )
+
+
+def get_cluster_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> RecommendationClusterService:
+    return RecommendationClusterService(session)
+
+
+def get_cluster_approval_service(
+    session: Annotated[Session, Depends(get_session)],
+    correction_service: Annotated[
+        ClassificationCorrectionService,
+        Depends(get_correction_service),
+    ],
+) -> ClusterApprovalService:
+    return ClusterApprovalService(
+        session=session,
+        correction_service=correction_service,
     )

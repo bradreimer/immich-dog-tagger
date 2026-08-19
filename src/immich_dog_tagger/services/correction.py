@@ -36,7 +36,18 @@ class ClassificationCorrectionService:
         self,
         classification_id: int,
         identity: str | None,
+        *,
+        commit: bool = True,
     ) -> CropClassification:
+        """
+        Settle one classification's identity as a human decision.
+
+        `commit=False` leaves the write to the caller so a bulk caller
+        (cluster approval, issue #141) can checkpoint several corrections
+        per transaction instead of taking state.db's write lock once per
+        photo. It changes nothing else: the ReviewAction, the reference
+        example, and the provenance are identical either way.
+        """
         classification = self.session.get(
             CropClassification,
             classification_id,
@@ -87,7 +98,8 @@ class ClassificationCorrectionService:
                 # attributed to.
                 self.learner.forget_image(crop_path)
 
-        self.session.commit()
+        if commit:
+            self.session.commit()
 
         logger.info(
             "Classification %d corrected: %r -> %r",

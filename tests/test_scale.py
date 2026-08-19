@@ -7,12 +7,14 @@ and no real Immich instance to exercise. What's verified here is the
 count independent of row count, and batched (not all-at-once) processing.
 """
 
+import time
+
 import numpy as np
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import embedding_to_blob
-from immich_dog_tagger.enums import EmbeddingSources
+from immich_dog_tagger.enums import EmbeddingSources, Species
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -20,6 +22,10 @@ from immich_dog_tagger.models import (
     Detection,
     EmbeddingExample,
     Identity,
+)
+from immich_dog_tagger.services.clusters import (
+    MAX_CANDIDATE_POOL,
+    RecommendationClusterService,
 )
 from immich_dog_tagger.services.reclassify import ReclassifyService
 from tests.conftest import QueryCounter
@@ -172,3 +178,94 @@ def test_reclassify_at_synthetic_scale_processes_in_bounded_batches(engine):
             .count()
         )
         assert updated == crop_count
+
+
+def _seed_cluster_pool(session, count):
+    """`count` unreviewed candidates for one pet, in a handful of visual groups."""
+    session.add(Identity(name="Fibs", species=Species.DOG))
+    session.flush()
+
+    generator = np.random.default_rng(seed=11)
+    centers = generator.normal(size=(8, 512))
+
+    for index in range(count):
+        asset = Asset(immich_asset_id=f"pool-asset-{index}", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path=f"pool-{index}.jpg", species=Species.DOG)
+
+        session.add(crop)
+        session.flush()
+
+        vector = centers[index % len(centers)] + generator.normal(scale=0.05, size=512)
+
+        session.add(
+            CropClassification(
+                crop=crop,
+                identity="Fibs",
+                confidence=0.70,
+                embedding=embedding_to_blob(vector.astype(np.float32)),
+            )
+        )
+
+    session.commit()
+
+
+def test_clustering_issues_a_constant_number_of_queries(engine):
+    """
+    Issue #141: a cluster pass is a read over an eager-loaded pool. Its
+    query count must not grow with the pool -- the DT-1111/DT-1008 N+1 this
+    service inherits ReviewQueryService's eager loading to avoid.
+    """
+    with Session(engine) as session:
+        _seed_cluster_pool(session, count=20)
+
+        service = RecommendationClusterService(session)
+
+        with QueryCounter(engine) as small:
+            service.clusters(identity="Fibs", species=Species.DOG)
+
+    with Session(engine) as session:
+        session.query(CropClassification).delete()
+        session.query(Crop).delete()
+        session.query(Detection).delete()
+        session.query(Asset).delete()
+        session.query(Identity).delete()
+        session.commit()
+
+        _seed_cluster_pool(session, count=200)
+
+        session.expunge_all()
+
+        service = RecommendationClusterService(session)
+
+        with QueryCounter(engine) as large:
+            service.clusters(identity="Fibs", species=Species.DOG)
+
+    assert small.count == large.count
+
+
+def test_clustering_a_full_pool_stays_interactive(engine):
+    """
+    Issue #141 chose on-demand clustering over a cached job on the
+    assumption that a full pool clusters fast enough to be served inside a
+    request. This pins that assumption: a full MAX_CANDIDATE_POOL of
+    512-dimension embeddings clusters in well under a second on the
+    reference machine (measured ~0.3s). The bound here is deliberately
+    loose -- it is a "still a read, not an operation" check, not a
+    benchmark. If it starts failing, the remedy ADR-006 points at is
+    promoting clustering to a job with cached assignments, not raising the
+    bound.
+    """
+    with Session(engine) as session:
+        _seed_cluster_pool(session, count=MAX_CANDIDATE_POOL)
+
+        service = RecommendationClusterService(session)
+
+        started = time.perf_counter()
+        proposal = service.clusters(identity="Fibs", species=Species.DOG)
+        elapsed = time.perf_counter() - started
+
+        assert proposal.clustered_count == MAX_CANDIDATE_POOL
+        assert elapsed < 5.0
