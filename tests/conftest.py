@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.app import create_app
@@ -12,6 +13,28 @@ from immich_dog_tagger.api.dependencies import (
 )
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.models import Crop, CropClassification
+
+
+class QueryCounter:
+    """
+    Counts SQL statements issued against an engine inside a `with` block --
+    the shape of check DT-1008 introduced for N+1 regressions, shared here
+    so endpoint-level tests can pin query counts too.
+    """
+
+    def __init__(self, engine):
+        self.count = 0
+        self.engine = engine
+
+    def __enter__(self):
+        event.listen(self.engine, "before_cursor_execute", self._on_execute)
+        return self
+
+    def __exit__(self, *exc_info):
+        event.remove(self.engine, "before_cursor_execute", self._on_execute)
+
+    def _on_execute(self, conn, cursor, statement, parameters, context, executemany):
+        self.count += 1
 
 
 class FakeEmbedder:

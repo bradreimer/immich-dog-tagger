@@ -290,13 +290,23 @@
   the owner at Dogs & Cats instead of showing a blank chooser. No API change: `GET /api/library`
   already accepted `identity` and `species`. See
   [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+- #146 v1.8.0 FR-8 detection coverage on the Metrics tab: a new **Library Coverage** card whose
+  denominator is photos detection has finished with, not the crops it produced -- so photos that
+  yielded no crop (the population a missed pet hides in), photos awaiting detection, and photos that
+  could not be processed are each visible as their own count instead of being absent from every
+  existing figure. Two fixed aggregate queries, pinned by a query-count assertion on the endpoint;
+  the existing automation-rate/confident-coverage definitions are unchanged and pinned by a
+  regression test. Deliberately labeled coverage, never accuracy or recall -- there is no ground
+  truth for photos detection never flagged. See
+  [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
 [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
-progress: FR-1 (#140, species -> pet selection as the Library's primary axis) has landed; clustering
-and cluster approval (#141), in-cluster selection (#142), sorting (#143), rejection (#144), and cold
-start (#145) are still open, as are the supporting gaps #146-#149.
+progress: FR-1 (#140, species -> pet selection as the Library's primary axis) and FR-8 (#146,
+detection coverage) have landed; clustering and cluster approval (#141), in-cluster selection
+(#142), sorting (#143), rejection (#144), and cold start (#145) are still open, as are the
+remaining supporting gaps #147-#149.
 
 Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review

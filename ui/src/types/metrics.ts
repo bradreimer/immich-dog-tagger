@@ -15,6 +15,16 @@ export interface ClassificationPassSummary {
   completed_at: string | null;
 }
 
+export interface DetectionCoverage {
+  scanned_count: number;
+  processed_count: number;
+  with_crops_count: number;
+  without_crops_count: number;
+  awaiting_detection_count: number;
+  unprocessable_count: number;
+  with_crops_rate: number | null;
+}
+
 export interface LearningMetrics {
   eligible_count: number;
   reviewed_count: number;
@@ -30,4 +40,5 @@ export interface LearningMetrics {
   automation_rate: number | null;
   last_reclassification: ClassificationPassSummary | null;
   pass_history: ClassificationPassSummary[];
+  detection_coverage: DetectionCoverage;
 }
