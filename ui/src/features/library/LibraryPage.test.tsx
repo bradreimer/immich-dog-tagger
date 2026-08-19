@@ -10,6 +10,8 @@ vi.mock("@/lib/api", () => ({
   getLibrary: vi.fn(),
   getDogs: vi.fn(),
   correctClassification: vi.fn(),
+  getPetClusters: vi.fn(),
+  approveCluster: vi.fn(),
 }));
 
 const HERMANN: Dog = { id: 1, name: "Hermann", species: "dog", active: true };
@@ -61,6 +63,16 @@ describe("LibraryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.getDogs).mockResolvedValue([HERMANN, MINA]);
+    vi.mocked(api.getPetClusters).mockResolvedValue({
+      identity: "Hermann",
+      species: "dog",
+      clusters: [],
+      excluded: [],
+      candidate_count: 0,
+      clustered_count: 0,
+      distance_threshold: 0.2,
+      truncated: false,
+    });
     mockLibrary(0);
   });
 
@@ -76,6 +88,26 @@ describe("LibraryPage", () => {
     expect(
       screen.getByText("Every photo classified as Hermann, reviewed and unreviewed alike."),
     ).toBeInTheDocument();
+  });
+
+  it("offers cluster recommendations for the selected pet only", async () => {
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    await screen.findByRole("button", { name: "All photos" });
+
+    expect(
+      screen.queryByRole("region", { name: "Recommendations for Hermann" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hermann" }));
+
+    expect(
+      await screen.findByRole("region", { name: "Recommendations for Hermann" }),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(api.getPetClusters).toHaveBeenCalledWith("Hermann", "dog");
+    });
   });
 
   it("clears a pet selection that no longer applies when the species changes", async () => {

@@ -9,6 +9,7 @@ import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
+import type { ClusterApprovalResult, ClusterProposal } from "../types/clusters";
 import type { Settings } from "../types/settings";
 import type { Health } from "../types/health";
 import type {
@@ -359,6 +360,52 @@ export async function cancelJob(id: number): Promise<PipelineJob> {
     const payload = await response.json().catch(() => null);
     const detail = payload?.detail;
     throw new Error(typeof detail === "string" ? detail : "Failed to cancel job");
+  }
+
+  return response.json();
+}
+
+/**
+ * The pending recommendations for one pet, grouped into clusters of visually
+ * similar crops. A read -- nothing is assigned until a cluster is approved.
+ */
+export async function getPetClusters(
+  identity: string,
+  species: string,
+): Promise<ClusterProposal> {
+  const params = new URLSearchParams();
+  params.set("identity", identity);
+  params.set("species", species);
+
+  const response = await fetch(`/api/library/clusters?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load recommendations");
+  }
+
+  return response.json();
+}
+
+/** Assign a pet's identity to every listed photo, as one action. */
+export async function approveCluster(
+  identity: string,
+  species: string,
+  classificationIds: number[],
+): Promise<ClusterApprovalResult> {
+  const response = await fetch("/api/library/clusters/approve", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      identity,
+      species,
+      classification_ids: classificationIds,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to approve cluster");
   }
 
   return response.json();
