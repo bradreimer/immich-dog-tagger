@@ -294,13 +294,17 @@ at zero labels, while we require 50-100 single-item reviews before automation be
 Sub-issues, in dependency order: [#140](https://github.com/bradreimer/immich-dog-tagger/issues/140)
 pet-scoped library, [#141](https://github.com/bradreimer/immich-dog-tagger/issues/141) clustering +
 one-action approval, [#142](https://github.com/bradreimer/immich-dog-tagger/issues/142) per-photo
-exclusion, [#143](https://github.com/bradreimer/immich-dog-tagger/issues/143) sorting,
-[#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) cold-start clusters. Supporting:
+exclusion, [#143](https://github.com/bradreimer/immich-dog-tagger/issues/143) sorting. Supporting:
 [#144](https://github.com/bradreimer/immich-dog-tagger/issues/144) "not this pet" rejection,
 [#146](https://github.com/bradreimer/immich-dog-tagger/issues/146) coverage reporting,
 [#147](https://github.com/bradreimer/immich-dog-tagger/issues/147) rescue a missed detection,
 [#148](https://github.com/bradreimer/immich-dog-tagger/issues/148) merge identities,
 [#149](https://github.com/bradreimer/immich-dog-tagger/issues/149) sensitivity + auto-reclassify.
+[#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) (cold-start clusters) was closed
+as not planned -- the Review tab already serves the zero-example case. Three scoping decisions are
+settled and recorded in the spec's "Resolved decisions": no cold-start clustering, approvals never
+trigger a sync (Immich stays operator-triggered), and coverage is reported as two plain counts
+rather than a ratio.
 
 Previously: v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review

@@ -277,8 +277,6 @@ Planned:
   capture date or confidence (FR-5)
 - [#144](https://github.com/bradreimer/immich-dog-tagger/issues/144): reject a recommendation as
   "not this pet" (FR-6)
-- [#145](https://github.com/bradreimer/immich-dog-tagger/issues/145): cold-start clusters for a pet
-  with no examples yet (FR-7)
 - [#146](https://github.com/bradreimer/immich-dog-tagger/issues/146): honest detection-coverage
   reporting (FR-8)
 - [#147](https://github.com/bradreimer/immich-dog-tagger/issues/147): tag a photo whose pet the
@@ -287,10 +285,13 @@ Planned:
 - [#149](https://github.com/bradreimer/immich-dog-tagger/issues/149): owner-facing tagging
   sensitivity and auto-reclassify after a review batch (FR-9)
 
-Explicitly not planned (see spec Non-goals): removing or changing the review queue; changing
-classification policy, thresholds, or the embedding model as part of the workflow change; any
-identity inference from clustering; undo/redo; bulk species correction; writing pets into Immich's
-People surface (that needs an ADR of its own).
+Explicitly not planned (see spec Non-goals): cold-start clustering for a pet with no examples
+([#145](https://github.com/bradreimer/immich-dog-tagger/issues/145), closed as not planned -- the
+Review tab already serves that case); approvals triggering an Immich sync (sync stays
+operator-triggered); removing or changing the review queue; changing classification policy,
+thresholds, or the embedding model as part of the workflow change; any identity inference from
+clustering; undo/redo; bulk species correction; writing pets into Immich's People surface (that
+needs an ADR of its own).
 
 Exit criteria:
 Not started.
