@@ -279,7 +279,6 @@
   path, so detector and cropper agree for every supported format including the HEIC fallback path,
   where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
-
 - #140 v1.8.0 FR-1 Library scoped to one pet: the Library's species and identity filters became a
   selection step -- a species chooser (Dogs / Cats / All species) plus a pet chooser listing the
   active identities -- backed by a `LibraryWorkspaceProvider` context so the clustering, sorting,
@@ -299,14 +298,29 @@
   regression test. Deliberately labeled coverage, never accuracy or recall -- there is no ground
   truth for photos detection never flagged. See
   [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+- #148 merge two identities (v1.8 FR-10): `DogService.merge_dogs()` absorbs one identity into
+  another -- every `CropClassification` naming the source (scoped to crops of the merged species,
+  since `identity` is a bare name and names are unique per species) is re-pointed at the target,
+  the source's `EmbeddingExample` rows are re-filed onto it (dropping any whose crop path the
+  target already holds, the same one-animal-per-crop invariant `Learner` maintains), and its
+  `PetOccurrence` rows follow. `ReviewAction` history is deliberately not rewritten: a merge
+  re-attributes derived state, not the record of who decided what. Cross-species merges are
+  rejected outright (DT-1110's dog-"Max"/cat-"Max" distinction). The source is left as a
+  deactivated tombstone rather than deleted, and the merge itself is recorded in a new
+  `identity_merges` provenance table, since a bulk re-attribution can't be read back off the rows
+  it touched. Writes commit in bounded batches (the #104/#107 lock-contention class of bug), and
+  Immich albums reconcile on the next sync through the existing DT-1113 `SyncedAsset` stale-
+  membership diff -- the merge deliberately leaves those rows alone so sync can see them as stale.
+  New `POST /dogs/{id}/merge` and a two-step, destructive-styled, confirmed merge control on the
+  Dogs & Cats page
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
 [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
-progress: FR-1 (#140, species -> pet selection as the Library's primary axis) and FR-8 (#146,
-detection coverage) have landed; clustering and cluster approval (#141), in-cluster selection
-(#142), sorting (#143), rejection (#144), and cold start (#145) are still open, as are the
-remaining supporting gaps #147-#149.
+progress: FR-1 (#140, species -> pet selection as the Library's primary axis), FR-8 (#146,
+detection coverage) and FR-10 (#148, merging two identities) have landed; clustering and cluster
+approval (#141), in-cluster selection (#142), sorting (#143), rejection (#144), and cold start
+(#145) are still open, as are the remaining supporting gaps #147 and #149.
 
 Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review

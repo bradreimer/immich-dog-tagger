@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from immich_dog_tagger.api.dependencies import get_dog_service
 from immich_dog_tagger.api.schemas import (
     DogCreateRequest,
+    DogMergeRequest,
+    DogMergeResponse,
     DogResponse,
     DogUpdateRequest,
 )
@@ -73,6 +75,41 @@ def activate_dog(
         return DogResponse.from_identity(service.activate_dog(dog_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{dog_id}/merge",
+    response_model=DogMergeResponse,
+)
+def merge_dog(
+    dog_id: int,
+    request: DogMergeRequest,
+    service: Annotated[DogService, Depends(get_dog_service)],
+):
+    """
+    Merge the identity at `dog_id` (the source) into `request.target_id`.
+
+    Destructive and effectively irreversible: it re-attributes every
+    classification and reference example the source owned. The UI confirms
+    before calling this.
+    """
+    try:
+        summary = service.merge_dogs(dog_id, request.target_id)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+    source = service.get_dog(summary.source_id)
+    target = service.get_dog(summary.target_id)
+
+    return DogMergeResponse(
+        source=DogResponse.from_identity(source),
+        target=DogResponse.from_identity(target),
+        classifications_reassigned=summary.classifications_reassigned,
+        examples_reassigned=summary.examples_reassigned,
+        examples_discarded=summary.examples_discarded,
+        occurrences_reassigned=summary.occurrences_reassigned,
+    )
 
 
 @router.delete(

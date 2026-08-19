@@ -267,12 +267,15 @@ Completed:
 - #140 (FR-1): species -> pet selection as the Library's primary axis, held in a
   `LibraryWorkspaceProvider` context the later stories read from; the flat "all photos" view, its
   review-status and capture-date filters, and pagination are unchanged.
+- #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
+  reference examples and pet occurrences move to the target, review history is left intact, the
+  source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
 
 In progress / open:
 - #141 (FR-2/FR-3) cluster and approve, #142 (FR-4) in-cluster selection, #143 (FR-5) sorting,
   #145 (FR-7) cold start; supporting gaps #144 (FR-6) rejection, #146 (FR-8) detection coverage,
-  #147 (FR-11) missed-detection rescue, #148 (FR-10) identity merge, #149 (FR-9) sensitivity and
-  post-batch reclassification.
+  #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch
+  reclassification.
 
 Explicitly not planned this iteration (see spec Non-goals): removing or changing the review queue,
 changing classification policy/thresholds/the embedding model, changing `GET /api/library`'s query

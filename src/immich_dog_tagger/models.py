@@ -128,6 +128,86 @@ class EmbeddingExample(Base):
         )
 
 
+class IdentityMerge(Base):
+    """
+    Provenance for a merge of one identity into another (issue #148).
+
+    A merge is a bulk re-attribution of derived state -- every classification
+    and reference example the source owned moves to the target -- so unlike a
+    rename it cannot be read back off the rows it touched. state.db holds
+    history that cannot be regenerated (ADR-001), so the merge itself is
+    recorded here: who absorbed whom, under which species, and how much moved.
+    Names are denormalized alongside the foreign keys because the target can
+    be renamed afterwards and the source is only a deactivated tombstone.
+    """
+
+    __tablename__ = "identity_merges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    source_identity_id: Mapped[int] = mapped_column(
+        ForeignKey("identities.id"),
+        nullable=False,
+        index=True,
+    )
+
+    target_identity_id: Mapped[int] = mapped_column(
+        ForeignKey("identities.id"),
+        nullable=False,
+        index=True,
+    )
+
+    source_name: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    target_name: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    species: Mapped[Species] = mapped_column(
+        Enum(Species, native_enum=False),
+        nullable=False,
+    )
+
+    classifications_reassigned: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+    )
+
+    examples_reassigned: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+    )
+
+    examples_discarded: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+    )
+
+    occurrences_reassigned: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"IdentityMerge("
+            f"id={self.id}, "
+            f"source={self.source_name!r}, "
+            f"target={self.target_name!r}, "
+            f"species={self.species!r})"
+        )
+
+
 class Asset(Base):
     __tablename__ = "assets"
 

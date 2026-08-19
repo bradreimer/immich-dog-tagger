@@ -1,6 +1,7 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import Identity
+from immich_dog_tagger.models import Crop, CropClassification, Identity
 
 
 def test_dogs_list_is_empty_on_clean_install(api_client):
@@ -110,3 +111,62 @@ def test_dogs_list_can_include_inactive(api_client):
     assert all_dogs.status_code == 200
     assert all_dogs.json()[0]["name"] == "Cooper"
     assert all_dogs.json()[0]["active"] is False
+
+
+def test_dogs_merge_reassigns_and_reports_the_counts(api_client, engine):
+    source = api_client.post("/dogs", json={"name": "Fibsy"}).json()
+    target = api_client.post("/dogs", json={"name": "Fibs"}).json()
+
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="fibsy-a.jpg")
+        session.add(crop)
+        session.flush()
+        session.add(
+            CropClassification(
+                crop=crop,
+                identity="Fibsy",
+                confidence=0.95,
+            )
+        )
+        session.commit()
+
+    response = api_client.post(
+        f"/dogs/{source['id']}/merge",
+        json={"target_id": target["id"]},
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["source"]["name"] == "Fibsy"
+    assert payload["source"]["active"] is False
+    assert payload["target"]["name"] == "Fibs"
+    assert payload["classifications_reassigned"] == 1
+
+    with Session(engine) as session:
+        classification = session.scalars(select(CropClassification)).one()
+        assert classification.identity == "Fibs"
+
+
+def test_dogs_merge_rejects_a_cross_species_merge(api_client):
+    dog = api_client.post("/dogs", json={"name": "Max", "species": "dog"}).json()
+    cat = api_client.post("/dogs", json={"name": "Max", "species": "cat"}).json()
+
+    response = api_client.post(
+        f"/dogs/{cat['id']}/merge",
+        json={"target_id": dog["id"]},
+    )
+
+    assert response.status_code == 400
+    assert "same species" in response.json()["detail"]
+
+
+def test_dogs_merge_404s_for_an_unknown_identity(api_client):
+    target = api_client.post("/dogs", json={"name": "Fibs"}).json()
+
+    response = api_client.post(
+        "/dogs/9999/merge",
+        json={"target_id": target["id"]},
+    )
+
+    assert response.status_code == 404
