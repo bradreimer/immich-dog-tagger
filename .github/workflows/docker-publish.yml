@@ -25,10 +25,13 @@ jobs:
             context: .
             dockerfile: Dockerfile
             image: ghcr.io/${{ github.repository }}
+            build-args: |
+              GIT_COMMIT=${{ github.sha }}
           - name: ui
             context: ./ui
             dockerfile: ui/Dockerfile
             image: ghcr.io/${{ github.repository }}-ui
+            build-args: ""
     steps:
       - uses: actions/checkout@v7
 
@@ -59,5 +62,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build-args }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
