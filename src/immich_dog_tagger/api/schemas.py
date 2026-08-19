@@ -104,6 +104,21 @@ class DogUpdateRequest(BaseModel):
     name: str
 
 
+class DogMergeRequest(BaseModel):
+    """Absorb the identity in the path into `target_id` (issue #148)."""
+
+    target_id: int
+
+
+class DogMergeResponse(BaseModel):
+    source: DogResponse
+    target: DogResponse
+    classifications_reassigned: int
+    examples_reassigned: int
+    examples_discarded: int
+    occurrences_reassigned: int
+
+
 class ClassificationResponse(BaseModel):
     classification_id: int
     crop_id: int
@@ -287,6 +302,28 @@ class SpeciesMetricsResponse(BaseModel):
         )
 
 
+class DetectionCoverageResponse(BaseModel):
+    scanned_count: int
+    processed_count: int
+    with_crops_count: int
+    without_crops_count: int
+    awaiting_detection_count: int
+    unprocessable_count: int
+    with_crops_rate: float | None
+
+    @classmethod
+    def from_detection_coverage(cls, coverage):
+        return cls(
+            scanned_count=coverage.scanned_count,
+            processed_count=coverage.processed_count,
+            with_crops_count=coverage.with_crops_count,
+            without_crops_count=coverage.without_crops_count,
+            awaiting_detection_count=coverage.awaiting_detection_count,
+            unprocessable_count=coverage.unprocessable_count,
+            with_crops_rate=coverage.with_crops_rate,
+        )
+
+
 class LearningMetricsResponse(BaseModel):
     eligible_count: int
     reviewed_count: int
@@ -303,6 +340,7 @@ class LearningMetricsResponse(BaseModel):
     last_reclassification: ClassificationPassResponse | None
     pass_history: list[ClassificationPassResponse]
     by_species: list[SpeciesMetricsResponse]
+    detection_coverage: DetectionCoverageResponse
 
     @classmethod
     def from_metrics(cls, metrics):
@@ -332,6 +370,9 @@ class LearningMetricsResponse(BaseModel):
                 SpeciesMetricsResponse.from_species_metrics(species_metrics)
                 for species_metrics in metrics.by_species
             ],
+            detection_coverage=DetectionCoverageResponse.from_detection_coverage(
+                metrics.detection_coverage
+            ),
         )
 
 

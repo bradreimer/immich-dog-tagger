@@ -279,34 +279,63 @@
   path, so detector and cropper agree for every supported format including the HEIC fallback path,
   where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
+- #140 v1.8.0 FR-1 Library scoped to one pet: the Library's species and identity filters became a
+  selection step -- a species chooser (Dogs / Cats / All species) plus a pet chooser listing the
+  active identities -- backed by a `LibraryWorkspaceProvider` context so the clustering, sorting,
+  and approval stories under #139 read the same selection rather than a filter row's local state.
+  Changing species clears a pet that no longer applies (no stale dog selected under Cats), every
+  selection change still resets pagination, the flat "all photos" view keeps its review-status and
+  capture-date filters and pagination unchanged, and a library with no identities configured points
+  the owner at Dogs & Cats instead of showing a blank chooser. No API change: `GET /api/library`
+  already accepted `identity` and `species`. See
+  [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+- #146 v1.8.0 FR-8 detection coverage on the Metrics tab: a new **Library Coverage** card whose
+  denominator is photos detection has finished with, not the crops it produced -- so photos that
+  yielded no crop (the population a missed pet hides in), photos awaiting detection, and photos that
+  could not be processed are each visible as their own count instead of being absent from every
+  existing figure. Two fixed aggregate queries, pinned by a query-count assertion on the endpoint;
+  the existing automation-rate/confident-coverage definitions are unchanged and pinned by a
+  regression test. Deliberately labeled coverage, never accuracy or recall -- there is no ground
+  truth for photos detection never flagged. See
+  [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+- #148 merge two identities (v1.8 FR-10): `DogService.merge_dogs()` absorbs one identity into
+  another -- every `CropClassification` naming the source (scoped to crops of the merged species,
+  since `identity` is a bare name and names are unique per species) is re-pointed at the target,
+  the source's `EmbeddingExample` rows are re-filed onto it (dropping any whose crop path the
+  target already holds, the same one-animal-per-crop invariant `Learner` maintains), and its
+  `PetOccurrence` rows follow. `ReviewAction` history is deliberately not rewritten: a merge
+  re-attributes derived state, not the record of who decided what. Cross-species merges are
+  rejected outright (DT-1110's dog-"Max"/cat-"Max" distinction). The source is left as a
+  deactivated tombstone rather than deleted, and the merge itself is recorded in a new
+  `identity_merges` provenance table, since a bulk re-attribution can't be read back off the rows
+  it touched. Writes commit in bounded batches (the #104/#107 lock-contention class of bug), and
+  Immich albums reconcile on the next sync through the existing DT-1113 `SyncedAsset` stale-
+  membership diff -- the merge deliberately leaves those rows alone so sync can see them as stale.
+  New `POST /dogs/{id}/merge` and a two-step, destructive-styled, confirmed merge control on the
+  Dogs & Cats page
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
-spec: [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) --
-scoped but not started. Turns the Library from a flat photo grid into an identity-first approval
-surface: select a species, select a dog or cat, then approve clusters of recommendations, sortable
-by capture date (both directions) or confidence. Scoped from
+[docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
+progress, scoped from
 [docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md), which
 compared our library workflow against the faces workflows in Lightroom Classic, Immich, and Apple
-Photos and found our widest gap is speed to first value: every competitor groups unlabeled subjects
-at zero labels, while we require 50-100 single-item reviews before automation begins.
+Photos. FR-1 (#140, species -> pet selection as the Library's primary axis), FR-8 (#146, detection
+coverage) and FR-10 (#148, merging two identities) have landed; clustering and cluster approval
+(#141), in-cluster selection (#142), sorting (#143), rejection (#144), and the remaining supporting
+gaps #147 and #149 are still open.
 
-Sub-issues, in dependency order: [#140](https://github.com/bradreimer/immich-dog-tagger/issues/140)
-pet-scoped library, [#141](https://github.com/bradreimer/immich-dog-tagger/issues/141) clustering +
-one-action approval, [#142](https://github.com/bradreimer/immich-dog-tagger/issues/142) per-photo
-exclusion, [#143](https://github.com/bradreimer/immich-dog-tagger/issues/143) sorting. Supporting:
-[#144](https://github.com/bradreimer/immich-dog-tagger/issues/144) "not this pet" rejection,
-[#146](https://github.com/bradreimer/immich-dog-tagger/issues/146) coverage reporting,
-[#147](https://github.com/bradreimer/immich-dog-tagger/issues/147) rescue a missed detection,
-[#148](https://github.com/bradreimer/immich-dog-tagger/issues/148) merge identities,
-[#149](https://github.com/bradreimer/immich-dog-tagger/issues/149) sensitivity + auto-reclassify.
-[#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) (cold-start clusters) was closed
-as not planned -- the Review tab already serves the zero-example case. Three scoping decisions are
-settled and recorded in the spec's "Resolved decisions": no cold-start clustering, approvals never
-trigger a sync (Immich stays operator-triggered), and coverage is reported as two plain counts
-rather than a ratio.
+Design decisions settled in review and recorded in the spec's "Resolved decisions": cold start stays
+with the Review tab (FR-7 dropped, #145 closed as not planned); approvals settle state and never
+trigger an Immich sync, generalized into
+[ADR-006](adr/ADR-006-immich-operations-explicit-local-operations-on-demand.md); clustering is
+agglomerative over cosine distance computed on demand, as a request-scoped read, with cluster
+approval a synchronous write rather than a job; and a rejection lives in its own table rather than
+as a new `ReviewActions` value. One question is open: #146 shipped coverage as a share over "photos
+detection has finished with", while review settled on two plain counts and no ratio -- see the
+spec's Open questions.
 
-Previously: v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
 page species correction, predicted-identity highlight), and #125 (version display) followed as
 additional reliability/UX fixes, along with #128 (link from a review item to its original photo
@@ -314,7 +343,11 @@ in Immich). `pyproject.toml`/`uv.lock`/the API app version had lagged at 1.6.0 t
 that; this catches them up to 1.7.0 and tags the release.
 
 ## Next Work
-v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
+Next under v1.8.0: #141 (cluster recommendations for the selected pet and approve a cluster in one
+action), which depends on #140 and on settling the spec's first open question -- which clustering
+algorithm, and whether it runs on demand or as a job with cached assignments.
+
+Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
 #110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
 curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
