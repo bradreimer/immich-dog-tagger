@@ -334,11 +334,23 @@
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
 [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
-progress: FR-1 (#140, species -> pet selection as the Library's primary axis), FR-2/FR-3 (#141,
+progress, scoped from
+[docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md), which
+compared our library workflow against the faces workflows in Lightroom Classic, Immich, and Apple
+Photos. FR-1 (#140, species -> pet selection as the Library's primary axis), FR-2/FR-3 (#141,
 clustering and cluster approval), FR-8 (#146, detection coverage) and FR-10 (#148, merging two
-identities) have landed; in-cluster selection (#142), sorting (#143) and rejection (#144) are still
-open, as are the remaining supporting gaps #147 and #149. Cold start (#145) was closed as not
-planned, which is what bounds the candidate pool to one pet's pending recommendations.
+identities) have landed; in-cluster selection (#142), sorting (#143), rejection (#144), and the
+remaining supporting gaps #147 and #149 are still open.
+
+Design decisions settled in review and recorded in the spec's "Resolved decisions": cold start stays
+with the Review tab (FR-7 dropped, #145 closed as not planned); approvals settle state and never
+trigger an Immich sync, generalized into
+[ADR-006](adr/ADR-006-immich-operations-explicit-local-operations-on-demand.md); clustering is
+agglomerative over cosine distance computed on demand, as a request-scoped read, with cluster
+approval a synchronous write rather than a job (#141 measured a full 500-crop pool at ~0.3s, which
+is what kept it a read); and a rejection lives in its own table rather than as a new `ReviewActions`
+value. One question is open: #146 shipped coverage as a share over "photos detection has finished
+with", while review settled on two plain counts and no ratio -- see the spec's Open questions.
 
 Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
@@ -350,8 +362,8 @@ that; this catches them up to 1.7.0 and tags the release.
 ## Next Work
 Next under v1.8.0: #142 (per-photo exclusion within a proposed cluster), which should land with or
 immediately after #141 -- approving an impure cluster all-or-nothing is how one click writes bad
-ground truth at scale. Then #143 (sorting) and #144 (rejection, whose open question -- whether a
-rejection is a new `ReviewAction` type or its own table -- must be settled before it merges).
+ground truth at scale. Then #143 (sorting) and #144 (rejection, which review settled as its own
+table rather than a new `ReviewActions` value, so "reviewed" keeps meaning one thing).
 
 Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture

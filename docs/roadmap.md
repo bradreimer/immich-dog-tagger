@@ -253,7 +253,8 @@ Completed.
 
 ## v1.8.0 - Library as an Approval Workspace
 
-See [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+See [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)
+and [docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md).
 Tracking issue: [#139](https://github.com/bradreimer/immich-dog-tagger/issues/139).
 
 Goal:
@@ -267,11 +268,11 @@ Completed:
 - #140 (FR-1): species -> pet selection as the Library's primary axis, held in a
   `LibraryWorkspaceProvider` context the later stories read from; the flat "all photos" view, its
   review-status and capture-date filters, and pagination are unchanged.
+- #146 (FR-8): detection coverage reported alongside automation rate, so the Metrics tab can see
+  photos detection never found instead of only scoring the crops it did make.
 - #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
   reference examples and pet occurrences move to the target, review history is left intact, the
   source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
-- #146 (FR-8): detection coverage on the Metrics tab, denominated in photos detection has finished
-  with rather than in crops that already exist.
 - #141 (FR-2/FR-3): the selected pet's pending recommendations grouped into clusters of visually
   similar crops (agglomerative over cosine distance, computed on demand, writing nothing), each
   approvable in one action as N ordinary corrections with applied/skipped accounting.
@@ -279,16 +280,19 @@ Completed:
 In progress / open:
 - #142 (FR-4) in-cluster selection, #143 (FR-5) sorting; supporting gaps #144 (FR-6) rejection,
   #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch reclassification.
-- #145 (FR-7) cold start was closed as not planned: the candidate pool stays identity-scoped and
-  bounded, and a pet with no examples is bootstrapped through the Review tab.
 
-Explicitly not planned this iteration (see spec Non-goals): removing or changing the review queue,
-changing classification policy/thresholds/the embedding model, changing `GET /api/library`'s query
-semantics, or a fully automatic label-without-the-owner model.
+Explicitly not planned (see spec Non-goals): cold-start clustering for a pet with no examples
+(FR-7 dropped, [#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) closed as not
+planned -- the Review tab already serves that case); approvals triggering an Immich sync, per
+[ADR-006](adr/ADR-006-immich-operations-explicit-local-operations-on-demand.md); removing or
+changing the review queue; changing classification policy/thresholds/the embedding model; changing
+`GET /api/library`'s query semantics; or a fully automatic label-without-the-owner model.
 
 Exit criteria:
 The core workflow issues (#140-#143) are closed and the owner can confirm a group of photos for one
 pet in a single action.
+
+---
 
 ## Active Learning Improvements
 
