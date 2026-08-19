@@ -1,6 +1,6 @@
 """
-Cluster a pet's pending recommendations, and approve a cluster in one
-action (issue #141).
+Cluster a pet's pending recommendations, and approve a selection from one
+cluster in one action (issues #141 and #142).
 
 Two services live here, deliberately on opposite sides of the read/write
 line:
@@ -67,6 +67,29 @@ APPROVAL_BATCH_SIZE = 25
 # An approval is an interactive, synchronous write (ADR-006): it stays in
 # the request rather than becoming a job, so its size has to be bounded.
 MAX_APPROVAL_SIZE = 1000
+
+
+def proposes_identity(
+    identity: str,
+    *,
+    accepted: str | None,
+    candidates: list[dict] | None,
+) -> bool:
+    """
+    Whether the classifier put `identity` forward for this crop at all --
+    as the accepted identity, or as one of the stored runner-up candidates.
+
+    This is the membership rule for a pet's candidate pool, shared by the
+    read that builds the clusters and the write that approves a selection
+    from one, so the write validates against the same rule the read
+    promised.
+    """
+    if accepted == identity:
+        return True
+
+    return any(
+        candidate.get("identity") == identity for candidate in (candidates or [])
+    )
 
 
 @dataclass(frozen=True)
@@ -335,10 +358,10 @@ class RecommendationClusterService:
         matched = [
             row.id
             for row in rows
-            if row.identity == identity
-            or any(
-                candidate.get("identity") == identity
-                for candidate in (row.candidates or [])
+            if proposes_identity(
+                identity,
+                accepted=row.identity,
+                candidates=row.candidates,
             )
         ]
 
@@ -370,7 +393,7 @@ class RecommendationClusterService:
 
 class ClusterApprovalService:
     """
-    Applies a pet's identity to every member of an approved cluster, as N
+    Applies a pet's identity to an explicitly listed set of members, as N
     ordinary corrections.
     """
 
@@ -397,11 +420,25 @@ class ClusterApprovalService:
         """
         Assign `identity` to each of `classification_ids`.
 
-        Every member that cannot be assigned is reported with a reason
-        rather than dropped: a silent shortfall between "approve 40 photos"
-        and 31 assignments is the bug DT-1117's accounting convention
-        exists to prevent.
+        The caller submits an explicit list -- the owner's selection (issue
+        #142) -- and this never re-derives "the cluster" from it. Approving
+        membership computed here would sweep back in exactly the photos the
+        owner deselected, and would do it from a cluster the client may no
+        longer be looking at.
+
+        Every id is checked against the pool it claims to come from, so an
+        id outside this pet's recommendations is refused rather than
+        silently labelled. Every member that cannot be assigned is reported
+        with a reason rather than dropped: a silent shortfall between
+        "approve 40 photos" and 31 assignments is the bug DT-1117's
+        accounting convention exists to prevent.
         """
+        if not classification_ids:
+            # Deselecting every member is a deliberate "approve nothing", not
+            # an approval of the whole cluster. Refused so it can never be
+            # read as the latter.
+            raise ValueError("Cannot approve an empty selection")
+
         if len(classification_ids) > self.max_approval_size:
             raise ValueError(
                 f"Cannot approve more than {self.max_approval_size} photos at once"
@@ -430,7 +467,11 @@ class ClusterApprovalService:
 
                 seen.add(classification_id)
 
-                reason = self._rejection_reason(classification_id, species)
+                reason = self._rejection_reason(
+                    classification_id,
+                    identity,
+                    species,
+                )
 
                 if reason is not None:
                     skips.append(ApprovalSkip(classification_id, reason))
@@ -473,6 +514,7 @@ class ClusterApprovalService:
     def _rejection_reason(
         self,
         classification_id: int,
+        identity: str,
         species: Species,
     ) -> str | None:
         classification = self.session.get(CropClassification, classification_id)
@@ -487,5 +529,17 @@ class ClusterApprovalService:
 
         if classification.crop.species != species:
             return "species-mismatch"
+
+        if not proposes_identity(
+            identity,
+            accepted=classification.identity,
+            candidates=classification.candidates,
+        ):
+            # The approval names a crop the classifier never put this pet
+            # forward for, so it was never in the cluster the owner was
+            # looking at. Refused rather than applied: a client bug, a stale
+            # page, or a hand-written request must not be able to write a
+            # label the owner never saw proposed.
+            return "not-recommended"
 
         return None

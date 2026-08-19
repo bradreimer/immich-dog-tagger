@@ -286,6 +286,58 @@ def test_approve_endpoint_applies_and_reports_skips(api_client, engine):
     )
 
 
+def test_approve_endpoint_applies_to_exactly_the_submitted_selection(
+    api_client, engine
+):
+    """A deselected member (issue #142) is left pending, not swept in."""
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    selected = classification_ids[:2]
+
+    response = api_client.post(
+        "/library/clusters/approve",
+        json={
+            "identity": "Fibs",
+            "species": "dog",
+            "classification_ids": selected,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["applied"] == 2
+
+    with Session(engine) as session:
+        assert session.query(ReviewAction).count() == 2
+
+    # The deselected member is still waiting to be reviewed.
+    payload = api_client.get("/library/clusters?identity=Fibs&species=dog").json()
+
+    assert payload["candidate_count"] == 1
+    assert [
+        member["classification_id"] for member in payload["clusters"][0]["members"]
+    ] == classification_ids[2:]
+
+
+def test_approve_endpoint_rejects_an_empty_selection(api_client, engine):
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session)
+
+    response = api_client.post(
+        "/library/clusters/approve",
+        json={
+            "identity": "Fibs",
+            "species": "dog",
+            "classification_ids": [],
+        },
+    )
+
+    assert response.status_code == 422
+
+    with Session(engine) as session:
+        assert session.query(ReviewAction).count() == 0
+
+
 def test_approve_endpoint_400s_for_an_unknown_pet(api_client, engine):
     response = api_client.post(
         "/library/clusters/approve",

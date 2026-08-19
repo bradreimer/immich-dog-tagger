@@ -276,9 +276,13 @@ Completed:
 - #141 (FR-2/FR-3): the selected pet's pending recommendations grouped into clusters of visually
   similar crops (agglomerative over cosine distance, computed on demand, writing nothing), each
   approvable in one action as N ordinary corrections with applied/skipped accounting.
+- #142 (FR-4): per-photo selection within a cluster -- members start selected, the approve control
+  names the count it will apply to, and the approval submits an explicit id list the server
+  validates against the pet's own candidate pool rather than re-deriving membership. The generic
+  `useSelection` hook it introduces is the app's first multi-select primitive.
 
 In progress / open:
-- #142 (FR-4) in-cluster selection, #143 (FR-5) sorting; supporting gaps #144 (FR-6) rejection,
+- #143 (FR-5) sorting; supporting gaps #144 (FR-6) rejection,
   #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch reclassification.
 
 Explicitly not planned (see spec Non-goals): cold-start clustering for a pet with no examples

@@ -4,7 +4,7 @@ import { IconRefresh } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { approveCluster, getPetClusters } from "@/lib/api";
-import type { ClusterProposal, RecommendationCluster } from "@/types/clusters";
+import type { ClusterProposal } from "@/types/clusters";
 import { ClusterCard } from "./ClusterCard";
 
 interface Props {
@@ -44,12 +44,11 @@ export function ClusterPanel({ identity, species, onApproved }: Props) {
   }, [load]);
 
   const approve = useCallback(
-    async (cluster: RecommendationCluster) => {
-      const result = await approveCluster(
-        identity,
-        species,
-        cluster.members.map((member) => member.classification_id),
-      );
+    async (classificationIds: number[]) => {
+      // The ids the owner left selected, passed explicitly. The server never
+      // re-derives cluster membership (issue #142), so a stale cluster on the
+      // client cannot approve a photo that was deselected here.
+      const result = await approveCluster(identity, species, classificationIds);
 
       // Report the shortfall rather than swallowing it: an approval of N
       // that applied fewer than N has to say so, and why.
@@ -115,7 +114,11 @@ export function ClusterPanel({ identity, species, onApproved }: Props) {
         <div className="space-y-4">
           {proposal.clusters.map((cluster) => (
             <ClusterCard
-              key={cluster.id}
+              // Keyed by pet as well as cluster. The re-fetch on a pet change
+              // already unmounts these while it loads, but that is incidental
+              // -- this makes "a selection never outlives its pet" a property
+              // of the tree rather than of the loading state.
+              key={`${identity}-${cluster.id}`}
               cluster={cluster}
               identity={identity}
               onApprove={approve}
