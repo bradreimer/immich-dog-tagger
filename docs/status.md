@@ -280,8 +280,22 @@
   where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
 
+- #146 detection coverage on the Metrics tab: a new **Library Coverage** card whose denominator is
+  photos detection has finished with, not the crops it produced -- so photos that yielded no crop
+  (the population a missed pet hides in), photos awaiting detection, and photos that could not be
+  processed are each visible as their own count instead of being absent from every existing figure.
+  Two fixed aggregate queries, pinned by a query-count assertion on the endpoint; the existing
+  automation-rate/confident-coverage definitions are unchanged and pinned by a regression test.
+  Deliberately labeled coverage, never accuracy or recall -- there is no ground truth for photos
+  detection never flagged. FR-8 of [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)
+
 ## Current Milestone
-No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+v1.8.0 Library as an approval workspace (#139) -- species -> pet -> approve clusters. Spec:
+[docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md). FR-8
+(#146, detection coverage) has landed; the core clustering workflow (#140-#145) and the remaining
+supporting gaps (#147-#149) are open.
+
+Previously: v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
 page species correction, predicted-identity highlight), and #125 (version display) followed as
 additional reliability/UX fixes, along with #128 (link from a review item to its original photo

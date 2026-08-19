@@ -8,6 +8,10 @@ import {
   IconCircleCheck,
   IconClipboardList,
   IconHistory,
+  IconHourglass,
+  IconPhotoCheck,
+  IconPhotoOff,
+  IconPhotoSearch,
   IconQuestionMark,
   IconRefresh,
   IconTargetArrow,
@@ -221,6 +225,60 @@ export function MetricsPage() {
                 { key: "unknown", label: "Unknown", value: metrics.unknown_count, colorVar: "var(--status-serious)" },
               ]}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {metrics && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Library Coverage</CardTitle>
+            <CardDescription>
+              Every other number on this page is measured over the crops detection produced.
+              These are measured over photos, so a pet the detector never found is visible here
+              instead of missing. This is coverage, not accuracy or recall -- most photos with no
+              crop simply contain no pet, and nothing here is checked against known-correct labels.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {metrics.detection_coverage.scanned_count === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No photos scanned yet. Run a scan to see how much of your library detection has
+                accounted for.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <StatTile
+                  icon={IconPhotoCheck}
+                  tone="info"
+                  label="Photos with a pet crop"
+                  value={formatPercent(metrics.detection_coverage.with_crops_rate)}
+                  subtext={`${metrics.detection_coverage.with_crops_count} of ${metrics.detection_coverage.processed_count} photos detection has finished with`}
+                  progress={metrics.detection_coverage.with_crops_rate}
+                />
+                <StatTile
+                  icon={IconPhotoOff}
+                  tone="neutral"
+                  label="Photos with no pet crop"
+                  value={metrics.detection_coverage.without_crops_count}
+                  subtext="detection finished, found nothing to crop -- a missed pet would be in here"
+                />
+                <StatTile
+                  icon={IconHourglass}
+                  tone={metrics.detection_coverage.awaiting_detection_count > 0 ? "warning" : "neutral"}
+                  label="Awaiting detection"
+                  value={metrics.detection_coverage.awaiting_detection_count}
+                  subtext={`scanned but not yet detected · ${metrics.detection_coverage.scanned_count} photos scanned in total`}
+                />
+                <StatTile
+                  icon={IconPhotoSearch}
+                  tone={metrics.detection_coverage.unprocessable_count > 0 ? "serious" : "neutral"}
+                  label="Could not be processed"
+                  value={metrics.detection_coverage.unprocessable_count}
+                  subtext="download or detection failed, or the file type is unsupported"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
