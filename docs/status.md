@@ -346,6 +346,19 @@
   changed list resets rather than carrying a stale selection across pets. No new keyboard
   vocabulary -- members are real toggle controls, so `useReviewKeyboard.ts` stays the app's only
   keymap
+- #143 sort clusters and photos by capture date or confidence (v1.8 FR-5): `RecommendationCluster
+  Service.clusters()` takes a `sort` (`captured_asc`, `captured_desc`, `confidence_desc` --
+  default, `confidence_asc`) that orders both the cluster list and each cluster's members from the
+  data already eager-loaded for review/library items -- no per-row lookup, no added query
+  regardless of pool size. A cluster's date key is its newest member for descending and its oldest
+  for ascending; its confidence key is its strongest member for descending and its weakest for
+  ascending. Photos and clusters with no capture date sort last under both date directions rather
+  than first or dropped, and a classification-id tiebreak keeps equal confidences or equal dates
+  from reordering between identical requests. Clustering, pooling, and the pool cap are unaffected
+  -- `sort` only reorders the response. `GET /library/clusters` takes the same `sort` query param
+  and echoes it back on the response; a new "Sort" control on the Library page's Recommendations
+  panel drives it, defaulting to "Surest first". The review queue's own triage ordering is
+  untouched
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
@@ -354,9 +367,9 @@ progress, scoped from
 [docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md), which
 compared our library workflow against the faces workflows in Lightroom Classic, Immich, and Apple
 Photos. FR-1 (#140, species -> pet selection as the Library's primary axis), FR-2/FR-3 (#141,
-clustering and cluster approval), FR-4 (#142, per-photo selection within a cluster), FR-8 (#146,
-detection coverage) and FR-10 (#148, merging two identities) have landed; sorting (#143),
-rejection (#144), and the remaining supporting gaps #147 and #149 are still open.
+clustering and cluster approval), FR-4 (#142, per-photo selection within a cluster), FR-5 (#143,
+sorting), FR-8 (#146, detection coverage) and FR-10 (#148, merging two identities) have landed;
+rejection (#144) and the remaining supporting gaps #147 and #149 are still open.
 
 Design decisions settled in review and recorded in the spec's "Resolved decisions": cold start stays
 with the Review tab (FR-7 dropped, #145 closed as not planned); approvals settle state and never
@@ -379,10 +392,9 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-Next under v1.8.0: #143 (sorting clusters and photos by capture date or confidence) and #144
-(rejection, which review settled as its own table rather than a new `ReviewActions` value, so
-"reviewed" keeps meaning one thing). #142's `useSelection` hook is the reusable primitive for the
-multi-select the flat library grid still lacks.
+Next under v1.8.0: #144 (rejection, which review settled as its own table rather than a new
+`ReviewActions` value, so "reviewed" keeps meaning one thing). #142's `useSelection` hook is the
+reusable primitive for the multi-select the flat library grid still lacks.
 
 Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture

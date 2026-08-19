@@ -72,6 +72,7 @@ describe("LibraryPage", () => {
       clustered_count: 0,
       distance_threshold: 0.2,
       truncated: false,
+      sort: "confidence_desc",
     });
     mockLibrary(0);
   });
@@ -106,7 +107,11 @@ describe("LibraryPage", () => {
     ).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(api.getPetClusters).toHaveBeenCalledWith("Hermann", "dog");
+      expect(api.getPetClusters).toHaveBeenCalledWith(
+        "Hermann",
+        "dog",
+        "confidence_desc",
+      );
     });
   });
 

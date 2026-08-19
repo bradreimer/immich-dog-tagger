@@ -35,7 +35,7 @@ from immich_dog_tagger.clustering import (
     medoid,
 )
 from immich_dog_tagger.embeddings import blob_to_embedding
-from immich_dog_tagger.enums import Species
+from immich_dog_tagger.enums import ClusterSort, Species
 from immich_dog_tagger.models import (
     Crop,
     CropClassification,
@@ -50,6 +50,9 @@ from immich_dog_tagger.services.review_query import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Approve the surest group first (issue #143).
+DEFAULT_CLUSTER_SORT = ClusterSort.CONFIDENCE_DESC
 
 # A pet with thousands of pending candidates must not produce an unbounded
 # clustering pass: the distance matrix is O(n^2) and the merge loop scans
@@ -92,6 +95,41 @@ def proposes_identity(
     )
 
 
+def _sort_review_items(
+    items: list[ReviewItem],
+    sort: ClusterSort,
+    similarity_by_id: dict[int, float],
+) -> list[ReviewItem]:
+    """
+    Order a cluster's members for one of `ClusterSort`'s four orders, with
+    a stable id tiebreak (issue #143) so equal confidences or equal dates
+    never reorder between two identical requests.
+
+    Sorting a null `captured_at` first by id, then stably by date, keeps
+    every null-date item in ascending-id order and, because Python's sort
+    is stable, moves only the dated items -- the null ones end up last
+    under both date directions without a second comparison key.
+    """
+    by_id = sorted(items, key=lambda item: item.classification_id)
+
+    if sort in (ClusterSort.CAPTURED_ASC, ClusterSort.CAPTURED_DESC):
+        dated = [item for item in by_id if item.captured_at is not None]
+        undated = [item for item in by_id if item.captured_at is None]
+
+        dated.sort(
+            key=lambda item: item.captured_at,
+            reverse=sort is ClusterSort.CAPTURED_DESC,
+        )
+
+        return dated + undated
+
+    return sorted(
+        by_id,
+        key=lambda item: similarity_by_id[item.classification_id],
+        reverse=sort is ClusterSort.CONFIDENCE_DESC,
+    )
+
+
 @dataclass(frozen=True)
 class ExcludedCandidate:
     """A pooled candidate that could not be clustered, and why."""
@@ -118,6 +156,44 @@ class RecommendationCluster:
         return len(self.members)
 
 
+def _sort_clusters(
+    clusters: list[RecommendationCluster],
+    sort: ClusterSort,
+) -> list[RecommendationCluster]:
+    """
+    Order the cluster list itself. The cluster-level key for a capture-date
+    sort is the newest member for descending and the oldest for ascending
+    (issue #143) -- a cluster with no dated members at all sorts last under
+    both, the same rule applied to individual photos.
+    """
+    by_id = sorted(clusters, key=lambda cluster: cluster.id)
+
+    if sort in (ClusterSort.CAPTURED_ASC, ClusterSort.CAPTURED_DESC):
+        key = (
+            "earliest_captured_at"
+            if sort is ClusterSort.CAPTURED_ASC
+            else "latest_captured_at"
+        )
+
+        dated = [cluster for cluster in by_id if getattr(cluster, key) is not None]
+        undated = [cluster for cluster in by_id if getattr(cluster, key) is None]
+
+        dated.sort(
+            key=lambda cluster: getattr(cluster, key),
+            reverse=sort is ClusterSort.CAPTURED_DESC,
+        )
+
+        return dated + undated
+
+    key = "max_similarity" if sort is ClusterSort.CONFIDENCE_DESC else "min_similarity"
+
+    return sorted(
+        by_id,
+        key=lambda cluster: getattr(cluster, key),
+        reverse=sort is ClusterSort.CONFIDENCE_DESC,
+    )
+
+
 @dataclass(frozen=True)
 class ClusterProposal:
     identity: str
@@ -131,6 +207,9 @@ class ClusterProposal:
     # and the pool was capped -- the owner sees the strongest ones first and
     # the rest appear once these are approved.
     truncated: bool
+    # The order applied to both the cluster list and each cluster's members
+    # (issue #143), echoed back so the caller never has to track it separately.
+    sort: ClusterSort
 
     @property
     def clustered_count(self) -> int:
@@ -178,11 +257,17 @@ class RecommendationClusterService:
         *,
         identity: str,
         species: Species,
+        sort: ClusterSort = DEFAULT_CLUSTER_SORT,
     ) -> ClusterProposal:
         """
         Cluster the unreviewed crops of `species` the classifier proposed
         for `identity` -- either as the accepted identity or as one of the
         stored candidates.
+
+        `sort` orders both the cluster list and each cluster's members
+        (issue #143). It never affects which candidates are pooled or how
+        they group into clusters -- only the order the result is presented
+        in.
         """
         self._require_identity(identity, species)
 
@@ -210,7 +295,7 @@ class RecommendationClusterService:
             embeddings.append(blob_to_embedding(classification.embedding))
             clusterable.append(classification)
 
-        clusters = self._build_clusters(clusterable, embeddings, identity)
+        clusters = self._build_clusters(clusterable, embeddings, identity, sort)
 
         return ClusterProposal(
             identity=identity,
@@ -220,6 +305,7 @@ class RecommendationClusterService:
             candidate_count=len(classifications),
             distance_threshold=self.distance_threshold,
             truncated=truncated,
+            sort=sort,
         )
 
     def _build_clusters(
@@ -227,6 +313,7 @@ class RecommendationClusterService:
         classifications: list[CropClassification],
         embeddings: list[np.ndarray],
         identity: str,
+        sort: ClusterSort,
     ) -> list[RecommendationCluster]:
         if not classifications:
             return []
@@ -243,36 +330,39 @@ class RecommendationClusterService:
                 [classifications[index] for index in group],
                 classifications[medoid(matrix, group)],
                 identity,
+                sort,
             )
             for group in groups
         ]
 
-        # agglomerative_clusters() already orders by size then by member
-        # index, and the pool it saw was ordered deterministically -- this
-        # re-sort only makes the tie-break explicit in terms the API
-        # exposes (cluster id), rather than positional indices.
-        return sorted(clusters, key=lambda cluster: (-cluster.size, cluster.id))
+        return _sort_clusters(clusters, sort)
 
     def _to_cluster(
         self,
         members: list[CropClassification],
         representative: CropClassification,
         identity: str,
+        sort: ClusterSort,
     ) -> RecommendationCluster:
-        ordered = sorted(members, key=lambda classification: classification.id)
+        # The cluster's id is always its lowest member id, regardless of
+        # `sort` -- so the same cluster keeps the same id across a sort
+        # change instead of shuffling identities the UI keys elements by.
+        by_id = sorted(members, key=lambda classification: classification.id)
 
-        items = [self.review_query.review_item(member) for member in ordered]
+        items = [self.review_query.review_item(member) for member in by_id]
 
-        similarities = [self._similarity_for(member, identity) for member in ordered]
+        similarity_by_id = {
+            member.id: self._similarity_for(member, identity) for member in by_id
+        }
 
         captured = [item.captured_at for item in items if item.captured_at is not None]
 
         return RecommendationCluster(
-            id=ordered[0].id,
+            id=by_id[0].id,
             representative=self.review_query.review_item(representative),
-            members=items,
-            min_similarity=min(similarities),
-            max_similarity=max(similarities),
+            members=_sort_review_items(items, sort, similarity_by_id),
+            min_similarity=min(similarity_by_id.values()),
+            max_similarity=max(similarity_by_id.values()),
             earliest_captured_at=min(captured, default=None),
             latest_captured_at=max(captured, default=None),
         )

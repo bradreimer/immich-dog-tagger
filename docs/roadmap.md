@@ -280,10 +280,14 @@ Completed:
   names the count it will apply to, and the approval submits an explicit id list the server
   validates against the pet's own candidate pool rather than re-deriving membership. The generic
   `useSelection` hook it introduces is the app's first multi-select primitive.
+- #143 (FR-5): sort the cluster list and each cluster's members by capture date or confidence
+  (default confidence descending -- approve the surest group first), from the data already
+  eager-loaded for review/library items, with a classification-id tiebreak and null capture dates
+  sorting last under both date directions.
 
 In progress / open:
-- #143 (FR-5) sorting; supporting gaps #144 (FR-6) rejection,
-  #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch reclassification.
+- Supporting gaps: #144 (FR-6) rejection, #147 (FR-11) missed-detection rescue, #149 (FR-9)
+  sensitivity and post-batch reclassification.
 
 Explicitly not planned (see spec Non-goals): cold-start clustering for a pet with no examples
 (FR-7 dropped, [#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) closed as not

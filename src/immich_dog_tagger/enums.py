@@ -50,6 +50,19 @@ class ReviewActions(StrEnum):
     CORRECT = "correct"
 
 
+class ClusterSort(StrEnum):
+    """
+    How the Library approval workspace orders a pet's clusters and each
+    cluster's members (issue #143). Applies at both levels: the cluster
+    list and the photos within one cluster.
+    """
+
+    CAPTURED_ASC = "captured_asc"
+    CAPTURED_DESC = "captured_desc"
+    CONFIDENCE_DESC = "confidence_desc"
+    CONFIDENCE_ASC = "confidence_asc"
+
+
 class PipelineOperation(StrEnum):
     SCAN = "scan"
     DETECT = "detect"

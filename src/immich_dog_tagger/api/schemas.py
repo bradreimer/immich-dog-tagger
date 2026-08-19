@@ -2,7 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation, Species
+from immich_dog_tagger.enums import (
+    ClusterSort,
+    PipelineJobStatus,
+    PipelineOperation,
+    Species,
+)
 
 
 class ScheduleResponse(BaseModel):
@@ -274,6 +279,7 @@ class ClusterProposalResponse(BaseModel):
     clustered_count: int
     distance_threshold: float
     truncated: bool
+    sort: ClusterSort
 
     @classmethod
     def from_proposal(cls, proposal):
@@ -296,6 +302,7 @@ class ClusterProposalResponse(BaseModel):
             clustered_count=proposal.clustered_count,
             distance_threshold=proposal.distance_threshold,
             truncated=proposal.truncated,
+            sort=proposal.sort,
         )
 
 

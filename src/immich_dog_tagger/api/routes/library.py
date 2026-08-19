@@ -16,7 +16,7 @@ from immich_dog_tagger.api.schemas import (
     ClusterProposalResponse,
     LibraryPageResponse,
 )
-from immich_dog_tagger.enums import Species
+from immich_dog_tagger.enums import ClusterSort, Species
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
     RecommendationClusterService,
@@ -67,16 +67,21 @@ def library_clusters(
     ],
     identity: str = Query(...),
     species: Species = Query(...),
+    sort: ClusterSort = Query(ClusterSort.CONFIDENCE_DESC),
 ):
     """
     The pending recommendations for one pet, grouped into clusters of
     visually similar crops. A read: it writes nothing and proposes
     groupings only -- no identity is settled until a human approves.
+
+    `sort` orders both the cluster list and each cluster's members
+    (issue #143).
     """
     try:
         proposal = service.clusters(
             identity=identity,
             species=species,
+            sort=sort,
         )
     except ValueError as e:
         raise HTTPException(

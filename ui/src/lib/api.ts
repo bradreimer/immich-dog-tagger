@@ -9,7 +9,11 @@ import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
-import type { ClusterApprovalResult, ClusterProposal } from "../types/clusters";
+import type {
+  ClusterApprovalResult,
+  ClusterProposal,
+  ClusterSort,
+} from "../types/clusters";
 import type { Settings } from "../types/settings";
 import type { Health } from "../types/health";
 import type {
@@ -372,10 +376,15 @@ export async function cancelJob(id: number): Promise<PipelineJob> {
 export async function getPetClusters(
   identity: string,
   species: string,
+  sort?: ClusterSort,
 ): Promise<ClusterProposal> {
   const params = new URLSearchParams();
   params.set("identity", identity);
   params.set("species", species);
+
+  if (sort) {
+    params.set("sort", sort);
+  }
 
   const response = await fetch(`/api/library/clusters?${params.toString()}`);
 
