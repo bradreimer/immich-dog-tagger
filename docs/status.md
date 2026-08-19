@@ -281,7 +281,28 @@
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
 
 ## Current Milestone
-No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
+spec: [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) --
+scoped but not started. Turns the Library from a flat photo grid into an identity-first approval
+surface: select a species, select a dog or cat, then approve clusters of recommendations, sortable
+by capture date (both directions) or confidence. Scoped from
+[docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md), which
+compared our library workflow against the faces workflows in Lightroom Classic, Immich, and Apple
+Photos and found our widest gap is speed to first value: every competitor groups unlabeled subjects
+at zero labels, while we require 50-100 single-item reviews before automation begins.
+
+Sub-issues, in dependency order: [#140](https://github.com/bradreimer/immich-dog-tagger/issues/140)
+pet-scoped library, [#141](https://github.com/bradreimer/immich-dog-tagger/issues/141) clustering +
+one-action approval, [#142](https://github.com/bradreimer/immich-dog-tagger/issues/142) per-photo
+exclusion, [#143](https://github.com/bradreimer/immich-dog-tagger/issues/143) sorting,
+[#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) cold-start clusters. Supporting:
+[#144](https://github.com/bradreimer/immich-dog-tagger/issues/144) "not this pet" rejection,
+[#146](https://github.com/bradreimer/immich-dog-tagger/issues/146) coverage reporting,
+[#147](https://github.com/bradreimer/immich-dog-tagger/issues/147) rescue a missed detection,
+[#148](https://github.com/bradreimer/immich-dog-tagger/issues/148) merge identities,
+[#149](https://github.com/bradreimer/immich-dog-tagger/issues/149) sensitivity + auto-reclassify.
+
+Previously: v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
 page species correction, predicted-identity highlight), and #125 (version display) followed as
 additional reliability/UX fixes, along with #128 (link from a review item to its original photo

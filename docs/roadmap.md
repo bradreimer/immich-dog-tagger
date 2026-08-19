@@ -251,6 +251,52 @@ Tour map, per-provider enable/disable settings, any dynamic/third-party plugin l
 Exit criteria:
 Completed.
 
+## v1.8.0 - Library as an Approval Workspace (planned)
+
+See [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md) and
+[docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md).
+Tracking issue: [#139](https://github.com/bradreimer/immich-dog-tagger/issues/139).
+
+Goal:
+Turn the Library from a flat, photo-first grid into an identity-first approval surface -- select a
+species, select a dog or cat, then approve clusters of recommendations for that pet, sortable by
+capture date (oldest first / newest first) or confidence. A competitive analysis against the faces
+workflows in Lightroom Classic, Immich, and Apple Photos found our labeling cost scales with the
+number of photos while every competitor's scales with the number of subjects, and that all three
+deliver grouped, nameable subjects at zero labels where we require 50-100 single-item reviews first.
+
+Planned:
+- [#140](https://github.com/bradreimer/immich-dog-tagger/issues/140): species -> pet selection as
+  the Library's primary axis (FR-1)
+- [#141](https://github.com/bradreimer/immich-dog-tagger/issues/141): recommendation clusters over
+  the embeddings already stored on `CropClassification`, and one-action cluster approval routed
+  through the existing correction service (FR-2, FR-3)
+- [#142](https://github.com/bradreimer/immich-dog-tagger/issues/142): per-photo exclusion before
+  approving a cluster (FR-4)
+- [#143](https://github.com/bradreimer/immich-dog-tagger/issues/143): sort clusters and members by
+  capture date or confidence (FR-5)
+- [#144](https://github.com/bradreimer/immich-dog-tagger/issues/144): reject a recommendation as
+  "not this pet" (FR-6)
+- [#145](https://github.com/bradreimer/immich-dog-tagger/issues/145): cold-start clusters for a pet
+  with no examples yet (FR-7)
+- [#146](https://github.com/bradreimer/immich-dog-tagger/issues/146): honest detection-coverage
+  reporting (FR-8)
+- [#147](https://github.com/bradreimer/immich-dog-tagger/issues/147): tag a photo whose pet the
+  detector missed (FR-11)
+- [#148](https://github.com/bradreimer/immich-dog-tagger/issues/148): merge two identities (FR-10)
+- [#149](https://github.com/bradreimer/immich-dog-tagger/issues/149): owner-facing tagging
+  sensitivity and auto-reclassify after a review batch (FR-9)
+
+Explicitly not planned (see spec Non-goals): removing or changing the review queue; changing
+classification policy, thresholds, or the embedding model as part of the workflow change; any
+identity inference from clustering; undo/redo; bulk species correction; writing pets into Immich's
+People surface (that needs an ADR of its own).
+
+Exit criteria:
+Not started.
+
+---
+
 ## Active Learning Improvements
 
 Goal:
