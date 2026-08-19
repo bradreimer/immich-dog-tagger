@@ -224,13 +224,46 @@ def test_clusters_endpoint_returns_clusters_for_a_pet(api_client, engine):
 
     assert cluster["size"] == 3
     assert cluster["representative"]["image_url"].startswith("/crops/")
-    assert [member["classification_id"] for member in cluster["members"]] == (
-        classification_ids
+    # Default sort is confidence descending (issue #143) -- the surest
+    # member first, which for this fixture is also the highest id.
+    assert [member["classification_id"] for member in cluster["members"]] == list(
+        reversed(classification_ids)
     )
     assert cluster["min_similarity"] == pytest.approx(0.70)
     assert cluster["max_similarity"] == pytest.approx(0.72)
     assert cluster["earliest_captured_at"].startswith("2026-01-01")
     assert cluster["latest_captured_at"].startswith("2026-01-03")
+    assert payload["sort"] == "confidence_desc"
+
+
+def test_clusters_endpoint_accepts_a_sort_query_param(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    response = api_client.get(
+        "/library/clusters?identity=Fibs&species=dog&sort=captured_asc"
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["sort"] == "captured_asc"
+    # Ascending capture date matches ascending id for this fixture.
+    assert [
+        member["classification_id"] for member in payload["clusters"][0]["members"]
+    ] == classification_ids
+
+
+def test_clusters_endpoint_rejects_an_unknown_sort(api_client, engine):
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session)
+
+    response = api_client.get(
+        "/library/clusters?identity=Fibs&species=dog&sort=alphabetical"
+    )
+
+    assert response.status_code == 422
 
 
 def test_clusters_endpoint_is_empty_for_a_pet_with_no_candidates(api_client, engine):
@@ -373,3 +406,17 @@ def test_clusters_endpoint_query_count_is_independent_of_pool_size(api_client, e
         api_client.get("/library/clusters?identity=Fibs&species=dog")
 
     assert small.count == large.count
+
+
+def test_clusters_endpoint_query_count_is_independent_of_sort(api_client, engine):
+    """Sorting reorders an already-loaded result set; it must not add a query."""
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session, count=10)
+
+    with QueryCounter(engine) as unsorted:
+        api_client.get("/library/clusters?identity=Fibs&species=dog")
+
+    with QueryCounter(engine) as sorted_by_date:
+        api_client.get("/library/clusters?identity=Fibs&species=dog&sort=captured_asc")
+
+    assert unsorted.count == sorted_by_date.count

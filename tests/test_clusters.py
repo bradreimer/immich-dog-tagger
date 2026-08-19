@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import (
     ClassificationSources,
+    ClusterSort,
     EmbeddingSources,
     ReviewActions,
     Species,
@@ -198,6 +199,234 @@ def test_cluster_reports_representative_counts_and_ranges(engine):
         # SQLite stores naive datetimes, so compare on the wall clock it kept.
         assert cluster.earliest_captured_at == earliest.replace(tzinfo=None)
         assert cluster.latest_captured_at == latest.replace(tzinfo=None)
+
+
+def test_default_sort_is_confidence_descending(engine):
+    """Issue #143: approve the surest group first, with no sort requested."""
+    with Session(engine) as session:
+        _identity(session)
+
+        low = _classification(session, path="low.jpg", confidence=0.55)
+        high = _classification(session, path="high.jpg", confidence=0.95)
+
+        proposal = RecommendationClusterService(session).clusters(
+            identity="Fibs",
+            species=Species.DOG,
+        )
+
+        assert proposal.sort == ClusterSort.CONFIDENCE_DESC
+        assert [
+            member.classification_id for member in proposal.clusters[0].members
+        ] == [high.id, low.id]
+
+
+@pytest.mark.parametrize(
+    "sort,expected",
+    [
+        (ClusterSort.CONFIDENCE_ASC, ["low.jpg", "mid.jpg", "high.jpg"]),
+        (ClusterSort.CONFIDENCE_DESC, ["high.jpg", "mid.jpg", "low.jpg"]),
+    ],
+)
+def test_members_sort_by_confidence(engine, sort, expected):
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(session, path="mid.jpg", confidence=0.70)
+        _classification(session, path="low.jpg", confidence=0.55)
+        _classification(session, path="high.jpg", confidence=0.90)
+
+        proposal = RecommendationClusterService(session).clusters(
+            identity="Fibs",
+            species=Species.DOG,
+            sort=sort,
+        )
+
+        assert proposal.sort == sort
+        assert [member.path.name for member in proposal.clusters[0].members] == expected
+
+
+@pytest.mark.parametrize(
+    "sort,expected",
+    [
+        (ClusterSort.CAPTURED_ASC, ["early.jpg", "late.jpg", "undated.jpg"]),
+        (ClusterSort.CAPTURED_DESC, ["late.jpg", "early.jpg", "undated.jpg"]),
+    ],
+)
+def test_members_sort_by_capture_date_with_nulls_last(engine, sort, expected):
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(
+            session,
+            path="undated.jpg",
+            captured_at=None,
+        )
+        _classification(
+            session,
+            path="early.jpg",
+            captured_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+        _classification(
+            session,
+            path="late.jpg",
+            captured_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        proposal = RecommendationClusterService(session).clusters(
+            identity="Fibs",
+            species=Species.DOG,
+            sort=sort,
+        )
+
+        assert [member.path.name for member in proposal.clusters[0].members] == expected
+
+
+def test_members_with_tied_values_break_ties_by_id_and_stay_stable(engine):
+    with Session(engine) as session:
+        _identity(session)
+
+        same_date = datetime(2025, 6, 1, tzinfo=UTC)
+
+        first = _classification(
+            session, path="a.jpg", confidence=0.80, captured_at=same_date
+        )
+        second = _classification(
+            session, path="b.jpg", confidence=0.80, captured_at=same_date
+        )
+        third = _classification(
+            session, path="c.jpg", confidence=0.80, captured_at=same_date
+        )
+
+        service = RecommendationClusterService(session)
+
+        for sort in ClusterSort:
+            first_call = service.clusters(
+                identity="Fibs",
+                species=Species.DOG,
+                sort=sort,
+            )
+            second_call = service.clusters(
+                identity="Fibs",
+                species=Species.DOG,
+                sort=sort,
+            )
+
+            order_1 = [m.classification_id for m in first_call.clusters[0].members]
+            order_2 = [m.classification_id for m in second_call.clusters[0].members]
+
+            # Equal confidences and equal dates never reorder between two
+            # identical requests, and the tiebreak is ascending id.
+            assert order_1 == order_2 == [first.id, second.id, third.id]
+
+
+def test_clusters_sort_by_capture_date_with_nulls_last(engine):
+    """
+    Cluster-level date key: the cluster's earliest member for ascending, its
+    latest for descending. A cluster with no dated members at all sorts last
+    under both directions.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(
+            session,
+            path="undated.jpg",
+            embedding=[0.0, 0.0, 1.0],
+            captured_at=None,
+        )
+        _classification(
+            session,
+            path="early.jpg",
+            embedding=[1.0, 0.0, 0.0],
+            captured_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+        _classification(
+            session,
+            path="late.jpg",
+            embedding=[0.0, 1.0, 0.0],
+            captured_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        service = RecommendationClusterService(session)
+
+        ascending = service.clusters(
+            identity="Fibs", species=Species.DOG, sort=ClusterSort.CAPTURED_ASC
+        )
+        descending = service.clusters(
+            identity="Fibs", species=Species.DOG, sort=ClusterSort.CAPTURED_DESC
+        )
+
+        def leader(proposal):
+            return [cluster.members[0].path.name for cluster in proposal.clusters]
+
+        assert leader(ascending) == ["early.jpg", "late.jpg", "undated.jpg"]
+        assert leader(descending) == ["late.jpg", "early.jpg", "undated.jpg"]
+
+
+def test_clusters_sort_by_confidence(engine):
+    """
+    Cluster-level confidence key: the cluster's strongest member for
+    descending, its weakest for ascending -- so descending really does
+    surface the surest group first.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(
+            session, path="weak.jpg", embedding=[0.0, 0.0, 1.0], confidence=0.55
+        )
+        _classification(
+            session, path="strong.jpg", embedding=[1.0, 0.0, 0.0], confidence=0.95
+        )
+        _classification(
+            session, path="mid.jpg", embedding=[0.0, 1.0, 0.0], confidence=0.75
+        )
+
+        service = RecommendationClusterService(session)
+
+        descending = service.clusters(
+            identity="Fibs", species=Species.DOG, sort=ClusterSort.CONFIDENCE_DESC
+        )
+        ascending = service.clusters(
+            identity="Fibs", species=Species.DOG, sort=ClusterSort.CONFIDENCE_ASC
+        )
+
+        def leader(proposal):
+            return [cluster.members[0].path.name for cluster in proposal.clusters]
+
+        assert leader(descending) == ["strong.jpg", "mid.jpg", "weak.jpg"]
+        assert leader(ascending) == ["weak.jpg", "mid.jpg", "strong.jpg"]
+
+
+def test_sort_never_changes_pool_membership_or_clustering(engine):
+    """
+    `sort` only reorders the response; it must never change which
+    candidates are pooled, how they group, or write anything.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(session, path="a.jpg", embedding=[1.0, 0.0, 0.0])
+        _classification(session, path="b.jpg", embedding=[0.99, 0.05, 0.0])
+        _classification(session, path="c.jpg", embedding=[0.0, 1.0, 0.0])
+
+        service = RecommendationClusterService(session)
+
+        by_sort = {
+            sort: service.clusters(identity="Fibs", species=Species.DOG, sort=sort)
+            for sort in ClusterSort
+        }
+
+        candidate_counts = {p.candidate_count for p in by_sort.values()}
+        clustered_counts = {p.clustered_count for p in by_sort.values()}
+        member_sets = {
+            frozenset(m.classification_id for c in p.clusters for m in c.members)
+            for p in by_sort.values()
+        }
+
+        assert candidate_counts == {3}
+        assert clustered_counts == {3}
+        assert len(member_sets) == 1
 
 
 def test_pool_includes_crops_where_the_pet_is_only_a_candidate(engine):

@@ -57,6 +57,7 @@ function buildProposal(overrides: Partial<ClusterProposal> = {}): ClusterProposa
     clustered_count: clusters.reduce((total, cluster) => total + cluster.size, 0),
     distance_threshold: 0.2,
     truncated: false,
+    sort: "confidence_desc",
     ...overrides,
   };
 }
@@ -232,6 +233,52 @@ describe("ClusterPanel", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "13.jpg" }));
 
     expect(screen.getByText("12 of 13 selected")).toBeInTheDocument();
+  });
+
+  it("shows the current sort at a glance and defaults to surest first", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    expect(await screen.findByText("3 photos")).toBeInTheDocument();
+
+    expect(api.getPetClusters).toHaveBeenCalledWith(
+      "Hermann",
+      "dog",
+      "confidence_desc",
+    );
+
+    const select = screen.getByLabelText("Sort") as HTMLSelectElement;
+
+    expect(select.value).toBe("confidence_desc");
+  });
+
+  it("re-fetches with the chosen sort and reflects it once loaded", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    await screen.findByText("3 photos");
+
+    vi.mocked(api.getPetClusters).mockResolvedValue(
+      buildProposal({ sort: "captured_asc" }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Sort"), {
+      target: { value: "captured_asc" },
+    });
+
+    await waitFor(() => {
+      expect(api.getPetClusters).toHaveBeenCalledWith(
+        "Hermann",
+        "dog",
+        "captured_asc",
+      );
+    });
+
+    expect((screen.getByLabelText("Sort") as HTMLSelectElement).value).toBe(
+      "captured_asc",
+    );
   });
 
   it("shows an explicit empty state for a pet with no pending candidates", async () => {

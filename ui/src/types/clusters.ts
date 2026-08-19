@@ -1,5 +1,15 @@
 import type { ReviewItem } from "./review";
 
+/**
+ * How the cluster list and each cluster's members are ordered (issue #143).
+ * Default is "confidence_desc" -- approve the surest group first.
+ */
+export type ClusterSort =
+  | "captured_asc"
+  | "captured_desc"
+  | "confidence_desc"
+  | "confidence_asc";
+
 /** A pooled candidate that could not be clustered, and why. */
 export interface ExcludedCandidate {
   classification_id: number;
@@ -27,6 +37,7 @@ export interface ClusterProposal {
   clustered_count: number;
   distance_threshold: number;
   truncated: boolean;
+  sort: ClusterSort;
 }
 
 export interface ApprovalSkip {
