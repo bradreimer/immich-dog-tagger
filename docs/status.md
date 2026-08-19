@@ -280,22 +280,35 @@
   where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
 
-- #146 detection coverage on the Metrics tab: a new **Library Coverage** card whose denominator is
-  photos detection has finished with, not the crops it produced -- so photos that yielded no crop
-  (the population a missed pet hides in), photos awaiting detection, and photos that could not be
-  processed are each visible as their own count instead of being absent from every existing figure.
-  Two fixed aggregate queries, pinned by a query-count assertion on the endpoint; the existing
-  automation-rate/confident-coverage definitions are unchanged and pinned by a regression test.
-  Deliberately labeled coverage, never accuracy or recall -- there is no ground truth for photos
-  detection never flagged. FR-8 of [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)
+- #140 v1.8.0 FR-1 Library scoped to one pet: the Library's species and identity filters became a
+  selection step -- a species chooser (Dogs / Cats / All species) plus a pet chooser listing the
+  active identities -- backed by a `LibraryWorkspaceProvider` context so the clustering, sorting,
+  and approval stories under #139 read the same selection rather than a filter row's local state.
+  Changing species clears a pet that no longer applies (no stale dog selected under Cats), every
+  selection change still resets pagination, the flat "all photos" view keeps its review-status and
+  capture-date filters and pagination unchanged, and a library with no identities configured points
+  the owner at Dogs & Cats instead of showing a blank chooser. No API change: `GET /api/library`
+  already accepted `identity` and `species`. See
+  [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
+- #146 v1.8.0 FR-8 detection coverage on the Metrics tab: a new **Library Coverage** card whose
+  denominator is photos detection has finished with, not the crops it produced -- so photos that
+  yielded no crop (the population a missed pet hides in), photos awaiting detection, and photos that
+  could not be processed are each visible as their own count instead of being absent from every
+  existing figure. Two fixed aggregate queries, pinned by a query-count assertion on the endpoint;
+  the existing automation-rate/confident-coverage definitions are unchanged and pinned by a
+  regression test. Deliberately labeled coverage, never accuracy or recall -- there is no ground
+  truth for photos detection never flagged. See
+  [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md).
 
 ## Current Milestone
-v1.8.0 Library as an approval workspace (#139) -- species -> pet -> approve clusters. Spec:
-[docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md). FR-8
-(#146, detection coverage) has landed; the core clustering workflow (#140-#145) and the remaining
-supporting gaps (#147-#149) are open.
+v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
+[docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
+progress: FR-1 (#140, species -> pet selection as the Library's primary axis) and FR-8 (#146,
+detection coverage) have landed; clustering and cluster approval (#141), in-cluster selection
+(#142), sorting (#143), rejection (#144), and cold start (#145) are still open, as are the
+remaining supporting gaps #147-#149.
 
-Previously: v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
+Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
 page species correction, predicted-identity highlight), and #125 (version display) followed as
 additional reliability/UX fixes, along with #128 (link from a review item to its original photo
@@ -303,7 +316,11 @@ in Immich). `pyproject.toml`/`uv.lock`/the API app version had lagged at 1.6.0 t
 that; this catches them up to 1.7.0 and tags the release.
 
 ## Next Work
-v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
+Next under v1.8.0: #141 (cluster recommendations for the selected pet and approve a cluster in one
+action), which depends on #140 and on settling the spec's first open question -- which clustering
+algorithm, and whether it runs on demand or as a job with cached assignments.
+
+Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
 #110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
 curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
