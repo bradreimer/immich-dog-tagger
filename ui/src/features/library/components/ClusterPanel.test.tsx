@@ -126,6 +126,114 @@ describe("ClusterPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("approves only the members left selected", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+    vi.mocked(api.approveCluster).mockResolvedValue({
+      identity: "Hermann",
+      applied: 2,
+      skipped: 0,
+      skips: [],
+    });
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    // The odd photo out: deselected before approving.
+    fireEvent.click(await screen.findByRole("checkbox", { name: "2.jpg" }));
+
+    expect(screen.getByRole("checkbox", { name: "2.jpg" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(screen.getByText("2 of 3 selected")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Approve 2 photos as Hermann" }),
+    );
+
+    await waitFor(() => {
+      expect(api.approveCluster).toHaveBeenCalledWith("Hermann", "dog", [1, 3]);
+    });
+  });
+
+  it("puts the count it will apply to on the approve control", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    expect(await screen.findByText("Approve 3 photos")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "1.jpg" }));
+
+    expect(screen.getByText("Approve 2 photos")).toBeInTheDocument();
+  });
+
+  it("selects none and then all again within a cluster", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select none" }));
+
+    expect(screen.getByText("0 of 3 selected")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+
+    expect(screen.getByText("3 of 3 selected")).toBeInTheDocument();
+  });
+
+  it("disables approve rather than submitting an empty approval", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select none" }));
+
+    const approve = screen.getByRole("button", {
+      name: "Approve 0 photos as Hermann",
+    });
+
+    expect(approve).toBeDisabled();
+
+    fireEvent.click(approve);
+
+    expect(api.approveCluster).not.toHaveBeenCalled();
+  });
+
+  it("clears the selection when the pet changes", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+    const { rerender } = render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select none" }));
+
+    expect(screen.getByText("0 of 3 selected")).toBeInTheDocument();
+
+    rerender(<ClusterPanel identity="Otto" species="dog" />);
+
+    // The hardest case: the new pet's clusters happen to carry the same ids,
+    // so nothing about the cluster itself signals the change. A stale
+    // selection must never carry across pets even then.
+    expect(await screen.findByText("3 of 3 selected")).toBeInTheDocument();
+  });
+
+  it("reveals the members a large cluster collapses, so each can be deselected", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(
+      buildProposal({ clusters: [buildCluster(1, 13)] }),
+    );
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    expect(screen.queryByRole("checkbox", { name: "13.jpg" })).not.toBeInTheDocument();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Show all 13 photos in this group" }),
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "13.jpg" }));
+
+    expect(screen.getByText("12 of 13 selected")).toBeInTheDocument();
+  });
+
   it("shows an explicit empty state for a pet with no pending candidates", async () => {
     vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal({ clusters: [] }));
 

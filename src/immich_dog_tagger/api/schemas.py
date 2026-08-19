@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation, Species
 
@@ -302,7 +302,9 @@ class ClusterProposalResponse(BaseModel):
 class ClusterApprovalRequest(BaseModel):
     identity: str
     species: Species
-    classification_ids: list[int]
+    # The owner's explicit selection (issue #142), never a cluster id the
+    # server would expand into a membership list of its own.
+    classification_ids: list[int] = Field(min_length=1)
 
 
 class ApprovalSkipResponse(BaseModel):

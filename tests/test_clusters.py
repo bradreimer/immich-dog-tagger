@@ -531,3 +531,113 @@ def test_approved_members_leave_the_candidate_pool(engine):
 
         assert after.candidate_count == 1
         assert after.clusters[0].members[0].classification_id == members[2].id
+
+
+def test_approval_applies_to_exactly_the_submitted_ids(engine):
+    """The owner's deselection is honoured: nothing outside the list is touched."""
+    with Session(engine) as session:
+        _identity(session)
+
+        members = [
+            _classification(session, path=f"crop-{index}.jpg") for index in range(4)
+        ]
+
+        # The owner deselected the third photo before approving.
+        selected = [members[0].id, members[1].id, members[3].id]
+
+        summary = _approval_service(session).approve(
+            identity="Fibs",
+            species=Species.DOG,
+            classification_ids=selected,
+        )
+
+        assert summary.applied == 3
+        assert summary.skipped == 0
+
+        session.refresh(members[2])
+
+        assert members[2].source != ClassificationSources.REVIEW
+        assert members[2].review_actions == []
+
+        reviewed = session.scalars(
+            select(ReviewAction.classification_id).order_by(
+                ReviewAction.classification_id
+            )
+        ).all()
+
+        assert list(reviewed) == sorted(selected)
+
+
+def test_approval_refuses_ids_outside_the_pets_recommendations(engine):
+    """
+    A submitted id the classifier never proposed this pet for was never in
+    the cluster the owner saw, so it is refused rather than labelled.
+    """
+    with Session(engine) as session:
+        _identity(session)
+        _identity(session, name="Otto")
+
+        member = _classification(session, path="fibs.jpg")
+        other_pet = _classification(session, path="otto.jpg", identity="Otto")
+        unclassified = _classification(session, path="unknown.jpg", identity=None)
+
+        summary = _approval_service(session).approve(
+            identity="Fibs",
+            species=Species.DOG,
+            classification_ids=[member.id, other_pet.id, unclassified.id],
+        )
+
+        assert summary.applied == 1
+        assert {(skip.classification_id, skip.reason) for skip in summary.skips} == {
+            (other_pet.id, "not-recommended"),
+            (unclassified.id, "not-recommended"),
+        }
+
+        for rejected in (other_pet, unclassified):
+            session.refresh(rejected)
+
+            assert rejected.identity != "Fibs"
+            assert rejected.review_actions == []
+
+
+def test_approval_accepts_a_crop_where_the_pet_is_only_a_candidate(engine):
+    """The pool includes runner-up candidates, so an approval must too."""
+    with Session(engine) as session:
+        _identity(session)
+        _identity(session, name="Otto")
+
+        runner_up = _classification(
+            session,
+            path="runner-up.jpg",
+            identity="Otto",
+            candidates=[{"identity": "Fibs", "similarity": 0.61}],
+        )
+
+        summary = _approval_service(session).approve(
+            identity="Fibs",
+            species=Species.DOG,
+            classification_ids=[runner_up.id],
+        )
+
+        assert summary.applied == 1
+        assert summary.skips == []
+
+        session.refresh(runner_up)
+
+        assert runner_up.identity == "Fibs"
+
+
+def test_approving_an_empty_selection_is_an_error(engine):
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(session, path="a.jpg")
+
+        with pytest.raises(ValueError):
+            _approval_service(session).approve(
+                identity="Fibs",
+                species=Species.DOG,
+                classification_ids=[],
+            )
+
+        assert session.scalar(select(func.count()).select_from(ReviewAction)) == 0
