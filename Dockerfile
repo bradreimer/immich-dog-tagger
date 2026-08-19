@@ -31,4 +31,12 @@ RUN uv pip install --system .
 
 RUN mkdir -p /tmp/ultralytics/Ultralytics && chmod -R 777 /tmp/ultralytics
 
+# 7. Bake in the commit this image was built from, so the running app's version
+# string can include it (see immich_dog_tagger/version.py). CI passes
+# --build-arg GIT_COMMIT=<short sha> on every push to main; a local `docker build`
+# without the arg leaves this empty and get_version() falls back to the plain
+# package version.
+ARG GIT_COMMIT=""
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 ENTRYPOINT ["immich-dog-tagger"]

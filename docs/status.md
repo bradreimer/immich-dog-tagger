@@ -357,7 +357,10 @@ as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116
 page species correction, predicted-identity highlight), and #125 (version display) followed as
 additional reliability/UX fixes, along with #128 (link from a review item to its original photo
 in Immich). `pyproject.toml`/`uv.lock`/the API app version had lagged at 1.6.0 through all of
-that; this catches them up to 1.7.0 and tags the release.
+that; this catches them up to 1.7.0 and tags the release. #155 followed, extending #125's
+version display with the short commit SHA of the build (`GIT_COMMIT` build arg baked into the
+Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/settings version
+now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
 Next under v1.8.0: #142 (per-photo exclusion within a proposed cluster), which should land with or
