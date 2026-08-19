@@ -270,20 +270,25 @@ Completed:
 - #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
   reference examples and pet occurrences move to the target, review history is left intact, the
   source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
+- #146 (FR-8): detection coverage on the Metrics tab, denominated in photos detection has finished
+  with rather than in crops that already exist.
+- #141 (FR-2/FR-3): the selected pet's pending recommendations grouped into clusters of visually
+  similar crops (agglomerative over cosine distance, computed on demand, writing nothing), each
+  approvable in one action as N ordinary corrections with applied/skipped accounting.
 
 In progress / open:
-- #141 (FR-2/FR-3) cluster and approve, #142 (FR-4) in-cluster selection, #143 (FR-5) sorting,
-  #145 (FR-7) cold start; supporting gaps #144 (FR-6) rejection, #146 (FR-8) detection coverage,
-  #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch
-  reclassification.
+- #142 (FR-4) in-cluster selection, #143 (FR-5) sorting; supporting gaps #144 (FR-6) rejection,
+  #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch reclassification.
+- #145 (FR-7) cold start was closed as not planned: the candidate pool stays identity-scoped and
+  bounded, and a pet with no examples is bootstrapped through the Review tab.
 
 Explicitly not planned this iteration (see spec Non-goals): removing or changing the review queue,
 changing classification policy/thresholds/the embedding model, changing `GET /api/library`'s query
 semantics, or a fully automatic label-without-the-owner model.
 
 Exit criteria:
-The core workflow issues (#140-#143, #145) are closed and the owner can confirm a group of photos
-for one pet in a single action.
+The core workflow issues (#140-#143) are closed and the owner can confirm a group of photos for one
+pet in a single action.
 
 ## Active Learning Improvements
 

@@ -54,6 +54,24 @@ decision. The pipeline, `Reclassify`, and the review queue all read from it, so 
 `CropClassification`, so a prediction can always be traced back to the configuration that
 produced it.
 
+## Clustering is not classification
+
+`clustering.py` and `services/clusters.py` (issue #141) group one pet's *pending recommendations*
+into sets of visually similar crops, so the owner can approve a whole set in one action from the
+Library. It sits beside classification, not inside it:
+
+- It is a **read**. It writes no prediction, no confidence and no identity; running it twice with
+  no approvals in between changes no rows.
+- It uses **agglomerative average-linkage clustering over cosine distance**, computed on demand
+  over the embeddings already stored on `CropClassification`. Ties break by lowest index, so the
+  same pool always produces the same groups.
+- Its distance cut (0.20 cosine distance) is a **grouping knob owned by `clustering.py`**, not a
+  classification threshold. It never reads or writes `ClassifierPolicy`: it answers "do these
+  photos look alike enough to show as one group?", not "is this the pet?".
+- Approving a cluster is **N ordinary corrections** through `ClassificationCorrectionService`, so
+  an approval leaves exactly the review actions, reference examples and provenance that N single
+  reviews would.
+
 ## What this doesn't do
 
 - **No calibrated confidence.** Similarity is a raw cosine score against your own examples, not a
@@ -62,6 +80,8 @@ produced it.
 - **No owner-configured identity date ranges.** Removed in v1.5 in favor of automatic per-example
   weighting — see [v1.5-automatic-temporal-classification.md](specs/v1.5-automatic-temporal-classification.md).
 - **No retraining.** "Learning" means adding reference examples, not updating model weights.
+- **No identity from clustering.** A cluster is a proposal about visual similarity; only a human
+  approval settles who is in a photo.
 
 See [docs/specs/v1.0.0.md](specs/v1.0.0.md) section 8 for the full list of things classification
 deliberately doesn't claim.

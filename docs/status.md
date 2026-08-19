@@ -313,14 +313,32 @@
   membership diff -- the merge deliberately leaves those rows alone so sync can see them as stale.
   New `POST /dogs/{id}/merge` and a two-step, destructive-styled, confirmed merge control on the
   Dogs & Cats page
+- #141 cluster recommendations and approve a cluster in one action (v1.8 FR-2/FR-3): the Library's
+  selected pet now gets its pending recommendations grouped into clusters of visually similar crops,
+  each approvable in one click. `RecommendationClusterService` pools the unreviewed classifications
+  where the pet is the accepted identity *or* a stored candidate, and groups them with
+  agglomerative average-linkage clustering over cosine distance (new `clustering.py`), computed on
+  demand -- a read that writes nothing, proposes groupings only, and never touches `policy.py`'s
+  thresholds. Each cluster reports a representative crop (the medoid), member count, confidence
+  range (the *pet's* similarity, not the top candidate's) and capture-date range; crops with no
+  stored embedding are reported as excluded rather than crashing the pass; the pool is capped at 500
+  and says when it capped. `ClusterApprovalService` applies an approval as N ordinary corrections
+  through `ClassificationCorrectionService.correct()` -- same `ReviewAction` rows, same
+  `EmbeddingExample` provenance, same next-sync album reconciliation (DT-1113) -- committing in
+  batches of 25 so a mid-approval failure leaves committed progress, and reporting applied/skipped
+  counts with a reason per skip (DT-1117's accounting convention). Approving changes no Immich
+  state; albums reconcile on the next operator-triggered sync (ADR-006). New
+  `GET /library/clusters` and `POST /library/clusters/approve`, and a Recommendations panel on the
+  Library page
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
 [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is in
-progress: FR-1 (#140, species -> pet selection as the Library's primary axis), FR-8 (#146,
-detection coverage) and FR-10 (#148, merging two identities) have landed; clustering and cluster
-approval (#141), in-cluster selection (#142), sorting (#143), rejection (#144), and cold start
-(#145) are still open, as are the remaining supporting gaps #147 and #149.
+progress: FR-1 (#140, species -> pet selection as the Library's primary axis), FR-2/FR-3 (#141,
+clustering and cluster approval), FR-8 (#146, detection coverage) and FR-10 (#148, merging two
+identities) have landed; in-cluster selection (#142), sorting (#143) and rejection (#144) are still
+open, as are the remaining supporting gaps #147 and #149. Cold start (#145) was closed as not
+planned, which is what bounds the candidate pool to one pet's pending recommendations.
 
 Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
@@ -330,9 +348,10 @@ in Immich). `pyproject.toml`/`uv.lock`/the API app version had lagged at 1.6.0 t
 that; this catches them up to 1.7.0 and tags the release.
 
 ## Next Work
-Next under v1.8.0: #141 (cluster recommendations for the selected pet and approve a cluster in one
-action), which depends on #140 and on settling the spec's first open question -- which clustering
-algorithm, and whether it runs on demand or as a job with cached assignments.
+Next under v1.8.0: #142 (per-photo exclusion within a proposed cluster), which should land with or
+immediately after #141 -- approving an impure cluster all-or-nothing is how one click writes bad
+ground truth at scale. Then #143 (sorting) and #144 (rejection, whose open question -- whether a
+rejection is a new `ReviewAction` type or its own table -- must be settled before it merges).
 
 Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
