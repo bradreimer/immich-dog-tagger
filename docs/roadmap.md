@@ -273,11 +273,13 @@ Completed:
 - #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
   reference examples and pet occurrences move to the target, review history is left intact, the
   source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
+- #141 (FR-2/FR-3): the selected pet's pending recommendations grouped into clusters of visually
+  similar crops (agglomerative over cosine distance, computed on demand, writing nothing), each
+  approvable in one action as N ordinary corrections with applied/skipped accounting.
 
 In progress / open:
-- #141 (FR-2/FR-3) cluster and approve, #142 (FR-4) in-cluster selection, #143 (FR-5) sorting;
-  supporting gaps #144 (FR-6) rejection, #147 (FR-11) missed-detection rescue, #149 (FR-9)
-  sensitivity and post-batch reclassification.
+- #142 (FR-4) in-cluster selection, #143 (FR-5) sorting; supporting gaps #144 (FR-6) rejection,
+  #147 (FR-11) missed-detection rescue, #149 (FR-9) sensitivity and post-batch reclassification.
 
 Explicitly not planned (see spec Non-goals): cold-start clustering for a pet with no examples
 (FR-7 dropped, [#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) closed as not

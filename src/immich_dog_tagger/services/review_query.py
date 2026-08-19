@@ -21,7 +21,7 @@ from immich_dog_tagger.models import (
 # the photo's own capture date, DT-1111 -- plus the matched example and the
 # example's identity) so a review-queue page issues a constant number of
 # queries instead of one extra round trip per row.
-_REVIEW_ITEM_RELATIONSHIPS = (
+REVIEW_ITEM_RELATIONSHIPS = (
     selectinload(CropClassification.crop)
     .selectinload(Crop.detection)
     .selectinload(Detection.asset),
@@ -33,7 +33,7 @@ _REVIEW_ITEM_RELATIONSHIPS = (
 # The library (DT-1112) additionally needs each classification's review
 # actions to compute reviewed/reviewed_at -- something the queue views never
 # surface, since they only ever show unreviewed items.
-_LIBRARY_RELATIONSHIPS = _REVIEW_ITEM_RELATIONSHIPS + (
+_LIBRARY_RELATIONSHIPS = REVIEW_ITEM_RELATIONSHIPS + (
     selectinload(CropClassification.review_actions),
 )
 from immich_dog_tagger.policy import (
@@ -136,13 +136,27 @@ class ReviewQueryService:
         """
         classification = self.session.scalars(
             select(CropClassification)
-            .options(*_REVIEW_ITEM_RELATIONSHIPS)
+            .options(*REVIEW_ITEM_RELATIONSHIPS)
             .where(CropClassification.id == classification_id)
         ).first()
 
         if classification is None:
             return None
 
+        return self._to_review_item(classification)
+
+    def review_item(
+        self,
+        classification: CropClassification,
+    ) -> ReviewItem:
+        """
+        Build the ReviewItem view model for a classification the caller has
+        already loaded (with REVIEW_ITEM_RELATIONSHIPS eager-loaded, or it
+        pays a round trip per relationship). Lets other read-side services
+        -- clustering, issue #141 -- present classifications in exactly the
+        shape the review and library surfaces already render, instead of
+        each growing its own view model.
+        """
         return self._to_review_item(classification)
 
     def classifications(
@@ -159,7 +173,7 @@ class ReviewQueryService:
 
         query = (
             select(CropClassification)
-            .options(*_REVIEW_ITEM_RELATIONSHIPS)
+            .options(*REVIEW_ITEM_RELATIONSHIPS)
             .order_by(CropClassification.confidence.asc())
         )
 
@@ -298,7 +312,7 @@ class ReviewQueryService:
 
         query = (
             select(CropClassification)
-            .options(*_REVIEW_ITEM_RELATIONSHIPS)
+            .options(*REVIEW_ITEM_RELATIONSHIPS)
             .where(
                 ~self._has_review_action(),
             )

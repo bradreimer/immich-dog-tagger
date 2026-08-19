@@ -34,8 +34,13 @@ from immich_dog_tagger.models import (
     Detection,
     EmbeddingExample,
     Identity,
+    ReviewAction,
 )
 from immich_dog_tagger.services.classification import ClassificationService
+from immich_dog_tagger.services.clusters import (
+    ClusterApprovalService,
+    RecommendationClusterService,
+)
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.job_runner import PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
@@ -537,3 +542,114 @@ def test_re_correction_after_sync_fixes_stale_album_membership(engine):
 
         assert albums.albums["dog - Fibs"] == set()
         assert albums.albums["dog - Hermann"] == {"dog-asset-1"}
+
+
+def test_cluster_approval_survives_reclassification(engine):
+    """
+    Issue #141: approving a cluster is N ordinary corrections, so the loop
+    that already holds for single reviews must hold for a bulk approval --
+    reclassify after an approval is idempotent and never mutates a label
+    the approval established.
+    """
+    with Session(engine) as session:
+        path_to_vector: dict[str, list[float]] = {}
+
+        def add_crop(name: str, vector: list[float]) -> Crop:
+            path_to_vector[name] = vector
+            asset = Asset(immich_asset_id=f"asset-{name}", extension=".jpg")
+            detection = Detection(
+                asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=10, y2=10
+            )
+            crop = Crop(detection=detection, path=name, species=Species.DOG)
+            session.add(crop)
+            session.flush()
+            return crop
+
+        # One identity with a single seed example, so its pending crops are
+        # candidates rather than confident matches.
+        session.add(Identity(name="Fibs", species=Species.DOG))
+        session.flush()
+
+        seed = add_crop("fibs-seed.jpg", [1.0, 0.0, 0.0])
+        cluster_crops = [
+            add_crop(f"fibs-{index}.jpg", [1.0, 0.02 * index, 0.0])
+            for index in range(5)
+        ]
+        other = add_crop("hermann-0.jpg", [0.0, 1.0, 0.0])
+
+        session.commit()
+
+        embedder = FakeVectorEmbedder(path_to_vector)
+        learner = Learner(embedder, session)
+        correction = ClassificationCorrectionService(session, learner)
+
+        ClassificationService(session, embedder, IdentityClassifier(session)).classify(
+            mode=ClassificationMode.PENDING
+        )
+
+        # Bootstrap through the Review tab, exactly as the owner would.
+        correction.correct(seed.classification.id, "Fibs")
+        correction.correct(other.classification.id, "Hermann")
+
+        ReclassifyService(session, IdentityClassifier(session)).reclassify()
+
+        proposal = RecommendationClusterService(session).clusters(
+            identity="Fibs",
+            species=Species.DOG,
+        )
+
+        pending_ids = {crop.classification.id for crop in cluster_crops}
+
+        assert proposal.candidate_count == len(pending_ids)
+
+        cluster = proposal.clusters[0]
+
+        assert cluster.size == len(pending_ids)
+
+        summary = ClusterApprovalService(session, correction).approve(
+            identity="Fibs",
+            species=Species.DOG,
+            classification_ids=[member.classification_id for member in cluster.members],
+        )
+
+        assert summary.applied == len(pending_ids)
+        assert summary.skipped == 0
+
+        # N members -> N review actions and N reference examples, the same
+        # shape N single corrections from the Review page would leave.
+        assert session.query(ReviewAction).filter(
+            ReviewAction.classification_id.in_(pending_ids)
+        ).count() == len(pending_ids)
+        assert session.query(EmbeddingExample).filter(
+            EmbeddingExample.crop_path.in_(
+                [crop.path for crop in cluster_crops],
+            )
+        ).count() == len(pending_ids)
+
+        approved = {
+            classification.id: classification.identity
+            for classification in session.query(CropClassification).all()
+        }
+
+        # Reclassification is derived state and must never rewrite a human
+        # decision -- twice over, to pin idempotency.
+        for _ in range(2):
+            ReclassifyService(session, IdentityClassifier(session)).reclassify()
+
+            for classification in session.query(CropClassification).all():
+                assert classification.identity == approved[classification.id]
+
+            for classification_id in pending_ids:
+                classification = session.get(CropClassification, classification_id)
+
+                assert classification.identity == "Fibs"
+                assert classification.confidence == 1.0
+                assert classification.source == ClassificationSources.REVIEW
+
+        # And the approved crops have left the candidate pool.
+        assert (
+            RecommendationClusterService(session)
+            .clusters(identity="Fibs", species=Species.DOG)
+            .candidate_count
+            == 0
+        )

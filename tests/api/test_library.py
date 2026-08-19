@@ -1,15 +1,21 @@
 from datetime import UTC, datetime
 
+import numpy as np
+import pytest
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.enums import ReviewActions
+from immich_dog_tagger.embeddings import embedding_to_blob
+from immich_dog_tagger.enums import ReviewActions, Species
 from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
     Detection,
+    EmbeddingExample,
+    Identity,
     ReviewAction,
 )
+from tests.conftest import QueryCounter
 
 
 def test_library_returns_reviewed_and_unreviewed(api_client, engine):
@@ -153,3 +159,165 @@ def test_review_queue_unaffected_by_library_route(api_client, engine):
 
     # ...but present in the library.
     assert library_response.json()["total"] == 1
+
+
+def _seed_pet_with_candidates(session, count=3, species=Species.DOG):
+    session.add(Identity(name="Fibs", species=species))
+    session.flush()
+
+    classifications = []
+
+    for index in range(count):
+        asset = Asset(
+            immich_asset_id=f"asset-{index}",
+            extension=".jpg",
+            captured_at=datetime(2026, 1, index + 1, tzinfo=UTC),
+        )
+        detection = Detection(
+            asset=asset,
+            label=species.value,
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        crop = Crop(detection=detection, path=f"fibs-{index}.jpg", species=species)
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.70 + index / 100,
+            embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+        )
+
+        session.add(classification)
+        classifications.append(classification)
+
+    session.commit()
+
+    return [classification.id for classification in classifications]
+
+
+def test_clusters_endpoint_returns_clusters_for_a_pet(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    response = api_client.get("/library/clusters?identity=Fibs&species=dog")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["identity"] == "Fibs"
+    assert payload["species"] == "dog"
+    assert payload["candidate_count"] == 3
+    assert payload["clustered_count"] == 3
+    assert payload["truncated"] is False
+    assert payload["excluded"] == []
+    assert len(payload["clusters"]) == 1
+
+    cluster = payload["clusters"][0]
+
+    assert cluster["size"] == 3
+    assert cluster["representative"]["image_url"].startswith("/crops/")
+    assert [member["classification_id"] for member in cluster["members"]] == (
+        classification_ids
+    )
+    assert cluster["min_similarity"] == pytest.approx(0.70)
+    assert cluster["max_similarity"] == pytest.approx(0.72)
+    assert cluster["earliest_captured_at"].startswith("2026-01-01")
+    assert cluster["latest_captured_at"].startswith("2026-01-03")
+
+
+def test_clusters_endpoint_is_empty_for_a_pet_with_no_candidates(api_client, engine):
+    with Session(engine) as session:
+        session.add(Identity(name="Fibs", species=Species.DOG))
+        session.commit()
+
+    response = api_client.get("/library/clusters?identity=Fibs&species=dog")
+
+    assert response.status_code == 200
+    assert response.json()["clusters"] == []
+    assert response.json()["candidate_count"] == 0
+
+
+def test_clusters_endpoint_404s_for_an_unknown_pet(api_client, engine):
+    response = api_client.get("/library/clusters?identity=Nobody&species=dog")
+
+    assert response.status_code == 404
+
+
+def test_approve_endpoint_applies_and_reports_skips(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    response = api_client.post(
+        "/library/clusters/approve",
+        json={
+            "identity": "Fibs",
+            "species": "dog",
+            "classification_ids": [*classification_ids, 9999],
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["identity"] == "Fibs"
+    assert payload["applied"] == 3
+    assert payload["skipped"] == 1
+    assert payload["skips"] == [{"classification_id": 9999, "reason": "not-found"}]
+
+    with Session(engine) as session:
+        assert session.query(ReviewAction).count() == 3
+        assert session.query(EmbeddingExample).count() == 3
+
+    # The approved members are no longer pending candidates.
+    assert (
+        api_client.get("/library/clusters?identity=Fibs&species=dog").json()[
+            "candidate_count"
+        ]
+        == 0
+    )
+
+
+def test_approve_endpoint_400s_for_an_unknown_pet(api_client, engine):
+    response = api_client.post(
+        "/library/clusters/approve",
+        json={
+            "identity": "Nobody",
+            "species": "dog",
+            "classification_ids": [1],
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_clusters_endpoint_query_count_is_independent_of_pool_size(api_client, engine):
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session, count=3)
+
+    with QueryCounter(engine) as small:
+        api_client.get("/library/clusters?identity=Fibs&species=dog")
+
+    with Session(engine) as session:
+        session.query(CropClassification).delete()
+        session.query(Crop).delete()
+        session.query(Detection).delete()
+        session.query(Asset).delete()
+        session.query(Identity).delete()
+        session.commit()
+
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session, count=30)
+
+    with QueryCounter(engine) as large:
+        api_client.get("/library/clusters?identity=Fibs&species=dog")
+
+    assert small.count == large.count

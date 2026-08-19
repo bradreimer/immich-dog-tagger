@@ -5,6 +5,7 @@ import { correctClassification, getLibrary } from "@/lib/api";
 import type { LibraryQuery } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import type { LibraryEntry } from "@/types/library";
+import { ClusterPanel } from "./components/ClusterPanel";
 import { LibraryEntryCard } from "./components/LibraryEntryCard";
 import { PetSelector } from "./components/PetSelector";
 import { LibraryWorkspaceProvider } from "./LibraryWorkspaceProvider";
@@ -124,6 +125,14 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
       </header>
 
       <PetSelector onNavigate={onNavigate} />
+
+      {selectedPet && (
+        <ClusterPanel
+          identity={selectedPet.name}
+          species={selectedPet.species}
+          onApproved={() => load()}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-2" role="group" aria-label="Filter by review status">

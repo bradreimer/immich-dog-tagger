@@ -233,6 +233,105 @@ class LibraryPageResponse(BaseModel):
         )
 
 
+class ExcludedCandidateResponse(BaseModel):
+    """A pooled candidate that could not be clustered, and why."""
+
+    classification_id: int
+    crop_id: int
+    reason: str
+
+
+class RecommendationClusterResponse(BaseModel):
+    id: int
+    size: int
+    representative: ReviewItemResponse
+    members: list[ReviewItemResponse]
+    min_similarity: float
+    max_similarity: float
+    earliest_captured_at: datetime | None
+    latest_captured_at: datetime | None
+
+    @classmethod
+    def from_cluster(cls, cluster):
+        return cls(
+            id=cluster.id,
+            size=cluster.size,
+            representative=ReviewItemResponse.from_item(cluster.representative),
+            members=[ReviewItemResponse.from_item(item) for item in cluster.members],
+            min_similarity=cluster.min_similarity,
+            max_similarity=cluster.max_similarity,
+            earliest_captured_at=cluster.earliest_captured_at,
+            latest_captured_at=cluster.latest_captured_at,
+        )
+
+
+class ClusterProposalResponse(BaseModel):
+    identity: str
+    species: Species
+    clusters: list[RecommendationClusterResponse]
+    excluded: list[ExcludedCandidateResponse]
+    candidate_count: int
+    clustered_count: int
+    distance_threshold: float
+    truncated: bool
+
+    @classmethod
+    def from_proposal(cls, proposal):
+        return cls(
+            identity=proposal.identity,
+            species=proposal.species,
+            clusters=[
+                RecommendationClusterResponse.from_cluster(cluster)
+                for cluster in proposal.clusters
+            ],
+            excluded=[
+                ExcludedCandidateResponse(
+                    classification_id=candidate.classification_id,
+                    crop_id=candidate.crop_id,
+                    reason=candidate.reason,
+                )
+                for candidate in proposal.excluded
+            ],
+            candidate_count=proposal.candidate_count,
+            clustered_count=proposal.clustered_count,
+            distance_threshold=proposal.distance_threshold,
+            truncated=proposal.truncated,
+        )
+
+
+class ClusterApprovalRequest(BaseModel):
+    identity: str
+    species: Species
+    classification_ids: list[int]
+
+
+class ApprovalSkipResponse(BaseModel):
+    classification_id: int
+    reason: str
+
+
+class ClusterApprovalResponse(BaseModel):
+    identity: str
+    applied: int
+    skipped: int
+    skips: list[ApprovalSkipResponse]
+
+    @classmethod
+    def from_summary(cls, summary):
+        return cls(
+            identity=summary.identity,
+            applied=summary.applied,
+            skipped=summary.skipped,
+            skips=[
+                ApprovalSkipResponse(
+                    classification_id=skip.classification_id,
+                    reason=skip.reason,
+                )
+                for skip in summary.skips
+            ],
+        )
+
+
 class ReviewCandidateResponse(BaseModel):
     identity: str
     similarity: float
