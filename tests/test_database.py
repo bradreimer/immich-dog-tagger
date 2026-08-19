@@ -607,3 +607,26 @@ def test_writer_is_not_blocked_by_a_concurrent_long_lived_reader(tmp_path: Path)
         names = {identity.name for identity in verify_session.query(Identity).all()}
 
     assert names == {"Existing", "Writer"}
+
+
+def test_database_adds_identity_merges_table_to_an_existing_database(tmp_path: Path):
+    """
+    Issue #148 adds a new table rather than changing an existing one, so an
+    existing state.db picks it up from create_all with no data migration --
+    but only if create_database is actually re-run against it.
+    """
+    from immich_dog_tagger.database import create_database
+
+    create_database(tmp_path)
+
+    connection = sqlite3.connect(tmp_path / "state.db")
+    connection.execute("DROP TABLE identity_merges")
+    connection.commit()
+    connection.close()
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        count = session.execute(text("SELECT COUNT(*) FROM identity_merges")).scalar()
+
+    assert count == 0

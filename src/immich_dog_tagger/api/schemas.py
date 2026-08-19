@@ -104,6 +104,21 @@ class DogUpdateRequest(BaseModel):
     name: str
 
 
+class DogMergeRequest(BaseModel):
+    """Absorb the identity in the path into `target_id` (issue #148)."""
+
+    target_id: int
+
+
+class DogMergeResponse(BaseModel):
+    source: DogResponse
+    target: DogResponse
+    classifications_reassigned: int
+    examples_reassigned: int
+    examples_discarded: int
+    occurrences_reassigned: int
+
+
 class ClassificationResponse(BaseModel):
     classification_id: int
     crop_id: int

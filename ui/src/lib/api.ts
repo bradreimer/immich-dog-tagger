@@ -2,7 +2,7 @@ import type {
   ReviewItem,
   ReviewQueueStats,
 } from "../types/review";
-import type { Dog, Species } from "../types/dogs";
+import type { Dog, DogMergeResult, Species } from "../types/dogs";
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
@@ -189,6 +189,24 @@ export async function deactivateDog(id: number): Promise<Dog> {
 
   if (!response.ok) {
     throw new Error("Failed to deactivate dog");
+  }
+
+  return response.json();
+}
+
+export async function mergeDogs(sourceId: number, targetId: number): Promise<DogMergeResult> {
+  const response = await fetch(`/api/dogs/${sourceId}/merge`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ target_id: targetId }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const detail = payload?.detail;
+    throw new Error(typeof detail === "string" ? detail : "Failed to merge identities");
   }
 
   return response.json();

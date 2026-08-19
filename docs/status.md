@@ -279,6 +279,21 @@
   path, so detector and cropper agree for every supported format including the HEIC fallback path,
   where ultralytics uses Pillow and would otherwise have disagreed. Existing crops and embeddings
   are deliberately not rewritten; the remediation path is documented in docs/workflow.md section 7
+- #148 merge two identities (v1.8 FR-10): `DogService.merge_dogs()` absorbs one identity into
+  another -- every `CropClassification` naming the source (scoped to crops of the merged species,
+  since `identity` is a bare name and names are unique per species) is re-pointed at the target,
+  the source's `EmbeddingExample` rows are re-filed onto it (dropping any whose crop path the
+  target already holds, the same one-animal-per-crop invariant `Learner` maintains), and its
+  `PetOccurrence` rows follow. `ReviewAction` history is deliberately not rewritten: a merge
+  re-attributes derived state, not the record of who decided what. Cross-species merges are
+  rejected outright (DT-1110's dog-"Max"/cat-"Max" distinction). The source is left as a
+  deactivated tombstone rather than deleted, and the merge itself is recorded in a new
+  `identity_merges` provenance table, since a bulk re-attribution can't be read back off the rows
+  it touched. Writes commit in bounded batches (the #104/#107 lock-contention class of bug), and
+  Immich albums reconcile on the next sync through the existing DT-1113 `SyncedAsset` stale-
+  membership diff -- the merge deliberately leaves those rows alone so sync can see them as stale.
+  New `POST /dogs/{id}/merge` and a two-step, destructive-styled, confirmed merge control on the
+  Dogs & Cats page
 
 ## Current Milestone
 No queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
