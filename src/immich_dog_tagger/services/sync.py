@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import CropClassification, SyncedAsset
+from immich_dog_tagger.models import (
+    CropClassification,
+    ManualAssetTag,
+    SyncedAsset,
+)
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.sync_policy import SyncPolicy
 
@@ -19,6 +23,10 @@ class SyncIdentitySummary:
 @dataclass(frozen=True)
 class SyncSummary:
     identities: list[SyncIdentitySummary]
+    # Photos the detector missed that the owner tagged by hand (issue
+    # #147). Counted separately so a sync that moved more assets than the
+    # classifications explain is self-explanatory rather than mysterious.
+    manual_tags: int = 0
     # Classifications that did not end up in any album this run, and why --
     # without these, a lower-than-expected album count is silent and
     # unexplained (github.com/bradreimer/immich-dog-tagger/issues/11).
@@ -85,6 +93,26 @@ class SyncService:
 
             assets[(species, identity)].add(asset_id)
 
+        # Photos detection missed, tagged by hand (issue #147). Folded into
+        # the same (species, identity) -> asset-id map, so they get album
+        # membership, stale-membership removal and SyncedAsset tracking
+        # from the existing machinery rather than a parallel path of their
+        # own. A manual tag carries no confidence, so the confidence policy
+        # above does not apply to it: a human said so.
+        manual_tags = self.session.scalars(
+            select(ManualAssetTag).order_by(ManualAssetTag.id)
+        ).all()
+
+        manual_tag_count = 0
+
+        for tag in manual_tags:
+            if tag.asset is None:
+                skipped_missing_asset += 1
+                continue
+
+            assets[(tag.species, tag.identity)].add(tag.asset.immich_asset_id)
+            manual_tag_count += 1
+
         if not dry_run:
             self._remove_stale_memberships(assets)
 
@@ -111,6 +139,7 @@ class SyncService:
 
         return SyncSummary(
             identities=summary,
+            manual_tags=manual_tag_count,
             skipped_low_confidence=skipped_low_confidence,
             skipped_unknown=skipped_unknown,
             skipped_missing_asset=skipped_missing_asset,
