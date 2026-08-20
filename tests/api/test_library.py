@@ -420,3 +420,95 @@ def test_clusters_endpoint_query_count_is_independent_of_sort(api_client, engine
         api_client.get("/library/clusters?identity=Fibs&species=dog&sort=captured_asc")
 
     assert unsorted.count == sorted_by_date.count
+
+
+def test_reject_endpoint_records_not_this_pet_and_drops_them_from_the_pool(
+    api_client, engine
+):
+    """
+    A rejected recommendation must not come back next pass -- the gap that
+    made "skip" the only way to dismiss a wrong proposal (issue #144).
+    """
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    rejected = classification_ids[:2]
+
+    response = api_client.post(
+        "/library/clusters/reject",
+        json={
+            "identity": "Fibs",
+            "species": "dog",
+            "classification_ids": rejected,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["applied"] == 2
+    assert response.json()["skipped"] == 0
+
+    payload = api_client.get("/library/clusters?identity=Fibs&species=dog").json()
+
+    # Only the member that was not rejected is still proposed as Fibs.
+    assert payload["candidate_count"] == 1
+
+    remaining = [
+        member["classification_id"]
+        for cluster in payload["clusters"]
+        for member in cluster["members"]
+    ]
+
+    assert remaining == classification_ids[2:]
+
+
+def test_reject_endpoint_settles_no_identity(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    api_client.post(
+        "/library/clusters/reject",
+        json={
+            "identity": "Fibs",
+            "species": "dog",
+            "classification_ids": classification_ids[:1],
+        },
+    )
+
+    with Session(engine) as session:
+        classification = session.get(CropClassification, classification_ids[0])
+
+        # Not Fibs, and not silently relabelled as anything else either.
+        assert classification.identity != "Fibs"
+        assert classification.review_actions == []
+
+
+def test_reject_endpoint_rejects_an_empty_selection(api_client, engine):
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session)
+
+    response = api_client.post(
+        "/library/clusters/reject",
+        json={
+            "identity": "Fibs",
+            "species": "dog",
+            "classification_ids": [],
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_reject_endpoint_400s_for_an_unknown_pet(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+
+    response = api_client.post(
+        "/library/clusters/reject",
+        json={
+            "identity": "Nobody",
+            "species": "dog",
+            "classification_ids": classification_ids[:1],
+        },
+    )
+
+    assert response.status_code == 400

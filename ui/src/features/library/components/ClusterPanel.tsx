@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { IconRefresh } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import { approveCluster, getPetClusters } from "@/lib/api";
+import { approveCluster, getPetClusters, rejectCluster } from "@/lib/api";
 import type { ClusterProposal, ClusterSort } from "@/types/clusters";
 import { ClusterCard } from "./ClusterCard";
 
@@ -84,6 +84,30 @@ export function ClusterPanel({ identity, species, onApproved }: Props) {
     [identity, species, onApproved, load],
   );
 
+  const reject = useCallback(
+    async (classificationIds: number[]) => {
+      const result = await rejectCluster(identity, species, classificationIds);
+
+      const skipped = result.skips
+        .map((skip) => skip.reason)
+        .filter((reason, index, reasons) => reasons.indexOf(reason) === index)
+        .join(", ");
+
+      // Says what it did and what it did not, the same way an approval does.
+      // "Still pending" is the important half: a rejection removes a wrong
+      // recommendation without deciding anything, so these photos have not
+      // gone away, they have gone back to waiting for an identity.
+      setNotice(
+        result.skipped === 0
+          ? `Marked ${result.applied} ${result.applied === 1 ? "photo" : "photos"} as not ${identity}. They stay pending until an identity is chosen.`
+          : `Marked ${result.applied} of ${result.applied + result.skipped} photos as not ${identity}. Skipped ${result.skipped}: ${skipped}.`,
+      );
+
+      await load();
+    },
+    [identity, species, load],
+  );
+
   return (
     <section className="space-y-4" aria-label={`Recommendations for ${identity}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -151,6 +175,7 @@ export function ClusterPanel({ identity, species, onApproved }: Props) {
               cluster={cluster}
               identity={identity}
               onApprove={approve}
+              onReject={reject}
             />
           ))}
         </div>

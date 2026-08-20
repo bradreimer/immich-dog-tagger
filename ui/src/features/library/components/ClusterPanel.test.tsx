@@ -9,6 +9,7 @@ import type { ReviewItem } from "@/types/review";
 vi.mock("@/lib/api", () => ({
   getPetClusters: vi.fn(),
   approveCluster: vi.fn(),
+  rejectCluster: vi.fn(),
 }));
 
 function buildMember(classificationId: number): ReviewItem {
@@ -329,5 +330,57 @@ describe("ClusterPanel", () => {
 
     expect(await screen.findByText("Failed to approve cluster")).toBeInTheDocument();
     expect(screen.getByText("3 photos")).toBeInTheDocument();
+  });
+
+  it("rejects the selection as not this pet, and says they stay pending", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+    vi.mocked(api.rejectCluster).mockResolvedValue({
+      identity: "Hermann",
+      applied: 3,
+      skipped: 0,
+      skips: [],
+    });
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mark 3 photos as not Hermann" }),
+    );
+
+    await waitFor(() => {
+      expect(api.rejectCluster).toHaveBeenCalledWith("Hermann", "dog", [1, 2, 3]);
+    });
+
+    // A rejection decides nothing, so saying so is the point of the message.
+    expect(
+      await screen.findByText(
+        "Marked 3 photos as not Hermann. They stay pending until an identity is chosen.",
+      ),
+    ).toBeInTheDocument();
+
+    expect(api.approveCluster).not.toHaveBeenCalled();
+  });
+
+  it("rejects only the members left selected", async () => {
+    vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+    vi.mocked(api.rejectCluster).mockResolvedValue({
+      identity: "Hermann",
+      applied: 2,
+      skipped: 0,
+      skips: [],
+    });
+
+    render(<ClusterPanel identity="Hermann" species="dog" />);
+
+    // Deselect one member, then reject the rest.
+    fireEvent.click(await screen.findByRole("checkbox", { name: "1.jpg" }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mark 2 photos as not Hermann" }),
+    );
+
+    await waitFor(() => {
+      expect(api.rejectCluster).toHaveBeenCalledWith("Hermann", "dog", [2, 3]);
+    });
   });
 });

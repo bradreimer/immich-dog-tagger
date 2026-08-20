@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { IconCheck, IconPhoto } from "@tabler/icons-react";
+import { IconCheck, IconPhoto, IconX } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,10 +38,12 @@ interface Props {
   cluster: RecommendationCluster;
   identity: string;
   onApprove: (classificationIds: number[]) => Promise<void>;
+  onReject: (classificationIds: number[]) => Promise<void>;
 }
 
-export function ClusterCard({ cluster, identity, onApprove }: Props) {
+export function ClusterCard({ cluster, identity, onApprove, onReject }: Props) {
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -73,6 +75,24 @@ export function ClusterCard({ cluster, identity, onApprove }: Props) {
       setApproving(false);
     }
   };
+
+  const handleReject = async () => {
+    setError(null);
+    setRejecting(true);
+
+    try {
+      // Same selection, opposite sign (issue #144). Deselecting a photo
+      // means "not now"; rejecting it means "this is not this pet", which
+      // is recorded and stops the recommendation coming back.
+      await onReject(selection.selected);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reject");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  const busy = approving || rejecting;
 
   return (
     <Card>
@@ -119,19 +139,39 @@ export function ClusterCard({ cluster, identity, onApprove }: Props) {
               </Button>
             </div>
 
-            <Button
-              type="button"
-              onClick={handleApprove}
-              disabled={approving || selection.noneSelected}
-              aria-label={`Approve ${photos(selection.selectedCount)} as ${identity}`}
-            >
-              <IconCheck className="h-4 w-4" aria-hidden="true" />
-              {approving ? "Approving…" : `Approve ${photos(selection.selectedCount)}`}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={handleApprove}
+                disabled={busy || selection.noneSelected}
+                aria-label={`Approve ${photos(selection.selectedCount)} as ${identity}`}
+              >
+                <IconCheck className="h-4 w-4" aria-hidden="true" />
+                {approving
+                  ? "Approving…"
+                  : `Approve ${photos(selection.selectedCount)}`}
+              </Button>
+
+              {/*
+                Outline rather than the filled action treatment: rejecting is
+                a correction, not the primary path through this card, and it
+                must not read as a second way to say yes.
+              */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleReject}
+                disabled={busy || selection.noneSelected}
+                aria-label={`Mark ${photos(selection.selectedCount)} as not ${identity}`}
+              >
+                <IconX className="h-4 w-4" aria-hidden="true" />
+                {rejecting ? "Saving…" : `Not ${identity}`}
+              </Button>
+            </div>
 
             {selection.noneSelected && (
               <p className="text-sm text-muted-foreground">
-                Select at least one photo to approve.
+                Select at least one photo to approve or reject.
               </p>
             )}
 
