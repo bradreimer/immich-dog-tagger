@@ -102,6 +102,8 @@ export function ClusterCard({ cluster, identity, onApprove, onReject }: Props) {
             src={`/api/crops/${cluster.representative.crop_id}`}
             alt={`Most representative photo of this group of ${identity} recommendations`}
             className="h-28 w-28 shrink-0 rounded-lg object-cover"
+            loading="lazy"
+            decoding="async"
           />
 
           <div className="min-w-48 flex-1 space-y-2">
@@ -209,6 +211,8 @@ export function ClusterCard({ cluster, identity, onApprove, onReject }: Props) {
                   src={`/api/crops/${member.crop_id}`}
                   alt=""
                   className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
 
                 {selected && (

@@ -609,6 +609,74 @@ def test_writer_is_not_blocked_by_a_concurrent_long_lived_reader(tmp_path: Path)
     assert names == {"Existing", "Writer"}
 
 
+def test_engine_pool_sized_for_thumbnail_bursts(tmp_path: Path):
+    # Regression test for issue #164: the previous default pool (size 5 +
+    # max_overflow 10 == 15 total connections) filled up when the Library
+    # tab's ClusterPanel fired dozens of near-simultaneous /crops/{id}
+    # thumbnail requests for a dog with many pending photos, and the default
+    # 30s pool_timeout meant every other crop request in the app -- unrelated
+    # dogs, the review workspace -- blocked for up to 30s before failing. The
+    # pool must be sized to absorb a much larger burst, with a short timeout
+    # so an actual overflow fails fast instead of stalling everything else.
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    assert engine.pool.size() >= 20
+    assert engine.pool._max_overflow >= 20
+    assert engine.pool._timeout <= 10
+
+
+def test_engine_pool_absorbs_a_burst_of_concurrent_checkouts_without_timing_out(
+    tmp_path: Path,
+):
+    # Regression test for issue #164: simulates the Library tab firing a
+    # burst of near-simultaneous GET /crops/{id} requests, each holding a
+    # connection open briefly while it reads and streams a crop. A burst of
+    # 30 concurrent connections is well beyond the old pool's 15-connection
+    # ceiling (size 5 + overflow 10), which would have left the overflow
+    # blocking for up to the old 30s pool_timeout before failing.
+    import threading
+    import time
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    connections = []
+    errors = []
+    lock = threading.Lock()
+
+    def checkout_and_hold():
+        try:
+            connection = engine.connect()
+            time.sleep(0.05)
+            with lock:
+                connections.append(connection)
+        except Exception as exc:  # noqa: BLE001 - failure path under test
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=checkout_and_hold) for _ in range(30)]
+
+    started = time.monotonic()
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    elapsed = time.monotonic() - started
+
+    for connection in connections:
+        connection.close()
+
+    assert errors == []
+    assert len(connections) == 30
+    assert elapsed < 10
+
+
 def test_database_adds_identity_merges_table_to_an_existing_database(tmp_path: Path):
     """
     Issue #148 adds a new table rather than changing an existing one, so an
