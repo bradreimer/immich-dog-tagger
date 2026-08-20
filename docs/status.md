@@ -359,6 +359,15 @@
   and echoes it back on the response; a new "Sort" control on the Library page's Recommendations
   panel drives it, defaulting to "Surest first". The review queue's own triage ordering is
   untouched
+- #164 fixed a production bug: opening the Library tab for a dog with hundreds of pending photos
+  rendered every returned cluster's representative image plus up to 11 member thumbnails as plain
+  `<img>` tags with no lazy-loading, firing dozens of simultaneous `GET /crops/{id}` requests that
+  exhausted the shared SQLAlchemy connection pool (default `QueuePool` size 5 + overflow 10) and
+  took down crop loading app-wide (review workspace, other dogs) for up to the 30s pool timeout.
+  `ClusterCard.tsx`'s thumbnails now set `loading="lazy"`/`decoding="async"` so only on-screen
+  images fetch eagerly, and `create_database()`'s engine pool is sized for a thumbnail burst
+  (`pool_size=20`, `max_overflow=20`) with a short `pool_timeout=5` so genuine overflow fails fast
+  instead of stalling every other crop request
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

@@ -29,6 +29,17 @@ def create_database(state_dir: Path):
         # immediately with "database is locked" instead of waiting the
         # moment it takes for the lock to clear (issue #104).
         connect_args={"timeout": 30},
+        # Opening the Library tab for a dog with many pending photos can fire
+        # dozens of near-simultaneous GET /crops/{id} thumbnail requests. The
+        # previous default pool (size 5 + overflow 10 == 15 connections) fills
+        # up under that burst, and the default 30s pool_timeout meant every
+        # other crop request in the app -- unrelated dogs, the review
+        # workspace -- blocked for up to 30s before failing (issue #164). A
+        # bigger pool absorbs a larger burst, and a short pool_timeout makes
+        # an actual overflow fail fast instead of stalling everything else.
+        pool_size=20,
+        max_overflow=20,
+        pool_timeout=5,
     )
 
     @event.listens_for(engine, "connect")
