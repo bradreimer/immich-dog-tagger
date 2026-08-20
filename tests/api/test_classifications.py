@@ -16,6 +16,7 @@ from immich_dog_tagger.models import (
     Identity,
     ReviewAction,
 )
+from tests.conftest import create_test_classification
 
 
 def test_correct_classification(api_client, engine):
@@ -190,3 +191,56 @@ def test_correct_species_not_found(api_client):
     assert response.json() == {
         "detail": "Classification 999999 not found",
     }
+
+
+def test_correcting_queues_an_automatic_reclassify(api_client, engine):
+    """
+    Issue #149: the owner just settled an identity, so the predictions
+    derived from the reference set are stale. Queued through the job system
+    so work the app started on its own is as visible as work the owner
+    started (ADR-006).
+    """
+    from immich_dog_tagger.enums import PipelineOperation
+    from immich_dog_tagger.models import PipelineJob
+
+    with Session(engine) as session:
+        classification = create_test_classification(session)
+        classification_id = classification.id
+
+    api_client.post(
+        f"/classifications/{classification_id}/correct",
+        json={"identity": "Fibs"},
+    )
+
+    with Session(engine) as session:
+        jobs = (
+            session.query(PipelineJob)
+            .filter(PipelineJob.operation == PipelineOperation.RECLASSIFY)
+            .all()
+        )
+
+        assert len(jobs) == 1
+
+
+def test_repeated_corrections_queue_only_one_reclassify(api_client, engine):
+    from immich_dog_tagger.enums import PipelineOperation
+    from immich_dog_tagger.models import PipelineJob
+
+    with Session(engine) as session:
+        first = create_test_classification(session).id
+        second = create_test_classification(session).id
+
+    for classification_id in (first, second):
+        api_client.post(
+            f"/classifications/{classification_id}/correct",
+            json={"identity": "Fibs"},
+        )
+
+    with Session(engine) as session:
+        jobs = (
+            session.query(PipelineJob)
+            .filter(PipelineJob.operation == PipelineOperation.RECLASSIFY)
+            .all()
+        )
+
+        assert len(jobs) == 1

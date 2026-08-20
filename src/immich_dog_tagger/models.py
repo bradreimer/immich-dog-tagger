@@ -659,6 +659,42 @@ class CropIdentityRejection(Base):
     )
 
 
+class AppSetting(Base):
+    """
+    Owner-editable application settings that live in `state.db` rather than
+    the environment (issue #149).
+
+    Environment variables configure the *deployment* -- where Immich is,
+    where state lives -- and changing one means editing a file and
+    restarting a container. A setting the owner is expected to adjust while
+    using the app, and to see take effect on the next pass, belongs with
+    the rest of the application's state.
+
+    Deliberately a small key/value table with typed accessors in front of
+    it (`AppSettingsService`), not a wide row gaining a column per setting:
+    the alternative is a migration every time a preference is added.
+    """
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+
+    value: Mapped[str] = mapped_column(
+        String(256),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
 class PipelineSchedule(Base):
     __tablename__ = "pipeline_schedules"
 

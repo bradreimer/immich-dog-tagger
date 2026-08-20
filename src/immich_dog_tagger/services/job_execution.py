@@ -13,6 +13,7 @@ from immich_dog_tagger.models import Crop
 from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.scanner import Scanner
 from immich_dog_tagger.services.albums import AlbumService
+from immich_dog_tagger.services.app_settings import AppSettingsService
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.job_runner import JobProgressReporter, PipelineJobRunner
@@ -191,10 +192,17 @@ def _classify_handler(
         progress.message("Classifying crops")
 
         embedder = get_embedder()
+
+        # The owner's sensitivity setting (issue #149). Read here rather
+        # than at import time so a change takes effect on the next run
+        # without a restart.
+        policy = AppSettingsService(session).policy()
+
         classifier = ClassificationService(
             session,
             embedder,
-            IdentityClassifier(session),
+            IdentityClassifier(session, policy=policy),
+            policy=policy,
         )
 
         summary = classifier.classify(
@@ -221,7 +229,11 @@ def _reclassify_handler(
         progress.message("Reclassifying crops")
 
         embedder = get_embedder()
-        service = ReclassifyService(session, embedder)
+        service = ReclassifyService(
+            session,
+            embedder,
+            policy=AppSettingsService(session).policy(),
+        )
 
         result = service.reclassify(progress=progress, job_id=progress.job.id)
 
@@ -384,6 +396,8 @@ def _full_pipeline_handler(
     def run(progress: JobProgressReporter) -> dict[str, int]:
         client = _create_client(config)
 
+        policy = AppSettingsService(session).policy()
+
         pipeline = PipelineService(
             Scanner(client, session),
             Downloader(client, session, config.cache_dir),
@@ -399,7 +413,8 @@ def _full_pipeline_handler(
             ClassificationService(
                 session,
                 get_embedder(),
-                IdentityClassifier(session),
+                IdentityClassifier(session, policy=policy),
+                policy=policy,
             ),
         )
 

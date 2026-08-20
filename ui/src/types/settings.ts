@@ -9,4 +9,12 @@ export interface Settings {
   immich_external_url: string;
   scanned_image_count: number;
   version: string;
+  /**
+   * How cautious automatic tagging is (issue #149). Unlike everything
+   * above it this is owner-editable and lives in state.db, not the
+   * environment.
+   */
+  tagging_sensitivity: TaggingSensitivity;
 }
+
+export type TaggingSensitivity = "cautious" | "balanced" | "eager";

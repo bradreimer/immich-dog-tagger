@@ -97,3 +97,32 @@ def test_settings_external_url_falls_back_to_the_api_url(api_client, tmp_path):
     assert response.status_code == 200
 
     assert response.json()["immich_external_url"] == "http://localhost:2283"
+
+
+def test_settings_reports_the_tagging_sensitivity(api_client, engine):
+    response = api_client.get("/settings")
+
+    assert response.status_code == 200
+    assert response.json()["tagging_sensitivity"] == "balanced"
+
+
+def test_tagging_sensitivity_can_be_changed(api_client, engine):
+    response = api_client.put(
+        "/settings/tagging-sensitivity",
+        json={"tagging_sensitivity": "cautious"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tagging_sensitivity"] == "cautious"
+
+    # Persisted, so the next classification pass sees it.
+    assert api_client.get("/settings").json()["tagging_sensitivity"] == "cautious"
+
+
+def test_an_unknown_sensitivity_is_refused(api_client, engine):
+    response = api_client.put(
+        "/settings/tagging-sensitivity",
+        json={"tagging_sensitivity": "reckless"},
+    )
+
+    assert response.status_code == 422

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import (
+    get_auto_reclassify_service,
     get_cluster_approval_service,
     get_cluster_service,
     get_review_query_service,
@@ -18,6 +19,7 @@ from immich_dog_tagger.api.schemas import (
     LibraryPageResponse,
 )
 from immich_dog_tagger.enums import ClusterSort, Species
+from immich_dog_tagger.services.app_settings import AutoReclassifyService
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
     RecommendationClusterService,
@@ -103,6 +105,10 @@ def approve_cluster(
         ClusterApprovalService,
         Depends(get_cluster_approval_service),
     ],
+    auto_reclassify: Annotated[
+        AutoReclassifyService,
+        Depends(get_auto_reclassify_service),
+    ],
 ):
     """
     Assign the pet's identity to every listed member, as N ordinary
@@ -120,6 +126,11 @@ def approve_cluster(
             status_code=400,
             detail=str(e),
         ) from e
+
+    # An approval of N photos is one settling batch, not N (issue #149).
+    # The debounce inside request() is what keeps it that way.
+    if summary.applied:
+        auto_reclassify.request()
 
     return ClusterApprovalResponse.from_summary(summary)
 

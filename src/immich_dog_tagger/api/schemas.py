@@ -7,6 +7,7 @@ from immich_dog_tagger.enums import (
     PipelineJobStatus,
     PipelineOperation,
     Species,
+    TaggingSensitivity,
 )
 
 
@@ -530,6 +531,14 @@ class SettingsResponse(BaseModel):
     immich_external_url: str
     scanned_image_count: int
     version: str
+    # How cautious automatic tagging is (issue #149). Owner-editable, so
+    # unlike the rest of this response it lives in state.db rather than the
+    # environment.
+    tagging_sensitivity: TaggingSensitivity
+
+
+class TaggingSensitivityRequest(BaseModel):
+    tagging_sensitivity: TaggingSensitivity
 
 
 class PlaceCountResponse(BaseModel):
