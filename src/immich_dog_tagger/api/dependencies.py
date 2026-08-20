@@ -22,6 +22,7 @@ from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.manual_tags import ManualTagService
+from immich_dog_tagger.services.rejections import RejectionService
 from immich_dog_tagger.services.review_actions import ReviewActionService
 from immich_dog_tagger.services.review_query import ReviewQueryService
 from immich_dog_tagger.services.schedules import (
@@ -137,16 +138,37 @@ def get_cluster_service(
     return RecommendationClusterService(session)
 
 
+def get_rejection_service(
+    session: Annotated[Session, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> RejectionService:
+    learner = Learner(
+        embedder=embedder,
+        session=session,
+    )
+
+    return RejectionService(
+        session=session,
+        learner=learner,
+        classifier=IdentityClassifier(session),
+    )
+
+
 def get_cluster_approval_service(
     session: Annotated[Session, Depends(get_session)],
     correction_service: Annotated[
         ClassificationCorrectionService,
         Depends(get_correction_service),
     ],
+    rejection_service: Annotated[
+        RejectionService,
+        Depends(get_rejection_service),
+    ],
 ) -> ClusterApprovalService:
     return ClusterApprovalService(
         session=session,
         correction_service=correction_service,
+        rejection_service=rejection_service,
     )
 
 

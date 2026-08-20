@@ -2,6 +2,7 @@
 Dog identity classifier.
 """
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -60,7 +61,18 @@ class IdentityClassifier:
         threshold: float | None = None,
         candidate_limit: int | None = None,
         captured_at: datetime | None = None,
+        excluded_identities: Collection[str] | None = None,
     ) -> ClassificationResult:
+        """
+        `excluded_identities` are identities a human has rejected for this
+        particular crop (issue #144). They are dropped before scoring, so a
+        rejected pet cannot come back as the accepted identity *or* as a
+        runner-up candidate on any later pass -- which is what makes a
+        rejection survive Reclassify. The suppression lives here, in the one
+        module that owns the nearest-neighbour decision, rather than being
+        re-implemented by each caller or filtered out downstream in the
+        review query.
+        """
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold
         )
@@ -70,9 +82,14 @@ class IdentityClassifier:
             else self.policy.candidate_limit
         )
 
+        excluded = frozenset(excluded_identities or ())
+
         identity_scores: dict[str, ClassificationCandidate] = {}
 
         for example in self._load_examples(species):
+            if example.identity.name in excluded:
+                continue
+
             known = blob_to_embedding(example.embedding)
 
             similarity = self._cosine_similarity(

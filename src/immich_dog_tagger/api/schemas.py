@@ -314,6 +314,17 @@ class ClusterApprovalRequest(BaseModel):
     classification_ids: list[int] = Field(min_length=1)
 
 
+class ClusterRejectionRequest(BaseModel):
+    """
+    Same shape as an approval (issue #144): the owner's explicit selection,
+    and the pet it is not.
+    """
+
+    identity: str
+    species: Species
+    classification_ids: list[int] = Field(min_length=1)
+
+
 class ApprovalSkipResponse(BaseModel):
     classification_id: int
     reason: str

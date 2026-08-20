@@ -609,6 +609,56 @@ class ReviewAction(Base):
     )
 
 
+class CropIdentityRejection(Base):
+    """
+    A human saying "this crop is not <identity>" without saying who it is
+    (issue #144).
+
+    Deliberately its own table rather than a new `ReviewActions` value.
+    `review_queue_count()`, `_has_review_action()`, the library's `reviewed`
+    flag and the Metrics reviewed counts all derive from the mere
+    *existence* of a `ReviewAction` row, so filing a rejection there would
+    make a rejected crop count as reviewed everywhere at once -- while its
+    identity is still unsettled and it still needs a human. That is the
+    failure DT-1115 hit (one queue count meaning two different things) and
+    the reason #116's species correction writes no `ReviewAction` either.
+
+    Keyed on the crop, not the classification: the statement is about what
+    the photo depicts, which is the crop's property, and it stays true if
+    the classification is later rescored.
+    """
+
+    __tablename__ = "crop_identity_rejections"
+
+    __table_args__ = (
+        # One rejection per (crop, identity). Rejecting twice is the same
+        # fact stated twice, not two facts.
+        UniqueConstraint(
+            "crop_id",
+            "identity",
+            name="uq_crop_identity_rejection",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    crop_id: Mapped[int] = mapped_column(
+        ForeignKey("crops.id"),
+        index=True,
+    )
+
+    identity: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class ManualAssetTag(Base):
     """
     "This photo contains <pet>", for a photo the detector found nothing in
