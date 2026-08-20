@@ -659,6 +659,75 @@ class CropIdentityRejection(Base):
     )
 
 
+class ManualAssetTag(Base):
+    """
+    "This photo contains <pet>", for a photo the detector found nothing in
+    (issue #147).
+
+    Without this, a pet YOLO missed -- small in frame, turned away, partly
+    hidden -- is invisible to the entire system: no crop, so no
+    classification, so it never reaches Review, the Library, or an Immich
+    album, permanently and with no signal that it happened. Recall is
+    silently capped by the detector.
+
+    Deliberately a light fact about the *asset* rather than a manufactured
+    Detection/Crop/CropClassification chain:
+
+    - There is no crop file and no embedding, so a synthetic chain would
+      have to invent both. `Learner` would then either reject it or, worse,
+      learn from a whole-photo image as though it were a pet crop.
+    - A pipeline re-run with `--force` recreates detections, crops and
+      classifications with new ids, so anything hung off that chain would
+      be destroyed by the next reprocess. An `Asset` is stable across
+      reprocessing -- it is keyed by `immich_asset_id` -- so a tag hung
+      here survives.
+
+    Consequently this is read by sync (so the photo reaches the pet's
+    album) and by nothing else: the classifier ignores it, and it never
+    becomes a reference example. It records what the owner knows, without
+    pretending to be evidence the model can learn from.
+    """
+
+    __tablename__ = "manual_asset_tags"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "asset_id",
+            "species",
+            "identity",
+            name="uq_manual_asset_tag",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    asset_id: Mapped[int] = mapped_column(
+        ForeignKey("assets.id"),
+        index=True,
+    )
+
+    identity: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
+    species: Mapped[Species] = mapped_column(
+        Enum(
+            Species,
+            native_enum=False,
+        ),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    asset: Mapped[Asset] = relationship()
+
+
 class PipelineSchedule(Base):
     __tablename__ = "pipeline_schedules"
 

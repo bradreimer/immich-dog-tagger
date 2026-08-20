@@ -454,3 +454,78 @@ def test_sync_full_accounting_matches_issue_11_scenario(engine):
             + summary.skipped_missing_asset
         )
         assert total_accounted_for == 6
+
+
+def test_sync_includes_a_manually_tagged_photo_the_detector_missed(engine):
+    """
+    Issue #147: a photo with no crop reaches the pet's album through the
+    same machinery as a classified one, or the rescue does nothing visible.
+    """
+    from immich_dog_tagger.enums import Species
+    from immich_dog_tagger.models import Identity, ManualAssetTag
+
+    with Session(engine) as session:
+        session.add(Identity(name="Fibs", species=Species.DOG, is_active=True))
+
+        asset = Asset(
+            immich_asset_id="missed-asset",
+            extension=".jpg",
+        )
+
+        session.add(asset)
+        session.flush()
+
+        session.add(
+            ManualAssetTag(
+                asset_id=asset.id,
+                identity="Fibs",
+                species=Species.DOG,
+            )
+        )
+        session.commit()
+
+        albums = FakeAlbums()
+        summary = SyncService(session, albums).sync()
+
+        assert albums.calls == [("Fibs", ["missed-asset"], Species.DOG)]
+        assert summary.manual_tags == 1
+
+
+def test_sync_removes_a_manual_tag_that_was_undone(engine):
+    """
+    Untagging must actually take the photo back out of the album, via the
+    same stale-membership diff a correction uses (DT-1113).
+    """
+    from immich_dog_tagger.enums import Species
+    from immich_dog_tagger.models import Identity, ManualAssetTag
+
+    with Session(engine) as session:
+        session.add(Identity(name="Fibs", species=Species.DOG, is_active=True))
+
+        asset = Asset(
+            immich_asset_id="missed-asset",
+            extension=".jpg",
+        )
+
+        session.add(asset)
+        session.flush()
+
+        tag = ManualAssetTag(
+            asset_id=asset.id,
+            identity="Fibs",
+            species=Species.DOG,
+        )
+
+        session.add(tag)
+        session.commit()
+
+        albums = FakeAlbums()
+        service = SyncService(session, albums)
+        service.sync()
+
+        session.delete(tag)
+        session.commit()
+
+        service.sync()
+
+        assert albums.removals == [("Fibs", ["missed-asset"], Species.DOG)]

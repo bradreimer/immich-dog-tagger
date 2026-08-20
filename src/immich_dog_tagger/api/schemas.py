@@ -636,3 +636,53 @@ class InsightsSummaryResponse(BaseModel):
             else None,
             favorite_photo_count=summary.favorite_photo_count,
         )
+
+
+class UndetectedAssetResponse(BaseModel):
+    """
+    A photo detection finished with that produced no crop (issue #147).
+
+    No crop means no local image to show, so the client identifies the
+    photo by its capture date and links out to Immich using the
+    browser-facing URL from /settings -- the same approach #128/#132 took
+    for the review card, and no image data leaves the deployment.
+    """
+
+    asset_id: int
+    immich_asset_id: str
+    captured_at: datetime | None
+    identities: list[str]
+
+
+class UndetectedAssetPageResponse(BaseModel):
+    items: list[UndetectedAssetResponse]
+    total: int
+    limit: int
+    offset: int
+
+    @classmethod
+    def from_page(cls, page):
+        return cls(
+            items=[
+                UndetectedAssetResponse(
+                    asset_id=item.asset_id,
+                    immich_asset_id=item.immich_asset_id,
+                    captured_at=item.captured_at,
+                    identities=item.identities,
+                )
+                for item in page.items
+            ],
+            total=page.total,
+            limit=page.limit,
+            offset=page.offset,
+        )
+
+
+class ManualAssetTagRequest(BaseModel):
+    identity: str
+    species: Species
+
+
+class ManualAssetTagResponse(BaseModel):
+    asset_id: int
+    identities: list[str]
