@@ -268,14 +268,9 @@ Completed:
 - #140 (FR-1): species -> pet selection as the Library's primary axis, held in a
   `LibraryWorkspaceProvider` context the later stories read from; the flat "all photos" view, its
   review-status and capture-date filters, and pagination are unchanged.
-- #146 (FR-8): detection coverage reported alongside automation rate, so the Metrics tab can see
-  photos detection never found instead of only scoring the crops it did make.
-- #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
-  reference examples and pet occurrences move to the target, review history is left intact, the
-  source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
-- #141 (FR-2/FR-3): the selected pet's pending recommendations grouped into clusters of visually
-  similar crops (agglomerative over cosine distance, computed on demand, writing nothing), each
-  approvable in one action as N ordinary corrections with applied/skipped accounting.
+- #141 (FR-2/FR-3): agglomerative clustering over cosine distance, computed on demand as a
+  request-scoped read that writes nothing, and one-action approval of an explicitly submitted
+  member list routed through the existing correction service.
 - #142 (FR-4): per-photo selection within a cluster -- members start selected, the approve control
   names the count it will apply to, and the approval submits an explicit id list the server
   validates against the pet's own candidate pool rather than re-deriving membership. The generic
@@ -284,10 +279,20 @@ Completed:
   (default confidence descending -- approve the surest group first), from the data already
   eager-loaded for review/library items, with a classification-id tiebreak and null capture dates
   sorting last under both date directions.
-
-In progress / open:
-- Supporting gaps: #144 (FR-6) rejection, #147 (FR-11) missed-detection rescue, #149 (FR-9)
-  sensitivity and post-batch reclassification.
+- #144 (FR-6): reject a recommendation as "not this pet" -- the negative signal the workflow never
+  had -- stored in its own table so every count deriving from a `ReviewAction` keeps meaning what
+  it meant, and suppressed in `IdentityClassifier.classify()` so a rejection survives Reclassify.
+- #146 (FR-8): detection coverage reported alongside automation rate, so the Metrics tab can see
+  photos detection never found instead of only scoring the crops it did make.
+- #147 (FR-11): tag a photo whose pet the detector missed, as a light fact about the asset that
+  sync reads and the classifier ignores -- it never becomes a reference example, and it survives a
+  `--force` reprocess that would destroy anything hung off the detection chain.
+- #148 (FR-10): merge a duplicate or misspelled identity into another -- classifications,
+  reference examples and pet occurrences move to the target, review history is left intact, the
+  source stays as a deactivated tombstone, and the merge is recorded in `identity_merges`.
+- #149 (FR-9): owner-facing tagging sensitivity, mapped to a threshold in `policy.py` alone and
+  traceable through `classifier_version`, plus a debounced auto-Reclassify after a settled review
+  batch, queued through the job system so self-started work is as visible as owner-started work.
 
 Explicitly not planned (see spec Non-goals): cold-start clustering for a pet with no examples
 (FR-7 dropped, [#145](https://github.com/bradreimer/immich-dog-tagger/issues/145) closed as not
@@ -297,8 +302,7 @@ changing the review queue; changing classification policy/thresholds/the embeddi
 `GET /api/library`'s query semantics; or a fully automatic label-without-the-owner model.
 
 Exit criteria:
-The core workflow issues (#140-#143) are closed and the owner can confirm a group of photos for one
-pet in a single action.
+Completed.
 
 ---
 
