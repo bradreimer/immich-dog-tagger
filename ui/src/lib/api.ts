@@ -15,7 +15,7 @@ import type {
   ClusterProposal,
   ClusterSort,
 } from "../types/clusters";
-import type { Settings } from "../types/settings";
+import type { Settings, TaggingSensitivity } from "../types/settings";
 import type { Health } from "../types/health";
 import type {
   InsightCard,
@@ -650,6 +650,23 @@ export async function untagUndetectedAsset(
 
   if (!response.ok) {
     throw new Error("Failed to remove tag");
+  }
+
+  return response.json();
+}
+
+/** Change how cautious automatic tagging is (issue #149). */
+export async function setTaggingSensitivity(
+  sensitivity: TaggingSensitivity,
+): Promise<Settings> {
+  const response = await fetch("/api/settings/tagging-sensitivity", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tagging_sensitivity: sensitivity }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update tagging sensitivity");
   }
 
   return response.json();

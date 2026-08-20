@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { getSettings } from "../../lib/api";
-import type { Settings } from "../../types/settings";
+import { getSettings, setTaggingSensitivity } from "../../lib/api";
+import type { Settings, TaggingSensitivity } from "../../types/settings";
 import {
   IconExternalLink,
   IconPhoto,
@@ -19,9 +19,32 @@ import {
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 
+const SENSITIVITIES: {
+  value: TaggingSensitivity;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "cautious",
+    label: "Ask me more often",
+    description: "Tags fewer photos on its own and sends more for review.",
+  },
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "The default.",
+  },
+  {
+    value: "eager",
+    label: "Tag more automatically",
+    description: "Tags more photos on its own and sends fewer for review.",
+  },
+];
+
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -40,6 +63,19 @@ export function SettingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const changeSensitivity = useCallback(async (value: TaggingSensitivity) => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      setSettings(await setTaggingSensitivity(value));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save setting");
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   return (
     <section className="space-y-6">
@@ -105,6 +141,51 @@ export function SettingsPage() {
                 value={settings.scanned_image_count}
                 subtext="assets synced from Immich"
               />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {settings && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Automatic tagging</CardTitle>
+            <CardDescription>
+              How sure the app has to be before it tags a photo without asking
+              you. Applies to the next pass — it never changes a photo you have
+              already reviewed, and never rewrites past results on its own.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div
+              className="flex flex-col gap-2"
+              role="radiogroup"
+              aria-label="Automatic tagging sensitivity"
+            >
+              {SENSITIVITIES.map((option) => {
+                const selected = settings.tagging_sensitivity === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={saving}
+                    onClick={() => changeSensitivity(option.value)}
+                    className={`rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                      selected
+                        ? "border-primary bg-accent"
+                        : "border-input hover:bg-accent/50"
+                    }`}
+                  >
+                    <span className="block font-medium">{option.label}</span>
+                    <span className="block text-sm text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

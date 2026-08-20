@@ -86,3 +86,18 @@ class ClassificationPassStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class TaggingSensitivity(StrEnum):
+    """
+    How cautious automatic tagging should be (issue #149).
+
+    Named for the outcome the owner wants rather than the mechanism: three
+    named settings, not a raw cosine threshold, because the number means
+    nothing outside the classifier and inviting an owner to tune it invites
+    them to tune it wrong.
+    """
+
+    CAUTIOUS = "cautious"
+    BALANCED = "balanced"
+    EAGER = "eager"

@@ -10,6 +10,7 @@ from immich_dog_tagger.config import load_config
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.runtime import get_embedder
+from immich_dog_tagger.services.app_settings import AutoReclassifyService
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
     RecommendationClusterService,
@@ -170,6 +171,13 @@ def get_cluster_approval_service(
         correction_service=correction_service,
         rejection_service=rejection_service,
     )
+
+
+def get_auto_reclassify_service(
+    session: Annotated[Session, Depends(get_session)],
+    job_service: Annotated[PipelineJobService, Depends(get_job_service)],
+) -> AutoReclassifyService:
+    return AutoReclassifyService(session, job_service)
 
 
 def get_manual_tag_service(

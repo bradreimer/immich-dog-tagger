@@ -108,7 +108,9 @@ def _patch_pipeline_dependencies(monkeypatch):
     )
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution.IdentityClassifier",
-        lambda session: object(),
+        # Takes the owner's policy too since #149; accept whatever the
+        # production call passes rather than pinning the signature here.
+        lambda *a, **k: object(),
     )
 
 
