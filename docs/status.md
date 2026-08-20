@@ -385,9 +385,11 @@ approval a synchronous write rather than a job (#141 measured a full 500-crop po
 is what kept it a read); and a rejection lives in its own table rather than as a new `ReviewActions`
 value.
 
-One question remains open: #146 shipped coverage as a share over "photos detection has finished
-with", while review settled on two plain counts and no ratio -- see the spec's Open questions. It
-changes a presentation choice, not behavior, so it did not block the release.
+No open questions remain. The one that outlived the release -- whether FR-8's coverage figure
+should keep the headline share #146 shipped, or drop to the two plain counts review had settled on
+-- was resolved in favour of leaving it as shipped: #146's denominator ("photos detection has
+finished with") is better than the one that discussion assumed, it is stated on screen, and the raw
+counts are still there. Recorded in the spec's "Resolved decisions".
 
 Previously: no queued numbered milestone. v1.7.0 Pluginable Insight Providers (#110) shipped and is recorded
 as completed in [docs/roadmap.md](roadmap.md); #111 (cancel a running job), #116/#117 (review
