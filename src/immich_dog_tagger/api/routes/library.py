@@ -14,6 +14,7 @@ from immich_dog_tagger.api.schemas import (
     ClusterApprovalRequest,
     ClusterApprovalResponse,
     ClusterProposalResponse,
+    ClusterRejectionRequest,
     LibraryPageResponse,
 )
 from immich_dog_tagger.enums import ClusterSort, Species
@@ -110,6 +111,39 @@ def approve_cluster(
     """
     try:
         summary = service.approve(
+            identity=request.identity,
+            species=request.species,
+            classification_ids=request.classification_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        ) from e
+
+    return ClusterApprovalResponse.from_summary(summary)
+
+
+@router.post(
+    "/clusters/reject",
+    response_model=ClusterApprovalResponse,
+)
+def reject_cluster(
+    request: ClusterRejectionRequest,
+    service: Annotated[
+        ClusterApprovalService,
+        Depends(get_cluster_approval_service),
+    ],
+):
+    """
+    Record "not this pet" for every listed member (issue #144).
+
+    Settles no identity: each crop is rescored without the rejected pet and
+    stays in the review queue, so the owner has said who the animal is not
+    without being forced to say who it is.
+    """
+    try:
+        summary = service.reject(
             identity=request.identity,
             species=request.species,
             classification_ids=request.classification_ids,

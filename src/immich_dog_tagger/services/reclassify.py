@@ -40,6 +40,7 @@ from immich_dog_tagger.policy import (
     ClassifierPolicy,
 )
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
+from immich_dog_tagger.services.rejections import rejected_identities_for
 from immich_dog_tagger.services.review_query import ReviewQueryService
 
 logger = logging.getLogger(__name__)
@@ -223,6 +224,14 @@ class ReclassifyService:
                 ):
                     classification.embedding = embedding_to_blob(embedding)
 
+            # One query per chunk, not per crop: a rejection has to survive
+            # Reclassify (issue #144), and looking it up per classification
+            # is the N+1 shape DT-1008 already had to fix here.
+            rejections = rejected_identities_for(
+                self.session,
+                [c.crop_id for c in classifications],
+            )
+
             for classification in classifications:
                 embedding = blob_to_embedding(classification.embedding)
 
@@ -236,6 +245,7 @@ class ReclassifyService:
                     embedding,
                     species=classification.crop.species,
                     captured_at=captured_at,
+                    excluded_identities=rejections.get(classification.crop_id),
                 )
 
                 if result.identity != classification.identity:

@@ -39,10 +39,12 @@ from immich_dog_tagger.enums import ClusterSort, Species
 from immich_dog_tagger.models import (
     Crop,
     CropClassification,
+    CropIdentityRejection,
     Identity,
     ReviewAction,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
+from immich_dog_tagger.services.rejections import RejectionService
 from immich_dog_tagger.services.review_query import (
     REVIEW_ITEM_RELATIONSHIPS,
     ReviewItem,
@@ -436,6 +438,19 @@ class RecommendationClusterService:
                 (CropClassification.identity == identity)
                 | (CropClassification.candidates != [])
             )
+            # A crop the owner has already said is not this pet must not be
+            # proposed as this pet again (issue #144). Excluded in the pool
+            # query rather than filtered after clustering, so a rejected
+            # crop never takes a slot in the capped pool from a candidate
+            # that is still open.
+            .where(
+                ~exists(
+                    select(CropIdentityRejection.id).where(
+                        CropIdentityRejection.crop_id == CropClassification.crop_id,
+                        CropIdentityRejection.identity == identity,
+                    )
+                )
+            )
             # Strongest case for this pet first, so a capped pool keeps the
             # candidates most worth approving. The id tie-break makes the
             # ordering total, which is what keeps clustering deterministic.
@@ -491,12 +506,14 @@ class ClusterApprovalService:
         self,
         session: Session,
         correction_service: ClassificationCorrectionService,
+        rejection_service: RejectionService | None = None,
         *,
         batch_size: int = APPROVAL_BATCH_SIZE,
         max_approval_size: int = MAX_APPROVAL_SIZE,
     ):
         self.session = session
         self.correction_service = correction_service
+        self.rejection_service = rejection_service or RejectionService(session)
         self.batch_size = batch_size
         self.max_approval_size = max_approval_size
 
@@ -590,6 +607,106 @@ class ClusterApprovalService:
 
         logger.info(
             "Cluster approval for %r: %d applied, %d skipped",
+            identity,
+            applied,
+            len(skips),
+        )
+
+        return ApprovalSummary(
+            identity=identity,
+            applied=applied,
+            skips=skips,
+        )
+
+    def reject(
+        self,
+        *,
+        identity: str,
+        species: Species,
+        classification_ids: list[int],
+    ) -> ApprovalSummary:
+        """
+        Record "these are not `identity`" for an explicitly listed selection
+        (issue #144).
+
+        Deliberately the mirror image of `approve()`, sharing its selection
+        contract, its pool validation and its batching: the two are the same
+        gesture with opposite signs, and an owner who can approve 40 photos
+        in one action should be able to reject 40 in one action on the same
+        terms. What differs is the outcome -- a rejection settles no
+        identity, so these crops stay in the review queue with the rejected
+        pet suppressed, rather than leaving it.
+
+        `already-reviewed` is not a skip reason here. Rejecting a pet for a
+        crop whose identity a human already settled is still a legitimate
+        statement (the settled identity is simply some other pet), and it
+        writes no `ReviewAction`, so it cannot overwrite that decision.
+        """
+        if not classification_ids:
+            raise ValueError("Cannot reject an empty selection")
+
+        if len(classification_ids) > self.max_approval_size:
+            raise ValueError(
+                f"Cannot reject more than {self.max_approval_size} photos at once"
+            )
+
+        pet = self.session.scalar(
+            select(Identity).where(
+                Identity.name == identity,
+                Identity.species == species,
+            )
+        )
+
+        if pet is None:
+            raise ValueError(f"No {species.value} named {identity!r}")
+
+        applied = 0
+        skips: list[ApprovalSkip] = []
+        seen: set[int] = set()
+        since_commit = 0
+
+        try:
+            for classification_id in classification_ids:
+                if classification_id in seen:
+                    skips.append(ApprovalSkip(classification_id, "duplicate"))
+                    continue
+
+                seen.add(classification_id)
+
+                classification = self.session.get(
+                    CropClassification,
+                    classification_id,
+                )
+
+                if classification is None:
+                    skips.append(ApprovalSkip(classification_id, "not-found"))
+                    continue
+
+                if classification.crop.species != species:
+                    skips.append(ApprovalSkip(classification_id, "species-mismatch"))
+                    continue
+
+                self.rejection_service.reject(
+                    classification_id,
+                    identity,
+                    commit=False,
+                )
+
+                applied += 1
+                since_commit += 1
+
+                if since_commit >= self.batch_size:
+                    self.session.commit()
+                    since_commit = 0
+
+            if since_commit:
+                self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
+
+        logger.info(
+            "Cluster rejection for %r: %d applied, %d skipped",
             identity,
             applied,
             len(skips),

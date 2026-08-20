@@ -21,6 +21,7 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
+from immich_dog_tagger.services.rejections import rejected_identities_for
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +104,19 @@ class ClassificationService:
                 [crop.path for crop in crops],
             )
 
+            # One query per batch, not per crop -- see rejections.py.
+            rejections = rejected_identities_for(
+                self.session,
+                [crop.id for crop in crops],
+            )
+
             try:
                 for crop, embedding in zip(crops, embeddings):
                     classification = self._classify_crop(
                         crop,
                         embedding,
                         threshold,
+                        excluded_identities=rejections.get(crop.id),
                     )
 
                     if classification.identity:
@@ -171,6 +179,7 @@ class ClassificationService:
         crop: Crop,
         embedding,
         threshold: float,
+        excluded_identities=None,
     ) -> CropClassification:
         captured_at = None
 
@@ -182,6 +191,7 @@ class ClassificationService:
             species=crop.species,
             threshold=threshold,
             captured_at=captured_at,
+            excluded_identities=excluded_identities,
         )
 
         candidates = [

@@ -420,6 +420,37 @@ export async function approveCluster(
   return response.json();
 }
 
+/**
+ * Record that every listed photo is *not* this pet (issue #144).
+ *
+ * Settles no identity: each photo is rescored without the rejected pet
+ * and stays pending, so the owner can say who an animal is not without
+ * having to say who it is.
+ */
+export async function rejectCluster(
+  identity: string,
+  species: string,
+  classificationIds: number[],
+): Promise<ClusterApprovalResult> {
+  const response = await fetch("/api/library/clusters/reject", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      identity,
+      species,
+      classification_ids: classificationIds,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to reject cluster");
+  }
+
+  return response.json();
+}
+
 export async function correctClassification(
   classificationId: number,
   identity: string,
