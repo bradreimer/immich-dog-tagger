@@ -15,15 +15,8 @@ import {
   getInsightsPeople,
   getInsightsPlaces,
   getInsightsSummary,
-  getInsightsTimeline,
 } from "../../lib/api";
-import type {
-  InsightCard,
-  InsightsSummary,
-  PersonCount,
-  PlaceCount,
-  TimelineEntry,
-} from "../../types/insights";
+import type { InsightCard, InsightsSummary, PersonCount, PlaceCount } from "../../types/insights";
 
 // One icon per category, not per specific insight -- so a new
 // InsightProvider (ADR-005) appears here with no frontend change.
@@ -55,7 +48,6 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
   const [summary, setSummary] = useState<InsightsSummary | null>(null);
   const [places, setPlaces] = useState<PlaceCount[]>([]);
   const [people, setPeople] = useState<PersonCount[]>([]);
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [cards, setCards] = useState<InsightCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,20 +60,17 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
       setError(null);
 
       try {
-        const [summaryData, placesData, peopleData, timelineData, cardsData] =
-          await Promise.all([
-            getInsightsSummary(dogId),
-            getInsightsPlaces(dogId),
-            getInsightsPeople(dogId),
-            getInsightsTimeline(dogId, { limit: 25 }),
-            getInsightsCards(dogId),
-          ]);
+        const [summaryData, placesData, peopleData, cardsData] = await Promise.all([
+          getInsightsSummary(dogId),
+          getInsightsPlaces(dogId),
+          getInsightsPeople(dogId),
+          getInsightsCards(dogId),
+        ]);
 
         if (!cancelled) {
           setSummary(summaryData);
           setPlaces(placesData);
           setPeople(peopleData);
-          setTimeline(timelineData);
           setCards(cardsData);
         }
       } catch (err) {
@@ -244,31 +233,6 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
               </CardContent>
             </Card>
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {timeline.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No dated photos yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {timeline.map((entry) => (
-                    <li
-                      key={entry.asset_id}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span>{formatDate(entry.captured_at)}</span>
-                      <span className="text-muted-foreground">
-                        {[entry.city, entry.country].filter(Boolean).join(", ") || "Unknown location"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
     </section>
