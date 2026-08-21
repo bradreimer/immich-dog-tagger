@@ -13,17 +13,6 @@ export interface PersonCount {
   count: number;
 }
 
-export interface TimelineEntry {
-  asset_id: number;
-  immich_asset_id: string;
-  captured_at: string | null;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  confidence: number;
-  source: string;
-}
-
 export interface InsightsSummary {
   identity_id: number;
   identity_name: string;

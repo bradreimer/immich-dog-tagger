@@ -368,6 +368,13 @@
   images fetch eagerly, and `create_database()`'s engine pool is sized for a thumbnail burst
   (`pool_size=20`, `max_overflow=20`) with a short `pool_timeout=5` so genuine overflow fails fast
   instead of stalling every other crop request
+- [#167](https://github.com/bradreimer/immich-dog-tagger/issues/167) removed the Timeline card
+  from the per-dog Insights page: it duplicated the summary/Places data (first/last seen, location
+  breakdown) as a flat, unsorted list of dates and place names with no actionable link. Frontend
+  only -- `DogInsightsPage.tsx` no longer calls `getInsightsTimeline`, and the now-unused
+  `getInsightsTimeline`/`TimelineEntry` were removed from `lib/api.ts`/`types/insights.ts`. The
+  read-only `GET /api/dogs/{id}/insights/timeline` endpoint and `InsightsService` method are
+  unchanged, pending a separate decision on whether to remove them too
 - #166 a third path on each cluster card alongside Approve/"Not `<pet>`": a "Not `<identity>`?
   Assign to" picker lets the owner settle the selection on a specific different pet in one action
   when the cluster is correctly grouped but the proposed identity is wrong, instead of rejecting it

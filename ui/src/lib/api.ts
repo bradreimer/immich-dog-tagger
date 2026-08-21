@@ -17,13 +17,7 @@ import type {
 } from "../types/clusters";
 import type { Settings, TaggingSensitivity } from "../types/settings";
 import type { Health } from "../types/health";
-import type {
-  InsightCard,
-  InsightsSummary,
-  PersonCount,
-  PlaceCount,
-  TimelineEntry,
-} from "../types/insights";
+import type { InsightCard, InsightsSummary, PersonCount, PlaceCount } from "../types/insights";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -597,23 +591,6 @@ export async function getInsightsPeople(identityId: number): Promise<PersonCount
   const response = await fetch(`/api/dogs/${identityId}/insights/people`);
   if (!response.ok) {
     throw new Error("Failed to load people");
-  }
-  return response.json();
-}
-
-export async function getInsightsTimeline(
-  identityId: number,
-  options: { limit?: number; offset?: number } = {},
-): Promise<TimelineEntry[]> {
-  const params = new URLSearchParams();
-  params.set("limit", String(options.limit ?? 50));
-  params.set("offset", String(options.offset ?? 0));
-
-  const response = await fetch(
-    `/api/dogs/${identityId}/insights/timeline?${params.toString()}`,
-  );
-  if (!response.ok) {
-    throw new Error("Failed to load timeline");
   }
   return response.json();
 }
