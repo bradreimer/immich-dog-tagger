@@ -523,6 +523,7 @@ class ClusterApprovalService:
         identity: str,
         species: Species,
         classification_ids: list[int],
+        require_recommended: bool = True,
     ) -> ApprovalSummary:
         """
         Assign `identity` to each of `classification_ids`.
@@ -539,6 +540,13 @@ class ClusterApprovalService:
         with a reason rather than dropped: a silent shortfall between
         "approve 40 photos" and 31 assignments is the bug DT-1117's
         accounting convention exists to prevent.
+
+        `require_recommended=False` (issue #166's `reassign`) skips only the
+        "was `identity` ever proposed for this crop" guard: a deliberate
+        reassignment is correcting the classifier's candidate pool, which by
+        definition may never have included the pet the owner picks. Every
+        other guard -- an existing pet, no double-write over an existing
+        review, matching species, no duplicate ids -- still applies.
         """
         if not classification_ids:
             # Deselecting every member is a deliberate "approve nothing", not
@@ -578,6 +586,7 @@ class ClusterApprovalService:
                     classification_id,
                     identity,
                     species,
+                    require_recommended=require_recommended,
                 )
 
                 if reason is not None:
@@ -606,7 +615,8 @@ class ClusterApprovalService:
             raise
 
         logger.info(
-            "Cluster approval for %r: %d applied, %d skipped",
+            "Cluster %s for %r: %d applied, %d skipped",
+            "approval" if require_recommended else "reassignment",
             identity,
             applied,
             len(skips),
@@ -616,6 +626,33 @@ class ClusterApprovalService:
             identity=identity,
             applied=applied,
             skips=skips,
+        )
+
+    def reassign(
+        self,
+        *,
+        identity: str,
+        species: Species,
+        classification_ids: list[int],
+    ) -> ApprovalSummary:
+        """
+        Assign `identity` to each of `classification_ids` as a deliberate
+        human correction (issue #166), not an acceptance of what the
+        classifier already proposed.
+
+        A cluster's members are pooled for one pet's candidate list, so
+        reassigning the selection to a *different* pet almost always means
+        the classifier never put that pet forward for these crops at all --
+        `approve()`'s "was this identity recommended" guard would refuse
+        every member. This is `approve()` with only that guard lifted; every
+        other check (existing pet, no double-write, matching species,
+        duplicate ids, batch limits) is unchanged.
+        """
+        return self.approve(
+            identity=identity,
+            species=species,
+            classification_ids=classification_ids,
+            require_recommended=False,
         )
 
     def reject(
@@ -723,6 +760,8 @@ class ClusterApprovalService:
         classification_id: int,
         identity: str,
         species: Species,
+        *,
+        require_recommended: bool = True,
     ) -> str | None:
         classification = self.session.get(CropClassification, classification_id)
 
@@ -737,7 +776,7 @@ class ClusterApprovalService:
         if classification.crop.species != species:
             return "species-mismatch"
 
-        if not proposes_identity(
+        if require_recommended and not proposes_identity(
             identity,
             accepted=classification.identity,
             candidates=classification.candidates,
@@ -746,7 +785,10 @@ class ClusterApprovalService:
             # forward for, so it was never in the cluster the owner was
             # looking at. Refused rather than applied: a client bug, a stale
             # page, or a hand-written request must not be able to write a
-            # label the owner never saw proposed.
+            # label the owner never saw proposed. A deliberate reassignment
+            # (issue #166) passes require_recommended=False and skips this
+            # check on purpose -- picking a pet the classifier never proposed
+            # is the whole point of that action.
             return "not-recommended"
 
         return None

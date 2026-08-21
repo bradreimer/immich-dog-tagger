@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { ClusterCard } from "./ClusterCard";
 import type { RecommendationCluster } from "@/types/clusters";
+import type { Dog } from "@/types/dogs";
 import type { ReviewItem } from "@/types/review";
 
 function buildMember(classificationId: number): ReviewItem {
@@ -67,5 +68,95 @@ describe("ClusterCard", () => {
     for (const image of images) {
       expect(image).toHaveAttribute("loading", "lazy");
     }
+  });
+
+  // Coverage for issue #166: the cluster is correctly grouped as one animal,
+  // but the wrong identity was proposed for it, so the owner reassigns it
+  // directly rather than rejecting it back into the pending queue.
+  describe("reassigning to another pet", () => {
+    const otherPets: Dog[] = [
+      { id: 2, name: "Otto", species: "dog", active: true },
+      { id: 3, name: "Rex", species: "dog", active: true },
+    ];
+
+    it("offers no reassignment control when there is no other pet to offer", () => {
+      render(
+        <ClusterCard
+          cluster={buildCluster(2)}
+          identity="Hermann"
+          onApprove={vi.fn()}
+          onReject={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByText("Select another pet…")).not.toBeInTheDocument();
+    });
+
+    it("assigns only the selected members to the chosen pet", async () => {
+      const onReassign = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <ClusterCard
+          cluster={buildCluster(3)}
+          identity="Hermann"
+          onApprove={vi.fn()}
+          onReject={vi.fn()}
+          otherPets={otherPets}
+          onReassign={onReassign}
+        />,
+      );
+
+      // Deselect one member before reassigning the rest.
+      fireEvent.click(screen.getByRole("checkbox", { name: "2.jpg" }));
+
+      fireEvent.change(screen.getByDisplayValue("Select another pet…"), {
+        target: { value: "Otto" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Assign 2 photos to Otto" }));
+
+      expect(onReassign).toHaveBeenCalledWith("Otto", [1, 3]);
+    });
+
+    it("disables Assign until a pet is chosen", () => {
+      render(
+        <ClusterCard
+          cluster={buildCluster(3)}
+          identity="Hermann"
+          onApprove={vi.fn()}
+          onReject={vi.fn()}
+          otherPets={otherPets}
+          onReassign={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Assign 3 photos to another pet" }),
+      ).toBeDisabled();
+    });
+
+    it("surfaces a reassignment failure without losing the cluster", async () => {
+      const onReassign = vi.fn().mockRejectedValue(new Error("Failed to reassign"));
+
+      render(
+        <ClusterCard
+          cluster={buildCluster(3)}
+          identity="Hermann"
+          onApprove={vi.fn()}
+          onReject={vi.fn()}
+          otherPets={otherPets}
+          onReassign={onReassign}
+        />,
+      );
+
+      fireEvent.change(screen.getByDisplayValue("Select another pet…"), {
+        target: { value: "Rex" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Assign 3 photos to Rex" }));
+
+      expect(await screen.findByText("Failed to reassign")).toBeInTheDocument();
+      expect(screen.getByText("3 photos")).toBeInTheDocument();
+    });
   });
 });

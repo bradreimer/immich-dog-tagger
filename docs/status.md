@@ -375,6 +375,19 @@
   `getInsightsTimeline`/`TimelineEntry` were removed from `lib/api.ts`/`types/insights.ts`. The
   read-only `GET /api/dogs/{id}/insights/timeline` endpoint and `InsightsService` method are
   unchanged, pending a separate decision on whether to remove them too
+- #166 a third path on each cluster card alongside Approve/"Not `<pet>`": a "Not `<identity>`?
+  Assign to" picker lets the owner settle the selection on a specific different pet in one action
+  when the cluster is correctly grouped but the proposed identity is wrong, instead of rejecting it
+  back into the pending queue and hoping the right pet gets recommended for it later. Discovered
+  along the way: `#142`'s "not-recommended" pool guard on `ClusterApprovalService.approve()` -- by
+  design, refuses any identity the classifier never proposed for a crop -- would have silently
+  skipped every member of a genuine reassignment, since the whole point is picking a pet that was
+  never a candidate. Rather than reuse `approve()`, a new `reassign()` method and
+  `POST /library/clusters/reassign` route apply the identical write (one ordinary correction per
+  member, same batching/skip accounting) with only that one guard lifted; every other check
+  (existing pet, no double-write over an existing review, matching species, duplicate/unbounded
+  ids) is unchanged. The picker only lists active pets of the cluster's species, excluding the pet
+  already selected on the panel
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

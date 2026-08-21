@@ -131,6 +131,7 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
         <ClusterPanel
           identity={selectedPet.name}
           species={selectedPet.species}
+          identities={identities}
           onApproved={() => load()}
         />
       )}

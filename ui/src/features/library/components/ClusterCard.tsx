@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { IconCheck, IconPhoto, IconX } from "@tabler/icons-react";
+import { IconArrowsRightLeft, IconCheck, IconPhoto, IconX } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useSelection } from "@/hooks/useSelection";
 import { formatDate } from "@/lib/utils";
 import type { RecommendationCluster } from "@/types/clusters";
+import type { Dog } from "@/types/dogs";
 
 /** How many member thumbnails to show before collapsing the rest behind a toggle. */
 const VISIBLE_MEMBERS = 11;
@@ -39,11 +40,23 @@ interface Props {
   identity: string;
   onApprove: (classificationIds: number[]) => Promise<void>;
   onReject: (classificationIds: number[]) => Promise<void>;
+  /** Other pets of this cluster's species the selection can be reassigned to (issue #166). */
+  otherPets?: Dog[];
+  onReassign?: (identity: string, classificationIds: number[]) => Promise<void>;
 }
 
-export function ClusterCard({ cluster, identity, onApprove, onReject }: Props) {
+export function ClusterCard({
+  cluster,
+  identity,
+  onApprove,
+  onReject,
+  otherPets = [],
+  onReassign,
+}: Props) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
+  const [reassignTarget, setReassignTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -92,7 +105,24 @@ export function ClusterCard({ cluster, identity, onApprove, onReject }: Props) {
     }
   };
 
-  const busy = approving || rejecting;
+  const handleReassign = async () => {
+    if (!reassignTarget || !onReassign) {
+      return;
+    }
+
+    setError(null);
+    setReassigning(true);
+
+    try {
+      await onReassign(reassignTarget, selection.selected);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reassign");
+    } finally {
+      setReassigning(false);
+    }
+  };
+
+  const busy = approving || rejecting || reassigning;
 
   return (
     <Card>
@@ -171,9 +201,55 @@ export function ClusterCard({ cluster, identity, onApprove, onReject }: Props) {
               </Button>
             </div>
 
+            {/*
+              A third path alongside Approve/Not <identity> (issue #166): the
+              group is correctly clustered as one animal, but it is not this
+              pet. Picking another pet settles the selection directly instead
+              of rejecting it back into the pending queue and hoping the
+              right pet gets recommended for it later.
+            */}
+            {otherPets.length > 0 && (
+              <div
+                className="flex flex-wrap items-center gap-2"
+                role="group"
+                aria-label={`Assign ${photos(selection.selectedCount)} to a different pet`}
+              >
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  Not {identity}? Assign to
+                  <select
+                    value={reassignTarget}
+                    onChange={(event) => setReassignTarget(event.target.value)}
+                    disabled={busy}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">Select another pet…</option>
+                    {otherPets.map((pet) => (
+                      <option key={pet.id} value={pet.name}>
+                        {pet.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReassign}
+                  disabled={busy || selection.noneSelected || !reassignTarget}
+                  aria-label={`Assign ${photos(selection.selectedCount)} to ${
+                    reassignTarget || "another pet"
+                  }`}
+                >
+                  <IconArrowsRightLeft className="h-4 w-4" aria-hidden="true" />
+                  {reassigning ? "Assigning…" : "Assign"}
+                </Button>
+              </div>
+            )}
+
             {selection.noneSelected && (
               <p className="text-sm text-muted-foreground">
-                Select at least one photo to approve or reject.
+                Select at least one photo to approve, reject, or reassign.
               </p>
             )}
 

@@ -416,6 +416,38 @@ export async function approveCluster(
 }
 
 /**
+ * Assign a *different* pet's identity to every listed photo (issue #166).
+ *
+ * Same request/response shape as `approveCluster`, but the server does not
+ * require the classifier to have proposed this pet for these crops --
+ * reassigning to a pet the classifier never put forward for a
+ * correctly-clustered group is the point of this action.
+ */
+export async function reassignCluster(
+  identity: string,
+  species: string,
+  classificationIds: number[],
+): Promise<ClusterApprovalResult> {
+  const response = await fetch("/api/library/clusters/reassign", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      identity,
+      species,
+      classification_ids: classificationIds,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to reassign cluster");
+  }
+
+  return response.json();
+}
+
+/**
  * Record that every listed photo is *not* this pet (issue #144).
  *
  * Settles no identity: each photo is rescored without the rejected pet

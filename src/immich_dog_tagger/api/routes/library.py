@@ -136,6 +136,48 @@ def approve_cluster(
 
 
 @router.post(
+    "/clusters/reassign",
+    response_model=ClusterApprovalResponse,
+)
+def reassign_cluster(
+    request: ClusterApprovalRequest,
+    service: Annotated[
+        ClusterApprovalService,
+        Depends(get_cluster_approval_service),
+    ],
+    auto_reclassify: Annotated[
+        AutoReclassifyService,
+        Depends(get_auto_reclassify_service),
+    ],
+):
+    """
+    Assign a *different* pet's identity to every listed member (issue #166).
+
+    Same request/response shape as /clusters/approve -- and the same
+    settling write, one ordinary correction per member -- but it does not
+    require the classifier to have proposed `identity` for these crops.
+    Reassigning to a pet the classifier never put forward for a
+    correctly-clustered group is the point of this action, not a bug.
+    """
+    try:
+        summary = service.reassign(
+            identity=request.identity,
+            species=request.species,
+            classification_ids=request.classification_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        ) from e
+
+    if summary.applied:
+        auto_reclassify.request()
+
+    return ClusterApprovalResponse.from_summary(summary)
+
+
+@router.post(
     "/clusters/reject",
     response_model=ClusterApprovalResponse,
 )

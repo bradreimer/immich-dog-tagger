@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { IconRefresh } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import { approveCluster, getPetClusters, rejectCluster } from "@/lib/api";
+import { approveCluster, getPetClusters, reassignCluster, rejectCluster } from "@/lib/api";
 import type { ClusterProposal, ClusterSort } from "@/types/clusters";
+import type { Dog } from "@/types/dogs";
 import { ClusterCard } from "./ClusterCard";
 
 /**
@@ -23,6 +24,8 @@ const DEFAULT_SORT: ClusterSort = "confidence_desc";
 interface Props {
   identity: string;
   species: string;
+  /** Active pets, both species -- filtered here to the reassignment options each card offers. */
+  identities?: Dog[];
   /** Called after an approval lands, so the page can refresh what it shows. */
   onApproved?: (applied: number) => void;
 }
@@ -32,7 +35,7 @@ interface Props {
  * recommendations for the selected pet, grouped into clusters of visually
  * similar crops, each approvable in one action.
  */
-export function ClusterPanel({ identity, species, onApproved }: Props) {
+export function ClusterPanel({ identity, species, identities = [], onApproved }: Props) {
   const [proposal, setProposal] = useState<ClusterProposal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +111,38 @@ export function ClusterPanel({ identity, species, onApproved }: Props) {
     [identity, species, load],
   );
 
+  const reassign = useCallback(
+    async (targetIdentity: string, classificationIds: number[]) => {
+      // A dedicated endpoint (issue #166), not approveCluster: the server's
+      // approval guard only accepts a pet the classifier already proposed
+      // for these crops, which a genuine reassignment usually is not.
+      const result = await reassignCluster(targetIdentity, species, classificationIds);
+
+      const skipped = result.skips
+        .map((skip) => skip.reason)
+        .filter((reason, index, reasons) => reasons.indexOf(reason) === index)
+        .join(", ");
+
+      setNotice(
+        result.skipped === 0
+          ? `Reassigned ${result.applied} ${result.applied === 1 ? "photo" : "photos"} to ${targetIdentity}.`
+          : `Reassigned ${result.applied} of ${result.applied + result.skipped} photos to ${targetIdentity}. Skipped ${result.skipped}: ${skipped}.`,
+      );
+
+      onApproved?.(result.applied);
+
+      await load();
+    },
+    [species, onApproved, load],
+  );
+
+  // The reassignment picker's options: active pets of this cluster's species,
+  // excluding the pet already selected here -- reassigning to it would just
+  // be Approve.
+  const otherPets = identities.filter(
+    (pet) => pet.species === species && pet.name !== identity,
+  );
+
   return (
     <section className="space-y-4" aria-label={`Recommendations for ${identity}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -176,6 +211,8 @@ export function ClusterPanel({ identity, species, onApproved }: Props) {
               identity={identity}
               onApprove={approve}
               onReject={reject}
+              otherPets={otherPets}
+              onReassign={reassign}
             />
           ))}
         </div>

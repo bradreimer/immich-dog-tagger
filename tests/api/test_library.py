@@ -384,6 +384,90 @@ def test_approve_endpoint_400s_for_an_unknown_pet(api_client, engine):
     assert response.status_code == 400
 
 
+def test_reassign_endpoint_settles_a_pet_the_classifier_never_proposed(
+    api_client, engine
+):
+    """
+    Every seeded classification is predicted "Fibs" with no candidates, so
+    /clusters/approve would refuse them all for "Otto" as not-recommended
+    (see test_approve_endpoint_applies_and_reports_skips's counterpart in
+    tests/test_clusters.py). /clusters/reassign settles them anyway -- the
+    point of issue #166.
+    """
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session)
+        session.add(Identity(name="Otto", species=Species.DOG))
+        session.commit()
+
+    response = api_client.post(
+        "/library/clusters/reassign",
+        json={
+            "identity": "Otto",
+            "species": "dog",
+            "classification_ids": classification_ids,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["identity"] == "Otto"
+    assert payload["applied"] == 3
+    assert payload["skipped"] == 0
+
+    with Session(engine) as session:
+        classifications = (
+            session.query(CropClassification)
+            .filter(CropClassification.id.in_(classification_ids))
+            .all()
+        )
+
+        assert {c.identity for c in classifications} == {"Otto"}
+
+    # Reassigned members leave the pool they were pending under.
+    assert (
+        api_client.get("/library/clusters?identity=Fibs&species=dog").json()[
+            "candidate_count"
+        ]
+        == 0
+    )
+
+
+def test_reassign_endpoint_rejects_an_empty_selection(api_client, engine):
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session)
+        session.add(Identity(name="Otto", species=Species.DOG))
+        session.commit()
+
+    response = api_client.post(
+        "/library/clusters/reassign",
+        json={
+            "identity": "Otto",
+            "species": "dog",
+            "classification_ids": [],
+        },
+    )
+
+    assert response.status_code == 422
+
+    with Session(engine) as session:
+        assert session.query(ReviewAction).count() == 0
+
+
+def test_reassign_endpoint_400s_for_an_unknown_pet(api_client, engine):
+    response = api_client.post(
+        "/library/clusters/reassign",
+        json={
+            "identity": "Nobody",
+            "species": "dog",
+            "classification_ids": [1],
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_clusters_endpoint_query_count_is_independent_of_pool_size(api_client, engine):
     with Session(engine) as session:
         _seed_pet_with_candidates(session, count=3)
