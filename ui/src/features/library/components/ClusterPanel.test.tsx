@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { ClusterPanel } from "./ClusterPanel";
 import * as api from "@/lib/api";
@@ -9,6 +9,7 @@ import type { ReviewItem } from "@/types/review";
 vi.mock("@/lib/api", () => ({
   getPetClusters: vi.fn(),
   approveCluster: vi.fn(),
+  reassignCluster: vi.fn(),
   rejectCluster: vi.fn(),
 }));
 
@@ -381,6 +382,111 @@ describe("ClusterPanel", () => {
 
     await waitFor(() => {
       expect(api.rejectCluster).toHaveBeenCalledWith("Hermann", "dog", [2, 3]);
+    });
+  });
+
+  describe("reassigning to another pet", () => {
+    const identities = [
+      { id: 1, name: "Hermann", species: "dog" as const, active: true },
+      { id: 2, name: "Otto", species: "dog" as const, active: true },
+      { id: 3, name: "Whiskers", species: "cat" as const, active: true },
+    ];
+
+    it("offers other pets of the same species, excluding the selected pet itself", async () => {
+      vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+      render(<ClusterPanel identity="Hermann" species="dog" identities={identities} />);
+
+      await screen.findByText("3 photos");
+
+      const select = screen.getByRole("combobox", { name: /Assign to/i });
+      const options = within(select).getAllByRole("option");
+
+      expect(options.map((option) => option.textContent)).toEqual([
+        "Select another pet…",
+        "Otto",
+      ]);
+    });
+
+    it("reassigns the selection to the chosen pet via the dedicated reassign endpoint", async () => {
+      vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+      vi.mocked(api.reassignCluster).mockResolvedValue({
+        identity: "Otto",
+        applied: 3,
+        skipped: 0,
+        skips: [],
+      });
+
+      const onApproved = vi.fn();
+
+      render(
+        <ClusterPanel
+          identity="Hermann"
+          species="dog"
+          identities={identities}
+          onApproved={onApproved}
+        />,
+      );
+
+      await screen.findByText("3 photos");
+
+      fireEvent.change(screen.getByDisplayValue("Select another pet…"), {
+        target: { value: "Otto" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Assign 3 photos to Otto" }));
+
+      await waitFor(() => {
+        expect(api.reassignCluster).toHaveBeenCalledWith("Otto", "dog", [1, 2, 3]);
+      });
+
+      expect(await screen.findByText("Reassigned 3 photos to Otto.")).toBeInTheDocument();
+      expect(onApproved).toHaveBeenCalledWith(3);
+      // The pool is re-read afterwards, same as an approval.
+      expect(api.getPetClusters).toHaveBeenCalledTimes(2);
+      expect(api.approveCluster).not.toHaveBeenCalled();
+    });
+
+    it("reports a partial reassignment's shortfall", async () => {
+      vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+      vi.mocked(api.reassignCluster).mockResolvedValue({
+        identity: "Otto",
+        applied: 2,
+        skipped: 1,
+        skips: [{ classification_id: 3, reason: "already-reviewed" }],
+      });
+
+      render(<ClusterPanel identity="Hermann" species="dog" identities={identities} />);
+
+      await screen.findByText("3 photos");
+
+      fireEvent.change(screen.getByDisplayValue("Select another pet…"), {
+        target: { value: "Otto" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Assign 3 photos to Otto" }));
+
+      expect(
+        await screen.findByText(
+          "Reassigned 2 of 3 photos to Otto. Skipped 1: already-reviewed.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("shows no reassignment control when no other pet of this species is configured", async () => {
+      vi.mocked(api.getPetClusters).mockResolvedValue(buildProposal());
+
+      render(
+        <ClusterPanel
+          identity="Hermann"
+          species="dog"
+          identities={[identities[0], identities[2]]}
+        />,
+      );
+
+      await screen.findByText("3 photos");
+
+      expect(screen.queryByText("Select another pet…")).not.toBeInTheDocument();
     });
   });
 });

@@ -870,3 +870,81 @@ def test_approving_an_empty_selection_is_an_error(engine):
             )
 
         assert session.scalar(select(func.count()).select_from(ReviewAction)) == 0
+
+
+def test_reassign_settles_a_pet_the_classifier_never_proposed(engine):
+    """
+    The scenario issue #166 exists for: the classifier grouped these crops
+    correctly but proposed the wrong pet, and "Otto" was never even a
+    runner-up candidate for them. approve() would refuse every one of these
+    as "not-recommended" (see
+    test_approval_refuses_ids_outside_the_pets_recommendations); reassign()
+    is the same write with only that guard lifted.
+    """
+    with Session(engine) as session:
+        _identity(session)
+        _identity(session, name="Otto")
+
+        member = _classification(session, path="fibs.jpg")
+        unclassified = _classification(session, path="unknown.jpg", identity=None)
+
+        summary = _approval_service(session).reassign(
+            identity="Otto",
+            species=Species.DOG,
+            classification_ids=[member.id, unclassified.id],
+        )
+
+        assert summary.applied == 2
+        assert summary.skips == []
+
+        for reassigned in (member, unclassified):
+            session.refresh(reassigned)
+
+            assert reassigned.identity == "Otto"
+            assert reassigned.confidence == 1.0
+
+        actions = session.scalars(select(ReviewAction)).all()
+
+        assert {action.identity for action in actions} == {"Otto"}
+        assert {action.original_identity for action in actions} == {"Fibs", None}
+
+
+def test_reassign_still_enforces_every_other_approval_guard(engine):
+    """Only the recommendation-membership check is lifted; nothing else is."""
+    with Session(engine) as session:
+        _identity(session)
+        _identity(session, name="Otto")
+
+        applied = _classification(session, path="applied.jpg")
+        reviewed = _classification(session, path="reviewed.jpg", reviewed=True)
+        cat = _classification(session, path="cat.jpg", species=Species.CAT)
+
+        summary = _approval_service(session).reassign(
+            identity="Otto",
+            species=Species.DOG,
+            classification_ids=[applied.id, applied.id, reviewed.id, cat.id, 9999],
+        )
+
+        assert summary.applied == 1
+        assert {(skip.classification_id, skip.reason) for skip in summary.skips} == {
+            (applied.id, "duplicate"),
+            (reviewed.id, "already-reviewed"),
+            (cat.id, "species-mismatch"),
+            (9999, "not-found"),
+        }
+
+
+def test_reassigning_to_an_unknown_pet_is_an_error(engine):
+    with Session(engine) as session:
+        _identity(session)
+
+        classification = _classification(session, path="a.jpg")
+
+        with pytest.raises(ValueError):
+            _approval_service(session).reassign(
+                identity="Nobody",
+                species=Species.DOG,
+                classification_ids=[classification.id],
+            )
+
+        assert session.scalar(select(func.count()).select_from(ReviewAction)) == 0
