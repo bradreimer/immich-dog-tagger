@@ -439,18 +439,6 @@ export function OverviewPage() {
                 ))}
               </div>
             )}
-
-            {diagnostics.jobs.recent_failures.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">Recent failures</p>
-                {diagnostics.jobs.recent_failures.map((f) => (
-                  <div key={f.id} className="rounded-md border border-status-critical/20 bg-status-critical/5 p-2 text-xs">
-                    <span className="font-medium">#{f.id} {f.operation}</span>
-                    {f.error_message && <span className="ml-2 text-muted-foreground">{f.error_message}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

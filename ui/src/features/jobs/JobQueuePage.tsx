@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { cancelJob, clearJobHistory, getJobs } from "../../lib/api";
+import { cancelJob, clearJobHistory, getDiagnostics, getJobs } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
 import type { JobOperation, PipelineJob } from "../../types/jobs";
-import { IconLoader2, IconPlayerStop, IconRefresh, IconTrash } from "@tabler/icons-react";
+import type { Diagnostics } from "../../types/diagnostics";
+import { IconAlertTriangle, IconLoader2, IconPlayerStop, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +124,7 @@ function JobRow({
 
 export function JobQueuePage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
@@ -135,7 +137,12 @@ export function JobQueuePage() {
     }
     setError(null);
     try {
-      setJobs(await getJobs(100));
+      const [jobItems, diagData] = await Promise.all([
+        getJobs(100),
+        getDiagnostics().catch(() => null),
+      ]);
+      setJobs(jobItems);
+      setDiagnostics(diagData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     } finally {
@@ -239,6 +246,26 @@ export function JobQueuePage() {
             <CardTitle>Job Queue Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
+        </Card>
+      )}
+
+      {diagnostics && diagnostics.jobs.recent_failures.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <IconAlertTriangle className="h-4 w-4 text-status-critical" aria-hidden="true" />
+              Recent Failures
+            </CardTitle>
+            <CardDescription>The last {diagnostics.jobs.recent_failures.length} failed jobs.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {diagnostics.jobs.recent_failures.map((f) => (
+              <div key={f.id} className="rounded-md border border-status-critical/20 bg-status-critical/5 p-2 text-xs">
+                <span className="font-medium">#{f.id} {formatOperation(f.operation)}</span>
+                {f.error_message && <span className="ml-2 text-muted-foreground">{f.error_message}</span>}
+              </div>
+            ))}
+          </CardContent>
         </Card>
       )}
 
