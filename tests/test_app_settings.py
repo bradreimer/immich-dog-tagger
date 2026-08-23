@@ -25,6 +25,7 @@ from immich_dog_tagger.services.app_settings import (
     AutoReclassifyService,
 )
 from immich_dog_tagger.services.jobs import PipelineJobService
+from tests.conftest import FakeJobDispatcher
 
 
 def test_sensitivity_defaults_to_balanced(engine):
@@ -175,7 +176,10 @@ def test_the_sensitivity_thresholds_exist_only_in_policy(engine):
 
 def test_auto_reclassify_queues_a_job(engine):
     with Session(engine) as session:
-        service = AutoReclassifyService(session, PipelineJobService(session))
+        dispatcher = FakeJobDispatcher()
+        service = AutoReclassifyService(
+            session, PipelineJobService(session), dispatcher
+        )
 
         assert service.request() is True
 
@@ -184,6 +188,7 @@ def test_auto_reclassify_queues_a_job(engine):
         assert len(jobs) == 1
         assert jobs[0].operation is PipelineOperation.RECLASSIFY
         assert jobs[0].status is PipelineJobStatus.PENDING
+        assert dispatcher.triggers == 1
 
 
 def test_auto_reclassify_is_debounced(engine):
@@ -193,19 +198,24 @@ def test_auto_reclassify_is_debounced(engine):
     build a backlog of identical passes.
     """
     with Session(engine) as session:
-        service = AutoReclassifyService(session, PipelineJobService(session))
+        dispatcher = FakeJobDispatcher()
+        service = AutoReclassifyService(
+            session, PipelineJobService(session), dispatcher
+        )
 
         assert service.request() is True
         assert service.request() is False
         assert service.request() is False
 
         assert session.query(PipelineJob).count() == 1
+        assert dispatcher.triggers == 1
 
 
 def test_auto_reclassify_queues_again_once_the_previous_pass_finished(engine):
     with Session(engine) as session:
         job_service = PipelineJobService(session)
-        service = AutoReclassifyService(session, job_service)
+        dispatcher = FakeJobDispatcher()
+        service = AutoReclassifyService(session, job_service, dispatcher)
 
         service.request()
 
@@ -215,6 +225,7 @@ def test_auto_reclassify_queues_again_once_the_previous_pass_finished(engine):
 
         assert service.request() is True
         assert session.query(PipelineJob).count() == 2
+        assert dispatcher.triggers == 2
 
 
 def test_auto_reclassify_ignores_other_operations(engine):
@@ -225,6 +236,6 @@ def test_auto_reclassify_ignores_other_operations(engine):
         job_service = PipelineJobService(session)
         job_service.create_job(operation=PipelineOperation.SYNC)
 
-        service = AutoReclassifyService(session, job_service)
+        service = AutoReclassifyService(session, job_service, FakeJobDispatcher())
 
         assert service.request() is True

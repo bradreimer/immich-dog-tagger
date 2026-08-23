@@ -56,6 +56,7 @@ def test_schedules_crud_and_enable_disable(api_client):
     run_now_response = api_client.post(f"/schedules/{schedule_id}/run-now")
     assert run_now_response.status_code == 200
     assert run_now_response.json()["operation"] == PipelineOperation.FULL_PIPELINE
+    assert api_client.app.state.fake_job_dispatcher.triggers == 1
 
     get_response = api_client.get(f"/schedules/{schedule_id}")
     assert get_response.status_code == 200

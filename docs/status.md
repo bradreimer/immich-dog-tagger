@@ -388,6 +388,16 @@
   (existing pet, no double-write over an existing review, matching species, duplicate/unbounded
   ids) is unchanged. The picker only lists active pets of the cluster's species, excluding the pet
   already selected on the panel
+- [#174](https://github.com/bradreimer/immich-dog-tagger/issues/174) fixed a production bug: a
+  Reclassify job queued by #149's auto-reclassify-after-review (and a job created by
+  `POST /schedules/{id}/run-now`, e.g. manually re-running a Full Pipeline schedule) stayed
+  `PENDING` forever. `PipelineJobService.create_job()` only inserts the row -- only two things ever
+  start a pending job: the cron scheduler (only for jobs tied to a `PipelineSchedule`, which
+  neither of these has) and `PipelineJobDispatcher.trigger()` (previously called only from the
+  manual `POST /jobs` "start" flow used by the Jobs page). `AutoReclassifyService.request()` and
+  `run_schedule_now()` now call `dispatcher.trigger()` after creating the job, same as the Jobs
+  page path; the scheduler's own cron-driven dispatch is untouched (still runs synchronously via
+  the runner, never through the dispatcher)
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

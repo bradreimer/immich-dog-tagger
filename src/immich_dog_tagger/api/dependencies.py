@@ -176,8 +176,9 @@ def get_cluster_approval_service(
 def get_auto_reclassify_service(
     session: Annotated[Session, Depends(get_session)],
     job_service: Annotated[PipelineJobService, Depends(get_job_service)],
+    dispatcher: Annotated[PipelineJobDispatcher, Depends(get_job_dispatcher)],
 ) -> AutoReclassifyService:
-    return AutoReclassifyService(session, job_service)
+    return AutoReclassifyService(session, job_service, dispatcher)
 
 
 def get_manual_tag_service(
