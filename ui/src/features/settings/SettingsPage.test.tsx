@@ -47,6 +47,18 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("v1.7.0")).toBeInTheDocument();
   });
 
+  it("links to buy me a coffee from the about section", async () => {
+    render(<SettingsPage />);
+
+    const link = await screen.findByRole("link", {
+      name: /Buy Fibs and Hermann a treat/,
+    });
+
+    expect(link).toHaveAttribute("href", "https://buymeacoffee.com/bradreimer");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("lets the owner change how cautious automatic tagging is", async () => {
     vi.mocked(api.setTaggingSensitivity).mockResolvedValue({
       immich_url: "http://immich-server:2283",

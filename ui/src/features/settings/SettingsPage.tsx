@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getSettings, setTaggingSensitivity } from "../../lib/api";
 import type { Settings, TaggingSensitivity } from "../../types/settings";
 import {
+  IconCoffee,
   IconExternalLink,
   IconPhoto,
   IconRefresh,
@@ -196,10 +197,19 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle>About</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <StatTile icon={IconTag} tone="neutral" label="Version" value={`v${settings.version}`} />
             </div>
+            <a
+              href="https://buymeacoffee.com/bradreimer"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              <IconCoffee className="h-4 w-4" aria-hidden="true" />
+              Buy Fibs and Hermann a treat
+            </a>
           </CardContent>
         </Card>
       )}
