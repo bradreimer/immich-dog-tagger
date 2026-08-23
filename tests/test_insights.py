@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import ClassificationSources, Species
@@ -10,6 +11,7 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
     Identity,
+    PetOccurrence,
 )
 from immich_dog_tagger.services.insights import IdentityNotFoundError, InsightsService
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
@@ -245,6 +247,65 @@ def test_cards_includes_milestone_once_threshold_reached(session):
     milestone = next(card for card in cards if card.slug == "milestone-total-photos")
 
     assert milestone.value == "100th confirmed photo"
+
+
+def test_top_photos_raises_for_missing_identity(session):
+    with pytest.raises(IdentityNotFoundError):
+        InsightsService(session).top_photos(999)
+
+
+def test_top_photos_empty_for_identity_with_no_occurrences(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    assert InsightsService(session).top_photos(identity.id) == []
+
+
+def test_top_photos_orders_by_confidence_descending(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    for immich_asset_id, confidence in [("low", 0.5), ("high", 0.95), ("mid", 0.7)]:
+        _add_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id=immich_asset_id,
+        )
+        occurrence = session.scalars(
+            select(PetOccurrence).where(
+                PetOccurrence.asset.has(immich_asset_id=immich_asset_id)
+            )
+        ).one()
+        occurrence.confidence = confidence
+        session.commit()
+
+    top_photos = InsightsService(session).top_photos(identity.id)
+
+    assert [photo.immich_asset_id for photo in top_photos] == ["high", "mid", "low"]
+    assert [photo.confidence for photo in top_photos] == [0.95, 0.7, 0.5]
+    assert all(photo.crop_id is not None for photo in top_photos)
+
+
+def test_top_photos_respects_limit(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    for i in range(15):
+        _add_occurrence(
+            session, service, identity_name="Hermann", immich_asset_id=f"a{i}"
+        )
+
+    top_photos = InsightsService(session).top_photos(identity.id, limit=10)
+
+    assert len(top_photos) == 10
 
 
 def test_insights_only_include_this_identitys_occurrences(session):

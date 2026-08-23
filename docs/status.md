@@ -388,6 +388,14 @@
   (existing pet, no double-write over an existing review, matching species, duplicate/unbounded
   ids) is unchanged. The picker only lists active pets of the cluster's species, excluding the pet
   already selected on the panel
+- [#171](https://github.com/bradreimer/immich-dog-tagger/issues/171) added a "Top photos"
+  thumbnail grid to the per-dog Insights page: the identity's 10 highest-confidence confirmed
+  photos, ordered by `PetOccurrence.confidence` descending (tiebreak occurrence id ascending). New
+  `InsightsService.top_photos()` follows the existing "ranked collection" pattern
+  (`timeline`/`places`/`people`) rather than the single-fact `InsightProvider` mechanism, per
+  v1.6's own note that ranked collections don't fit that shape. New read-only
+  `GET /api/dogs/{id}/insights/top-photos` endpoint (`limit` query param, default/max 10);
+  `docs/specs/v1.6-pet-insights.md` amended with the new requirement/acceptance criterion.
 - [#174](https://github.com/bradreimer/immich-dog-tagger/issues/174) fixed a production bug: a
   Reclassify job queued by #149's auto-reclassify-after-review (and a job created by
   `POST /schedules/{id}/run-now`, e.g. manually re-running a Full Pipeline schedule) stayed
