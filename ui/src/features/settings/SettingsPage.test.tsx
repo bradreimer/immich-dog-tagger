@@ -47,16 +47,25 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("v1.7.0")).toBeInTheDocument();
   });
 
-  it("links to buy me a coffee from the about section", async () => {
-    render(<SettingsPage />);
+  it("mounts the buy me a coffee widget only while settings is shown", async () => {
+    const { unmount } = render(<SettingsPage />);
 
-    const link = await screen.findByRole("link", {
-      name: /Buy Fibs and Hermann a treat/,
-    });
+    await screen.findByText("v1.6.0");
 
-    expect(link).toHaveAttribute("href", "https://buymeacoffee.com/bradreimer");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    const script = document.querySelector<HTMLScriptElement>(
+      'script[data-name="BMC-Widget"]',
+    );
+
+    expect(script).not.toBeNull();
+    expect(script).toHaveAttribute("data-id", "bradreimer");
+    expect(script).toHaveAttribute(
+      "data-message",
+      "Thank you for visiting. Buy Fibs and Hermann a treat.",
+    );
+
+    unmount();
+
+    expect(document.querySelector('script[data-name="BMC-Widget"]')).toBeNull();
   });
 
   it("lets the owner change how cautious automatic tagging is", async () => {

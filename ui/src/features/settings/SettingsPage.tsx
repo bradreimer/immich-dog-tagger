@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { getSettings, setTaggingSensitivity } from "../../lib/api";
 import type { Settings, TaggingSensitivity } from "../../types/settings";
 import {
-  IconCoffee,
   IconExternalLink,
   IconPhoto,
   IconRefresh,
@@ -64,6 +63,33 @@ export function SettingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Buy Me a Coffee's script isn't built for SPA mount/unmount, so this is
+  // best-effort: it renders its own floating button into document.body and we
+  // tear both down when leaving Settings, rather than leaving it live app-wide.
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.setAttribute("data-name", "BMC-Widget");
+    script.setAttribute("data-cfasync", "false");
+    script.src = "https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js";
+    script.setAttribute("data-id", "bradreimer");
+    script.setAttribute("data-description", "Support me on Buy me a coffee!");
+    script.setAttribute(
+      "data-message",
+      "Thank you for visiting. Buy Fibs and Hermann a treat.",
+    );
+    script.setAttribute("data-color", "#5F7FFF");
+    script.setAttribute("data-position", "Right");
+    script.setAttribute("data-x_margin", "18");
+    script.setAttribute("data-y_margin", "18");
+    document.body.appendChild(script);
+
+    return () => {
+      script.remove();
+      document.getElementById("bmc-wbtn")?.remove();
+      document.getElementById("bmc-wbtn-container")?.remove();
+    };
+  }, []);
 
   const changeSensitivity = useCallback(async (value: TaggingSensitivity) => {
     setSaving(true);
@@ -197,19 +223,10 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle>About</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <div className="grid gap-3 sm:grid-cols-2">
               <StatTile icon={IconTag} tone="neutral" label="Version" value={`v${settings.version}`} />
             </div>
-            <a
-              href="https://buymeacoffee.com/bradreimer"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              <IconCoffee className="h-4 w-4" aria-hidden="true" />
-              Buy Fibs and Hermann a treat
-            </a>
           </CardContent>
         </Card>
       )}
