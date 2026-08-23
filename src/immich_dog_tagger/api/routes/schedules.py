@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from immich_dog_tagger.api.dependencies import (
+    get_job_dispatcher,
     get_job_service,
     get_schedule_repository,
     get_schedule_service,
@@ -13,6 +14,7 @@ from immich_dog_tagger.api.schemas import (
     ScheduleRunResponse,
     ScheduleUpdateRequest,
 )
+from immich_dog_tagger.services.job_dispatcher import PipelineJobDispatcher
 from immich_dog_tagger.services.jobs import PipelineJobService
 from immich_dog_tagger.services.schedules import (
     PipelineScheduleRepository,
@@ -123,6 +125,7 @@ def run_schedule_now(
     schedule_id: int,
     repository: Annotated[PipelineScheduleRepository, Depends(get_schedule_repository)],
     job_service: Annotated[PipelineJobService, Depends(get_job_service)],
+    dispatcher: Annotated[PipelineJobDispatcher, Depends(get_job_dispatcher)],
 ):
     schedule = repository.get(schedule_id)
 
@@ -130,4 +133,5 @@ def run_schedule_now(
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
 
     job = job_service.create_job(operation=schedule.operation)
+    dispatcher.trigger()
     return ScheduleRunResponse.from_job(job)

@@ -106,9 +106,10 @@ class AutoReclassifyService:
     its own is as visible in the job queue as work the owner started.
     """
 
-    def __init__(self, session: Session, job_service):
+    def __init__(self, session: Session, job_service, dispatcher):
         self.session = session
         self.job_service = job_service
+        self.dispatcher = dispatcher
 
     def request(self) -> bool:
         """
@@ -129,6 +130,11 @@ class AutoReclassifyService:
             operation=PipelineOperation.RECLASSIFY,
             progress_message="Queued automatically after review",
         )
+
+        # create_job() only inserts the row -- without this it sits PENDING
+        # forever, since this job has no schedule_id for the cron dispatch
+        # path to pick up (issue #174).
+        self.dispatcher.trigger()
 
         logger.info("Auto-reclassify queued after a settled review batch")
 
