@@ -15,8 +15,15 @@ import {
   getInsightsPeople,
   getInsightsPlaces,
   getInsightsSummary,
+  getInsightsTopPhotos,
 } from "../../lib/api";
-import type { InsightCard, InsightsSummary, PersonCount, PlaceCount } from "../../types/insights";
+import type {
+  InsightCard,
+  InsightsSummary,
+  PersonCount,
+  PlaceCount,
+  TopPhoto,
+} from "../../types/insights";
 
 // One icon per category, not per specific insight -- so a new
 // InsightProvider (ADR-005) appears here with no frontend change.
@@ -49,6 +56,7 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
   const [places, setPlaces] = useState<PlaceCount[]>([]);
   const [people, setPeople] = useState<PersonCount[]>([]);
   const [cards, setCards] = useState<InsightCard[]>([]);
+  const [topPhotos, setTopPhotos] = useState<TopPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,18 +68,21 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
       setError(null);
 
       try {
-        const [summaryData, placesData, peopleData, cardsData] = await Promise.all([
-          getInsightsSummary(dogId),
-          getInsightsPlaces(dogId),
-          getInsightsPeople(dogId),
-          getInsightsCards(dogId),
-        ]);
+        const [summaryData, placesData, peopleData, cardsData, topPhotosData] =
+          await Promise.all([
+            getInsightsSummary(dogId),
+            getInsightsPlaces(dogId),
+            getInsightsPeople(dogId),
+            getInsightsCards(dogId),
+            getInsightsTopPhotos(dogId),
+          ]);
 
         if (!cancelled) {
           setSummary(summaryData);
           setPlaces(placesData);
           setPeople(peopleData);
           setCards(cardsData);
+          setTopPhotos(topPhotosData);
         }
       } catch (err) {
         if (!cancelled) {
@@ -181,6 +192,34 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
               ))}
             </div>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Top photos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topPhotos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No confirmed photos yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {topPhotos.map((photo) => (
+                    <div key={photo.asset_id} className="space-y-1">
+                      <img
+                        src={`/api/crops/${photo.crop_id}`}
+                        alt={`${summary.identity_name}, ${(photo.confidence * 100).toFixed(1)}% confidence`}
+                        className="aspect-square w-full rounded-md object-cover"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {(photo.confidence * 100).toFixed(1)}% confidence
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
