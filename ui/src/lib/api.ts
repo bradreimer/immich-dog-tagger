@@ -17,7 +17,13 @@ import type {
 } from "../types/clusters";
 import type { Settings, TaggingSensitivity } from "../types/settings";
 import type { Health } from "../types/health";
-import type { InsightCard, InsightsSummary, PersonCount, PlaceCount } from "../types/insights";
+import type {
+  InsightCard,
+  InsightsSummary,
+  PersonCount,
+  PlaceCount,
+  TopPhoto,
+} from "../types/insights";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -599,6 +605,17 @@ export async function getInsightsCards(identityId: number): Promise<InsightCard[
   const response = await fetch(`/api/dogs/${identityId}/insights/cards`);
   if (!response.ok) {
     throw new Error("Failed to load insight cards");
+  }
+  return response.json();
+}
+
+export async function getInsightsTopPhotos(
+  identityId: number,
+  limit = 10,
+): Promise<TopPhoto[]> {
+  const response = await fetch(`/api/dogs/${identityId}/insights/top-photos?limit=${limit}`);
+  if (!response.ok) {
+    throw new Error("Failed to load top photos");
   }
   return response.json();
 }

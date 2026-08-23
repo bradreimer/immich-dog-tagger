@@ -84,6 +84,27 @@ def test_insights_endpoints_return_derived_data(api_client, engine):
     assert timeline.status_code == 200
     assert timeline.json()[0]["immich_asset_id"] == "a1"
 
+    top_photos = api_client.get(f"/dogs/{identity_id}/insights/top-photos")
+    assert top_photos.status_code == 200
+    assert top_photos.json()[0]["immich_asset_id"] == "a1"
+    assert top_photos.json()[0]["confidence"] == 0.9
+    assert "crop_id" in top_photos.json()[0]
+
+
+def test_insights_top_photos_404_for_unknown_dog(api_client):
+    response = api_client.get("/dogs/999/insights/top-photos")
+
+    assert response.status_code == 404
+
+
+def test_insights_top_photos_empty_for_dog_with_no_photos(api_client):
+    created = api_client.post("/dogs", json={"name": "Cooper"}).json()
+
+    response = api_client.get(f"/dogs/{created['id']}/insights/top-photos")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
 
 def test_insights_cards_404_for_unknown_dog(api_client):
     response = api_client.get("/dogs/999/insights/cards")

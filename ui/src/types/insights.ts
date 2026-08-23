@@ -13,6 +13,14 @@ export interface PersonCount {
   count: number;
 }
 
+export interface TopPhoto {
+  asset_id: number;
+  immich_asset_id: string;
+  crop_id: number;
+  captured_at: string | null;
+  confidence: number;
+}
+
 export interface InsightsSummary {
   identity_id: number;
   identity_name: string;

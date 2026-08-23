@@ -9,6 +9,7 @@ from immich_dog_tagger.api.schemas import (
     PersonCountResponse,
     PlaceCountResponse,
     TimelineEntryResponse,
+    TopPhotoResponse,
 )
 from immich_dog_tagger.services.insights import IdentityNotFoundError, InsightsService
 
@@ -47,6 +48,23 @@ def get_timeline(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return [TimelineEntryResponse.from_timeline_entry(entry) for entry in entries]
+
+
+@router.get(
+    "/top-photos",
+    response_model=list[TopPhotoResponse],
+)
+def get_top_photos(
+    identity_id: int,
+    service: Annotated[InsightsService, Depends(get_insights_service)],
+    limit: int = Query(10, ge=1, le=10),
+):
+    try:
+        photos = service.top_photos(identity_id, limit=limit)
+    except IdentityNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return [TopPhotoResponse.from_top_photo(photo) for photo in photos]
 
 
 @router.get(

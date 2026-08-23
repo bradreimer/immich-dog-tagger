@@ -42,6 +42,15 @@ class TimelineEntry:
 
 
 @dataclass(frozen=True)
+class TopPhoto:
+    asset_id: int
+    immich_asset_id: str
+    crop_id: int
+    captured_at: datetime | None
+    confidence: float
+
+
+@dataclass(frozen=True)
 class InsightsSummary:
     identity_id: int
     identity_name: str
@@ -135,6 +144,26 @@ class InsightsService:
 
         return person_counts([occurrence.asset for occurrence in occurrences])
 
+    def top_photos(self, identity_id: int, limit: int = 10) -> list[TopPhoto]:
+        self._require_identity(identity_id)
+        occurrences = self._occurrences(identity_id, with_crop=True)
+
+        ordered = sorted(
+            occurrences,
+            key=lambda occurrence: (-occurrence.confidence, occurrence.id),
+        )
+
+        return [
+            TopPhoto(
+                asset_id=occurrence.asset.id,
+                immich_asset_id=occurrence.asset.immich_asset_id,
+                crop_id=occurrence.classification.crop_id,
+                captured_at=occurrence.asset.captured_at,
+                confidence=occurrence.confidence,
+            )
+            for occurrence in ordered[:limit]
+        ]
+
     def cards(self, identity_id: int) -> list[InsightCard]:
         identity = self._require_identity(identity_id)
         occurrences = self._occurrences(identity_id)
@@ -158,11 +187,18 @@ class InsightsService:
 
         return identity
 
-    def _occurrences(self, identity_id: int) -> list[PetOccurrence]:
+    def _occurrences(
+        self, identity_id: int, *, with_crop: bool = False
+    ) -> list[PetOccurrence]:
+        options = [joinedload(PetOccurrence.asset)]
+
+        if with_crop:
+            options.append(joinedload(PetOccurrence.classification))
+
         return list(
             self.session.scalars(
                 select(PetOccurrence)
                 .where(PetOccurrence.identity_id == identity_id)
-                .options(joinedload(PetOccurrence.asset))
+                .options(*options)
             ).all()
         )

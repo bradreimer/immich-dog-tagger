@@ -599,6 +599,24 @@ class TimelineEntryResponse(BaseModel):
         )
 
 
+class TopPhotoResponse(BaseModel):
+    asset_id: int
+    immich_asset_id: str
+    crop_id: int
+    captured_at: datetime | None
+    confidence: float
+
+    @classmethod
+    def from_top_photo(cls, photo):
+        return cls(
+            asset_id=photo.asset_id,
+            immich_asset_id=photo.immich_asset_id,
+            crop_id=photo.crop_id,
+            captured_at=photo.captured_at,
+            confidence=photo.confidence,
+        )
+
+
 class InsightCardResponse(BaseModel):
     slug: str
     title: str
