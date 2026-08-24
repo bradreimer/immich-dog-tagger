@@ -7,6 +7,7 @@ import { JobQueuePage } from "./features/jobs/JobQueuePage";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { MetricsPage } from "./features/metrics/MetricsPage";
 import { OverviewPage } from "./features/overview/OverviewPage";
+import { PhotoLookupPage } from "./features/photo-lookup/PhotoLookupPage";
 import { ReviewPage } from "./features/review/ReviewPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 
@@ -54,6 +55,10 @@ function App() {
 
     if (pathname === "/library") {
       return <LibraryPage onNavigate={navigate} />;
+    }
+
+    if (pathname === "/photo-lookup") {
+      return <PhotoLookupPage />;
     }
 
     if (pathname === "/jobs") {

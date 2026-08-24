@@ -406,6 +406,17 @@
   `run_schedule_now()` now call `dispatcher.trigger()` after creating the job, same as the Jobs
   page path; the scheduler's own cron-driven dispatch is untouched (still runs synchronously via
   the runner, never through the dispatcher)
+- [#179](https://github.com/bradreimer/immich-dog-tagger/issues/179) added Photo Lookup: paste an
+  Immich photo link into a new `/photo-lookup` page and see that exact photo with a colored box
+  over each detected dog/cat, labeled with its predicted identity and confidence, with the option
+  to correct a wrong one in place -- the reverse of #128's "View in Immich" link. New read-only
+  `GET /photo-lookup/{immich_asset_id}` (detections/crops/classifications for an `Asset` looked up
+  by Immich asset id) and `GET /photo-lookup/{immich_asset_id}/image` (proxies the original photo
+  live from Immich via the existing server-side API key, since the pipeline deletes its local
+  cached original once detection completes, per
+  [docs/specs/storage-lifecycle-cleanup.md](specs/storage-lifecycle-cleanup.md)); correction reuses
+  the existing `POST /classifications/{id}/correct` endpoint rather than a new write path. See
+  [docs/specs/photo-lookup.md](specs/photo-lookup.md).
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

@@ -8,6 +8,7 @@ import {
   IconLayoutSidebarLeftExpand,
   IconListDetails,
   IconPhoto,
+  IconSearch,
   IconSettings,
 } from "@tabler/icons-react";
 import { getHealth, getReviewStats } from "../../lib/api";
@@ -23,6 +24,7 @@ const links = [
   { label: "Overview", path: "/", icon: IconLayoutDashboard },
   { label: "Review", path: "/review", icon: IconChecklist },
   { label: "Library", path: "/library", icon: IconPhoto },
+  { label: "Photo Lookup", path: "/photo-lookup", icon: IconSearch },
   { label: "Dogs & Cats", path: "/dogs", icon: IconDog },
   { label: "Job Queue", path: "/jobs", icon: IconListDetails },
   { label: "Metrics", path: "/metrics", icon: IconChartBar },
