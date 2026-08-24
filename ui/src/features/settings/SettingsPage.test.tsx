@@ -68,6 +68,24 @@ describe("SettingsPage", () => {
     expect(document.querySelector('script[data-name="BMC-Widget"]')).toBeNull();
   });
 
+  it("redispatches DOMContentLoaded once the widget script loads, so it actually renders in an SPA", async () => {
+    render(<SettingsPage />);
+
+    await screen.findByText("v1.6.0");
+
+    const script = document.querySelector<HTMLScriptElement>(
+      'script[data-name="BMC-Widget"]',
+    );
+    const onDomContentLoaded = vi.fn();
+    document.addEventListener("DOMContentLoaded", onDomContentLoaded);
+
+    script?.onload?.(new Event("load"));
+
+    expect(onDomContentLoaded).toHaveBeenCalledTimes(1);
+
+    document.removeEventListener("DOMContentLoaded", onDomContentLoaded);
+  });
+
   it("lets the owner change how cautious automatic tagging is", async () => {
     vi.mocked(api.setTaggingSensitivity).mockResolvedValue({
       immich_url: "http://immich-server:2283",

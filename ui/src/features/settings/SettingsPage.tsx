@@ -82,7 +82,15 @@ export function SettingsPage() {
     script.setAttribute("data-position", "Right");
     script.setAttribute("data-x_margin", "18");
     script.setAttribute("data-y_margin", "18");
-    document.body.appendChild(script);
+    // The widget only initializes on the page's `DOMContentLoaded` event,
+    // which has already fired long before this script loads in an SPA --
+    // without redispatching it, the script loads but never renders anything.
+    script.onload = () => {
+      document.dispatchEvent(
+        new Event("DOMContentLoaded", { bubbles: true, cancelable: true }),
+      );
+    };
+    document.head.appendChild(script);
 
     return () => {
       script.remove();
