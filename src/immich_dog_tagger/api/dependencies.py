@@ -9,6 +9,7 @@ from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.config import load_config
 from immich_dog_tagger.database import create_database
 from immich_dog_tagger.embedder import Embedder
+from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.services.app_settings import AutoReclassifyService
 from immich_dog_tagger.services.clusters import (
@@ -23,6 +24,7 @@ from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.manual_tags import ManualTagService
+from immich_dog_tagger.services.photo_lookup import PhotoLookupService
 from immich_dog_tagger.services.rejections import RejectionService
 from immich_dog_tagger.services.review_actions import ReviewActionService
 from immich_dog_tagger.services.review_query import ReviewQueryService
@@ -185,3 +187,19 @@ def get_manual_tag_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> ManualTagService:
     return ManualTagService(session)
+
+
+def get_photo_lookup_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> PhotoLookupService:
+    return PhotoLookupService(session)
+
+
+@cache
+def get_immich_client() -> ImmichClient:
+    config = load_config()
+
+    return ImmichClient(
+        config.immich_url,
+        config.immich_api_key,
+    )

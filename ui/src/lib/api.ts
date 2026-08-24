@@ -24,6 +24,7 @@ import type {
   PlaceCount,
   TopPhoto,
 } from "../types/insights";
+import type { PhotoLookupResult } from "../types/photoLookup";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -676,6 +677,34 @@ export async function untagUndetectedAsset(
 
   if (!response.ok) {
     throw new Error("Failed to remove tag");
+  }
+
+  return response.json();
+}
+
+/** Thrown by getPhotoLookup() when the pasted photo hasn't been scanned by this instance. */
+export class PhotoLookupNotFoundError extends Error {}
+
+/**
+ * Look up what this instance knows about an Immich photo by its asset id
+ * (issue #179) -- the detections/identities/confidences shown for a pasted
+ * Immich link.
+ */
+export async function getPhotoLookup(
+  immichAssetId: string,
+): Promise<PhotoLookupResult> {
+  const response = await fetch(
+    `/api/photo-lookup/${encodeURIComponent(immichAssetId)}`,
+  );
+
+  if (response.status === 404) {
+    throw new PhotoLookupNotFoundError(
+      "That photo hasn't been scanned by this instance yet.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to look up photo");
   }
 
   return response.json();

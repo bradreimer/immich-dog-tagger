@@ -713,3 +713,46 @@ class ManualAssetTagRequest(BaseModel):
 class ManualAssetTagResponse(BaseModel):
     asset_id: int
     identities: list[str]
+
+
+class PhotoLookupDetectionResponse(BaseModel):
+    detection_id: int
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+    species: str
+    crop_id: int | None
+    classification_id: int | None
+    identity: str | None
+    confidence: float | None
+
+
+class PhotoLookupResponse(BaseModel):
+    asset_id: int
+    immich_asset_id: str
+    captured_at: datetime | None
+    detections: list[PhotoLookupDetectionResponse]
+
+    @classmethod
+    def from_lookup(cls, lookup):
+        return cls(
+            asset_id=lookup.asset_id,
+            immich_asset_id=lookup.immich_asset_id,
+            captured_at=lookup.captured_at,
+            detections=[
+                PhotoLookupDetectionResponse(
+                    detection_id=detection.detection_id,
+                    x1=detection.x1,
+                    y1=detection.y1,
+                    x2=detection.x2,
+                    y2=detection.y2,
+                    species=detection.species,
+                    crop_id=detection.crop_id,
+                    classification_id=detection.classification_id,
+                    identity=detection.identity,
+                    confidence=detection.confidence,
+                )
+                for detection in lookup.detections
+            ],
+        )
