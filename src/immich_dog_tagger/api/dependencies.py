@@ -14,6 +14,7 @@ from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.services.app_settings import AutoReclassifyService
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
+    ConfirmedClusterService,
     RecommendationClusterService,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
@@ -139,6 +140,12 @@ def get_cluster_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> RecommendationClusterService:
     return RecommendationClusterService(session)
+
+
+def get_confirmed_cluster_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> ConfirmedClusterService:
+    return ConfirmedClusterService(session)
 
 
 def get_rejection_service(

@@ -429,6 +429,24 @@
   checked alongside the existing `temporal-mismatch` (temporal takes precedence when both fire).
   See [docs/specs/v1.9-automatic-spatial-classification.md](specs/v1.9-automatic-spatial-classification.md)
   and [ADR-007](adr/ADR-007-automatic-spatial-proximity-classification.md).
+- [#183](https://github.com/bradreimer/immich-dog-tagger/issues/183) v1.10.0 Pet Album Browsing:
+  closes the "flat library grid" loose thread v1.8.0 left behind by bringing its
+  similarity-clustering-with-confidence and multi-select-and-move treatment to a pet's
+  already-*confirmed* photos, not only its pending recommendations. `ConfirmedClusterService`
+  subclasses `RecommendationClusterService`, overriding only the pool query (confirmed --
+  identity matches and a `ReviewAction` exists -- rather than unreviewed), so every clustering/
+  sorting/excluded-candidate behavior is inherited unchanged. `ClusterApprovalService.move()` is
+  the write: the confirmed-photo counterpart of `reassign()`, refusing a classification unless it
+  is already confirmed as the claimed source pet (the opposite guard from `approve()`/
+  `reassign()`'s "already-reviewed" refusal) -- the bulk form of the Library's existing per-photo
+  "Correct to..." control, same `ClassificationCorrectionService.correct()` provenance. New
+  `GET /library/clusters/confirmed` and `POST /library/clusters/move`, reusing the existing
+  `ClusterProposalResponse`/`ClusterApprovalResponse` schemas. `ClusterCard` gained optional
+  `onApprove`/`onReject` (omitted entirely for the confirmed view, which has no approve/reject
+  concept) and configurable reassignment copy (`reassignPrompt`/`reassignVerb`/
+  `reassignBusyLabel`/`representativeAlt`), so the new `ConfirmedClusterPanel` reuses it rather
+  than duplicating the cluster-card UI. See
+  [docs/specs/v1.10-pet-album-browsing.md](specs/v1.10-pet-album-browsing.md).
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
@@ -472,12 +490,11 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-v1.10.0 Pet Album Browsing ([#183](https://github.com/bradreimer/immich-dog-tagger/issues/183),
-[docs/specs/v1.10-pet-album-browsing.md](specs/v1.10-pet-album-browsing.md)) is queued: bring
-v1.8's similarity-clustering-with-confidence and multi-select-and-move to a pet's already-confirmed
-photos, not only its pending recommendations, closing the "flat library grid" loose thread below.
+No queued numbered milestone -- v1.10.0 (#183) shipped complete, including its own open question
+(FR-6-style "reject to no pet" from the confirmed view was considered and left out of scope; see
+the spec's Open questions).
 
-Other loose threads, none of them blocking: #146's coverage figure is a share while
+Loose threads, none of them blocking: #146's coverage figure is a share while
 review settled on two plain counts (spec Open questions); and whether confirmed pets should
 also be written to Immich's People surface rather than only albums remains an open ADR-sized
 question, deliberately out of v1.8.0's scope.

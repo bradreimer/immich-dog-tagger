@@ -315,6 +315,20 @@ class ClusterApprovalRequest(BaseModel):
     classification_ids: list[int] = Field(min_length=1)
 
 
+class ClusterMoveRequest(BaseModel):
+    """
+    Move a selection of one pet's already-*confirmed* photos to a different
+    pet (v1.10). Response reuses `ClusterApprovalResponse` -- same shape,
+    same accounting -- since a move is one ordinary correction per member,
+    same as an approval or reassignment.
+    """
+
+    source_identity: str
+    target_identity: str
+    species: Species
+    classification_ids: list[int] = Field(min_length=1)
+
+
 class ClusterRejectionRequest(BaseModel):
     """
     Same shape as an approval (issue #144): the owner's explicit selection,

@@ -6,6 +6,7 @@ import type { LibraryQuery } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import type { LibraryEntry } from "@/types/library";
 import { ClusterPanel } from "./components/ClusterPanel";
+import { ConfirmedClusterPanel } from "./components/ConfirmedClusterPanel";
 import { LibraryEntryCard } from "./components/LibraryEntryCard";
 import { PetSelector } from "./components/PetSelector";
 import { LibraryWorkspaceProvider } from "./LibraryWorkspaceProvider";
@@ -132,6 +133,15 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
           species={selectedPet.species}
           identities={identities}
           onApproved={() => load()}
+        />
+      )}
+
+      {selectedPet && (
+        <ConfirmedClusterPanel
+          identity={selectedPet.name}
+          species={selectedPet.species}
+          identities={identities}
+          onMoved={() => load()}
         />
       )}
 

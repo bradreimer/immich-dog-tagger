@@ -397,6 +397,64 @@ export async function getPetClusters(
   return response.json();
 }
 
+/**
+ * One pet's already-confirmed photos (v1.10), grouped into clusters of
+ * visually similar crops -- the confirmed-photo counterpart of
+ * `getPetClusters`. A read: nothing is moved until a selection is moved.
+ */
+export async function getConfirmedClusters(
+  identity: string,
+  species: string,
+  sort?: ClusterSort,
+): Promise<ClusterProposal> {
+  const params = new URLSearchParams();
+  params.set("identity", identity);
+  params.set("species", species);
+
+  if (sort) {
+    params.set("sort", sort);
+  }
+
+  const response = await fetch(`/api/library/clusters/confirmed?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load confirmed photos");
+  }
+
+  return response.json();
+}
+
+/**
+ * Move a selection of `sourceIdentity`'s already-confirmed photos to
+ * `targetIdentity` (v1.10) -- the bulk form of the Library's existing
+ * per-photo "Correct to..." control.
+ */
+export async function moveConfirmedPhotos(
+  sourceIdentity: string,
+  targetIdentity: string,
+  species: string,
+  classificationIds: number[],
+): Promise<ClusterApprovalResult> {
+  const response = await fetch("/api/library/clusters/move", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source_identity: sourceIdentity,
+      target_identity: targetIdentity,
+      species,
+      classification_ids: classificationIds,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to move photos");
+  }
+
+  return response.json();
+}
+
 /** Assign a pet's identity to every listed photo, as one action. */
 export async function approveCluster(
   identity: string,

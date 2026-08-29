@@ -38,11 +38,25 @@ function photos(count: number): string {
 interface Props {
   cluster: RecommendationCluster;
   identity: string;
-  onApprove: (classificationIds: number[]) => Promise<void>;
-  onReject: (classificationIds: number[]) => Promise<void>;
+  /**
+   * Approve/reject only apply to a *pending* cluster (issues #141/#144).
+   * Omitting both turns this into a plain selectable cluster with only the
+   * reassignment control -- the shape v1.10's confirmed-photo view needs,
+   * without a second cluster-card component to keep visually in sync.
+   */
+  onApprove?: (classificationIds: number[]) => Promise<void>;
+  onReject?: (classificationIds: number[]) => Promise<void>;
   /** Other pets of this cluster's species the selection can be reassigned to (issue #166). */
   otherPets?: Dog[];
   onReassign?: (identity: string, classificationIds: number[]) => Promise<void>;
+  /** Copy in front of the reassignment picker. Defaults to the pending-cluster wording. */
+  reassignPrompt?: string;
+  /** Verb used on the reassignment button and its aria-label ("Assign"/"Move"). */
+  reassignVerb?: string;
+  /** Label shown on the reassignment button while the request is in flight. */
+  reassignBusyLabel?: string;
+  /** Alt text for the representative thumbnail. Defaults to the pending-cluster wording. */
+  representativeAlt?: string;
 }
 
 export function ClusterCard({
@@ -52,6 +66,10 @@ export function ClusterCard({
   onReject,
   otherPets = [],
   onReassign,
+  reassignPrompt = `Not ${identity}? Assign to`,
+  reassignVerb = "Assign",
+  reassignBusyLabel = "Assigning…",
+  representativeAlt = `Most representative photo of this group of ${identity} recommendations`,
 }: Props) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -74,6 +92,10 @@ export function ClusterCard({
       : cluster.members.slice(0, VISIBLE_MEMBERS);
 
   const handleApprove = async () => {
+    if (!onApprove) {
+      return;
+    }
+
     setError(null);
     setApproving(true);
 
@@ -90,6 +112,10 @@ export function ClusterCard({
   };
 
   const handleReject = async () => {
+    if (!onReject) {
+      return;
+    }
+
     setError(null);
     setRejecting(true);
 
@@ -130,7 +156,7 @@ export function ClusterCard({
         <div className="flex flex-wrap items-start gap-4">
           <img
             src={`/api/crops/${cluster.representative.crop_id}`}
-            alt={`Most representative photo of this group of ${identity} recommendations`}
+            alt={representativeAlt}
             className="h-28 w-28 shrink-0 rounded-lg object-cover"
             loading="lazy"
             decoding="async"
@@ -171,35 +197,40 @@ export function ClusterCard({
               </Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                onClick={handleApprove}
-                disabled={busy || selection.noneSelected}
-                aria-label={`Approve ${photos(selection.selectedCount)} as ${identity}`}
-              >
-                <IconCheck className="h-4 w-4" aria-hidden="true" />
-                {approving
-                  ? "Approving…"
-                  : `Approve ${photos(selection.selectedCount)}`}
-              </Button>
+            {(onApprove || onReject) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {onApprove && (
+                  <Button
+                    type="button"
+                    onClick={handleApprove}
+                    disabled={busy || selection.noneSelected}
+                    aria-label={`Approve ${photos(selection.selectedCount)} as ${identity}`}
+                  >
+                    <IconCheck className="h-4 w-4" aria-hidden="true" />
+                    {approving
+                      ? "Approving…"
+                      : `Approve ${photos(selection.selectedCount)}`}
+                  </Button>
+                )}
 
-              {/*
-                Outline rather than the filled action treatment: rejecting is
-                a correction, not the primary path through this card, and it
-                must not read as a second way to say yes.
-              */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReject}
-                disabled={busy || selection.noneSelected}
-                aria-label={`Mark ${photos(selection.selectedCount)} as not ${identity}`}
-              >
-                <IconX className="h-4 w-4" aria-hidden="true" />
-                {rejecting ? "Saving…" : `Not ${identity}`}
-              </Button>
-            </div>
+                {onReject && (
+                  // Outline rather than the filled action treatment:
+                  // rejecting is a correction, not the primary path through
+                  // this card, and it must not read as a second way to say
+                  // yes.
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleReject}
+                    disabled={busy || selection.noneSelected}
+                    aria-label={`Mark ${photos(selection.selectedCount)} as not ${identity}`}
+                  >
+                    <IconX className="h-4 w-4" aria-hidden="true" />
+                    {rejecting ? "Saving…" : `Not ${identity}`}
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/*
               A third path alongside Approve/Not <identity> (issue #166): the
@@ -212,10 +243,10 @@ export function ClusterCard({
               <div
                 className="flex flex-wrap items-center gap-2"
                 role="group"
-                aria-label={`Assign ${photos(selection.selectedCount)} to a different pet`}
+                aria-label={`${reassignVerb} ${photos(selection.selectedCount)} to a different pet`}
               >
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  Not {identity}? Assign to
+                  {reassignPrompt}
                   <select
                     value={reassignTarget}
                     onChange={(event) => setReassignTarget(event.target.value)}
@@ -237,19 +268,27 @@ export function ClusterCard({
                   size="sm"
                   onClick={handleReassign}
                   disabled={busy || selection.noneSelected || !reassignTarget}
-                  aria-label={`Assign ${photos(selection.selectedCount)} to ${
+                  aria-label={`${reassignVerb} ${photos(selection.selectedCount)} to ${
                     reassignTarget || "another pet"
                   }`}
                 >
                   <IconArrowsRightLeft className="h-4 w-4" aria-hidden="true" />
-                  {reassigning ? "Assigning…" : "Assign"}
+                  {reassigning ? reassignBusyLabel : reassignVerb}
                 </Button>
               </div>
             )}
 
             {selection.noneSelected && (
               <p className="text-sm text-muted-foreground">
-                Select at least one photo to approve, reject, or reassign.
+                Select at least one photo to{" "}
+                {[
+                  onApprove && "approve",
+                  onReject && "reject",
+                  onReassign && reassignVerb.toLowerCase(),
+                ]
+                  .filter(Boolean)
+                  .join(" or ")}
+                .
               </p>
             )}
 
