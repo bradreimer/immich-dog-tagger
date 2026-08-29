@@ -41,10 +41,14 @@ from, and provenance (automatic prediction vs. human correction).
 2. Scores cosine similarity between the crop's embedding and every example.
 3. Weights each example's similarity by how closely its own capture date aligns with the crop
    being classified (`temporal_weight`, a Gaussian decay with a ~1 year scale, fails open when a
-   date is missing on either side) — see [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md).
-4. Keeps each identity's best-matching example by that *weighted* score, then ranks identities the
-   same way — but reports the winning match's raw, unweighted similarity as confidence, so recency
-   decides which identity wins without inflating or discounting the number shown.
+   date is missing on either side) — see [ADR-003](adr/ADR-003-automatic-temporal-recency-classification.md)
+   — and by how close its own location is to the crop's (`spatial_weight`, a Gaussian decay with a
+   ~2km scale, fails open when a coordinate is missing on either side) — see
+   [ADR-007](adr/ADR-007-automatic-spatial-proximity-classification.md).
+4. Keeps each identity's best-matching example by that *weighted* score (similarity × temporal
+   weight × spatial weight), then ranks identities the same way — but reports the winning match's
+   raw, unweighted similarity as confidence, so recency and location decide which identity wins
+   without inflating or discounting the number shown.
 5. Returns the top candidates (3 by default), not just the winner.
 
 **`ClassifierPolicy`** (`src/immich_dog_tagger/policy.py`) is the single place that owns the

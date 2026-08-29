@@ -70,6 +70,7 @@ def create_database(state_dir: Path):
     _ensure_pipeline_job_cancel_requested_column(engine)
     _ensure_pipeline_job_heartbeat_column(engine)
     _ensure_asset_metadata_columns(engine)
+    _ensure_embedding_example_location_columns(engine)
 
     return engine
 
@@ -300,6 +301,32 @@ def _ensure_asset_metadata_columns(engine) -> None:
 
     if "metadata_synced_at" not in columns:
         statements.append("ALTER TABLE assets ADD COLUMN metadata_synced_at DATETIME")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+
+
+def _ensure_embedding_example_location_columns(engine) -> None:
+    """
+    v1.9/ADR-007: reference examples gained a denormalized location snapshot
+    (mirroring captured_at) so spatial_weight() can score a candidate without
+    joining back to Asset. Additive -- existing examples get NULL, the same
+    fail-open outcome as a missing captured_at, not a guessed location.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("embedding_examples")}
+
+    statements = []
+
+    if "latitude" not in columns:
+        statements.append("ALTER TABLE embedding_examples ADD COLUMN latitude FLOAT")
+
+    if "longitude" not in columns:
+        statements.append("ALTER TABLE embedding_examples ADD COLUMN longitude FLOAT")
 
     if not statements:
         return

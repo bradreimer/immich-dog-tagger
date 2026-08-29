@@ -236,15 +236,21 @@ class ReclassifyService:
                 embedding = blob_to_embedding(classification.embedding)
 
                 captured_at = None
+                latitude = None
+                longitude = None
                 detection = classification.crop.detection
 
                 if detection is not None and detection.asset is not None:
                     captured_at = detection.asset.captured_at
+                    latitude = detection.asset.latitude
+                    longitude = detection.asset.longitude
 
                 result = classifier.classify(
                     embedding,
                     species=classification.crop.species,
                     captured_at=captured_at,
+                    latitude=latitude,
+                    longitude=longitude,
                     excluded_identities=rejections.get(classification.crop_id),
                 )
 
@@ -260,6 +266,7 @@ class ReclassifyService:
                         "similarity": candidate.similarity,
                         "matched_example_id": candidate.matched_example_id,
                         "temporal_weight": candidate.temporal_weight,
+                        "spatial_weight": candidate.spatial_weight,
                     }
                     for candidate in result.candidates
                 ]

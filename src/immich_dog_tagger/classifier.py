@@ -28,10 +28,14 @@ class ClassificationCandidate:
     # only influences which example/identity wins ranking (see
     # `weighted_score`), not the reported confidence number.
     temporal_weight: float = 1.0
+    # v1.9/ADR-007: the same treatment as temporal_weight, for how closely
+    # this example's location aligns with the photo being classified, in
+    # [scoring.SPATIAL_FLOOR, 1.0].
+    spatial_weight: float = 1.0
 
     @property
     def weighted_score(self) -> float:
-        return self.similarity * self.temporal_weight
+        return self.similarity * self.temporal_weight * self.spatial_weight
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,8 @@ class IdentityClassifier:
         threshold: float | None = None,
         candidate_limit: int | None = None,
         captured_at: datetime | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
         excluded_identities: Collection[str] | None = None,
     ) -> ClassificationResult:
         """
@@ -101,6 +107,10 @@ class IdentityClassifier:
                 similarity,
                 query_captured_at=captured_at,
                 example_captured_at=example.captured_at,
+                query_latitude=latitude,
+                query_longitude=longitude,
+                example_latitude=example.latitude,
+                example_longitude=example.longitude,
             )
 
             candidate = ClassificationCandidate(
@@ -108,6 +118,7 @@ class IdentityClassifier:
                 similarity=score.similarity,
                 matched_example_id=example.id,
                 temporal_weight=score.temporal_weight,
+                spatial_weight=score.spatial_weight,
             )
 
             existing = identity_scores.get(candidate.identity)

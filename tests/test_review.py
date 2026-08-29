@@ -1138,6 +1138,108 @@ def test_review_query_reason_temporal_mismatch_surfaces_even_when_confident(engi
         assert results[0].reason == "temporal-mismatch"
 
 
+def test_review_query_reason_location_mismatch_takes_precedence_over_candidate_conflict(
+    engine,
+):
+    """v1.9/ADR-007: location-mismatch is checked before candidate-conflict,
+    so an item with both gets the more specific, more actionable reason."""
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="location-mismatch.jpg")
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.50,
+            candidates=[
+                {
+                    "identity": "Fibs",
+                    "similarity": 0.50,
+                    "spatial_weight": 0.2,
+                }
+            ],
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 1
+        assert results[0].reason == "location-mismatch"
+
+
+def test_review_query_reason_location_mismatch_surfaces_even_when_confident(engine):
+    """A spatially weak match that would otherwise be confidently accepted
+    -- and so never appear in the default review queue at all -- must still
+    be labeled wherever it *is* shown (e.g. the library), rather than
+    looking like an ordinary unflagged confident match."""
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="confident-location-mismatch.jpg")
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.95,
+            candidates=[
+                {
+                    "identity": "Fibs",
+                    "similarity": 0.95,
+                    "spatial_weight": 0.2,
+                }
+            ],
+        )
+
+        session.add(classification)
+        session.commit()
+
+        # Confident -> excluded from the default queue, same as today.
+        assert ReviewQueryService(session).active_review() == []
+
+        # But still labeled, e.g. for the library (DT-1112), which shows
+        # every classification regardless of confidence.
+        results = ReviewQueryService(session).classifications()
+
+        assert len(results) == 1
+        assert results[0].reason == "location-mismatch"
+
+
+def test_review_query_reason_temporal_mismatch_takes_precedence_over_location_mismatch(
+    engine,
+):
+    """v1.9/ADR-007's Open Questions: when both signals are misaligned, the
+    reported reason is temporal-mismatch, checked first."""
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="both-mismatch.jpg")
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Fibs",
+            confidence=0.50,
+            candidates=[
+                {
+                    "identity": "Fibs",
+                    "similarity": 0.50,
+                    "temporal_weight": 0.2,
+                    "spatial_weight": 0.2,
+                }
+            ],
+        )
+
+        session.add(classification)
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 1
+        assert results[0].reason == "temporal-mismatch"
+
+
 def test_review_query_active_review_reason_unknown(engine):
     with Session(engine) as session:
         crop = Crop(

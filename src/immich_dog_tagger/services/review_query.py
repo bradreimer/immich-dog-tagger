@@ -49,6 +49,11 @@ from immich_dog_tagger.policy import (
 # routine match.
 _TEMPORAL_MISMATCH_THRESHOLD = 0.5
 
+# v1.9/ADR-007: the same treatment as _TEMPORAL_MISMATCH_THRESHOLD, for how
+# far a match's example was taken from the photo's own location (roughly
+# beyond ~2.7km, given scoring.SPATIAL_SIGMA_KM/SPATIAL_FLOOR).
+_SPATIAL_MISMATCH_THRESHOLD = 0.5
+
 
 @dataclass(frozen=True)
 class ReviewPrediction:
@@ -469,6 +474,9 @@ class ReviewQueryService:
                 # the old date_conflict key) -- read as full alignment, the
                 # same fail-open default the field itself has.
                 temporal_weight=candidate.get("temporal_weight", 1.0),
+                # Absent on candidates stored before v1.9/ADR-007 -- same
+                # fail-open default.
+                spatial_weight=candidate.get("spatial_weight", 1.0),
             )
             for candidate in classification.candidates
         ]
@@ -570,6 +578,17 @@ class ReviewQueryService:
             < _TEMPORAL_MISMATCH_THRESHOLD
         ):
             return "temporal-mismatch"
+
+        # v1.9/ADR-007: same precedent as temporal-mismatch above, for
+        # location. Checked second -- an item with both a temporal and a
+        # spatial mismatch reports temporal-mismatch, per this pass's Open
+        # Questions (v1.9-automatic-spatial-classification.md).
+        if (
+            classification.candidates
+            and classification.candidates[0].get("spatial_weight", 1.0)
+            < _SPATIAL_MISMATCH_THRESHOLD
+        ):
+            return "location-mismatch"
 
         if classification.candidates:
             return "candidate-conflict"
