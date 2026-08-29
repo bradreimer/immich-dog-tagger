@@ -472,11 +472,13 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-No queued numbered milestone -- v1.8.0 shipped complete.
+v1.10.0 Pet Album Browsing ([#183](https://github.com/bradreimer/immich-dog-tagger/issues/183),
+[docs/specs/v1.10-pet-album-browsing.md](specs/v1.10-pet-album-browsing.md)) is queued: bring
+v1.8's similarity-clustering-with-confidence and multi-select-and-move to a pet's already-confirmed
+photos, not only its pending recommendations, closing the "flat library grid" loose thread below.
 
-Loose threads it leaves behind, none of them blocking: #146's coverage figure is a share while
-review settled on two plain counts (spec Open questions); #142's `useSelection` hook is the reusable
-primitive for the multi-select the flat library grid still lacks; and whether confirmed pets should
+Other loose threads, none of them blocking: #146's coverage figure is a share while
+review settled on two plain counts (spec Open questions); and whether confirmed pets should
 also be written to Immich's People surface rather than only albums remains an open ADR-sized
 question, deliberately out of v1.8.0's scope.
 
