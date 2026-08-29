@@ -582,6 +582,245 @@ def test_reject_endpoint_rejects_an_empty_selection(api_client, engine):
     assert response.status_code == 422
 
 
+def _seed_confirmed_pet(session, count=3, species=Species.DOG, name="Fibs"):
+    """
+    Same shape as `_seed_pet_with_candidates`, but every classification is
+    already confirmed (has a `ReviewAction`) -- v1.10's confirmed pool,
+    rather than the pending one.
+    """
+    session.add(Identity(name=name, species=species))
+    session.flush()
+
+    classifications = []
+
+    for index in range(count):
+        asset = Asset(
+            immich_asset_id=f"asset-{name}-{index}",
+            extension=".jpg",
+            captured_at=datetime(2026, 1, index + 1, tzinfo=UTC),
+        )
+        detection = Detection(
+            asset=asset,
+            label=species.value,
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        crop = Crop(detection=detection, path=f"{name}-{index}.jpg", species=species)
+
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=name,
+            confidence=0.70 + index / 100,
+            embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+        )
+
+        session.add(classification)
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.CORRECT,
+                identity=name,
+            )
+        )
+
+        classifications.append(classification)
+
+    session.commit()
+
+    return [classification.id for classification in classifications]
+
+
+def test_confirmed_clusters_endpoint_returns_clusters_for_a_pet(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_confirmed_pet(session)
+
+    response = api_client.get("/library/clusters/confirmed?identity=Fibs&species=dog")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["identity"] == "Fibs"
+    assert payload["candidate_count"] == 3
+    assert payload["clustered_count"] == 3
+    assert len(payload["clusters"]) == 1
+    assert {
+        member["classification_id"] for member in payload["clusters"][0]["members"]
+    } == set(classification_ids)
+
+
+def test_confirmed_clusters_endpoint_excludes_pending_photos(api_client, engine):
+    with Session(engine) as session:
+        confirmed_ids = _seed_confirmed_pet(session, count=1)
+
+        # A pending recommendation for the same pet -- must not appear here.
+        # The Identity already exists from `_seed_confirmed_pet`, so this
+        # adds only the classification, not a second "Fibs"/DOG identity
+        # (unique per DT-1110).
+        asset = Asset(immich_asset_id="asset-pending", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        crop = Crop(detection=detection, path="pending.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+        session.add(
+            CropClassification(
+                crop=crop,
+                identity="Fibs",
+                confidence=0.8,
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+            )
+        )
+        session.commit()
+
+    response = api_client.get("/library/clusters/confirmed?identity=Fibs&species=dog")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    members = {
+        member["classification_id"]
+        for cluster in payload["clusters"]
+        for member in cluster["members"]
+    }
+
+    assert members == set(confirmed_ids)
+
+
+def test_confirmed_clusters_endpoint_is_empty_for_a_pet_with_no_confirmed_photos(
+    api_client, engine
+):
+    with Session(engine) as session:
+        session.add(Identity(name="Fibs", species=Species.DOG))
+        session.commit()
+
+    response = api_client.get("/library/clusters/confirmed?identity=Fibs&species=dog")
+
+    assert response.status_code == 200
+    assert response.json()["clusters"] == []
+
+
+def test_confirmed_clusters_endpoint_404s_for_an_unknown_pet(api_client, engine):
+    response = api_client.get("/library/clusters/confirmed?identity=Nobody&species=dog")
+
+    assert response.status_code == 404
+
+
+def test_move_endpoint_moves_confirmed_photos_to_a_different_pet(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_confirmed_pet(session)
+        session.add(Identity(name="Otto", species=Species.DOG))
+        session.commit()
+
+    response = api_client.post(
+        "/library/clusters/move",
+        json={
+            "source_identity": "Fibs",
+            "target_identity": "Otto",
+            "species": "dog",
+            "classification_ids": classification_ids,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["identity"] == "Otto"
+    assert payload["applied"] == 3
+    assert payload["skipped"] == 0
+
+    with Session(engine) as session:
+        classifications = (
+            session.query(CropClassification)
+            .filter(CropClassification.id.in_(classification_ids))
+            .all()
+        )
+
+        assert {c.identity for c in classifications} == {"Otto"}
+
+    # The moved photos leave Fibs' confirmed pool.
+    assert (
+        api_client.get("/library/clusters/confirmed?identity=Fibs&species=dog").json()[
+            "clusters"
+        ]
+        == []
+    )
+
+
+def test_move_endpoint_refuses_a_pending_photo(api_client, engine):
+    """A move targets already-confirmed photos; a pending one is refused."""
+    with Session(engine) as session:
+        classification_ids = _seed_pet_with_candidates(session, count=1)
+        session.add(Identity(name="Otto", species=Species.DOG))
+        session.commit()
+
+    response = api_client.post(
+        "/library/clusters/move",
+        json={
+            "source_identity": "Fibs",
+            "target_identity": "Otto",
+            "species": "dog",
+            "classification_ids": classification_ids,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["applied"] == 0
+    assert payload["skips"] == [
+        {"classification_id": classification_ids[0], "reason": "not-confirmed"}
+    ]
+
+
+def test_move_endpoint_rejects_an_empty_selection(api_client, engine):
+    with Session(engine) as session:
+        _seed_confirmed_pet(session)
+        session.add(Identity(name="Otto", species=Species.DOG))
+        session.commit()
+
+    response = api_client.post(
+        "/library/clusters/move",
+        json={
+            "source_identity": "Fibs",
+            "target_identity": "Otto",
+            "species": "dog",
+            "classification_ids": [],
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_move_endpoint_400s_for_an_unknown_pet(api_client, engine):
+    with Session(engine) as session:
+        classification_ids = _seed_confirmed_pet(session, count=1)
+
+    response = api_client.post(
+        "/library/clusters/move",
+        json={
+            "source_identity": "Fibs",
+            "target_identity": "Nobody",
+            "species": "dog",
+            "classification_ids": classification_ids,
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_reject_endpoint_400s_for_an_unknown_pet(api_client, engine):
     with Session(engine) as session:
         classification_ids = _seed_pet_with_candidates(session)

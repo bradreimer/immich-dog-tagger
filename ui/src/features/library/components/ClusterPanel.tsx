@@ -6,20 +6,8 @@ import { Button } from "@/components/ui/button";
 import { approveCluster, getPetClusters, reassignCluster, rejectCluster } from "@/lib/api";
 import type { ClusterProposal, ClusterSort } from "@/types/clusters";
 import type { Dog } from "@/types/dogs";
+import { CLUSTER_SORT_OPTIONS, DEFAULT_CLUSTER_SORT } from "../clusterSortOptions";
 import { ClusterCard } from "./ClusterCard";
-
-/**
- * The four orders issue #143 defines, in a fixed display order. Confidence
- * descending is the default -- approve the surest group first.
- */
-const SORT_OPTIONS: { value: ClusterSort; label: string }[] = [
-  { value: "confidence_desc", label: "Surest first" },
-  { value: "confidence_asc", label: "Least sure first" },
-  { value: "captured_desc", label: "Newest first" },
-  { value: "captured_asc", label: "Oldest first" },
-];
-
-const DEFAULT_SORT: ClusterSort = "confidence_desc";
 
 interface Props {
   identity: string;
@@ -40,7 +28,7 @@ export function ClusterPanel({ identity, species, identities = [], onApproved }:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [sort, setSort] = useState<ClusterSort>(DEFAULT_SORT);
+  const [sort, setSort] = useState<ClusterSort>(DEFAULT_CLUSTER_SORT);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -167,7 +155,7 @@ export function ClusterPanel({ identity, species, identities = [], onApproved }:
           onChange={(event) => setSort(event.target.value as ClusterSort)}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          {SORT_OPTIONS.map((option) => (
+          {CLUSTER_SORT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

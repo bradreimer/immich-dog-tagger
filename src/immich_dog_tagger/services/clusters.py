@@ -19,6 +19,13 @@ Both are bounded. Clustering pools at most `MAX_CANDIDATE_POOL`
 candidates, and an approval commits every `APPROVAL_BATCH_SIZE` members so
 a failure partway through leaves committed progress rather than a
 rolled-back hour (the DetectionService/ClassificationService pattern).
+
+`ConfirmedClusterService` (v1.10) is the confirmed-photo counterpart of
+`RecommendationClusterService`: same clustering, same read-only contract,
+over the pool of photos already settled for a pet instead of its pending
+ones. `ClusterApprovalService.move()` is its write -- the confirmed-photo
+counterpart of `reassign()`, targeting classifications `reassign()`
+deliberately refuses ("already-reviewed").
 """
 
 import logging
@@ -496,6 +503,66 @@ class RecommendationClusterService:
         return list(classifications)
 
 
+class ConfirmedClusterService(RecommendationClusterService):
+    """
+    Clusters a pet's already-*confirmed* photos (v1.10), rather than its
+    pending recommendations -- the "flat library grid" loose thread v1.8
+    left behind. Every read-side building block (clustering, sorting,
+    similarity, excluded-candidate accounting) is identical, so this
+    subclasses `RecommendationClusterService` and overrides only the pool
+    query rather than duplicating that logic.
+    """
+
+    def _candidate_ids(
+        self,
+        identity: str,
+        species: Species,
+    ) -> tuple[list[int], bool]:
+        """
+        The confirmed pool: classifications of this species already settled
+        as `identity` by a human decision -- reviewed individually,
+        corrected from the Library, or written by a prior cluster approval
+        or reassignment. This is the exact complement of the pending pool
+        `RecommendationClusterService` reads (has a `ReviewAction` vs. does
+        not), so a classification with an identity is always in exactly one
+        of the two views, never both.
+
+        No candidate-JSON matching needed here (unlike the pending pool):
+        a confirmed photo's *accepted* identity is what confirms it, not
+        whether it was ever a runner-up candidate.
+        """
+        rows = self.session.execute(
+            select(CropClassification.id)
+            .where(CropClassification.crop.has(Crop.species == species))
+            .where(CropClassification.identity == identity)
+            .where(
+                exists(
+                    select(ReviewAction.id).where(
+                        ReviewAction.classification_id == CropClassification.id,
+                    )
+                )
+            )
+            .order_by(
+                CropClassification.confidence.desc(),
+                CropClassification.id.asc(),
+            )
+        ).all()
+
+        matched = [row.id for row in rows]
+
+        truncated = len(matched) > self.max_pool
+
+        if truncated:
+            logger.info(
+                "Confirmed pool for %r capped at %d of %d confirmed photos",
+                identity,
+                self.max_pool,
+                len(matched),
+            )
+
+        return matched[: self.max_pool], truncated
+
+
 class ClusterApprovalService:
     """
     Applies a pet's identity to an explicitly listed set of members, as N
@@ -654,6 +721,140 @@ class ClusterApprovalService:
             classification_ids=classification_ids,
             require_recommended=False,
         )
+
+    def move(
+        self,
+        *,
+        source_identity: str,
+        target_identity: str,
+        species: Species,
+        classification_ids: list[int],
+    ) -> ApprovalSummary:
+        """
+        Reassigns a selection of a pet's already-*confirmed* photos to a
+        different pet, as N ordinary corrections (v1.10's confirmed-photo
+        counterpart of `reassign()` -- the bulk form of the Library's
+        existing per-photo "Correct to..." control).
+
+        `approve()`/`reassign()` both refuse a classification that already
+        carries a `ReviewAction` ("already-reviewed") -- exactly right for
+        the pending queue, where a bulk action must never overwrite an
+        individual decision made elsewhere. A move *is* that individual
+        decision, made in bulk, so its guard runs the other way: a
+        classification is refused unless it is already confirmed as
+        `source_identity`. An id that is not actually confirmed for the
+        claimed source pet was never in the confirmed view the owner was
+        looking at, so it is refused with a reason rather than silently
+        moved -- the same boundary check `approve()`'s "not-recommended"
+        guard applies to its own pool.
+        """
+        if not classification_ids:
+            raise ValueError("Cannot move an empty selection")
+
+        if len(classification_ids) > self.max_approval_size:
+            raise ValueError(
+                f"Cannot move more than {self.max_approval_size} photos at once"
+            )
+
+        source = self.session.scalar(
+            select(Identity).where(
+                Identity.name == source_identity,
+                Identity.species == species,
+            )
+        )
+
+        if source is None:
+            raise ValueError(f"No {species.value} named {source_identity!r}")
+
+        target = self.session.scalar(
+            select(Identity).where(
+                Identity.name == target_identity,
+                Identity.species == species,
+            )
+        )
+
+        if target is None:
+            raise ValueError(f"No {species.value} named {target_identity!r}")
+
+        applied = 0
+        skips: list[ApprovalSkip] = []
+        seen: set[int] = set()
+        since_commit = 0
+
+        try:
+            for classification_id in classification_ids:
+                if classification_id in seen:
+                    skips.append(ApprovalSkip(classification_id, "duplicate"))
+                    continue
+
+                seen.add(classification_id)
+
+                reason = self._move_rejection_reason(
+                    classification_id,
+                    source_identity,
+                    species,
+                )
+
+                if reason is not None:
+                    skips.append(ApprovalSkip(classification_id, reason))
+                    continue
+
+                self.correction_service.correct(
+                    classification_id,
+                    target_identity,
+                    commit=False,
+                )
+
+                applied += 1
+                since_commit += 1
+
+                if since_commit >= self.batch_size:
+                    self.session.commit()
+                    since_commit = 0
+
+            if since_commit:
+                self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
+
+        logger.info(
+            "Confirmed-photo move %r -> %r: %d applied, %d skipped",
+            source_identity,
+            target_identity,
+            applied,
+            len(skips),
+        )
+
+        return ApprovalSummary(
+            identity=target_identity,
+            applied=applied,
+            skips=skips,
+        )
+
+    def _move_rejection_reason(
+        self,
+        classification_id: int,
+        source_identity: str,
+        species: Species,
+    ) -> str | None:
+        classification = self.session.get(CropClassification, classification_id)
+
+        if classification is None:
+            return "not-found"
+
+        if classification.crop.species != species:
+            return "species-mismatch"
+
+        if not classification.review_actions:
+            # Never confirmed at all -- that is approve()/reassign()'s pool,
+            # with its own "not-recommended" guard, not this one's.
+            return "not-confirmed"
+
+        if classification.identity != source_identity:
+            return "not-source-pet"
+
+        return None
 
     def reject(
         self,

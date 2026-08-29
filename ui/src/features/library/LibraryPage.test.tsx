@@ -12,6 +12,8 @@ vi.mock("@/lib/api", () => ({
   correctClassification: vi.fn(),
   getPetClusters: vi.fn(),
   approveCluster: vi.fn(),
+  getConfirmedClusters: vi.fn(),
+  moveConfirmedPhotos: vi.fn(),
 }));
 
 const HERMANN: Dog = { id: 1, name: "Hermann", species: "dog", active: true };
@@ -64,6 +66,17 @@ describe("LibraryPage", () => {
     vi.clearAllMocks();
     vi.mocked(api.getDogs).mockResolvedValue([HERMANN, MINA]);
     vi.mocked(api.getPetClusters).mockResolvedValue({
+      identity: "Hermann",
+      species: "dog",
+      clusters: [],
+      excluded: [],
+      candidate_count: 0,
+      clustered_count: 0,
+      distance_threshold: 0.2,
+      truncated: false,
+      sort: "confidence_desc",
+    });
+    vi.mocked(api.getConfirmedClusters).mockResolvedValue({
       identity: "Hermann",
       species: "dog",
       clusters: [],

@@ -30,6 +30,7 @@ from immich_dog_tagger.models import (
 )
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
+    ConfirmedClusterService,
     RecommendationClusterService,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
@@ -948,3 +949,316 @@ def test_reassigning_to_an_unknown_pet_is_an_error(engine):
             )
 
         assert session.scalar(select(func.count()).select_from(ReviewAction)) == 0
+
+
+class TestConfirmedClusterService:
+    """
+    Coverage for v1.10's confirmed-photo counterpart of
+    `RecommendationClusterService`: same clustering/sorting machinery
+    (inherited, not re-tested here), a different pool.
+    """
+
+    def test_pool_is_confirmed_photos_only(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+
+            pending = _classification(session, path="pending.jpg")
+            confirmed = _classification(session, path="confirmed.jpg", reviewed=True)
+
+            proposal = ConfirmedClusterService(session).clusters(
+                identity="Fibs",
+                species=Species.DOG,
+            )
+
+            members = {
+                member.classification_id
+                for cluster in proposal.clusters
+                for member in cluster.members
+            }
+
+            assert members == {confirmed.id}
+            assert pending.id not in members
+
+    def test_pool_excludes_other_identity_and_other_species(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Fibs", species=Species.CAT)
+
+            _classification(
+                session, path="other.jpg", identity="Hermann", reviewed=True
+            )
+            _classification(
+                session,
+                path="cat.jpg",
+                species=Species.CAT,
+                reviewed=True,
+            )
+            confirmed = _classification(session, path="confirmed.jpg", reviewed=True)
+
+            proposal = ConfirmedClusterService(session).clusters(
+                identity="Fibs",
+                species=Species.DOG,
+            )
+
+            members = {
+                member.classification_id
+                for cluster in proposal.clusters
+                for member in cluster.members
+            }
+
+            assert members == {confirmed.id}
+
+    def test_pending_and_confirmed_pools_never_overlap(self, engine):
+        """
+        A classification is has-a-review-action or not; the two services
+        must never both claim it.
+        """
+        with Session(engine) as session:
+            _identity(session)
+
+            _classification(session, path="pending.jpg")
+            _classification(session, path="confirmed.jpg", reviewed=True)
+
+            pending = RecommendationClusterService(session).clusters(
+                identity="Fibs", species=Species.DOG
+            )
+            confirmed = ConfirmedClusterService(session).clusters(
+                identity="Fibs", species=Species.DOG
+            )
+
+            pending_ids = {
+                m.classification_id for c in pending.clusters for m in c.members
+            }
+            confirmed_ids = {
+                m.classification_id for c in confirmed.clusters for m in c.members
+            }
+
+            assert pending_ids.isdisjoint(confirmed_ids)
+            assert pending_ids | confirmed_ids == {
+                *pending_ids,
+                *confirmed_ids,
+            }
+
+    def test_clustering_a_pet_with_no_confirmed_photos_is_empty(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+
+            _classification(session, path="pending.jpg")
+
+            proposal = ConfirmedClusterService(session).clusters(
+                identity="Fibs",
+                species=Species.DOG,
+            )
+
+            assert proposal.clusters == []
+            assert proposal.candidate_count == 0
+
+    def test_confirmed_clusters_report_confidence_and_capture_range(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+
+            earliest = datetime(2024, 5, 1, tzinfo=UTC)
+            latest = datetime(2026, 2, 3, tzinfo=UTC)
+
+            _classification(
+                session,
+                path="a.jpg",
+                confidence=0.72,
+                captured_at=earliest,
+                reviewed=True,
+            )
+            _classification(
+                session,
+                path="b.jpg",
+                confidence=0.91,
+                captured_at=latest,
+                reviewed=True,
+            )
+
+            proposal = ConfirmedClusterService(session).clusters(
+                identity="Fibs",
+                species=Species.DOG,
+            )
+
+            cluster = proposal.clusters[0]
+
+            assert cluster.size == 2
+            assert cluster.min_similarity == pytest.approx(0.72)
+            assert cluster.max_similarity == pytest.approx(0.91)
+
+
+class TestClusterApprovalServiceMove:
+    """Coverage for v1.10's `ClusterApprovalService.move()`."""
+
+    def test_moves_confirmed_photos_to_a_different_pet(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Otto")
+
+            members = [
+                _classification(session, path=f"crop-{index}.jpg", reviewed=True)
+                for index in range(3)
+            ]
+
+            summary = _approval_service(session).move(
+                source_identity="Fibs",
+                target_identity="Otto",
+                species=Species.DOG,
+                classification_ids=[member.id for member in members],
+            )
+
+            assert summary.applied == 3
+            assert summary.skips == []
+            assert summary.identity == "Otto"
+
+            for member in members:
+                session.refresh(member)
+
+                assert member.identity == "Otto"
+                assert member.confidence == 1.0
+
+            actions = session.scalars(select(ReviewAction)).all()
+
+            # One CORRECT action per member from `reviewed=True`, plus one
+            # more per member from the move itself.
+            assert len(actions) == 6
+
+    def test_move_refuses_a_pending_i_e_unconfirmed_photo(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Otto")
+
+            pending = _classification(session, path="pending.jpg")
+
+            summary = _approval_service(session).move(
+                source_identity="Fibs",
+                target_identity="Otto",
+                species=Species.DOG,
+                classification_ids=[pending.id],
+            )
+
+            assert summary.applied == 0
+            assert {
+                (skip.classification_id, skip.reason) for skip in summary.skips
+            } == {
+                (pending.id, "not-confirmed"),
+            }
+
+            session.refresh(pending)
+            assert pending.identity == "Fibs"
+
+    def test_move_refuses_a_photo_confirmed_for_a_different_pet(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Otto")
+            _identity(session, name="Willow")
+
+            others_photo = _classification(
+                session, path="ottos.jpg", identity="Otto", reviewed=True
+            )
+
+            summary = _approval_service(session).move(
+                source_identity="Fibs",
+                target_identity="Willow",
+                species=Species.DOG,
+                classification_ids=[others_photo.id],
+            )
+
+            assert summary.applied == 0
+            assert {
+                (skip.classification_id, skip.reason) for skip in summary.skips
+            } == {
+                (others_photo.id, "not-source-pet"),
+            }
+
+            session.refresh(others_photo)
+            assert others_photo.identity == "Otto"
+
+    def test_move_refuses_species_mismatch_duplicate_and_not_found(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Otto")
+            _identity(session, name="Fibs", species=Species.CAT)
+
+            confirmed = _classification(session, path="confirmed.jpg", reviewed=True)
+            cat = _classification(
+                session,
+                path="cat.jpg",
+                species=Species.CAT,
+                identity="Fibs",
+                reviewed=True,
+            )
+
+            summary = _approval_service(session).move(
+                source_identity="Fibs",
+                target_identity="Otto",
+                species=Species.DOG,
+                classification_ids=[confirmed.id, confirmed.id, cat.id, 9999],
+            )
+
+            assert summary.applied == 1
+            assert {
+                (skip.classification_id, skip.reason) for skip in summary.skips
+            } == {
+                (confirmed.id, "duplicate"),
+                (cat.id, "species-mismatch"),
+                (9999, "not-found"),
+            }
+
+    def test_moving_from_or_to_an_unknown_pet_is_an_error(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+
+            confirmed = _classification(session, path="confirmed.jpg", reviewed=True)
+
+            with pytest.raises(ValueError):
+                _approval_service(session).move(
+                    source_identity="Nobody",
+                    target_identity="Fibs",
+                    species=Species.DOG,
+                    classification_ids=[confirmed.id],
+                )
+
+            with pytest.raises(ValueError):
+                _approval_service(session).move(
+                    source_identity="Fibs",
+                    target_identity="Nobody",
+                    species=Species.DOG,
+                    classification_ids=[confirmed.id],
+                )
+
+            session.refresh(confirmed)
+            assert confirmed.identity == "Fibs"
+
+    def test_moving_an_empty_selection_is_an_error(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Otto")
+
+            with pytest.raises(ValueError):
+                _approval_service(session).move(
+                    source_identity="Fibs",
+                    target_identity="Otto",
+                    species=Species.DOG,
+                    classification_ids=[],
+                )
+
+    def test_move_leaves_the_confirmed_pool(self, engine):
+        with Session(engine) as session:
+            _identity(session)
+            _identity(session, name="Otto")
+
+            moved = _classification(session, path="a.jpg", reviewed=True)
+
+            _approval_service(session).move(
+                source_identity="Fibs",
+                target_identity="Otto",
+                species=Species.DOG,
+                classification_ids=[moved.id],
+            )
+
+            after = ConfirmedClusterService(session).clusters(
+                identity="Fibs", species=Species.DOG
+            )
+
+            assert after.clusters == []
