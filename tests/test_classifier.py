@@ -311,6 +311,223 @@ def test_classifier_temporal_weight_fails_open_without_example_date(engine):
         assert result.candidates[0].temporal_weight == 1.0
 
 
+# New York City, roughly.
+_NYC = (40.7128, -74.0060)
+# Los Angeles, roughly -- thousands of km from NYC.
+_LA = (34.0522, -118.2437)
+
+
+def test_classifier_prefers_spatially_closer_identity_when_visually_tied(engine):
+    """v1.9/ADR-007: two identities with identical-looking embeddings must be
+    disambiguated by which one's own reference examples were taken closer to
+    the photo being classified -- automatically, using only each identity's
+    own photo history."""
+    with Session(engine) as session:
+        home_dog = Identity(name="HomeDog")
+        away_dog = Identity(name="AwayDog")
+
+        session.add_all([home_dog, away_dog])
+        session.flush()
+
+        shared_embedding = embedding_to_blob(np.array([1, 0, 0], dtype=np.float32))
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=home_dog.id,
+                    crop_path="home.jpg",
+                    embedding=shared_embedding,
+                    source=EmbeddingSources.BOOTSTRAP,
+                    latitude=_NYC[0],
+                    longitude=_NYC[1],
+                ),
+                EmbeddingExample(
+                    identity_id=away_dog.id,
+                    crop_path="away.jpg",
+                    embedding=shared_embedding,
+                    source=EmbeddingSources.BOOTSTRAP,
+                    latitude=_LA[0],
+                    longitude=_LA[1],
+                ),
+            ]
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        # A photo taken in NYC favors HomeDog, whose examples are close by.
+        nyc_result = classifier.classify(
+            probe,
+            latitude=_NYC[0],
+            longitude=_NYC[1],
+        )
+        assert nyc_result.identity == "HomeDog"
+
+        # The exact same probe and reference examples, but a photo taken in
+        # LA, correctly favors AwayDog instead.
+        la_result = classifier.classify(
+            probe,
+            latitude=_LA[0],
+            longitude=_LA[1],
+        )
+        assert la_result.identity == "AwayDog"
+
+
+def test_classifier_single_identity_confidence_unaffected_by_spatial_distance(
+    engine,
+):
+    """A lone identity's only known example being taken far away must not,
+    by itself, demote an otherwise-confident match to needs-review -- there
+    is no competing identity to disambiguate against yet, so the reported
+    confidence stays the example's true raw similarity."""
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs")
+
+        session.add(fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+                latitude=_LA[0],
+                longitude=_LA[1],
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        result = classifier.classify(probe, latitude=_NYC[0], longitude=_NYC[1])
+
+        assert result.identity == "Fibs"
+        assert result.similarity > 0.99
+        # The match itself is heavily spatially decayed...
+        assert result.candidates[0].spatial_weight < 0.2
+        # ...but that never touches the reported confidence.
+        assert result.candidates[0].similarity > 0.99
+
+
+def test_classifier_spatial_weight_fails_open_without_crop_location(engine):
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs")
+
+        session.add(fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+                latitude=_LA[0],
+                longitude=_LA[1],
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        # No latitude/longitude at all -- "no location signal available"
+        # must never be treated as suspicious, no matter how far the example
+        # is from anywhere.
+        result = classifier.classify(probe)
+
+        assert result.candidates[0].spatial_weight == 1.0
+
+
+def test_classifier_spatial_weight_fails_open_without_example_location(engine):
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs")
+
+        session.add(fibs)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=fibs.id,
+                crop_path="fibs.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+                # latitude/longitude left unset.
+            )
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        result = classifier.classify(probe, latitude=_NYC[0], longitude=_NYC[1])
+
+        assert result.candidates[0].spatial_weight == 1.0
+
+
+def test_classifier_combines_temporal_and_spatial_weight(engine):
+    """v1.9/ADR-007 acceptance criterion: a candidate close in time but far
+    in distance, and one far in time but close in distance, are both
+    partially discounted rather than either signal alone deciding the
+    outcome."""
+    with Session(engine) as session:
+        recent_but_far = Identity(name="RecentButFar")
+        old_but_near = Identity(name="OldButNear")
+
+        session.add_all([recent_but_far, old_but_near])
+        session.flush()
+
+        shared_embedding = embedding_to_blob(np.array([1, 0, 0], dtype=np.float32))
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=recent_but_far.id,
+                    crop_path="recent-far.jpg",
+                    embedding=shared_embedding,
+                    source=EmbeddingSources.BOOTSTRAP,
+                    captured_at=_naive(2026, 5, 25),
+                    latitude=_LA[0],
+                    longitude=_LA[1],
+                ),
+                EmbeddingExample(
+                    identity_id=old_but_near.id,
+                    crop_path="old-near.jpg",
+                    embedding=shared_embedding,
+                    source=EmbeddingSources.BOOTSTRAP,
+                    captured_at=_naive(2015, 6, 1),
+                    latitude=_NYC[0],
+                    longitude=_NYC[1],
+                ),
+            ]
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+        probe = np.array([1, 0, 0], dtype=np.float32)
+
+        # Query is both close in time to RecentButFar's example and close in
+        # distance to OldButNear's -- neither signal alone decides which
+        # wins, and both candidates end up partially discounted from 1.0.
+        result = classifier.classify(
+            probe,
+            captured_at=_naive(2026, 6, 1),
+            latitude=_NYC[0],
+            longitude=_NYC[1],
+        )
+
+        by_identity = {c.identity: c for c in result.candidates}
+
+        assert by_identity["RecentButFar"].temporal_weight > 0.9
+        assert by_identity["RecentButFar"].spatial_weight < 0.2
+
+        assert by_identity["OldButNear"].temporal_weight < 0.2
+        assert by_identity["OldButNear"].spatial_weight > 0.9
+
+
 def test_classification_service_handles_no_pending_crops(engine):
     from unittest.mock import Mock
 

@@ -210,14 +210,21 @@ class RejectionService:
             return
 
         captured_at = None
+        latitude = None
+        longitude = None
 
         if crop.detection is not None and crop.detection.asset is not None:
-            captured_at = crop.detection.asset.captured_at
+            asset = crop.detection.asset
+            captured_at = asset.captured_at
+            latitude = asset.latitude
+            longitude = asset.longitude
 
         result = self.classifier.classify(
             blob_to_embedding(classification.embedding),
             species=crop.species,
             captured_at=captured_at,
+            latitude=latitude,
+            longitude=longitude,
             excluded_identities=excluded,
         )
 
@@ -230,6 +237,7 @@ class RejectionService:
                 "similarity": candidate.similarity,
                 "matched_example_id": candidate.matched_example_id,
                 "temporal_weight": candidate.temporal_weight,
+                "spatial_weight": candidate.spatial_weight,
             }
             for candidate in result.candidates
         ]

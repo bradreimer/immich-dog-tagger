@@ -109,6 +109,13 @@ class EmbeddingExample(Base):
         nullable=True,
     )
 
+    # v1.9/ADR-007: denormalized from the source Asset at learn time, the
+    # same treatment captured_at already gets -- lets spatial_weight() score
+    # a candidate without joining back to Asset. NULL means genuinely no GPS
+    # data, not "not yet backfilled".
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     identity: Mapped[Identity] = relationship(
         back_populates="embeddings",
     )

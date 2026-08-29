@@ -306,6 +306,36 @@ Completed.
 
 ---
 
+## v1.9.0 - Automatic Spatial Classification
+
+See [docs/specs/v1.9-automatic-spatial-classification.md](specs/v1.9-automatic-spatial-classification.md)
+and [ADR-007](adr/ADR-007-automatic-spatial-proximity-classification.md). Tracking issue:
+[#181](https://github.com/bradreimer/immich-dog-tagger/issues/181).
+
+Goal:
+Extend v1.5.0's continuous, fail-open weighting approach from capture-date proximity to location
+proximity, so two visually similar dogs/cats photographed in different characteristic places are
+disambiguated by where a photo was taken, the same way v1.5.0 already disambiguates by when.
+
+Completed:
+- #181: `EmbeddingExample` gained a denormalized `latitude`/`longitude` snapshot (mirroring
+  `captured_at`); `SimilarityScorer` now also computes a `spatial_weight` (Gaussian decay over
+  haversine distance, ~2km scale, fail-open when a coordinate is missing on either side);
+  `IdentityClassifier` ranks/selects candidates by
+  `similarity * temporal_weight * spatial_weight` while continuing to report each winning match's
+  raw, unweighted cosine similarity as confidence; a new `location-mismatch` review/library reason
+  is checked alongside `temporal-mismatch` (temporal takes precedence when both fire).
+
+Explicitly not planned (see spec Non-goals): an owner-facing setting to tune the decay curve;
+reverse-geocoded/place-name-based comparison (the cached `country`/`state`/`city` fields stay
+Insights-only); retroactive recomputation of existing classifications outside the normal
+Reclassify flow.
+
+Exit criteria:
+Completed.
+
+---
+
 ## Active Learning Improvements
 
 Goal:

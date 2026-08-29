@@ -182,15 +182,22 @@ class ClassificationService:
         excluded_identities=None,
     ) -> CropClassification:
         captured_at = None
+        latitude = None
+        longitude = None
 
         if crop.detection is not None and crop.detection.asset is not None:
-            captured_at = crop.detection.asset.captured_at
+            asset = crop.detection.asset
+            captured_at = asset.captured_at
+            latitude = asset.latitude
+            longitude = asset.longitude
 
         result = self.classifier.classify(
             embedding,
             species=crop.species,
             threshold=threshold,
             captured_at=captured_at,
+            latitude=latitude,
+            longitude=longitude,
             excluded_identities=excluded_identities,
         )
 
@@ -200,6 +207,7 @@ class ClassificationService:
                 "similarity": candidate.similarity,
                 "matched_example_id": candidate.matched_example_id,
                 "temporal_weight": candidate.temporal_weight,
+                "spatial_weight": candidate.spatial_weight,
             }
             for candidate in result.candidates
         ]

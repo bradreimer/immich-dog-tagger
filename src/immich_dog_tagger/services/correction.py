@@ -78,12 +78,17 @@ class ClassificationCorrectionService:
 
             if identity is not None and identity != "Unknown":
                 captured_at = None
+                latitude = None
+                longitude = None
 
                 if (
                     classification.crop.detection is not None
                     and classification.crop.detection.asset is not None
                 ):
-                    captured_at = classification.crop.detection.asset.captured_at
+                    asset = classification.crop.detection.asset
+                    captured_at = asset.captured_at
+                    latitude = asset.latitude
+                    longitude = asset.longitude
 
                 self.learner.learn_image(
                     identity,
@@ -91,6 +96,8 @@ class ClassificationCorrectionService:
                     species=classification.crop.species,
                     source=EmbeddingSources.REVIEW,
                     captured_at=captured_at,
+                    latitude=latitude,
+                    longitude=longitude,
                 )
             else:
                 # Corrected to Unknown: this crop should no longer serve as a
@@ -147,14 +154,21 @@ class ClassificationCorrectionService:
             embedding = blob_to_embedding(classification.embedding)
 
             captured_at = None
+            latitude = None
+            longitude = None
 
             if crop.detection is not None and crop.detection.asset is not None:
-                captured_at = crop.detection.asset.captured_at
+                asset = crop.detection.asset
+                captured_at = asset.captured_at
+                latitude = asset.latitude
+                longitude = asset.longitude
 
             result = self.classifier.classify(
                 embedding,
                 species=species,
                 captured_at=captured_at,
+                latitude=latitude,
+                longitude=longitude,
             )
 
             classification.identity = result.identity
@@ -166,6 +180,7 @@ class ClassificationCorrectionService:
                     "similarity": candidate.similarity,
                     "matched_example_id": candidate.matched_example_id,
                     "temporal_weight": candidate.temporal_weight,
+                    "spatial_weight": candidate.spatial_weight,
                 }
                 for candidate in result.candidates
             ]

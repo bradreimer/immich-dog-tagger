@@ -18,6 +18,9 @@ function formatReason(reason: string): string {
     case "temporal-mismatch":
       return "Recency mismatch";
 
+    case "location-mismatch":
+      return "Location mismatch";
+
     default:
       return "Needs review";
   }

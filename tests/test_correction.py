@@ -32,7 +32,14 @@ class FakeLearner:
         self.calls = []
 
     def learn_image(
-        self, identity, image_path, species=None, source=None, captured_at=None
+        self,
+        identity,
+        image_path,
+        species=None,
+        source=None,
+        captured_at=None,
+        latitude=None,
+        longitude=None,
     ):
         self.calls.append(
             {
@@ -41,6 +48,8 @@ class FakeLearner:
                 "species": species,
                 "source": source,
                 "captured_at": captured_at,
+                "latitude": latitude,
+                "longitude": longitude,
             }
         )
 
@@ -130,6 +139,8 @@ def test_correction_learns_from_review(engine):
                 "species": Species.DOG,
                 "source": EmbeddingSources.REVIEW,
                 "captured_at": None,
+                "latitude": None,
+                "longitude": None,
             }
         ]
 
@@ -416,6 +427,8 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
             species=None,
             source,
             captured_at=None,
+            latitude=None,
+            longitude=None,
         ):
             self.calls.append(
                 {
@@ -424,6 +437,8 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
                     "species": species,
                     "source": source,
                     "captured_at": captured_at,
+                    "latitude": latitude,
+                    "longitude": longitude,
                 }
             )
 
@@ -438,6 +453,8 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
             checksum="checksum",
             extension=".jpg",
             captured_at=captured_at,
+            latitude=40.7128,
+            longitude=-74.0060,
         )
 
         detection = Detection(
@@ -484,6 +501,8 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
                 "species": Species.DOG,
                 "source": EmbeddingSources.REVIEW,
                 "captured_at": captured_at.replace(tzinfo=None),
+                "latitude": 40.7128,
+                "longitude": -74.0060,
             }
         ]
 

@@ -417,6 +417,18 @@
   [docs/specs/storage-lifecycle-cleanup.md](specs/storage-lifecycle-cleanup.md)); correction reuses
   the existing `POST /classifications/{id}/correct` endpoint rather than a new write path. See
   [docs/specs/photo-lookup.md](specs/photo-lookup.md).
+- [#181](https://github.com/bradreimer/immich-dog-tagger/issues/181) v1.9.0 automatic
+  spatial-proximity classification: the same idea v1.5.0's temporal weighting introduced, applied
+  to location instead of capture date. `EmbeddingExample` gained a denormalized
+  `latitude`/`longitude` snapshot (mirroring `captured_at`); `SimilarityScorer` now also computes a
+  `spatial_weight` (Gaussian decay over haversine distance, ~2km scale, fail-open when a coordinate
+  is missing on either side, floor so a lone identity's far-away examples still win with nothing
+  closer-in-distance to compete against); `IdentityClassifier` ranks/selects candidates by
+  `similarity * temporal_weight * spatial_weight` while still reporting each winning match's true,
+  unweighted cosine similarity as confidence. A new `location-mismatch` review/library reason is
+  checked alongside the existing `temporal-mismatch` (temporal takes precedence when both fire).
+  See [docs/specs/v1.9-automatic-spatial-classification.md](specs/v1.9-automatic-spatial-classification.md)
+  and [ADR-007](adr/ADR-007-automatic-spatial-proximity-classification.md).
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

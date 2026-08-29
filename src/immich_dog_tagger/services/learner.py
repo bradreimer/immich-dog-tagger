@@ -39,6 +39,8 @@ class Learner:
         species: Species = Species.DOG,
         source: EmbeddingSources = EmbeddingSources.BOOTSTRAP,
         captured_at: datetime | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
     ) -> bool:
         """
         Upsert a single reference example for `identity_name` at `image_path`.
@@ -67,6 +69,8 @@ class Learner:
             embedding=embedding_to_blob(embedding),
             source=source,
             captured_at=captured_at,
+            latitude=latitude,
+            longitude=longitude,
         )
 
         self.session.add(example)
