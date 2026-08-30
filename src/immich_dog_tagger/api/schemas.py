@@ -162,6 +162,8 @@ class ReviewItemResponse(BaseModel):
     species: str
     captured_at: datetime | None
     immich_asset_id: str | None
+    location: str | None
+    not_animal: bool
 
     prediction: ReviewPredictionResponse
     suggestion: ReviewSuggestionResponse | None
@@ -176,6 +178,8 @@ class ReviewItemResponse(BaseModel):
             species=item.species,
             captured_at=item.captured_at,
             immich_asset_id=item.immich_asset_id,
+            location=item.location,
+            not_animal=item.not_animal,
             prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
                 similarity=item.prediction.similarity,

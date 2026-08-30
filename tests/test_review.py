@@ -900,6 +900,27 @@ def test_skip_review_missing_classification(api_client):
     assert response.status_code == 404
 
 
+def test_get_classification_returns_review_item(api_client, session):
+    """v1.11: the read side of editing any photo by id from the Library's
+    Edit link, not only one already in the active review queue."""
+    classification = create_test_classification(session)
+
+    response = api_client.get(f"/classifications/{classification.id}")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["classification_id"] == classification.id
+    assert data["crop_id"] == classification.crop_id
+    assert data["not_animal"] is False
+
+
+def test_get_classification_missing(api_client):
+    response = api_client.get("/classifications/99999")
+
+    assert response.status_code == 404
+
+
 def test_review_unknown_filter(api_client, engine):
     with Session(engine) as session:
         unknown_crop = Crop(
@@ -1551,6 +1572,185 @@ def test_library_filters_by_captured_date_range(engine):
 
         assert before_page.total == 1
         assert before_page.items[0].item.filename == "old.jpg"
+
+
+def test_library_sorts_by_captured_date_across_pagination(engine):
+    """v1.11: sort must be applied in SQL, before LIMIT/OFFSET -- otherwise a
+    page boundary would cut across an unsorted DB order and the "full
+    filtered set" ordering promised by the spec would only hold within a
+    single page."""
+    from immich_dog_tagger.enums import ClusterSort
+
+    with Session(engine) as session:
+        dates = [
+            datetime(2020, 1, 1, tzinfo=UTC),
+            datetime(2022, 1, 1, tzinfo=UTC),
+            datetime(2021, 1, 1, tzinfo=UTC),
+            datetime(2019, 1, 1, tzinfo=UTC),
+        ]
+
+        for i, captured_at in enumerate(dates):
+            asset = Asset(
+                immich_asset_id=f"asset-{i}",
+                extension=".jpg",
+                captured_at=captured_at,
+            )
+            detection = Detection(
+                asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+            )
+            crop = Crop(detection=detection, path=f"{i}.jpg")
+            session.add(crop)
+            session.flush()
+            session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.9))
+
+        session.commit()
+
+        first = ReviewQueryService(session).library(
+            sort=ClusterSort.CAPTURED_DESC, limit=2, offset=0
+        )
+        second = ReviewQueryService(session).library(
+            sort=ClusterSort.CAPTURED_DESC, limit=2, offset=2
+        )
+
+        ordered_paths = [entry.item.filename for entry in first.items + second.items]
+        assert ordered_paths == ["1.jpg", "2.jpg", "0.jpg", "3.jpg"]
+
+        ascending = ReviewQueryService(session).library(
+            sort=ClusterSort.CAPTURED_ASC, limit=4, offset=0
+        )
+        assert [e.item.filename for e in ascending.items] == [
+            "3.jpg",
+            "0.jpg",
+            "2.jpg",
+            "1.jpg",
+        ]
+
+
+def test_library_sorts_by_confidence(engine):
+    from immich_dog_tagger.enums import ClusterSort
+
+    with Session(engine) as session:
+        low_crop = Crop(detection_id=1, path="low.jpg")
+        high_crop = Crop(detection_id=1, path="high.jpg")
+
+        session.add_all([low_crop, high_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=low_crop, identity="Fibs", confidence=0.4),
+                CropClassification(crop=high_crop, identity="Fibs", confidence=0.95),
+            ]
+        )
+        session.commit()
+
+        desc = ReviewQueryService(session).library(sort=ClusterSort.CONFIDENCE_DESC)
+        asc = ReviewQueryService(session).library(sort=ClusterSort.CONFIDENCE_ASC)
+
+        assert [e.item.filename for e in desc.items] == ["high.jpg", "low.jpg"]
+        assert [e.item.filename for e in asc.items] == ["low.jpg", "high.jpg"]
+
+
+def test_library_captured_sort_puts_undated_photos_last_both_directions(engine):
+    from immich_dog_tagger.enums import ClusterSort
+
+    with Session(engine) as session:
+        dated_asset = Asset(
+            immich_asset_id="dated",
+            extension=".jpg",
+            captured_at=datetime(2021, 1, 1, tzinfo=UTC),
+        )
+        dated_detection = Detection(
+            asset=dated_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        dated_crop = Crop(detection=dated_detection, path="dated.jpg")
+
+        # No Detection/Asset behind this crop at all -- the same "detection_id
+        # points nowhere" shape the rest of this file's fixtures use for an
+        # undated photo.
+        undated_crop = Crop(detection_id=1, path="undated.jpg")
+
+        session.add_all([dated_crop, undated_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=dated_crop, identity="Fibs", confidence=0.9),
+                CropClassification(crop=undated_crop, identity="Fibs", confidence=0.9),
+            ]
+        )
+        session.commit()
+
+        desc = ReviewQueryService(session).library(sort=ClusterSort.CAPTURED_DESC)
+        asc = ReviewQueryService(session).library(sort=ClusterSort.CAPTURED_ASC)
+
+        assert [e.item.filename for e in desc.items] == ["dated.jpg", "undated.jpg"]
+        assert [e.item.filename for e in asc.items] == ["dated.jpg", "undated.jpg"]
+
+
+def test_review_item_reports_location(engine):
+    """v1.11: the Library details panel needs a photo's location, sourced
+    from the same cached Asset city/state/country fields Insights already
+    reads (issue #94/#129)."""
+    with Session(engine) as session:
+        located_asset = Asset(
+            immich_asset_id="located",
+            extension=".jpg",
+            city="Portland",
+            state="Oregon",
+            country="USA",
+        )
+        located_detection = Detection(
+            asset=located_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        located_crop = Crop(detection=located_detection, path="located.jpg")
+
+        # A detection id that doesn't exist -- unlike this file's other
+        # fixtures, this test creates a real Detection first (to give the
+        # located crop somewhere to hang its Asset off), so `1` is taken.
+        unlocated_crop = Crop(detection_id=9999, path="unlocated.jpg")
+
+        session.add_all([located_crop, unlocated_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=located_crop, identity="Fibs", confidence=0.9),
+                CropClassification(
+                    crop=unlocated_crop, identity="Fibs", confidence=0.9
+                ),
+            ]
+        )
+        session.commit()
+
+        page = ReviewQueryService(session).library()
+        by_path = {entry.item.filename: entry.item for entry in page.items}
+
+        assert by_path["located.jpg"].location == "Portland, Oregon, USA"
+        assert by_path["unlocated.jpg"].location is None
+
+
+def test_review_item_reports_not_animal(engine):
+    with Session(engine) as session:
+        flagged_crop = Crop(detection_id=1, path="flagged.jpg", not_animal=True)
+        normal_crop = Crop(detection_id=1, path="normal.jpg")
+
+        session.add_all([flagged_crop, normal_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=flagged_crop, identity=None, confidence=0.0),
+                CropClassification(crop=normal_crop, identity="Fibs", confidence=0.9),
+            ]
+        )
+        session.commit()
+
+        page = ReviewQueryService(session).library()
+        by_path = {entry.item.filename: entry.item for entry in page.items}
+
+        assert by_path["flagged.jpg"].not_animal is True
+        assert by_path["normal.jpg"].not_animal is False
 
 
 def test_library_pagination(engine):

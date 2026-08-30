@@ -5,7 +5,7 @@ interface Props {
   species?: string;
   predictedIdentity?: string | null;
   onCorrect: (identity: string) => void;
-  onSkip: () => void;
+  onSkip?: () => void;
   disabled?: boolean;
 }
 
