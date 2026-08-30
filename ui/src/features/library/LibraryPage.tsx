@@ -1,38 +1,68 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
-import { correctClassification, getLibrary } from "@/lib/api";
+import { getDogs, getLibrary, getSettings } from "@/lib/api";
 import type { LibraryQuery } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import type { ClusterSort } from "@/types/clusters";
+import type { Dog } from "@/types/dogs";
 import type { LibraryEntry } from "@/types/library";
-import { ClusterPanel } from "./components/ClusterPanel";
-import { ConfirmedClusterPanel } from "./components/ConfirmedClusterPanel";
-import { LibraryEntryCard } from "./components/LibraryEntryCard";
-import { PetSelector } from "./components/PetSelector";
+import { Button } from "@/components/ui/button";
+import { LibraryDetailsPanel } from "./components/LibraryDetailsPanel";
+import {
+  LibraryFilters,
+  type LibraryReviewedFilter,
+  type LibrarySpeciesFilter,
+} from "./components/LibraryFilters";
+import { LibraryThumbnail } from "./components/LibraryThumbnail";
 import { UndetectedPanel } from "./components/UndetectedPanel";
-import { LibraryWorkspaceProvider } from "./LibraryWorkspaceProvider";
-import { useLibraryWorkspace } from "./libraryWorkspace";
 
-type ReviewedFilter = "all" | "reviewed" | "unreviewed";
-
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 50;
 
 interface Props {
   onNavigate: (path: string) => void;
 }
 
-function LibraryWorkspaceView({ onNavigate }: Props) {
-  const { species, identity, identities, selectedPet } = useLibraryWorkspace();
+export function LibraryPage({ onNavigate }: Props) {
+  const [species, setSpecies] = useState<LibrarySpeciesFilter>("all");
+  const [identity, setIdentity] = useState("");
+  const [reviewedFilter, setReviewedFilter] = useState<LibraryReviewedFilter>("all");
+  const [capturedAfter, setCapturedAfter] = useState("");
+  const [capturedBefore, setCapturedBefore] = useState("");
+  const [sort, setSort] = useState<ClusterSort>("captured_desc");
 
+  const [dogs, setDogs] = useState<Dog[]>([]);
+  const [immichUrl, setImmichUrl] = useState<string | null>(null);
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const [reviewedFilter, setReviewedFilter] = useState<ReviewedFilter>("all");
-  const [capturedAfter, setCapturedAfter] = useState("");
-  const [capturedBefore, setCapturedBefore] = useState("");
+  useEffect(() => {
+    getDogs({ includeInactive: false })
+      .then(setDogs)
+      .catch(() => setDogs([]));
+
+    // The Immich deep link on the details panel is a convenience; failing
+    // to read the configured URL must not take the grid down with it.
+    getSettings()
+      .then((settings) => setImmichUrl(settings.immich_external_url || null))
+      .catch(() => setImmichUrl(null));
+  }, []);
+
+  const speciesIdentities = useMemo(
+    () => (species === "all" ? dogs : dogs.filter((dog) => dog.species === species)),
+    [dogs, species],
+  );
+
+  // A pet selected under one species no longer applies once the species
+  // changes to something that doesn't include it.
+  useEffect(() => {
+    if (identity && !speciesIdentities.some((dog) => dog.name === identity)) {
+      setIdentity("");
+    }
+  }, [identity, speciesIdentities]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +71,7 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
     const query: LibraryQuery = {
       limit: PAGE_SIZE,
       offset,
+      sort,
     };
 
     if (identity) {
@@ -73,120 +104,63 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, offset]);
+  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Any selection or filter change resets pagination -- a stale offset into a
-  // differently-scoped result set would otherwise show an empty or truncated
-  // page.
+  // Any filter or sort change resets pagination -- a stale offset into a
+  // differently-scoped or differently-ordered result set would otherwise
+  // show an empty or misleading page.
   useEffect(() => {
     setOffset(0);
-  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore]);
+  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort]);
 
-  const correct = useCallback(async (classificationId: number, identityName: string) => {
-    await correctClassification(classificationId, identityName);
+  // The selected photo only means something against the page it was
+  // selected from -- clear it whenever that page changes.
+  useEffect(() => {
+    setSelectedId(null);
+  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
 
-    // Update in place rather than re-fetching the whole page, matching
-    // ReviewPage's optimistic-update pattern after a correction.
-    setEntries((current) =>
-      current.map((entry) =>
-        entry.item.classification_id === classificationId
-          ? {
-              ...entry,
-              reviewed: true,
-              reviewed_at: new Date().toISOString(),
-              item: {
-                ...entry.item,
-                prediction: {
-                  ...entry.item.prediction,
-                  identity: identityName,
-                  similarity: 1,
-                },
-              },
-            }
-          : entry,
-      ),
-    );
-  }, []);
+  const selectedEntry =
+    entries.find((entry) => entry.item.classification_id === selectedId) ?? null;
 
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + PAGE_SIZE, total);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Library</h1>
         <p className="text-muted-foreground">
-          {selectedPet
-            ? `Every photo classified as ${selectedPet.name}, reviewed and unreviewed alike.`
-            : "Pick a pet to work on one dog or cat at a time, or browse every classified photo."}
+          Every classified photo, reviewed and unreviewed alike. Select one to see its
+          details and fix it.
         </p>
       </header>
 
-      <PetSelector onNavigate={onNavigate} />
-
-      {selectedPet && (
-        <ClusterPanel
-          identity={selectedPet.name}
-          species={selectedPet.species}
-          identities={identities}
-          onApproved={() => load()}
-        />
-      )}
-
-      {selectedPet && (
-        <ConfirmedClusterPanel
-          identity={selectedPet.name}
-          species={selectedPet.species}
-          identities={identities}
-          onMoved={() => load()}
-        />
-      )}
+      <LibraryFilters
+        species={species}
+        onSpeciesChange={setSpecies}
+        identity={identity}
+        onIdentityChange={setIdentity}
+        identities={speciesIdentities}
+        reviewedFilter={reviewedFilter}
+        onReviewedFilterChange={setReviewedFilter}
+        capturedAfter={capturedAfter}
+        onCapturedAfterChange={setCapturedAfter}
+        capturedBefore={capturedBefore}
+        onCapturedBeforeChange={setCapturedBefore}
+        sort={sort}
+        onSortChange={setSort}
+      />
 
       {/*
-        Shown when no single pet is selected: a photo the detector missed
-        has no identity yet, so it does not belong to any one pet's
-        workspace -- it is a library-wide gap (issue #147).
+        Shown while browsing library-wide, not scoped to one pet: a photo
+        the detector missed has no identity yet, so it does not belong to
+        any one pet's filter -- it is a library-wide gap (issue #147).
       */}
-      {!selectedPet && <UndetectedPanel identities={identities} />}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2" role="group" aria-label="Filter by review status">
-          {(["all", "reviewed", "unreviewed"] as const).map((option) => (
-            <Button
-              key={option}
-              type="button"
-              variant={reviewedFilter === option ? "default" : "outline"}
-              onClick={() => setReviewedFilter(option)}
-            >
-              {option === "all" ? "All" : option === "reviewed" ? "Reviewed" : "Unreviewed"}
-            </Button>
-          ))}
-        </div>
-
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Captured after
-          <input
-            type="date"
-            value={capturedAfter}
-            onChange={(event) => setCapturedAfter(event.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          />
-        </label>
-
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Captured before
-          <input
-            type="date"
-            value={capturedBefore}
-            onChange={(event) => setCapturedBefore(event.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          />
-        </label>
-      </div>
+      {!identity && <UndetectedPanel identities={dogs} />}
 
       {error && (
         <div className="space-y-3">
@@ -204,61 +178,61 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
 
       {!error && !loading && entries.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          {selectedPet
-            ? `No photos classified as ${selectedPet.name} match these filters yet.`
-            : "No classified photos match these filters yet."}
+          No classified photos match these filters yet.
         </p>
       )}
 
       {!error && !loading && entries.length > 0 && (
-        <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {entries.map((entry) => (
-              <LibraryEntryCard
-                key={entry.item.classification_id}
-                entry={entry}
-                identities={identities}
-                onCorrect={correct}
-              />
-            ))}
-          </div>
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {entries.map((entry) => (
+                <LibraryThumbnail
+                  key={entry.item.classification_id}
+                  entry={entry}
+                  selected={entry.item.classification_id === selectedId}
+                  onSelect={() => setSelectedId(entry.item.classification_id)}
+                />
+              ))}
+            </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              {rangeStart}-{rangeEnd} of {total}
-            </span>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                {rangeStart}-{rangeEnd} of {total}
+              </span>
 
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
-                disabled={offset === 0}
-              >
-                <IconArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Previous
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
+                  disabled={offset === 0}
+                >
+                  <IconArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  Previous
+                </Button>
 
-              <Button
-                variant="outline"
-                onClick={() => setOffset((current) => current + PAGE_SIZE)}
-                disabled={offset + PAGE_SIZE >= total}
-              >
-                <IconArrowRight className="h-4 w-4" aria-hidden="true" />
-                Next
-              </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setOffset((current) => current + PAGE_SIZE)}
+                  disabled={offset + PAGE_SIZE >= total}
+                >
+                  <IconArrowRight className="h-4 w-4" aria-hidden="true" />
+                  Next
+                </Button>
+              </div>
             </div>
           </div>
-        </>
+
+          {selectedEntry && (
+            <LibraryDetailsPanel
+              entry={selectedEntry}
+              immichUrl={immichUrl}
+              onNavigate={onNavigate}
+            />
+          )}
+        </div>
       )}
     </div>
-  );
-}
-
-export function LibraryPage({ onNavigate }: Props) {
-  return (
-    <LibraryWorkspaceProvider>
-      <LibraryWorkspaceView onNavigate={onNavigate} />
-    </LibraryWorkspaceProvider>
   );
 }
 

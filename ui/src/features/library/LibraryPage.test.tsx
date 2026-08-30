@@ -9,11 +9,6 @@ import type { LibraryEntry } from "@/types/library";
 vi.mock("@/lib/api", () => ({
   getLibrary: vi.fn(),
   getDogs: vi.fn(),
-  correctClassification: vi.fn(),
-  getPetClusters: vi.fn(),
-  approveCluster: vi.fn(),
-  getConfirmedClusters: vi.fn(),
-  moveConfirmedPhotos: vi.fn(),
   getUndetectedAssets: vi.fn(),
   getSettings: vi.fn(),
 }));
@@ -34,6 +29,8 @@ function buildEntry(classificationId: number): LibraryEntry {
       reason: "review",
       captured_at: "2026-01-05T12:00:00Z",
       immich_asset_id: `asset-${classificationId}`,
+      location: "Portland, Oregon, USA",
+      not_animal: false,
       prediction: {
         identity: "Hermann",
         similarity: 0.9,
@@ -45,13 +42,13 @@ function buildEntry(classificationId: number): LibraryEntry {
 }
 
 function mockLibrary(total: number) {
-  const items = Array.from({ length: Math.min(total, 24) }, (_, index) => buildEntry(index + 1));
+  const items = Array.from({ length: Math.min(total, 50) }, (_, index) => buildEntry(index + 1));
 
   vi.mocked(api.getLibrary).mockImplementation(async (query = {}) =>
     Promise.resolve({
       items,
       total,
-      limit: query.limit ?? 24,
+      limit: query.limit ?? 50,
       offset: query.offset ?? 0,
     }),
   );
@@ -67,162 +64,117 @@ describe("LibraryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.getDogs).mockResolvedValue([HERMANN, MINA]);
-    vi.mocked(api.getPetClusters).mockResolvedValue({
-      identity: "Hermann",
-      species: "dog",
-      clusters: [],
-      excluded: [],
-      candidate_count: 0,
-      clustered_count: 0,
-      distance_threshold: 0.2,
-      truncated: false,
-      sort: "confidence_desc",
+    vi.mocked(api.getSettings).mockResolvedValue({
+      immich_url: "http://immich.local",
+      immich_external_url: "http://immich.local",
+      scanned_image_count: 0,
+      version: "1.11.0",
+      tagging_sensitivity: "balanced",
     });
-    vi.mocked(api.getConfirmedClusters).mockResolvedValue({
-      identity: "Hermann",
-      species: "dog",
-      clusters: [],
-      excluded: [],
-      candidate_count: 0,
-      clustered_count: 0,
-      distance_threshold: 0.2,
-      truncated: false,
-      sort: "confidence_desc",
-    });
-    mockLibrary(0);
     vi.mocked(api.getUndetectedAssets).mockResolvedValue({
       items: [],
       total: 0,
       limit: 12,
       offset: 0,
     });
-    vi.mocked(api.getSettings).mockResolvedValue({
-      immich_url: "http://immich.local",
-      immich_external_url: "http://immich.local",
-      scanned_image_count: 0,
-      version: "0.0.0",
-      tagging_sensitivity: "balanced",
-    });
+    mockLibrary(0);
   });
 
-  it("scopes the library to the selected pet", async () => {
+  it("filters by species, pet, review status, and capture date -- combined", async () => {
     render(<LibraryPage onNavigate={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Hermann" }));
+    await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
 
-    await waitFor(() => {
-      expect(lastLibraryQuery().identity).toBe("Hermann");
+    fireEvent.change(screen.getByLabelText("Species"), { target: { value: "dog" } });
+    await waitFor(() => expect(lastLibraryQuery()).toMatchObject({ species: "dog" }));
+
+    fireEvent.change(screen.getByLabelText("Pet"), { target: { value: "Hermann" } });
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({ species: "dog", identity: "Hermann" }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Review status"), {
+      target: { value: "unreviewed" },
+    });
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({
+        species: "dog",
+        identity: "Hermann",
+        reviewed: false,
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Captured after"), {
+      target: { value: "2026-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Captured before"), {
+      target: { value: "2026-01-31" },
     });
 
-    expect(
-      screen.getByText("Every photo classified as Hermann, reviewed and unreviewed alike."),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({
+        species: "dog",
+        identity: "Hermann",
+        reviewed: false,
+        captured_after: "2026-01-01T00:00:00",
+        captured_before: "2026-01-31T23:59:59",
+      }),
+    );
   });
 
-  it("offers cluster recommendations for the selected pet only", async () => {
+  it("clears a pet selection that no longer matches a changed species", async () => {
     render(<LibraryPage onNavigate={vi.fn()} />);
 
-    await screen.findByRole("button", { name: "All photos" });
-
-    expect(
-      screen.queryByRole("region", { name: "Recommendations for Hermann" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Hermann" }));
-
-    expect(
-      await screen.findByRole("region", { name: "Recommendations for Hermann" }),
-    ).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(api.getPetClusters).toHaveBeenCalledWith(
-        "Hermann",
-        "dog",
-        "confidence_desc",
-      );
+    fireEvent.change(await screen.findByLabelText("Pet"), {
+      target: { value: "Hermann" },
     });
+
+    await waitFor(() => expect(lastLibraryQuery().identity).toBe("Hermann"));
+
+    fireEvent.change(screen.getByLabelText("Species"), { target: { value: "cat" } });
+
+    await waitFor(() => expect(lastLibraryQuery().identity).toBeUndefined());
+    expect(screen.getByLabelText("Pet")).toHaveValue("");
   });
 
-  it("clears a pet selection that no longer applies when the species changes", async () => {
+  it("sends the selected sort order", async () => {
     render(<LibraryPage onNavigate={vi.fn()} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Hermann" }));
+    await waitFor(() => expect(lastLibraryQuery().sort).toBe("captured_desc"));
 
-    await waitFor(() => {
-      expect(lastLibraryQuery().identity).toBe("Hermann");
+    fireEvent.change(await screen.findByLabelText("Sort"), {
+      target: { value: "confidence_desc" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Cats" }));
-
-    await waitFor(() => {
-      expect(lastLibraryQuery()).toMatchObject({ species: "cat" });
-    });
-
-    expect(lastLibraryQuery().identity).toBeUndefined();
-    expect(screen.queryByRole("button", { name: "Hermann" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mina" })).toBeInTheDocument();
+    await waitFor(() => expect(lastLibraryQuery().sort).toBe("confidence_desc"));
   });
 
-  it("keeps a pet selection that still applies under the new species", async () => {
-    render(<LibraryPage onNavigate={vi.fn()} />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Hermann" }));
-    fireEvent.click(screen.getByRole("button", { name: "Dogs" }));
-
-    await waitFor(() => {
-      expect(lastLibraryQuery()).toMatchObject({ species: "dog", identity: "Hermann" });
-    });
-  });
-
-  it("resets pagination when the selection changes", async () => {
-    mockLibrary(50);
+  it("resets pagination when a filter or the sort changes", async () => {
+    mockLibrary(120);
 
     render(<LibraryPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Next" }));
 
-    await waitFor(() => {
-      expect(lastLibraryQuery().offset).toBe(24);
+    await waitFor(() => expect(lastLibraryQuery().offset).toBe(50));
+
+    fireEvent.change(screen.getByLabelText("Review status"), {
+      target: { value: "reviewed" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Hermann" }));
-
-    await waitFor(() => {
-      expect(lastLibraryQuery()).toMatchObject({ identity: "Hermann", offset: 0 });
-    });
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({ reviewed: true, offset: 0 }),
+    );
   });
 
-  it("keeps the flat all-photos view and its filters working", async () => {
-    mockLibrary(50);
-
-    render(<LibraryPage onNavigate={vi.fn()} />);
-
-    await screen.findByRole("button", { name: "All photos" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Unreviewed" }));
-
-    await waitFor(() => {
-      expect(lastLibraryQuery()).toMatchObject({ reviewed: false, offset: 0 });
-    });
-
-    expect(lastLibraryQuery().identity).toBeUndefined();
-    expect(lastLibraryQuery().species).toBeUndefined();
-
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-
-    await waitFor(() => {
-      expect(lastLibraryQuery().offset).toBe(24);
-    });
-  });
-
-  it("shows the missed-detection rescue panel only when no pet is selected", async () => {
+  it("shows the missed-detection rescue panel until a pet filter narrows the view", async () => {
     render(<LibraryPage onNavigate={vi.fn()} />);
 
     expect(
       await screen.findByRole("region", { name: "Photos with no detected pet" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Hermann" }));
+    fireEvent.change(screen.getByLabelText("Pet"), { target: { value: "Hermann" } });
 
     await waitFor(() => {
       expect(
@@ -231,20 +183,36 @@ describe("LibraryPage", () => {
     });
   });
 
-  it("points at Dogs & Cats when no identities are configured", async () => {
-    vi.mocked(api.getDogs).mockResolvedValue([]);
+  it("shows a details panel with an Edit link when a thumbnail is selected", async () => {
+    mockLibrary(1);
     const onNavigate = vi.fn();
 
     render(<LibraryPage onNavigate={onNavigate} />);
 
-    expect(
-      await screen.findByText(
-        "No dogs or cats configured yet -- add one to browse the library one pet at a time.",
-      ),
-    ).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Go to Dogs & Cats" }));
+    expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();
+    expect(screen.getByText("90.0%")).toBeInTheDocument();
 
-    expect(onNavigate).toHaveBeenCalledWith("/dogs");
+    fireEvent.click(screen.getByRole("button", { name: "Edit in Review" }));
+
+    expect(onNavigate).toHaveBeenCalledWith("/review?classification_id=1");
+  });
+
+  it("clears the selection when a filter changes", async () => {
+    mockLibrary(1);
+
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
+    expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Review status"), {
+      target: { value: "unreviewed" },
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText("Portland, Oregon, USA")).not.toBeInTheDocument(),
+    );
   });
 });

@@ -44,6 +44,7 @@ def library(
     reviewed: bool | None = Query(None),
     captured_after: datetime | None = Query(None),
     captured_before: datetime | None = Query(None),
+    sort: ClusterSort = Query(ClusterSort.CAPTURED_DESC),
     limit: int = Query(50),
     offset: int = Query(0),
 ):
@@ -55,6 +56,7 @@ def library(
         reviewed=reviewed,
         captured_after=captured_after,
         captured_before=captured_before,
+        sort=sort,
         limit=limit,
         offset=offset,
     )

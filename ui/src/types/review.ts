@@ -15,6 +15,8 @@ export interface ReviewItem {
   reason: string;
   captured_at: string | null;
   immich_asset_id: string | null;
+  location: string | null;
+  not_animal: boolean;
 
   prediction: {
     identity: string | null;
