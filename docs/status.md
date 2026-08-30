@@ -511,6 +511,12 @@ review settled on two plain counts (spec Open questions); and whether confirmed 
 also be written to Immich's People surface rather than only albums remains an open ADR-sized
 question, deliberately out of v1.8.0's scope.
 
+New: [docs/specs/automation-schedule-settings.md](specs/automation-schedule-settings.md) scopes
+moving Automation Schedules off Overview and into Settings, replacing the free-form
+name+operation+cron builder with a fixed per-operation enable toggle + cron field in collapsible
+sections (mirroring Immich's own Settings job-schedule pattern). Tracked as
+[#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
+
 Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
 co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
 #110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
