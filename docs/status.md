@@ -459,6 +459,19 @@
   Library corrections already use -- which drops it from the review queue, the dog's Immich album
   (next sync), the owner's Insights, and the reference set if it was ever learned as an example. See
   [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s addendum.
+- [#191](https://github.com/bradreimer/immich-dog-tagger/issues/191) fixed HEIC crops still coming
+  out rotated relative to Immich after [#137](https://github.com/bradreimer/immich-dog-tagger/issues/137)'s
+  EXIF-orientation fix -- a distinct defect in the same function, specific to HEIC (the default
+  iPhone capture format). pi-heif's Pillow plugin resets the Orientation tag to `1` in its own
+  decoded `info["exif"]` as soon as it opens a HEIC file, without rotating the pixel data to match;
+  the real value survives only under the non-standard `image.info["original_orientation"]` key.
+  `open_upright()` read orientation via `image.getexif()` -- what `ImageOps.exif_transpose()` reads
+  -- which for HEIC always reported `1`, so orientation correction silently no-opped on every
+  HEIC photo not shot in landscape, even on assets processed by the fixed pipeline. `open_upright()`
+  now copies `info["original_orientation"]` into the Exif tag before transposing, when present; a
+  no-op for every other format, since only pi-heif populates that key. Verified against real decoded
+  HEIC fixtures (`tests/fixtures/heic_*.heic`, one per orientation value) rather than a synthetic
+  in-memory image -- the bug only manifests once pi-heif has actually decoded a HEIC container.
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

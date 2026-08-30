@@ -171,3 +171,74 @@ def test_open_upright_registers_the_heif_opener(tmp_path: Path):
     open_upright(path)
 
     assert ".heic" in Image.registered_extensions()
+
+
+_HEIC_FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+# Real device-shaped HEIC files, one per orientation plus one with no
+# Orientation tag at all -- generated once from the same red-quadrant
+# landscape frame `_landscape()` builds for the JPEG tests above, so the
+# expected geometry below matches `test_open_upright_applies_the_full_transform`
+# exactly. A synthetic in-memory HEIC can't stand in for these: pi-heif's
+# Pillow plugin only exhibits this bug when it has actually decoded a HEIC
+# container (see the comment on the `original_orientation` handling in
+# `images.open_upright`).
+_HEIC_EXPECTED = {
+    "untagged": ((200, 100), "top-left"),
+    "o1": ((200, 100), "top-left"),
+    "o2": ((200, 100), "top-right"),
+    "o3": ((200, 100), "bottom-right"),
+    "o4": ((200, 100), "bottom-left"),
+    "o5": ((100, 200), "top-left"),
+    "o6": ((100, 200), "top-right"),
+    "o7": ((100, 200), "bottom-right"),
+    "o8": ((100, 200), "bottom-left"),
+}
+
+
+@pytest.mark.parametrize(
+    "fixture_name, expected_size, expected_red_corner",
+    [(name, size, corner) for name, (size, corner) in _HEIC_EXPECTED.items()],
+)
+def test_open_upright_applies_the_full_transform_for_heic(
+    fixture_name: str,
+    expected_size: tuple[int, int],
+    expected_red_corner: str,
+):
+    """
+    Regression test for a HEIC-specific bug distinct from #137: pi-heif's
+    Pillow plugin resets the Orientation tag to 1 in its own decoded
+    `info["exif"]` as soon as it opens a HEIC file, without rotating the
+    pixel data to match -- verified against these fixtures, it does this
+    unconditionally. The real value survives only in the non-standard
+    `info["original_orientation"]` key. Left unhandled, `image.getexif()`
+    (what `ImageOps.exif_transpose` reads) always reports 1 for a HEIC file,
+    so every orientation-tagged HEIC -- most iPhone photos not shot in
+    landscape -- skipped correction entirely and came out rotated, even
+    after #137 fixed the equivalent JPEG case.
+    """
+    path = _HEIC_FIXTURES_DIR / f"heic_{fixture_name}.heic"
+
+    image = open_upright(path).convert("RGB")
+
+    assert image.size == expected_size, fixture_name
+
+    width, height = image.size
+    inset = 5
+
+    corners = {
+        "top-left": (inset, inset),
+        "top-right": (width - inset, inset),
+        "bottom-left": (inset, height - inset),
+        "bottom-right": (width - inset, height - inset),
+    }
+
+    for name, point in corners.items():
+        red, green, blue = image.getpixel(point)
+
+        is_red = red > 200 and green < 80 and blue < 80
+
+        assert is_red == (name == expected_red_corner), (
+            f"{fixture_name}: corner {name} "
+            f"{'should' if name == expected_red_corner else 'should not'} be red"
+        )
