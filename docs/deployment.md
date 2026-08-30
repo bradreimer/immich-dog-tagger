@@ -209,9 +209,9 @@ also runs one reconciliation tick to catch anything missed while the container w
 
 ### Setting it up
 
-1. Create at least one schedule in Overview → Automation Schedules. A full pipeline run on an
-   hourly cadence (`0 * * * *`) is a reasonable default; add a sync schedule (e.g. `30 * * * *`)
-   once confident labels start accumulating.
+1. Turn on automation in Settings → Automation. A full pipeline run on an hourly cadence
+   (`0 * * * *`) is a reasonable default; enable syncing (e.g. `30 * * * *`) once confident labels
+   start accumulating.
 2. Keep the container running and set it to restart automatically:
 
    ```yaml
