@@ -89,18 +89,13 @@ export function PhotoLookupPage() {
       await unmarkCropNotAnimal(cropId);
     }
 
-    setResult((current) =>
-      current
-        ? {
-            ...current,
-            detections: current.detections.map((detection) =>
-              detection.crop_id === cropId
-                ? { ...detection, not_animal: notAnimal }
-                : detection,
-            ),
-          }
-        : current,
-    );
+    // Marking settles the crop's classification to Unknown server-side
+    // (issue #186), not just the flag -- so a full re-fetch, rather than a
+    // partial patch of `not_animal` alone, is what keeps identity/
+    // confidence from going stale in the UI once the mark is undone.
+    if (result) {
+      setResult(await getPhotoLookup(result.immich_asset_id));
+    }
   };
 
   return (

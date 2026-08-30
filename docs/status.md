@@ -451,9 +451,14 @@
   to mark a detected box as "not a dog or cat" -- a YOLO false positive, distinct from a species or
   identity mistake. `Crop` gained a `not_animal` flag (mirrors how `species` already lives there);
   `FalsePositiveService.mark()`/`unmark()` toggle it, with new `POST`/`DELETE
-  /crops/{crop_id}/not-animal` endpoints. Deliberately narrow: it does not touch the crop's
-  classification, the review queue, or the classifier/learner -- see
-  [docs/specs/photo-lookup.md](specs/photo-lookup.md) for what's left open for a follow-up.
+  /crops/{crop_id}/not-animal` endpoints. #186 (same-day follow-up, reported by an owner using the
+  feature) fixed the first cut's real bug: marking only set the flag and left the classification
+  untouched, so a marked photo still showed "Confirmed as &lt;Dog&gt;" in Library and stayed in that
+  dog's Immich album through sync. Marking now also settles the classification to Unknown through
+  `ClassificationCorrectionService.correct(classification_id, None)` -- the same write path Review/
+  Library corrections already use -- which drops it from the review queue, the dog's Immich album
+  (next sync), the owner's Insights, and the reference set if it was ever learned as an example. See
+  [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s addendum.
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
