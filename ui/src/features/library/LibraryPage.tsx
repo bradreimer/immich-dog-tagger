@@ -9,6 +9,7 @@ import { ClusterPanel } from "./components/ClusterPanel";
 import { ConfirmedClusterPanel } from "./components/ConfirmedClusterPanel";
 import { LibraryEntryCard } from "./components/LibraryEntryCard";
 import { PetSelector } from "./components/PetSelector";
+import { UndetectedPanel } from "./components/UndetectedPanel";
 import { LibraryWorkspaceProvider } from "./LibraryWorkspaceProvider";
 import { useLibraryWorkspace } from "./libraryWorkspace";
 
@@ -144,6 +145,13 @@ function LibraryWorkspaceView({ onNavigate }: Props) {
           onMoved={() => load()}
         />
       )}
+
+      {/*
+        Shown when no single pet is selected: a photo the detector missed
+        has no identity yet, so it does not belong to any one pet's
+        workspace -- it is a library-wide gap (issue #147).
+      */}
+      {!selectedPet && <UndetectedPanel identities={identities} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-2" role="group" aria-label="Filter by review status">

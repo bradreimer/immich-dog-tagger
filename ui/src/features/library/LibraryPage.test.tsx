@@ -14,6 +14,8 @@ vi.mock("@/lib/api", () => ({
   approveCluster: vi.fn(),
   getConfirmedClusters: vi.fn(),
   moveConfirmedPhotos: vi.fn(),
+  getUndetectedAssets: vi.fn(),
+  getSettings: vi.fn(),
 }));
 
 const HERMANN: Dog = { id: 1, name: "Hermann", species: "dog", active: true };
@@ -88,6 +90,19 @@ describe("LibraryPage", () => {
       sort: "confidence_desc",
     });
     mockLibrary(0);
+    vi.mocked(api.getUndetectedAssets).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 12,
+      offset: 0,
+    });
+    vi.mocked(api.getSettings).mockResolvedValue({
+      immich_url: "http://immich.local",
+      immich_external_url: "http://immich.local",
+      scanned_image_count: 0,
+      version: "0.0.0",
+      tagging_sensitivity: "balanced",
+    });
   });
 
   it("scopes the library to the selected pet", async () => {
@@ -197,6 +212,22 @@ describe("LibraryPage", () => {
 
     await waitFor(() => {
       expect(lastLibraryQuery().offset).toBe(24);
+    });
+  });
+
+  it("shows the missed-detection rescue panel only when no pet is selected", async () => {
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    expect(
+      await screen.findByRole("region", { name: "Photos with no detected pet" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hermann" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("region", { name: "Photos with no detected pet" }),
+      ).not.toBeInTheDocument();
     });
   });
 
