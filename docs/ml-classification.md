@@ -25,7 +25,12 @@ coordinate space -- a detector box is meaningless to the cropper otherwise --
 and they only do if they decode identically. Decode images through that helper
 rather than calling `PIL.Image.open` directly; see
 [#137](https://github.com/bradreimer/immich-dog-tagger/issues/137) for what
-went wrong when they diverged.
+went wrong when they diverged. HEIC needs one extra step: pi-heif's Pillow
+plugin resets the Orientation tag it exposes via `getexif()` to 1 on decode
+without rotating the pixels, stashing the real value under
+`image.info["original_orientation"]` instead -- `open_upright()` copies that
+back before transposing. See
+[#191](https://github.com/bradreimer/immich-dog-tagger/issues/191).
 
 ## Components
 
