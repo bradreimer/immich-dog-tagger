@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createJob, createSchedule, disableSchedule, enableSchedule, getDiagnostics, getJobs, getReviewStats, getSchedules, runScheduleNow } from "../../lib/api";
+import { createJob, getDiagnostics, getJobs, getReviewStats } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName, jobTextClassName } from "../../lib/statusColors";
 import { formatDuration, formatRelativeTime } from "../../lib/utils";
 import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
-import type { PipelineSchedule } from "../../types/schedules";
 import type { Diagnostics } from "../../types/diagnostics";
 import {
   IconActivity,
@@ -16,9 +15,6 @@ import {
   IconClipboardList,
   IconCloudUpload,
   IconListDetails,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconPlus,
   IconRefresh,
   IconRefreshDot,
   IconRocket,
@@ -34,17 +30,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
-
-const JOB_OPERATIONS: JobOperation[] = [
-  "scan",
-  "detect",
-  "embed",
-  "classify",
-  "reclassify",
-  "learn",
-  "sync",
-  "full_pipeline",
-];
 
 function formatOperation(operation: string): string {
   return operation
@@ -63,7 +48,6 @@ function formatTimestamp(value: string | null): string {
 
 export function OverviewPage() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
-  const [schedules, setSchedules] = useState<PipelineSchedule[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,16 +56,6 @@ export function OverviewPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<JobOperation | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [scheduleForm, setScheduleForm] = useState({
-    name: "",
-    operation: "full_pipeline" as JobOperation,
-    expression: "0 * * * *",
-    timezone_name: "UTC",
-    enabled: true,
-  });
-  const [scheduleBusy, setScheduleBusy] = useState(false);
-  const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const operations: Array<{
     operation: JobOperation;
@@ -127,16 +101,14 @@ export function OverviewPage() {
     }
     setError(null);
     try {
-      const [jobItems, reviewStats, scheduleItems, diagData] = await Promise.all([
+      const [jobItems, reviewStats, diagData] = await Promise.all([
         getJobs(25),
         getReviewStats(),
-        getSchedules(),
         getDiagnostics().catch(() => null),
       ]);
 
       setJobs(jobItems);
       setStats(reviewStats);
-      setSchedules(scheduleItems);
       setDiagnostics(diagData);
       setLastUpdated(new Date());
     } catch (err) {
@@ -170,51 +142,6 @@ export function OverviewPage() {
     },
     [load],
   );
-
-  const handleCreateSchedule = useCallback(async () => {
-    setScheduleError(null);
-    setScheduleMessage(null);
-    setScheduleBusy(true);
-
-    try {
-      const created = await createSchedule(scheduleForm);
-      setSchedules((current) => [created, ...current]);
-      setScheduleMessage(`Created schedule “${created.name}”.`);
-      setScheduleForm({
-        name: "",
-        operation: "full_pipeline",
-        expression: "0 * * * *",
-        timezone_name: "UTC",
-        enabled: true,
-      });
-      await load({ silent: true });
-    } catch (err) {
-      setScheduleError(err instanceof Error ? err.message : "Failed to create schedule");
-    } finally {
-      setScheduleBusy(false);
-    }
-  }, [load, scheduleForm]);
-
-  const toggleSchedule = useCallback(async (schedule: PipelineSchedule, enabled: boolean) => {
-    try {
-      const updated = enabled
-        ? await enableSchedule(schedule.id)
-        : await disableSchedule(schedule.id);
-      setSchedules((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-    } catch (err) {
-      setScheduleError(err instanceof Error ? err.message : "Failed to update schedule");
-    }
-  }, []);
-
-  const runSchedule = useCallback(async (schedule: PipelineSchedule) => {
-    try {
-      const job = await runScheduleNow(schedule.id);
-      setScheduleMessage(`Triggered job #${job.id} for “${schedule.name}”.`);
-      await load({ silent: true });
-    } catch (err) {
-      setScheduleError(err instanceof Error ? err.message : "Failed to run schedule");
-    }
-  }, [load]);
 
   const jobSummary = useMemo(() => {
     return jobs.reduce(
@@ -479,81 +406,6 @@ export function OverviewPage() {
 
           {actionMessage && <p className="text-sm text-status-good">{actionMessage}</p>}
           {actionError && <p className="text-sm text-destructive">{actionError}</p>}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Automation Schedules</CardTitle>
-          <CardDescription>Configure unattended operations and trigger them manually when needed.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.6fr_0.6fr_0.4fr]">
-            <input
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-              placeholder="Schedule name"
-              value={scheduleForm.name}
-              onChange={(event) => setScheduleForm((current) => ({ ...current, name: event.target.value }))}
-            />
-            <select
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-              value={scheduleForm.operation}
-              onChange={(event) => setScheduleForm((current) => ({ ...current, operation: event.target.value as JobOperation }))}
-            >
-              {JOB_OPERATIONS.map((operation) => (
-                <option key={operation} value={operation}>
-                  {formatOperation(operation)}
-                </option>
-              ))}
-            </select>
-            <input
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-              placeholder="Cron expression"
-              value={scheduleForm.expression}
-              onChange={(event) => setScheduleForm((current) => ({ ...current, expression: event.target.value }))}
-            />
-            <Button
-              disabled={scheduleBusy || !scheduleForm.name}
-              onClick={() => void handleCreateSchedule()}
-            >
-              <IconPlus className="h-4 w-4" aria-hidden="true" />
-              {scheduleBusy ? "Saving..." : "Create"}
-            </Button>
-          </div>
-
-          {scheduleMessage && <p className="text-sm text-status-good">{scheduleMessage}</p>}
-          {scheduleError && <p className="text-sm text-destructive">{scheduleError}</p>}
-
-          {schedules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No schedules have been added yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {schedules.map((schedule) => (
-                <div key={schedule.id} className="flex flex-col gap-3 rounded-md border p-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="font-medium">{schedule.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatOperation(schedule.operation)} • {schedule.expression} • {schedule.timezone_name}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Next: {formatTimestamp(schedule.next_run_at)} | Last: {formatTimestamp(schedule.last_run_at)} | Result: {schedule.last_run_result ?? "-"}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={schedule.enabled ? "default" : "secondary"}>{schedule.enabled ? "Enabled" : "Disabled"}</Badge>
-                    <Button variant="outline" size="sm" onClick={() => void toggleSchedule(schedule, !schedule.enabled)}>
-                      {schedule.enabled ? <IconPlayerPause className="h-4 w-4" aria-hidden="true" /> : <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />}
-                      {schedule.enabled ? "Disable" : "Enable"}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => void runSchedule(schedule)}>
-                      <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />
-                      Run Now
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 

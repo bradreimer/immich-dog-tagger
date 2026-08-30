@@ -13,6 +13,10 @@ vi.mock("../../lib/api", () => ({
     tagging_sensitivity: "balanced",
   }),
   setTaggingSensitivity: vi.fn(),
+  getSchedules: vi.fn().mockResolvedValue([]),
+  createSchedule: vi.fn(),
+  updateSchedule: vi.fn(),
+  runScheduleNow: vi.fn(),
 }));
 
 describe("SettingsPage", () => {

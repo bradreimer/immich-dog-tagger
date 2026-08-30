@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
+import { AutomationSchedules } from "./AutomationSchedules";
 
 const SENSITIVITIES: {
   value: TaggingSensitivity;
@@ -225,6 +226,8 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <AutomationSchedules />
 
       {settings && (
         <Card>
