@@ -113,9 +113,28 @@ describe("PhotoLookupPage", () => {
 
   it("marks a detection as not a dog or cat, and can undo it", async () => {
     vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
-    vi.mocked(api.getPhotoLookup).mockResolvedValue(buildResult());
     vi.mocked(api.markCropNotAnimal).mockResolvedValue(undefined);
     vi.mocked(api.unmarkCropNotAnimal).mockResolvedValue(undefined);
+
+    const initial = buildResult();
+    // Marking settles the classification server-side (issue #186), so the
+    // page re-fetches rather than only patching `not_animal` locally --
+    // identity/confidence come back cleared, not just the flag.
+    const afterMark: PhotoLookupResult = {
+      ...initial,
+      detections: [
+        { ...initial.detections[0], not_animal: true, identity: null, confidence: null },
+      ],
+    };
+    const afterUndo: PhotoLookupResult = {
+      ...initial,
+      detections: [{ ...initial.detections[0], not_animal: false, identity: null }],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterMark)
+      .mockResolvedValueOnce(afterUndo);
 
     render(<PhotoLookupPage />);
 
@@ -135,7 +154,8 @@ describe("PhotoLookupPage", () => {
       expect(api.unmarkCropNotAnimal).toHaveBeenCalledWith(1);
     });
 
-    expect(await screen.findAllByText("Hermann")).not.toHaveLength(0);
+    expect(await screen.findByText("Unknown")).toBeInTheDocument();
+    expect(api.getPhotoLookup).toHaveBeenCalledTimes(3);
   });
 
   it("shows a distinct message when no dogs or cats were detected", async () => {

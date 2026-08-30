@@ -2,39 +2,79 @@
 "This is not a dog or cat" -- flagging a YOLO false positive from the Photo
 Lookup page (issue #185).
 
-Deliberately narrow: this only records the fact on the crop (`Crop.not_animal`,
-mirroring how `species` already lives there). It does not touch the crop's
-classification, does not affect the review queue, and is not fed back into
-the classifier or the learner -- none of that was asked for, and each is a
-larger decision (e.g. whether a flagged crop should still count toward
-review-queue totals) better made once there's a second place in the app that
-needs this signal. Reversible by design: marking is a toggle, not a delete,
-per the app's "prefer reversible over destructive" UX principle.
+Marking a crop settles its classification to Unknown through the same path
+Review/Library corrections already use
+(`ClassificationCorrectionService.correct()` with identity=None), not a
+parallel implementation. That single call is what makes the mark actually
+take effect everywhere an identity is read from: the crop drops out of the
+active review queue (a ReviewAction is written), out of any Immich album on
+the next sync (SyncService treats a None identity as Unknown, excluded by
+the default sync policy), out of the owner's Insights for whatever identity
+it used to carry (PetOccurrenceService clears the occurrence row), and out
+of the reference set if this crop was ever learned as an example (the
+learner forgets it) -- so a wrongly-tagged photo can't keep teaching the
+classifier its own mistake. Marking only `Crop.not_animal` and leaving the
+classification untouched was the original (issue #185) implementation; it
+left Library showing "Confirmed as <Dog>" and sync still placing the photo
+in that dog's album, which is the bug this fixes.
+
+Unmarking only clears the flag -- it does not attempt to restore whatever
+the classification predicted before the crop was marked. That prediction is
+gone the moment it's settled to Unknown, same as undoing any other review
+correction today: there's no "unsettle" primitive anywhere else in the app
+either. The crop goes back to Unknown/reviewed, and the owner picks the
+right identity (or leaves it Unknown) through the same identity control
+Photo Lookup, Review and Library already share.
 """
 
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import Crop
+from immich_dog_tagger.services.correction import ClassificationCorrectionService
 
 
 class FalsePositiveService:
-    def __init__(self, session: Session):
+    def __init__(
+        self,
+        session: Session,
+        correction_service: ClassificationCorrectionService,
+    ):
         self.session = session
+        self.correction_service = correction_service
 
     def mark(self, crop_id: int) -> Crop:
-        return self._set(crop_id, True)
+        crop = self._get(crop_id)
+
+        if not crop.not_animal:
+            crop.not_animal = True
+
+            if crop.classification is not None:
+                # commit=False: the flag and the settled classification
+                # land in one transaction, not two separate write-lock
+                # acquisitions.
+                self.correction_service.correct(
+                    crop.classification.id,
+                    None,
+                    commit=False,
+                )
+
+            self.session.commit()
+
+        return crop
 
     def unmark(self, crop_id: int) -> Crop:
-        return self._set(crop_id, False)
+        crop = self._get(crop_id)
 
-    def _set(self, crop_id: int, not_animal: bool) -> Crop:
+        if crop.not_animal:
+            crop.not_animal = False
+            self.session.commit()
+
+        return crop
+
+    def _get(self, crop_id: int) -> Crop:
         crop = self.session.get(Crop, crop_id)
 
         if crop is None:
             raise ValueError(f"Crop {crop_id} not found")
-
-        if crop.not_animal != not_animal:
-            crop.not_animal = not_animal
-            self.session.commit()
 
         return crop

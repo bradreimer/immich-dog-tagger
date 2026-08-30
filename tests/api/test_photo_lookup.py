@@ -96,6 +96,32 @@ def test_photo_lookup_returns_detections(api_client, engine):
     assert detection["not_animal"] is False
 
 
+def test_photo_lookup_reflects_a_not_animal_mark(api_client, engine):
+    # Issue #186: marking a detection not-animal from Photo Lookup must show
+    # up as such on the next lookup too -- not just leave the flag set with
+    # a stale identity/confidence still attached.
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset-not-animal", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        crop = Crop(detection=detection, path="crop.jpg", species=Species.DOG)
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.91)
+        session.add(classification)
+        session.commit()
+        crop_id = crop.id
+
+    mark_response = api_client.post(f"/crops/{crop_id}/not-animal")
+    assert mark_response.status_code == 200
+
+    response = api_client.get("/photo-lookup/asset-not-animal")
+
+    assert response.status_code == 200
+    detection = response.json()["detections"][0]
+    assert detection["not_animal"] is True
+    assert detection["identity"] is None
+
+
 def test_photo_lookup_image_404_for_unscanned_asset(api_client):
     response = api_client.get("/photo-lookup/does-not-exist/image")
 

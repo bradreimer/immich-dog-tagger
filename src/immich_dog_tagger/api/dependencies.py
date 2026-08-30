@@ -205,8 +205,12 @@ def get_photo_lookup_service(
 
 def get_false_positive_service(
     session: Annotated[Session, Depends(get_session)],
+    correction_service: Annotated[
+        ClassificationCorrectionService,
+        Depends(get_correction_service),
+    ],
 ) -> FalsePositiveService:
-    return FalsePositiveService(session)
+    return FalsePositiveService(session, correction_service)
 
 
 @cache

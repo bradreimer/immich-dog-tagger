@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import Crop
+from immich_dog_tagger.models import Crop, CropClassification
 
 
 def test_get_crop_image(api_client, engine, tmp_path):
@@ -50,6 +50,27 @@ def test_mark_crop_not_animal(api_client, engine):
 
     with Session(engine) as session:
         assert session.get(Crop, crop_id).not_animal is True
+
+
+def test_mark_crop_not_animal_settles_its_classification(api_client, engine):
+    # Issue #186: marking must clear the identity too, or the crop keeps
+    # showing "Confirmed as <Dog>" in Library and stays in that dog's
+    # Immich album on the next sync.
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="crop.jpg")
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.91)
+        session.add(classification)
+        session.commit()
+        crop_id = crop.id
+        classification_id = classification.id
+
+    response = api_client.post(f"/crops/{crop_id}/not-animal")
+
+    assert response.status_code == 200
+
+    with Session(engine) as session:
+        result = session.get(CropClassification, classification_id)
+        assert result.identity is None
 
 
 def test_mark_crop_not_animal_404_for_unknown_crop(api_client):
