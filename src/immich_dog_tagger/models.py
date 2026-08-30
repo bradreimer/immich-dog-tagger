@@ -573,6 +573,20 @@ class Crop(Base):
         server_default=Species.DOG.name,
     )
 
+    # A human saying this bounding box is not a dog or cat at all (issue
+    # #185) -- a YOLO false positive, not a species or identity mistake.
+    # Lives on the crop, like `species`: it's a fact about what the box
+    # depicts, not about a particular classification pass over it. A plain
+    # flag rather than a table (unlike CropIdentityRejection) because there
+    # is nothing to enumerate -- a crop either is or isn't flagged, and
+    # toggling it is meant to be reversible from the same control.
+    not_animal: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+    )
+
     detection: Mapped[Detection] = relationship(back_populates="crop")
 
     classification: Mapped[CropClassification | None] = relationship(

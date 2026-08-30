@@ -19,6 +19,7 @@ from immich_dog_tagger.services.clusters import (
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.dogs import DogService
+from immich_dog_tagger.services.false_positives import FalsePositiveService
 from immich_dog_tagger.services.insights import InsightsService
 from immich_dog_tagger.services.job_dispatcher import PipelineJobDispatcher
 from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
@@ -200,6 +201,12 @@ def get_photo_lookup_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> PhotoLookupService:
     return PhotoLookupService(session)
+
+
+def get_false_positive_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> FalsePositiveService:
+    return FalsePositiveService(session)
 
 
 @cache

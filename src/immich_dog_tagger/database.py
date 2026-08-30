@@ -71,6 +71,7 @@ def create_database(state_dir: Path):
     _ensure_pipeline_job_heartbeat_column(engine)
     _ensure_asset_metadata_columns(engine)
     _ensure_embedding_example_location_columns(engine)
+    _ensure_crop_not_animal_column(engine)
 
     return engine
 
@@ -308,6 +309,25 @@ def _ensure_asset_metadata_columns(engine) -> None:
     with engine.begin() as connection:
         for statement in statements:
             connection.exec_driver_sql(statement)
+
+
+def _ensure_crop_not_animal_column(engine) -> None:
+    """
+    Issue #185: crops gained a `not_animal` flag so a Photo Lookup box can be
+    marked as a YOLO false positive. Plain ADD COLUMN -- no constraint
+    changes -- and False is a correct backfill for existing rows: nothing
+    was ever marked before this column existed.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("crops")}
+
+    if "not_animal" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE crops ADD COLUMN not_animal BOOLEAN NOT NULL DEFAULT 0"
+        )
 
 
 def _ensure_embedding_example_location_columns(engine) -> None:

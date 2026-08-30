@@ -9,6 +9,7 @@ export interface PhotoLookupDetection {
   classification_id: number | null;
   identity: string | null;
   confidence: number | null;
+  not_animal: boolean;
 }
 
 export interface PhotoLookupResult {

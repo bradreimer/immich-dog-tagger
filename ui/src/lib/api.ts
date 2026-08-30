@@ -768,6 +768,28 @@ export async function getPhotoLookup(
   return response.json();
 }
 
+/** Flag a Photo Lookup box as not a dog or cat (issue #185). Reversible via unmarkCropNotAnimal(). */
+export async function markCropNotAnimal(cropId: number): Promise<void> {
+  const response = await fetch(`/api/crops/${cropId}/not-animal`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to mark detection as not a dog or cat");
+  }
+}
+
+/** Undo markCropNotAnimal(). */
+export async function unmarkCropNotAnimal(cropId: number): Promise<void> {
+  const response = await fetch(`/api/crops/${cropId}/not-animal`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to undo not-a-dog-or-cat mark");
+  }
+}
+
 /** Change how cautious automatic tagging is (issue #149). */
 export async function setTaggingSensitivity(
   sensitivity: TaggingSensitivity,

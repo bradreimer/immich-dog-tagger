@@ -7,6 +7,8 @@ import {
   correctClassification,
   getDogs,
   getPhotoLookup,
+  markCropNotAnimal,
+  unmarkCropNotAnimal,
 } from "@/lib/api";
 import { parseImmichAssetId } from "@/lib/immich";
 import { Button } from "@/components/ui/button";
@@ -80,6 +82,27 @@ export function PhotoLookupPage() {
     );
   };
 
+  const handleToggleNotAnimal = async (cropId: number, notAnimal: boolean) => {
+    if (notAnimal) {
+      await markCropNotAnimal(cropId);
+    } else {
+      await unmarkCropNotAnimal(cropId);
+    }
+
+    setResult((current) =>
+      current
+        ? {
+            ...current,
+            detections: current.detections.map((detection) =>
+              detection.crop_id === cropId
+                ? { ...detection, not_animal: notAnimal }
+                : detection,
+            ),
+          }
+        : current,
+    );
+  };
+
   return (
     <section className="space-y-6">
       <Card>
@@ -121,6 +144,7 @@ export function PhotoLookupPage() {
             detections={result.detections}
             identities={identities}
             onCorrect={handleCorrect}
+            onToggleNotAnimal={handleToggleNotAnimal}
           />
         </div>
       )}

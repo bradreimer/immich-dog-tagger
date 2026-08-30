@@ -447,6 +447,13 @@
   `reassignBusyLabel`/`representativeAlt`), so the new `ConfirmedClusterPanel` reuses it rather
   than duplicating the cluster-card UI. See
   [docs/specs/v1.10-pet-album-browsing.md](specs/v1.10-pet-album-browsing.md).
+- [#185](https://github.com/bradreimer/immich-dog-tagger/issues/185) Photo Lookup gained an option
+  to mark a detected box as "not a dog or cat" -- a YOLO false positive, distinct from a species or
+  identity mistake. `Crop` gained a `not_animal` flag (mirrors how `species` already lives there);
+  `FalsePositiveService.mark()`/`unmark()` toggle it, with new `POST`/`DELETE
+  /crops/{crop_id}/not-animal` endpoints. Deliberately narrow: it does not touch the crop's
+  classification, the review queue, or the classifier/learner -- see
+  [docs/specs/photo-lookup.md](specs/photo-lookup.md) for what's left open for a follow-up.
 
 ## Current Milestone
 v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),

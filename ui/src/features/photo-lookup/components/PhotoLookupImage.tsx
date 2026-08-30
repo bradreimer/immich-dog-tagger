@@ -48,8 +48,13 @@ export function PhotoLookupImage({ imageUrl, detections }: Props) {
               <div
                 key={detection.detection_id}
                 className={cn(
-                  "absolute border-2 shadow-[0_0_0_1px_rgba(0,0,0,0.3)]",
-                  identified ? "border-status-good" : "border-status-warning",
+                  "absolute shadow-[0_0_0_1px_rgba(0,0,0,0.3)]",
+                  detection.not_animal
+                    ? "border-2 border-dashed border-muted-foreground/60 opacity-60"
+                    : cn(
+                        "border-2",
+                        identified ? "border-status-good" : "border-status-warning",
+                      ),
                 )}
                 style={{
                   left: `${(detection.x1 / naturalSize.width) * 100}%`,
@@ -61,10 +66,14 @@ export function PhotoLookupImage({ imageUrl, detections }: Props) {
                 <span
                   className={cn(
                     "absolute left-0 top-0 whitespace-nowrap rounded-br px-1.5 py-0.5 text-xs font-semibold text-white",
-                    identified ? "bg-status-good" : "bg-status-warning",
+                    detection.not_animal
+                      ? "bg-muted-foreground/80"
+                      : identified
+                        ? "bg-status-good"
+                        : "bg-status-warning",
                   )}
                 >
-                  {index + 1}. {detection.identity ?? "Unknown"}
+                  {index + 1}. {detection.not_animal ? "Not a dog or cat" : (detection.identity ?? "Unknown")}
                 </span>
               </div>
             );

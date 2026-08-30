@@ -93,6 +93,7 @@ def test_photo_lookup_returns_detections(api_client, engine):
     )
     assert detection["identity"] == "Fibs"
     assert detection["confidence"] == 0.87
+    assert detection["not_animal"] is False
 
 
 def test_photo_lookup_image_404_for_unscanned_asset(api_client):
