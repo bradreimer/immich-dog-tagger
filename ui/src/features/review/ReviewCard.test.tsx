@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { ReviewCard } from "./ReviewCard";
 import type { ReviewItem } from "../../types/review";
@@ -14,6 +14,8 @@ function buildItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     reason: "unknown",
     captured_at: "2026-01-05T12:00:00Z",
     immich_asset_id: "asset-42",
+    location: null,
+    not_animal: false,
     prediction: {
       identity: null,
       similarity: 0.4,
@@ -33,6 +35,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );
@@ -50,6 +53,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );
@@ -73,6 +77,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );
@@ -92,6 +97,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );
@@ -109,6 +115,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );
@@ -128,6 +135,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );
@@ -135,6 +143,44 @@ describe("ReviewCard", () => {
     expect(
       screen.queryByRole("link", { name: /view in photo lookup/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("marks a photo as not a dog or cat", () => {
+    const onToggleNotAnimal = vi.fn();
+
+    render(
+      <ReviewCard
+        item={buildItem()}
+        identities={["Rex"]}
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        onToggleNotAnimal={onToggleNotAnimal}
+        disabled={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Not a dog or cat" }));
+
+    expect(onToggleNotAnimal).toHaveBeenCalled();
+  });
+
+  it("offers to undo an existing not-a-dog-or-cat mark", () => {
+    render(
+      <ReviewCard
+        item={buildItem({ not_animal: true })}
+        identities={["Rex"]}
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
+        disabled={false}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Undo — this is a dog or cat" }),
+    ).toBeInTheDocument();
   });
 
   it("falls back to a placeholder when the capture date is unknown", () => {
@@ -145,6 +191,7 @@ describe("ReviewCard", () => {
         onCorrect={vi.fn()}
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
         disabled={false}
       />,
     );

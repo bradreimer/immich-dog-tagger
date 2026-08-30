@@ -7,7 +7,8 @@ interface Props {
   species?: string;
   predictedIdentity?: string | null;
   onCorrect: (identity: string) => void;
-  onSkip: () => void;
+  /** Omitted in single-item mode (v1.11): there is no queue to skip past. */
+  onSkip?: () => void;
   disabled?: boolean;
 }
 
@@ -55,14 +56,16 @@ export function IdentityChooser({
           </p>
         )}
 
-        <Button
-          variant="outline"
-          onClick={onSkip}
-          disabled={disabled}
-        >
-          <IconArrowRight className="h-4 w-4" aria-hidden="true" />
-          Skip
-        </Button>
+        {onSkip && (
+          <Button
+            variant="outline"
+            onClick={onSkip}
+            disabled={disabled}
+          >
+            <IconArrowRight className="h-4 w-4" aria-hidden="true" />
+            Skip
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

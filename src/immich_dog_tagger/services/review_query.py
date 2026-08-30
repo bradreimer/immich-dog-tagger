@@ -7,6 +7,7 @@ from sqlalchemy import case, exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import ClassificationCandidate
+from immich_dog_tagger.enums import ClusterSort
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -85,6 +86,13 @@ class ReviewItem:
     # original photo. None whenever the detection or asset is missing --
     # the same fail-open stance _captured_at() takes.
     immich_asset_id: str | None = None
+    # "city, state, country" from the same cached Asset fields Insights
+    # reads (issue #94/#129), joined on whichever parts are present. None
+    # when the asset is missing or has no location data at all.
+    location: str | None = None
+    # A human's "not a dog or cat" flag on the underlying crop (issue #185),
+    # surfaced so the Library/Review UI can render its current state.
+    not_animal: bool = False
 
     @property
     def filename(self) -> str:
@@ -358,6 +366,7 @@ class ReviewQueryService:
         reviewed: bool | None = None,
         captured_after: datetime | None = None,
         captured_before: datetime | None = None,
+        sort: ClusterSort = ClusterSort.CAPTURED_DESC,
         limit: int = 50,
         offset: int = 0,
     ) -> LibraryPage:
@@ -365,6 +374,11 @@ class ReviewQueryService:
         Every classified photo, reviewed and unreviewed alike -- unlike
         `active_review()`, this never excludes already-reviewed items. The
         library is a browsable catalogue, not a queue that empties out.
+
+        `sort` reuses `ClusterSort` (v1.11): unlike clustering, which sorts a
+        single bounded in-memory pool, the library paginates over a
+        potentially large filtered set, so ordering is applied in SQL before
+        LIMIT/OFFSET rather than after fetching a page.
         """
         filters = self._library_filters(
             identity=identity,
@@ -381,13 +395,9 @@ class ReviewQueryService:
 
         total = self.session.scalar(count_query) or 0
 
-        query = (
-            select(CropClassification)
-            .options(*_LIBRARY_RELATIONSHIPS)
-            .order_by(CropClassification.created_at.desc())
-            .limit(limit)
-            .offset(offset)
-        )
+        query = select(CropClassification).options(*_LIBRARY_RELATIONSHIPS)
+        query = self._order_library(query, sort)
+        query = query.limit(limit).offset(offset)
 
         for condition in filters:
             query = query.where(condition)
@@ -399,6 +409,39 @@ class ReviewQueryService:
             total=total,
             limit=limit,
             offset=offset,
+        )
+
+    def _order_library(self, query, sort: ClusterSort):
+        if sort in (ClusterSort.CONFIDENCE_DESC, ClusterSort.CONFIDENCE_ASC):
+            return query.order_by(
+                CropClassification.confidence.desc()
+                if sort is ClusterSort.CONFIDENCE_DESC
+                else CropClassification.confidence.asc(),
+                CropClassification.id.asc(),
+            )
+
+        # Captured-date sort: a correlated scalar subquery rather than a
+        # join, so a classification's row identity (and the count query
+        # above, which shares no join) is never at risk of duplicating.
+        captured_at = (
+            select(Asset.captured_at)
+            .select_from(Crop)
+            .join(Detection, Detection.id == Crop.detection_id)
+            .join(Asset, Asset.id == Detection.asset_id)
+            .where(Crop.id == CropClassification.crop_id)
+            .correlate(CropClassification)
+            .scalar_subquery()
+        )
+
+        # Undated photos sort last under both directions (the same
+        # convention RecommendationClusterService uses), then a stable id
+        # tiebreak so equal dates never reorder between requests.
+        return query.order_by(
+            captured_at.is_(None).asc(),
+            captured_at.desc()
+            if sort is ClusterSort.CAPTURED_DESC
+            else captured_at.asc(),
+            CropClassification.id.asc(),
         )
 
     def _library_filters(
@@ -522,6 +565,8 @@ class ReviewQueryService:
             captured_at=self._captured_at(classification),
             reason=self._review_reason(classification),
             immich_asset_id=self._immich_asset_id(classification),
+            location=self._location(classification),
+            not_animal=classification.crop.not_animal,
         )
 
     def _captured_at(
@@ -545,6 +590,20 @@ class ReviewQueryService:
             return None
 
         return detection.asset.immich_asset_id
+
+    def _location(
+        self,
+        classification: CropClassification,
+    ) -> str | None:
+        detection = classification.crop.detection
+
+        if detection is None or detection.asset is None:
+            return None
+
+        asset = detection.asset
+        parts = [part for part in (asset.city, asset.state, asset.country) if part]
+
+        return ", ".join(parts) if parts else None
 
     def _has_review_action(self):
         return exists(

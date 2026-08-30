@@ -73,6 +73,7 @@ export type LibraryQuery = {
   reviewed?: boolean;
   captured_after?: string;
   captured_before?: string;
+  sort?: ClusterSort;
   limit?: number;
   offset?: number;
 };
@@ -102,7 +103,11 @@ export async function getLibrary(
     params.set("captured_before", query.captured_before);
   }
 
-  params.set("limit", String(query.limit ?? 24));
+  if (query.sort) {
+    params.set("sort", query.sort);
+  }
+
+  params.set("limit", String(query.limit ?? 50));
   params.set("offset", String(query.offset ?? 0));
 
   const response = await fetch(`/api/library?${params.toString()}`);
@@ -113,6 +118,32 @@ export async function getLibrary(
 
   return response.json();
 }
+
+/**
+ * One classification by id, in the same shape a review-queue item has
+ * (v1.11) -- lets the Review page open any photo, not only one already in
+ * the active queue (e.g. from the Library's Edit link).
+ */
+export async function getClassification(
+  classificationId: number,
+): Promise<ReviewItem> {
+  const response = await fetch(`/api/classifications/${classificationId}`);
+
+  if (response.status === 404) {
+    throw new ClassificationNotFoundError(
+      `Classification ${classificationId} not found`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load classification");
+  }
+
+  return response.json();
+}
+
+/** Thrown by getClassification() when the id doesn't exist. */
+export class ClassificationNotFoundError extends Error {}
 
 export async function getReviewStats(): Promise<ReviewQueueStats> {
   const response = await fetch("/api/review/stats");

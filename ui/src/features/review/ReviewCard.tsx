@@ -2,6 +2,7 @@ import type { ReviewItem } from "../../types/review";
 import { formatDate } from "../../lib/utils";
 
 import { ImmichPhotoLink } from "./components/ImmichPhotoLink";
+import { NotAnimalToggle } from "./components/NotAnimalToggle";
 import { PhotoLookupLink } from "./components/PhotoLookupLink";
 import { ReviewImage } from "./components/ReviewImage";
 import { PredictionCard } from "./components/PredictionCard";
@@ -16,7 +17,9 @@ interface Props {
   immichUrl?: string | null;
   onCorrect: (identity: string) => void;
   onCorrectSpecies: (species: "dog" | "cat") => void;
-  onSkip: () => void;
+  /** Omitted in single-item mode (v1.11): there is no queue to skip past. */
+  onSkip?: () => void;
+  onToggleNotAnimal: () => void;
   disabled: boolean;
 }
 
@@ -27,6 +30,7 @@ export function ReviewCard({
   onCorrect,
   onCorrectSpecies,
   onSkip,
+  onToggleNotAnimal,
   disabled,
 }: Props) {
   return (
@@ -51,6 +55,12 @@ export function ReviewCard({
       <SpeciesChooser
         species={item.species}
         onCorrectSpecies={onCorrectSpecies}
+        disabled={disabled}
+      />
+
+      <NotAnimalToggle
+        notAnimal={item.not_animal}
+        onToggle={onToggleNotAnimal}
         disabled={disabled}
       />
 

@@ -472,9 +472,38 @@
   no-op for every other format, since only pi-heif populates that key. Verified against real decoded
   HEIC fixtures (`tests/fixtures/heic_*.heic`, one per orientation value) rather than a synthetic
   in-memory image -- the bug only manifests once pi-heif has actually decoded a HEIC container.
+- [#196](https://github.com/bradreimer/immich-dog-tagger/issues/196) v1.11.0 Library as a
+  browse-and-correct catalogue: reverts the Library page's primary UI from v1.8.0's identity-first
+  species/pet-selector-and-cluster-approval workspace back to a flat, independently filterable
+  (species/pet/reviewed-status/capture-date-range, each a `<select>` or date input), sortable
+  (capture date or confidence, applied in SQL before `LIMIT`/`OFFSET` so ordering holds across
+  pagination, not just within one page), paginated (50/page) thumbnail grid with a per-photo
+  details panel (name, species, confidence, capture date, location, review status, View in Immich,
+  View in Photo Lookup, and an Edit link) -- see
+  [ADR-008](adr/ADR-008-library-flat-browse-workspace.md) for why. The cluster-approval backend
+  (`RecommendationClusterService`, `ConfirmedClusterService`, `ClusterApprovalService`,
+  `/library/clusters*`) is deliberately not removed, only no longer reachable from the Library
+  page's UI. The Review page now also accepts an optional `?classification_id=` query param
+  (backed by a new `GET /classifications/{id}`) to edit any one classification directly -- the
+  Library details panel's Edit link -- rendered with the same `ReviewCard` correction surface but
+  no queue chrome (no Skip, no Previous/Next-through-queue, no filter buttons, no progress bar);
+  `/review` with no param is unchanged. `ReviewCard` also gained a "Not a dog or cat" toggle
+  (reusing the existing `POST`/`DELETE /crops/{crop_id}/not-animal` endpoints from issue #185),
+  available in both the queue and the new single-item mode. `ReviewItem`/`ReviewItemResponse`
+  gained `location` (derived from the cached `Asset.city`/`state`/`country` fields issue #94/#129
+  already populate) and `not_animal`. See
+  [docs/specs/v1.11-library-browse-and-correct.md](specs/v1.11-library-browse-and-correct.md).
 
 ## Current Milestone
-v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
+v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
+[docs/specs/v1.11-library-browse-and-correct.md](specs/v1.11-library-browse-and-correct.md)) is
+**complete**. It reverts the Library page's primary UI to a flat, filterable, sortable, paginated
+catalogue with a per-photo details panel, and lets the Review page edit any single classification
+by id (the details panel's Edit link) -- see [ADR-008](adr/ADR-008-library-flat-browse-workspace.md)
+for the full reasoning, including why the cluster-approval backend below is kept rather than
+deleted.
+
+Previously: v1.8.0 Library as an approval workspace ([#139](https://github.com/bradreimer/immich-dog-tagger/issues/139),
 [docs/specs/v1.8-library-approval-workspace.md](specs/v1.8-library-approval-workspace.md)) is
 **complete and released**. Scoped from
 [docs/competitive-analysis-library-workflow.md](competitive-analysis-library-workflow.md), which
@@ -515,9 +544,11 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-No queued numbered milestone -- v1.10.0 (#183) shipped complete, including its own open question
-(FR-6-style "reject to no pet" from the confirmed view was considered and left out of scope; see
-the spec's Open questions).
+No queued numbered milestone -- v1.11.0 (#196) shipped complete, with one open question left in
+its spec: what becomes of the cluster-approval workspace UI removed from the Library page (a
+separate page, a second tab, or left unreachable until there's a concrete need). v1.10.0 (#183)
+also shipped complete, including its own open question (FR-6-style "reject to no pet" from the
+confirmed view was considered and left out of scope; see that spec's Open questions).
 
 Loose threads, none of them blocking: #146's coverage figure is a share while
 review settled on two plain counts (spec Open questions); and whether confirmed pets should

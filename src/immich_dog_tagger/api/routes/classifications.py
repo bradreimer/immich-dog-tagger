@@ -23,6 +23,30 @@ router = APIRouter(
 )
 
 
+@router.get("/{classification_id}", response_model=ReviewItemResponse)
+def get_classification(
+    classification_id: int,
+    review_query_service: Annotated[
+        ReviewQueryService,
+        Depends(get_review_query_service),
+    ],
+):
+    """
+    One classification by id, in the same shape `/review` already returns
+    (v1.11) -- the read side of editing any photo from a URL, not only one
+    already in the active review queue.
+    """
+    item = review_query_service.item_for_classification(classification_id)
+
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Classification {classification_id} not found",
+        )
+
+    return ReviewItemResponse.from_item(item)
+
+
 @router.post("/{classification_id}/correct", response_model=ClassificationResponse)
 def correct(
     classification_id: int,
