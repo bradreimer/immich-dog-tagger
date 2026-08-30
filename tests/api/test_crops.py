@@ -36,6 +36,50 @@ def test_get_crop_image_not_found(api_client):
     assert response.status_code == 404
 
 
+def test_mark_crop_not_animal(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="crop.jpg")
+        session.add(crop)
+        session.commit()
+        crop_id = crop.id
+
+    response = api_client.post(f"/crops/{crop_id}/not-animal")
+
+    assert response.status_code == 200
+    assert response.json() == {"crop_id": crop_id, "not_animal": True}
+
+    with Session(engine) as session:
+        assert session.get(Crop, crop_id).not_animal is True
+
+
+def test_mark_crop_not_animal_404_for_unknown_crop(api_client):
+    response = api_client.post("/crops/999999/not-animal")
+
+    assert response.status_code == 404
+
+
+def test_unmark_crop_not_animal(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="crop.jpg", not_animal=True)
+        session.add(crop)
+        session.commit()
+        crop_id = crop.id
+
+    response = api_client.delete(f"/crops/{crop_id}/not-animal")
+
+    assert response.status_code == 200
+    assert response.json() == {"crop_id": crop_id, "not_animal": False}
+
+    with Session(engine) as session:
+        assert session.get(Crop, crop_id).not_animal is False
+
+
+def test_unmark_crop_not_animal_404_for_unknown_crop(api_client):
+    response = api_client.delete("/crops/999999/not-animal")
+
+    assert response.status_code == 404
+
+
 def test_get_crop_image_survives_a_burst_of_concurrent_requests(
     api_client, engine, tmp_path
 ):

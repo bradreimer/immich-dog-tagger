@@ -32,6 +32,18 @@ library.
 - A new identity-correction UI pattern. Reuses the Library page's compact per-item `<select>`
   correction control rather than introducing a third design.
 
+## Addendum: "not a dog or cat" (issue #185)
+
+A photo lookup box can also be wrong in a third way, beyond a wrong species or a wrong identity: it
+isn't a dog or cat at all (a YOLO false positive -- a stuffed animal, a shadow, a person). The owner
+can mark a box this way from the same view, no identity required, and undo the mark. This is
+recorded on the crop (`Crop.not_animal`, alongside `species`) via `FalsePositiveService` and
+`POST`/`DELETE /crops/{crop_id}/not-animal`, and rendered as a dimmed, dashed box distinct from the
+identified/unknown treatment. Deliberately narrow, per that issue's Out of scope: this does not
+extend to Review/Library, does not affect the review queue or Metrics counts, and does not feed
+into the classifier or learner -- each is a larger decision left for a follow-up if this becomes
+useful in a second place.
+
 ## Requirements
 - Parse the Immich asset id out of a pasted URL client-side, reusing/extending the existing
   `ui/src/lib/immich.ts` helpers rather than a new ad hoc parser.

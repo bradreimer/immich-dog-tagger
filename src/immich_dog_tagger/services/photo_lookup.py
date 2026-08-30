@@ -27,6 +27,7 @@ class PhotoLookupDetection:
     classification_id: int | None
     identity: str | None
     confidence: float | None
+    not_animal: bool
 
 
 @dataclass(frozen=True)
@@ -83,4 +84,5 @@ class PhotoLookupService:
             confidence=(
                 classification.confidence if classification is not None else None
             ),
+            not_animal=crop.not_animal if crop is not None else False,
         )

@@ -10,6 +10,8 @@ vi.mock("@/lib/api", () => ({
   getDogs: vi.fn(),
   getPhotoLookup: vi.fn(),
   correctClassification: vi.fn(),
+  markCropNotAnimal: vi.fn(),
+  unmarkCropNotAnimal: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
 }));
 
@@ -33,6 +35,7 @@ function buildResult(): PhotoLookupResult {
         classification_id: 100,
         identity: "Hermann",
         confidence: 0.87,
+        not_animal: false,
       },
     ],
   };
@@ -106,6 +109,33 @@ describe("PhotoLookupPage", () => {
     });
 
     expect(await screen.findAllByText("Fibs")).not.toHaveLength(0);
+  });
+
+  it("marks a detection as not a dog or cat, and can undo it", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue(buildResult());
+    vi.mocked(api.markCropNotAnimal).mockResolvedValue(undefined);
+    vi.mocked(api.unmarkCropNotAnimal).mockResolvedValue(undefined);
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    fireEvent.click(await screen.findByRole("button", { name: /not a dog or cat/i }));
+
+    await waitFor(() => {
+      expect(api.markCropNotAnimal).toHaveBeenCalledWith(1);
+    });
+
+    expect(await screen.findAllByText("Not a dog or cat")).not.toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /undo/i }));
+
+    await waitFor(() => {
+      expect(api.unmarkCropNotAnimal).toHaveBeenCalledWith(1);
+    });
+
+    expect(await screen.findAllByText("Hermann")).not.toHaveLength(0);
   });
 
   it("shows a distinct message when no dogs or cats were detected", async () => {

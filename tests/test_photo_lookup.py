@@ -80,6 +80,37 @@ def test_get_includes_detection_box_and_classification(engine):
         assert item.classification_id == classification.id
         assert item.identity == "Fibs"
         assert item.confidence == 0.87
+        assert item.not_animal is False
+
+
+def test_get_includes_not_animal_flag(engine):
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset-not-animal", extension=".jpg")
+
+        detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=50,
+            y2=50,
+        )
+
+        crop = Crop(
+            detection=detection,
+            path="crop.jpg",
+            species=Species.DOG,
+            not_animal=True,
+        )
+
+        session.add(crop)
+        session.commit()
+
+        lookup = PhotoLookupService(session).get("asset-not-animal")
+
+        assert lookup is not None
+        assert lookup.detections[0].not_animal is True
 
 
 def test_get_handles_detection_with_no_classification_yet(engine):

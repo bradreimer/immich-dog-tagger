@@ -740,6 +740,7 @@ class PhotoLookupDetectionResponse(BaseModel):
     classification_id: int | None
     identity: str | None
     confidence: float | None
+    not_animal: bool
 
 
 class PhotoLookupResponse(BaseModel):
@@ -766,6 +767,7 @@ class PhotoLookupResponse(BaseModel):
                     classification_id=detection.classification_id,
                     identity=detection.identity,
                     confidence=detection.confidence,
+                    not_animal=detection.not_animal,
                 )
                 for detection in lookup.detections
             ],

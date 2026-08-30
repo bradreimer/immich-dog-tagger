@@ -1,6 +1,9 @@
 import { useState } from "react";
 
+import { IconX } from "@tabler/icons-react";
+
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Dog } from "@/types/dogs";
 import type { PhotoLookupDetection } from "@/types/photoLookup";
@@ -14,9 +17,16 @@ interface RowProps {
   detection: PhotoLookupDetection;
   identities: Dog[];
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
+  onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
 }
 
-function DetectionRow({ index, detection, identities, onCorrect }: RowProps) {
+function DetectionRow({
+  index,
+  detection,
+  identities,
+  onCorrect,
+  onToggleNotAnimal,
+}: RowProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +53,23 @@ function DetectionRow({ index, detection, identities, onCorrect }: RowProps) {
     }
   };
 
+  const handleToggleNotAnimal = async () => {
+    if (detection.crop_id === null) {
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+
+    try {
+      await onToggleNotAnimal(detection.crop_id, !detection.not_animal);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border py-3 last:border-b-0">
       <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
@@ -51,37 +78,59 @@ function DetectionRow({ index, detection, identities, onCorrect }: RowProps) {
 
       <Badge variant="outline">{speciesLabel(detection.species)}</Badge>
 
-      <span className="min-w-0 flex-1 truncate font-medium">
-        {detection.identity ?? "Unknown"}
-      </span>
-
-      {detection.confidence !== null && (
-        <span className="shrink-0 text-sm text-muted-foreground">
-          {(detection.confidence * 100).toFixed(1)}% confidence
+      {detection.not_animal ? (
+        <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">
+          Not a dog or cat
         </span>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1 truncate font-medium">
+            {detection.identity ?? "Unknown"}
+          </span>
+
+          {detection.confidence !== null && (
+            <span className="shrink-0 text-sm text-muted-foreground">
+              {(detection.confidence * 100).toFixed(1)}% confidence
+            </span>
+          )}
+
+          {detection.classification_id !== null ? (
+            <select
+              value={detection.identity ?? ""}
+              onChange={handleChange}
+              disabled={saving || speciesIdentities.length === 0}
+              aria-label={`Correct identity for detection ${index + 1}`}
+              className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <option value="" disabled>
+                {speciesIdentities.length === 0 ? "No identities configured" : "Correct to…"}
+              </option>
+              {speciesIdentities.map((dog) => (
+                <option key={dog.id} value={dog.name}>
+                  {dog.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="shrink-0 text-sm text-muted-foreground">
+              Not classified yet
+            </span>
+          )}
+        </>
       )}
 
-      {detection.classification_id !== null ? (
-        <select
-          value={detection.identity ?? ""}
-          onChange={handleChange}
-          disabled={saving || speciesIdentities.length === 0}
-          aria-label={`Correct identity for detection ${index + 1}`}
-          className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      {detection.crop_id !== null && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleToggleNotAnimal}
+          disabled={saving}
+          className="shrink-0"
         >
-          <option value="" disabled>
-            {speciesIdentities.length === 0 ? "No identities configured" : "Correct to…"}
-          </option>
-          {speciesIdentities.map((dog) => (
-            <option key={dog.id} value={dog.name}>
-              {dog.name}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <span className="shrink-0 text-sm text-muted-foreground">
-          Not classified yet
-        </span>
+          {!detection.not_animal && <IconX className="h-4 w-4" aria-hidden="true" />}
+          {detection.not_animal ? "Undo" : "Not a dog or cat"}
+        </Button>
       )}
 
       {error && <p className="w-full text-xs text-destructive">{error}</p>}
@@ -93,9 +142,15 @@ interface Props {
   detections: PhotoLookupDetection[];
   identities: Dog[];
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
+  onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
 }
 
-export function DetectionList({ detections, identities, onCorrect }: Props) {
+export function DetectionList({
+  detections,
+  identities,
+  onCorrect,
+  onToggleNotAnimal,
+}: Props) {
   if (detections.length === 0) {
     return (
       <Card>
@@ -116,6 +171,7 @@ export function DetectionList({ detections, identities, onCorrect }: Props) {
             detection={detection}
             identities={identities}
             onCorrect={onCorrect}
+            onToggleNotAnimal={onToggleNotAnimal}
           />
         ))}
       </CardContent>
