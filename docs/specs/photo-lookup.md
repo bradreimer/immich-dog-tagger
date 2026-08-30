@@ -86,5 +86,13 @@ identity control if needed.
 - A URL that can't be parsed as an Immich photo link (malformed, wrong shape) is rejected client-
   side with a helpful message before any request is made.
 
+## Addendum: link from Review (issue #190)
+
+Beyond pasting an Immich URL by hand, `/photo-lookup?assetId={immich_asset_id}` runs the lookup for
+that asset automatically on load, skipping the paste step. This is the entry point the Review
+card's "View in Photo Lookup" link uses (`item.immich_asset_id` is already known there, so no URL
+needs to be constructed or parsed) -- it opens in a new tab so the reviewer doesn't lose their place
+in the review queue. The manual paste-a-URL flow is unchanged.
+
 ## Open questions
 - None.

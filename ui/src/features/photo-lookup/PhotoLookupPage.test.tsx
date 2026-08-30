@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { PhotoLookupPage } from "./PhotoLookupPage";
@@ -48,8 +48,49 @@ async function pasteAndSubmit(url: string) {
 }
 
 describe("PhotoLookupPage", () => {
+  const originalLocation = window.location;
+
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, "", originalLocation.pathname);
+  });
+
+  it("runs the lookup automatically when an assetId query param is present", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue(buildResult());
+
+    window.history.replaceState({}, "", "/photo-lookup?assetId=asset-42");
+
+    render(<PhotoLookupPage />);
+
+    expect(await screen.findAllByText("Hermann")).not.toHaveLength(0);
+    expect(api.getPhotoLookup).toHaveBeenCalledWith("asset-42");
+  });
+
+  it("shows the same not-found message for a deep-linked asset that hasn't been scanned", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([]);
+    vi.mocked(api.getPhotoLookup).mockRejectedValue(
+      new api.PhotoLookupNotFoundError("That photo hasn't been scanned by this instance yet."),
+    );
+
+    window.history.replaceState({}, "", "/photo-lookup?assetId=unknown-asset");
+
+    render(<PhotoLookupPage />);
+
+    expect(
+      await screen.findByText(/hasn't been scanned by this instance yet/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not run a lookup on load when no assetId query param is present", () => {
+    vi.mocked(api.getDogs).mockResolvedValue([]);
+
+    render(<PhotoLookupPage />);
+
+    expect(api.getPhotoLookup).not.toHaveBeenCalled();
   });
 
   it("rejects a URL that isn't an Immich photo link before calling the API", async () => {

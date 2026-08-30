@@ -33,19 +33,7 @@ export function PhotoLookupPage() {
       .catch(() => setIdentities([]));
   }, []);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const assetId = parseImmichAssetId(urlInput);
-
-    if (!assetId) {
-      setError(
-        "Paste a full Immich photo link, e.g. https://immich.example.com/photos/<id>.",
-      );
-      setResult(null);
-      return;
-    }
-
+  const runLookup = async (assetId: string) => {
     setError(null);
     setLoading(true);
 
@@ -63,6 +51,34 @@ export function PhotoLookupPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    const assetId = new URLSearchParams(window.location.search).get("assetId");
+
+    if (assetId) {
+      void runLookup(assetId);
+    }
+    // Only ever read the query param that was present on initial load --
+    // this page doesn't otherwise change the URL, so there's nothing to
+    // react to after mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const assetId = parseImmichAssetId(urlInput);
+
+    if (!assetId) {
+      setError(
+        "Paste a full Immich photo link, e.g. https://immich.example.com/photos/<id>.",
+      );
+      setResult(null);
+      return;
+    }
+
+    await runLookup(assetId);
   };
 
   const handleCorrect = async (classificationId: number, identity: string) => {

@@ -2,6 +2,7 @@ import type { ReviewItem } from "../../types/review";
 import { formatDate } from "../../lib/utils";
 
 import { ImmichPhotoLink } from "./components/ImmichPhotoLink";
+import { PhotoLookupLink } from "./components/PhotoLookupLink";
 import { ReviewImage } from "./components/ReviewImage";
 import { PredictionCard } from "./components/PredictionCard";
 import { SimilarExample } from "./components/SimilarExample";
@@ -43,6 +44,8 @@ export function ReviewCard({
           immichUrl={immichUrl}
           assetId={item.immich_asset_id}
         />
+
+        <PhotoLookupLink assetId={item.immich_asset_id} />
       </div>
 
       <SpeciesChooser
