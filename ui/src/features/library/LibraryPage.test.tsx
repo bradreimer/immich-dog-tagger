@@ -9,6 +9,7 @@ import type { LibraryEntry } from "@/types/library";
 vi.mock("@/lib/api", () => ({
   getLibrary: vi.fn(),
   getDogs: vi.fn(),
+  getUndetectedAssets: vi.fn(),
   getSettings: vi.fn(),
 }));
 
@@ -69,6 +70,12 @@ describe("LibraryPage", () => {
       scanned_image_count: 0,
       version: "1.11.0",
       tagging_sensitivity: "balanced",
+    });
+    vi.mocked(api.getUndetectedAssets).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 12,
+      offset: 0,
     });
     mockLibrary(0);
   });
@@ -158,6 +165,22 @@ describe("LibraryPage", () => {
     await waitFor(() =>
       expect(lastLibraryQuery()).toMatchObject({ reviewed: true, offset: 0 }),
     );
+  });
+
+  it("shows the missed-detection rescue panel until a pet filter narrows the view", async () => {
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    expect(
+      await screen.findByRole("region", { name: "Photos with no detected pet" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Pet"), { target: { value: "Hermann" } });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("region", { name: "Photos with no detected pet" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("shows a details panel with an Edit link when a thumbnail is selected", async () => {

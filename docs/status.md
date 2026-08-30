@@ -493,6 +493,19 @@
   gained `location` (derived from the cached `Asset.city`/`state`/`country` fields issue #94/#129
   already populate) and `not_animal`. See
   [docs/specs/v1.11-library-browse-and-correct.md](specs/v1.11-library-browse-and-correct.md).
+- [#198](https://github.com/bradreimer/immich-dog-tagger/issues/198) reconnected FR-11's
+  `UndetectedPanel` ("Photos with no detected pet") to `LibraryPage.tsx`. An earlier commit
+  (`b39415c`) had removed its import and render call, reasoning the manual-tagging workflow
+  "isn't needed," but never updated the spec or this file to match -- both still (correctly)
+  describe FR-11 as shipped, and the backend (`/api/undetected`, `ManualTagService`, sync
+  integration) and the component's own tests were left in place. The panel was reachable only
+  from its own test file with nothing rendering it in the app; that was an unreviewed regression,
+  not a followed-through product decision, so it is restored rather than removed. Landing after
+  #196's flat-catalogue rewrite (which explicitly called this panel "unrelated and untouched"),
+  `LibraryPage` now shows it whenever the pet filter is empty rather than only when a
+  workspace-style `selectedPet` was unset, and a new `LibraryPage.test.tsx` case asserts it renders
+  there and disappears once a pet filter is chosen, so a future refactor that drops it again fails a
+  test instead of shipping silently.
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
