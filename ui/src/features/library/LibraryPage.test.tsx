@@ -74,7 +74,7 @@ describe("LibraryPage", () => {
   });
 
   it("filters by species, pet, review status, and capture date -- combined", async () => {
-    render(<LibraryPage onNavigate={vi.fn()} />);
+    render(<LibraryPage />);
 
     await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
 
@@ -116,7 +116,7 @@ describe("LibraryPage", () => {
   });
 
   it("clears a pet selection that no longer matches a changed species", async () => {
-    render(<LibraryPage onNavigate={vi.fn()} />);
+    render(<LibraryPage />);
 
     fireEvent.change(await screen.findByLabelText("Pet"), {
       target: { value: "Hermann" },
@@ -131,7 +131,7 @@ describe("LibraryPage", () => {
   });
 
   it("sends the selected sort order", async () => {
-    render(<LibraryPage onNavigate={vi.fn()} />);
+    render(<LibraryPage />);
 
     await waitFor(() => expect(lastLibraryQuery().sort).toBe("captured_desc"));
 
@@ -145,7 +145,7 @@ describe("LibraryPage", () => {
   it("resets pagination when a filter or the sort changes", async () => {
     mockLibrary(120);
 
-    render(<LibraryPage onNavigate={vi.fn()} />);
+    render(<LibraryPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Next" }));
 
@@ -161,7 +161,7 @@ describe("LibraryPage", () => {
   });
 
   it("never renders a photos-with-no-detected-pet section", async () => {
-    render(<LibraryPage onNavigate={vi.fn()} />);
+    render(<LibraryPage />);
 
     await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
 
@@ -170,26 +170,21 @@ describe("LibraryPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a details panel with an Edit link when a thumbnail is selected", async () => {
+  it("shows a details panel when a thumbnail is selected", async () => {
     mockLibrary(1);
-    const onNavigate = vi.fn();
 
-    render(<LibraryPage onNavigate={onNavigate} />);
+    render(<LibraryPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
 
     expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();
     expect(screen.getByText("90.0%")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Edit in Review" }));
-
-    expect(onNavigate).toHaveBeenCalledWith("/review?classification_id=1");
   });
 
   it("clears the selection when a filter changes", async () => {
     mockLibrary(1);
 
-    render(<LibraryPage onNavigate={vi.fn()} />);
+    render(<LibraryPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
     expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();

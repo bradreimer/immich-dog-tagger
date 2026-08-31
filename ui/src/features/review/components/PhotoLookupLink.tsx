@@ -22,7 +22,7 @@ export function PhotoLookupLink({ assetId }: Props) {
       className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
     >
       <IconSearch className="h-4 w-4" aria-hidden="true" />
-      View in Photo Lookup
+      Edit Details
     </a>
   );
 }
