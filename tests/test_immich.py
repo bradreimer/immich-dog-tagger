@@ -219,6 +219,37 @@ def test_download_asset():
     assert data == b"image-data"
 
 
+def test_download_asset_preview():
+    captured = {}
+
+    def handler(request):
+        captured["url"] = str(request.url)
+
+        return httpx.Response(
+            200,
+            content=b"preview-jpeg-data",
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient(
+        "http://immich.test",
+        "secret",
+    )
+
+    client.client = httpx.Client(
+        transport=transport,
+    )
+
+    data = client.download_asset_preview("abc123")
+
+    assert data == b"preview-jpeg-data"
+    assert (
+        captured["url"]
+        == "http://immich.test/api/assets/abc123/thumbnail?isThumb=false"
+    )
+
+
 def test_remove_assets_from_album():
     captured = {}
 

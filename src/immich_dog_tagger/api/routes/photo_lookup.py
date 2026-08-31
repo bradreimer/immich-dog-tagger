@@ -14,13 +14,6 @@ router = APIRouter(
     prefix="/photo-lookup",
 )
 
-_EXTENSION_MEDIA_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".heic": "image/heic",
-}
-
 
 @router.get("/{immich_asset_id}", response_model=PhotoLookupResponse)
 def photo_lookup(
@@ -44,10 +37,9 @@ def photo_lookup_image(
     service: Annotated[PhotoLookupService, Depends(get_photo_lookup_service)],
     client: Annotated[ImmichClient, Depends(get_immich_client)],
 ):
-    # Looked up here too (not just by the sibling metadata endpoint) so the
-    # original's extension is known for the response's media type, and so a
-    # request for an asset this instance has never scanned gets the same
-    # 404 as the metadata endpoint rather than an opaque Immich error.
+    # Looked up here too (not just by the sibling metadata endpoint) so a
+    # request for an asset this instance has never scanned gets the same 404
+    # as the metadata endpoint rather than an opaque Immich error.
     lookup = service.get(immich_asset_id)
 
     if lookup is None:
@@ -57,19 +49,17 @@ def photo_lookup_image(
         )
 
     try:
-        content = client.download_asset(immich_asset_id)
+        # Immich's full-size preview, not the original: always JPEG, so
+        # browsers can render it regardless of the original's format (issue
+        # #206 -- HEIC originals served as-is are unrenderable in <img>).
+        content = client.download_asset_preview(immich_asset_id)
     except ImmichDownloadError as e:
         raise HTTPException(
             status_code=502,
             detail=f"Failed to fetch photo from Immich: {e}",
         ) from e
 
-    media_type = _EXTENSION_MEDIA_TYPES.get(
-        lookup.extension.lower(),
-        "image/jpeg",
-    )
-
     return Response(
         content=content,
-        media_type=media_type,
+        media_type="image/jpeg",
     )
