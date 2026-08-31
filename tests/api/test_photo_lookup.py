@@ -21,7 +21,7 @@ class FakeImmichClient:
         self.error = error
         self.requested_asset_ids: list[str] = []
 
-    def download_asset(self, asset_id: str) -> bytes:
+    def download_asset_preview(self, asset_id: str) -> bytes:
         self.requested_asset_ids.append(asset_id)
 
         if self.error is not None:
@@ -132,15 +132,36 @@ def test_photo_lookup_image_proxies_bytes_from_immich(api_client, engine):
     with Session(engine) as session:
         _seed_asset_with_detection(session)
 
-    fake_client = FakeImmichClient(content=b"the-original-photo-bytes")
+    fake_client = FakeImmichClient(content=b"the-preview-photo-bytes")
     api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
 
     response = api_client.get("/photo-lookup/asset-1/image")
 
     assert response.status_code == 200
-    assert response.content == b"the-original-photo-bytes"
+    assert response.content == b"the-preview-photo-bytes"
     assert response.headers["content-type"] == "image/jpeg"
     assert fake_client.requested_asset_ids == ["asset-1"]
+
+
+def test_photo_lookup_image_is_jpeg_for_a_heic_original(api_client, engine):
+    # Issue #206: a HEIC original must not be served as image/heic, which no
+    # standard browser can render inline -- the preview endpoint transcodes
+    # it, and the response's media type must reflect that, not the original
+    # asset's stored extension.
+    with Session(engine) as session:
+        _seed_asset_with_detection(session, immich_asset_id="asset-heic")
+        session.query(Asset).filter_by(immich_asset_id="asset-heic").update(
+            {"extension": ".heic"}
+        )
+        session.commit()
+
+    fake_client = FakeImmichClient(content=b"transcoded-jpeg-bytes")
+    api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
+
+    response = api_client.get("/photo-lookup/asset-heic/image")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
 
 
 def test_photo_lookup_image_502_when_immich_fetch_fails(api_client, engine):

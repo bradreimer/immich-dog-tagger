@@ -411,10 +411,12 @@
   over each detected dog/cat, labeled with its predicted identity and confidence, with the option
   to correct a wrong one in place -- the reverse of #128's "View in Immich" link. New read-only
   `GET /photo-lookup/{immich_asset_id}` (detections/crops/classifications for an `Asset` looked up
-  by Immich asset id) and `GET /photo-lookup/{immich_asset_id}/image` (proxies the original photo
-  live from Immich via the existing server-side API key, since the pipeline deletes its local
+  by Immich asset id) and `GET /photo-lookup/{immich_asset_id}/image` (fetches a preview of the
+  photo live from Immich via the existing server-side API key, since the pipeline deletes its local
   cached original once detection completes, per
-  [docs/specs/storage-lifecycle-cleanup.md](specs/storage-lifecycle-cleanup.md)); correction reuses
+  [docs/specs/storage-lifecycle-cleanup.md](specs/storage-lifecycle-cleanup.md); see
+  [#206](https://github.com/bradreimer/immich-dog-tagger/issues/206) for why it's a preview and not
+  the original bytes); correction reuses
   the existing `POST /classifications/{id}/correct` endpoint rather than a new write path. See
   [docs/specs/photo-lookup.md](specs/photo-lookup.md).
 - [#181](https://github.com/bradreimer/immich-dog-tagger/issues/181) v1.9.0 automatic
@@ -523,6 +525,17 @@
   already deletes a processed asset's cached original from `cache_dir` whenever a `crop_writer` is
   configured, regardless of whether any dog/cat was actually detected -- so a non-pet photo was
   already being dropped from the download cache; only the UI/API surface needed removing.
+- [#206](https://github.com/bradreimer/immich-dog-tagger/issues/206) fixed the Photo Lookup image
+  preview being a broken icon for any HEIC-original photo in Chromium/Firefox (Safari can decode
+  HEIC natively, which masked the bug there). `GET /photo-lookup/{immich_asset_id}/image`
+  previously proxied Immich's `/api/assets/{id}/original` bytes through as-is, with a media type
+  derived from the asset's stored extension -- so a HEIC original was served with
+  `Content-Type: image/heic`, which no standard browser can render inline. It now calls a new
+  `ImmichClient.download_asset_preview()`, Immich's own full-resolution preview endpoint
+  (`GET /api/assets/{id}/thumbnail?isThumb=false`), which Immich always transcodes to JPEG
+  regardless of the original's format; the route now always responds `image/jpeg` rather than
+  branching on extension. `download_asset` (the real-original download used by the pipeline) is
+  untouched -- this only changes what the browser preview fetches.
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
