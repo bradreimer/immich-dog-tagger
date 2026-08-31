@@ -107,7 +107,7 @@ describe("ReviewCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("links to the Photo Lookup view for the same photo", () => {
+  it("links to the Photo Lookup view for the same photo via Edit Details", () => {
     render(
       <ReviewCard
         item={buildItem()}
@@ -120,14 +120,14 @@ describe("ReviewCard", () => {
       />,
     );
 
-    const link = screen.getByRole("link", { name: /view in photo lookup/i });
+    const link = screen.getByRole("link", { name: /edit details/i });
 
     expect(link).toHaveAttribute("href", "/photo-lookup?assetId=asset-42");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("omits the Photo Lookup link when the item has no Immich asset", () => {
+  it("omits the Edit Details link when the item has no Immich asset", () => {
     render(
       <ReviewCard
         item={buildItem({ immich_asset_id: null })}
@@ -141,7 +141,7 @@ describe("ReviewCard", () => {
     );
 
     expect(
-      screen.queryByRole("link", { name: /view in photo lookup/i }),
+      screen.queryByRole("link", { name: /edit details/i }),
     ).not.toBeInTheDocument();
   });
 

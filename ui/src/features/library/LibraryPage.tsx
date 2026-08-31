@@ -18,11 +18,7 @@ import { UndetectedPanel } from "./components/UndetectedPanel";
 
 const PAGE_SIZE = 50;
 
-interface Props {
-  onNavigate: (path: string) => void;
-}
-
-export function LibraryPage({ onNavigate }: Props) {
+export function LibraryPage() {
   const [species, setSpecies] = useState<LibrarySpeciesFilter>("all");
   const [identity, setIdentity] = useState("");
   const [reviewedFilter, setReviewedFilter] = useState<LibraryReviewedFilter>("all");
@@ -224,11 +220,7 @@ export function LibraryPage({ onNavigate }: Props) {
           </div>
 
           {selectedEntry && (
-            <LibraryDetailsPanel
-              entry={selectedEntry}
-              immichUrl={immichUrl}
-              onNavigate={onNavigate}
-            />
+            <LibraryDetailsPanel entry={selectedEntry} immichUrl={immichUrl} />
           )}
         </div>
       )}
