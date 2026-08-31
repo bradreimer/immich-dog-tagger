@@ -506,6 +506,23 @@
   workspace-style `selectedPet` was unset, and a new `LibraryPage.test.tsx` case asserts it renders
   there and disappears once a pet filter is chosen, so a future refactor that drops it again fails a
   test instead of shipping silently.
+- [#200](https://github.com/bradreimer/immich-dog-tagger/issues/200) descoped FR-11 for good: the
+  manual-rescue workflow for photos the detector missed is removed, not just unreachable from the
+  UI as `b39415c` left it before #198 restored it. Removed end-to-end: `UndetectedPanel` and its
+  test, the render call in `LibraryPage.tsx` (and `LibraryPage.test.tsx`'s coverage of it, now
+  asserting the section never renders), the frontend API client functions (`getUndetectedAssets`/
+  `tagUndetectedAsset`/`untagUndetectedAsset`) and `types/undetected.ts`, the `/undetected` router
+  (`api/routes/manual_tags.py`), `ManualTagService` (`services/manual_tags.py`), the
+  `get_manual_tag_service` dependency, and the `UndetectedAsset*`/`ManualAssetTag*` response
+  schemas. `ManualAssetTag` the SQLAlchemy model and `sync.py`'s use of it are deliberately left in
+  place -- no new rows can be created once the API above is gone, but a photo tagged before this
+  change keeps reaching its pet's Immich album rather than losing a correction that already
+  happened; dropping that table would be a destructive schema change for existing installs this
+  change doesn't need. Separately confirmed (and locked in with a new regression test,
+  `test_detection_removes_cached_original_when_nothing_detected`) that `DetectionService.run()`
+  already deletes a processed asset's cached original from `cache_dir` whenever a `crop_writer` is
+  configured, regardless of whether any dog/cat was actually detected -- so a non-pet photo was
+  already being dropped from the download cache; only the UI/API surface needed removing.
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
@@ -528,9 +545,10 @@ Every requirement shipped: FR-1 (#140, species -> pet selection as the Library's
 FR-2/FR-3 (#141, clustering and one-action cluster approval), FR-4 (#142, per-photo selection
 within a cluster), FR-5 (#143, sorting by capture date or confidence), FR-6 (#144, "not this pet"
 rejection), FR-8 (#146, detection coverage), FR-9 (#149, owner-facing tagging sensitivity and
-auto-reclassify), FR-10 (#148, merging two identities), and FR-11 (#147, tagging a photo the
-detector missed). FR-7 (#145, cold-start clustering) was dropped as not planned -- the Review tab
-already serves the zero-example case.
+auto-reclassify), and FR-10 (#148, merging two identities). FR-7 (#145, cold-start clustering) was
+dropped as not planned -- the Review tab already serves the zero-example case. FR-11 (#147, tagging
+a photo the detector missed) shipped, then was descoped and removed entirely by #200: see that
+entry above.
 
 Design decisions settled in review and recorded in the spec's "Resolved decisions": cold start stays
 with the Review tab; approvals settle state and never trigger an Immich sync, generalized into

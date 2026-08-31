@@ -26,7 +26,6 @@ from immich_dog_tagger.api.routes import (
     insights,
     jobs,
     library,
-    manual_tags,
     metrics,
     photo_lookup,
     review,
@@ -89,7 +88,6 @@ def create_app() -> FastAPI:
     app.include_router(insights.router)
     app.include_router(jobs.router)
     app.include_router(library.router)
-    app.include_router(manual_tags.router)
     app.include_router(metrics.router)
     app.include_router(photo_lookup.router)
     app.include_router(review.router)

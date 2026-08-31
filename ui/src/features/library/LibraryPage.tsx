@@ -14,7 +14,6 @@ import {
   type LibrarySpeciesFilter,
 } from "./components/LibraryFilters";
 import { LibraryThumbnail } from "./components/LibraryThumbnail";
-import { UndetectedPanel } from "./components/UndetectedPanel";
 
 const PAGE_SIZE = 50;
 
@@ -150,13 +149,6 @@ export function LibraryPage() {
         sort={sort}
         onSortChange={setSort}
       />
-
-      {/*
-        Shown while browsing library-wide, not scoped to one pet: a photo
-        the detector missed has no identity yet, so it does not belong to
-        any one pet's filter -- it is a library-wide gap (issue #147).
-      */}
-      {!identity && <UndetectedPanel identities={dogs} />}
 
       {error && (
         <div className="space-y-3">
