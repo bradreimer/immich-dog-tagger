@@ -518,6 +518,56 @@ def test_detection_keeps_cached_original_without_crop_writer(
         assert original_path.exists()
 
 
+def test_detection_removes_cached_original_when_nothing_detected(
+    engine,
+    tmp_path,
+):
+    # A photo with no dog or cat in it never needs its original again --
+    # there's no crop standing in for it and nothing downstream will ever
+    # look at it, so it should be dropped from cache_dir exactly like a
+    # photo that did produce a crop (issue #200).
+    class EmptyDetector:
+        def detect(self, image_path):
+            return []
+
+    class UnusedCropWriter:
+        def write(self, image_path, asset_id, detections):
+            return []
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="abc123",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        original_path = asset.cache_path(tmp_path)
+        original_path.write_bytes(b"original bytes")
+
+        service = DetectionService(
+            EmptyDetector(),
+            session,
+            tmp_path,
+            crop_writer=UnusedCropWriter(),
+        )
+
+        summary = service.run()
+
+        assert summary.processed == 1
+        assert summary.detections == 0
+        assert not original_path.exists()
+
+        assert session.query(Detection).count() == 0
+        assert session.query(Crop).count() == 0
+
+        session.refresh(asset)
+
+        assert asset.status is AssetStatus.DETECTED
+
+
 def test_detection_commits_in_batches(
     engine,
     tmp_path,

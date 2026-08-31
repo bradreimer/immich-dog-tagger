@@ -9,7 +9,6 @@ import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage } from "../types/library";
-import type { UndetectedAssetPage } from "@/types/undetected";
 import type {
   ClusterApprovalResult,
   ClusterProposal,
@@ -709,68 +708,6 @@ export async function getInsightsTopPhotos(
   }
   return response.json();
 }
-/**
- * Photos detection finished with that produced no crop (issue #147) -- the
- * population the Metrics tab's coverage figures count.
- */
-export async function getUndetectedAssets(query: {
-  limit?: number;
-  offset?: number;
-  tagged?: boolean;
-} = {}): Promise<UndetectedAssetPage> {
-  const params = new URLSearchParams();
-
-  if (query.limit !== undefined) params.set("limit", String(query.limit));
-  if (query.offset !== undefined) params.set("offset", String(query.offset));
-  if (query.tagged !== undefined) params.set("tagged", String(query.tagged));
-
-  const response = await fetch(`/api/undetected?${params.toString()}`);
-
-  if (!response.ok) {
-    throw new Error("Failed to load photos with no detected pet");
-  }
-
-  return response.json();
-}
-
-/** Record that a photo the detector missed contains this pet. */
-export async function tagUndetectedAsset(
-  assetId: number,
-  identity: string,
-  species: string,
-): Promise<{ asset_id: number; identities: string[] }> {
-  const response = await fetch(`/api/undetected/${assetId}/tags`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identity, species }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to tag photo");
-  }
-
-  return response.json();
-}
-
-/** Undo a manual tag. */
-export async function untagUndetectedAsset(
-  assetId: number,
-  identity: string,
-  species: string,
-): Promise<{ asset_id: number; identities: string[] }> {
-  const response = await fetch(`/api/undetected/${assetId}/tags`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ identity, species }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to remove tag");
-  }
-
-  return response.json();
-}
-
 /** Thrown by getPhotoLookup() when the pasted photo hasn't been scanned by this instance. */
 export class PhotoLookupNotFoundError extends Error {}
 
