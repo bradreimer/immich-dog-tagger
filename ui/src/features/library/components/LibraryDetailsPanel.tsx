@@ -1,5 +1,3 @@
-import { IconEdit } from "@tabler/icons-react";
-
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImmichPhotoLink } from "@/features/review/components/ImmichPhotoLink";
@@ -14,10 +12,9 @@ function speciesLabel(species: string): string {
 interface Props {
   entry: LibraryEntry;
   immichUrl: string | null;
-  onNavigate: (path: string) => void;
 }
 
-export function LibraryDetailsPanel({ entry, immichUrl, onNavigate }: Props) {
+export function LibraryDetailsPanel({ entry, immichUrl }: Props) {
   const { item } = entry;
   const name = item.not_animal ? "Not a dog or cat" : (item.prediction.identity ?? "Unknown");
 
@@ -53,15 +50,6 @@ export function LibraryDetailsPanel({ entry, immichUrl, onNavigate }: Props) {
           <ImmichPhotoLink immichUrl={immichUrl} assetId={item.immich_asset_id} />
           <PhotoLookupLink assetId={item.immich_asset_id} />
         </div>
-
-        <button
-          type="button"
-          onClick={() => onNavigate(`/review?classification_id=${item.classification_id}`)}
-          className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          <IconEdit className="h-4 w-4" aria-hidden="true" />
-          Edit in Review
-        </button>
       </CardContent>
     </Card>
   );

@@ -54,7 +54,7 @@ function App() {
     }
 
     if (pathname === "/library") {
-      return <LibraryPage onNavigate={navigate} />;
+      return <LibraryPage />;
     }
 
     if (pathname === "/photo-lookup") {
