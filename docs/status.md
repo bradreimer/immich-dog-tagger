@@ -536,6 +536,19 @@
   regardless of the original's format; the route now always responds `image/jpeg` rather than
   branching on extension. `download_asset` (the real-original download used by the pipeline) is
   untouched -- this only changes what the browser preview fetches.
+- [#210](https://github.com/bradreimer/immich-dog-tagger/issues/210) fixed the Metrics page's
+  Progress Over Time chart only ever showing the most recent 10 reclassification passes --
+  `MetricsService`'s `history_limit` (`src/immich_dog_tagger/services/metrics.py`) hardcoded that
+  cap, so once more than 10 `ClassificationPass` rows existed the chart's window slid forward and
+  early history dropped out of the API response entirely (the rows themselves were never pruned
+  from `state.db`, only left unqueried). `history_limit` now defaults to 500 -- effectively full
+  history for any realistic Reclassify cadence, while still bounding the query. The chart would
+  become illegible plotting hundreds of points, so a new `downsampleForDisplay` util
+  (`ui/src/features/metrics/utils/downsample.ts`) samples the series down to at most 20 points for
+  rendering, always keeping the first and last recorded pass so the line still spans the full
+  history; axis scaling and the "Review Queue Reduction ... since pass #N" stat continue to read
+  the full, undownsampled series so nothing sampled out shrinks the axis or changes what "first
+  pass" means.
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
