@@ -119,7 +119,9 @@ export function LibraryFilters({
             className={SELECT_CLASS}
           >
             <option value="captured_desc">Newest first</option>
+            <option value="captured_asc">Oldest first</option>
             <option value="confidence_desc">Most confident first</option>
+            <option value="confidence_asc">Least confident first</option>
           </select>
         </label>
       </CardContent>
