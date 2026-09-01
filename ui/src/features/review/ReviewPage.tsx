@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { KeyboardHints } from "./components/KeyboardHints";
 import { ReviewCard } from "./ReviewCard";
 import { ReviewEmptyState } from "./components/ReviewEmptyState";
+import { ReviewMilestoneCelebration } from "./components/ReviewMilestoneCelebration";
 import { ReviewProgress } from "./components/ReviewProgress";
 import { ReviewSkeleton } from "./components/ReviewSkeleton";
 import { useReviewKeyboard } from "./hooks/useReviewKeyboard";
@@ -230,7 +231,31 @@ function ReviewQueuePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>("all");
   const [saving, setSaving] = useState(false);
+  const [milestone, setMilestone] = useState<number | null>(null);
 
+  const dismissMilestone = useCallback(() => setMilestone(null), []);
+
+  /**
+   * Applies fresh stats after a review action (correct/skip/not-animal) and
+   * fires the milestone celebration when the lifetime reviewed count just
+   * crossed a multiple of 10. Uses the functional setState form so it always
+   * compares against the true previous value, not a stale closure -- and so
+   * the initial load (loadReview, which calls setStats directly) never
+   * triggers a celebration for progress the reviewer didn't just make.
+   */
+  const applyReviewStats = useCallback((newStats: ReviewQueueStats) => {
+    setStats((previous) => {
+      if (
+        newStats.reviewed > 0 &&
+        newStats.reviewed % 10 === 0 &&
+        newStats.reviewed !== previous?.reviewed
+      ) {
+        setMilestone(newStats.reviewed);
+      }
+
+      return newStats;
+    });
+  }, []);
 
   const loadReview = useCallback(async () => {
     setLoading(true);
@@ -293,7 +318,7 @@ function ReviewQueuePage() {
           return next;
         });
 
-        setStats(await getReviewStats());
+        applyReviewStats(await getReviewStats());
       } catch (err) {
         setActionError(
           err instanceof Error
@@ -304,7 +329,7 @@ function ReviewQueuePage() {
         setSaving(false);
       }
     },
-    [items, index],
+    [items, index, applyReviewStats],
   );
 
 
@@ -330,7 +355,7 @@ function ReviewQueuePage() {
           current.map((existing, i) => (i === index ? updated : existing)),
         );
 
-        setStats(await getReviewStats());
+        applyReviewStats(await getReviewStats());
       } catch (err) {
         setActionError(
           err instanceof Error
@@ -341,7 +366,7 @@ function ReviewQueuePage() {
         setSaving(false);
       }
     },
-    [items, index],
+    [items, index, applyReviewStats],
   );
 
 
@@ -359,13 +384,13 @@ function ReviewQueuePage() {
         setIndex((currentIndex) => Math.min(currentIndex, next.length - 1));
         return next;
       });
-      setStats(await getReviewStats());
+      applyReviewStats(await getReviewStats());
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to save skip action");
     } finally {
       setSaving(false);
     }
-  }, [items, index]);
+  }, [items, index, applyReviewStats]);
 
   const toggleNotAnimal = useCallback(async () => {
     const item = items[index];
@@ -394,13 +419,13 @@ function ReviewQueuePage() {
         return next;
       });
 
-      setStats(await getReviewStats());
+      applyReviewStats(await getReviewStats());
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setSaving(false);
     }
-  }, [items, index]);
+  }, [items, index, applyReviewStats]);
 
 
   const previous = useCallback(() => {
@@ -433,39 +458,57 @@ function ReviewQueuePage() {
     previous,
   });
 
+  // Rendered before every early return (not just the loaded-item case) so a
+  // milestone reached on the last item in a filter still celebrates even
+  // though the very next render swaps in the empty state.
+  const milestoneOverlay = (
+    <ReviewMilestoneCelebration milestone={milestone} onDismiss={dismissMilestone} />
+  );
+
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl">
-        <ReviewSkeleton />
-      </div>
+      <>
+        {milestoneOverlay}
+        <div className="mx-auto max-w-5xl">
+          <ReviewSkeleton />
+        </div>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
-        <h1 className="text-3xl font-semibold tracking-tight">Review Error</h1>
-        <p className="text-muted-foreground">{error}</p>
+      <>
+        {milestoneOverlay}
+        <div className="mx-auto max-w-5xl space-y-6">
+          <h1 className="text-3xl font-semibold tracking-tight">Review Error</h1>
+          <p className="text-muted-foreground">{error}</p>
 
-        <Button onClick={() => loadReview()}>
-        <IconRefresh className="h-4 w-4" aria-hidden="true" />
-        Retry
-        </Button>
-      </div>
+          <Button onClick={() => loadReview()}>
+          <IconRefresh className="h-4 w-4" aria-hidden="true" />
+          Retry
+          </Button>
+        </div>
+      </>
     );
   }
 
   if (!item) {
     return (
-      <div className="mx-auto max-w-5xl">
-        <ReviewEmptyState
-          onRefresh={() => loadReview()}
-        />
-      </div>
+      <>
+        {milestoneOverlay}
+        <div className="mx-auto max-w-5xl">
+          <ReviewEmptyState
+            onRefresh={() => loadReview()}
+          />
+        </div>
+      </>
     );
   }
 
   return (
+    <>
+    {milestoneOverlay}
     <div className="mx-auto max-w-5xl space-y-6">
     <header className="space-y-2">
       <h1 className="text-3xl font-semibold tracking-tight">
@@ -570,6 +613,7 @@ function ReviewQueuePage() {
     <KeyboardHints />
     </footer>
     </div>
+    </>
   );
 }
 
