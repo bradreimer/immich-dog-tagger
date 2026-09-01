@@ -323,6 +323,20 @@ class ReviewQueryService:
             else_=1,
         )
 
+        # Issue #216: scan/detect naturally process a photo library in
+        # roughly the order Immich returns it -- typically capture order --
+        # so a plain confidence/created_at tiebreak surfaced long unbroken
+        # runs of consecutive photos from the same session (same time,
+        # same place), which felt repetitive to review. `priority` (unknown
+        # identity first) is kept, since that ordering is about review
+        # efficiency, not the session it came from; the tiebreak is
+        # randomized instead of sorted, so consecutive items are no longer
+        # correlated with capture time/location. There is no offset-based
+        # pagination on this query (the frontend fetches one batch per page
+        # load/filter change and works through it in memory, removing
+        # reviewed items locally), so a different shuffle on every fetch
+        # cannot skip or duplicate an item -- each fetch is simply "whatever
+        # is still unreviewed right now," same as before.
         query = (
             select(CropClassification)
             .options(*REVIEW_ITEM_RELATIONSHIPS)
@@ -335,8 +349,7 @@ class ReviewQueryService:
             )
             .order_by(
                 priority.asc(),
-                CropClassification.confidence.asc(),
-                CropClassification.created_at.asc(),
+                func.random(),
             )
         )
 
