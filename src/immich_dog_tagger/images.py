@@ -6,8 +6,10 @@ cropping, and embedding all have to agree on one pixel coordinate space,
 and they only do so if they decode identically -- see `open_upright`.
 """
 
+import io
 import logging
 from pathlib import Path
+from typing import IO
 
 from PIL import Image, ImageOps
 
@@ -45,7 +47,7 @@ def _register_heif() -> None:
 
 
 def open_upright(
-    image_path: Path | str,
+    image_path: Path | str | IO[bytes],
 ) -> Image.Image:
     """
     Decode an image with its EXIF orientation applied.
@@ -87,3 +89,15 @@ def open_upright(
             image.getexif()[_ORIENTATION_TAG] = original_orientation
 
         return ImageOps.exif_transpose(image)
+
+
+def to_jpeg_bytes(image: Image.Image, quality: int = 90) -> bytes:
+    """
+    Encode an image as JPEG bytes for display in a browser. Converts to RGB
+    first since JPEG has no alpha channel, unlike some source formats
+    (PNG, HEIC) this may be decoding from.
+    """
+    buffer = io.BytesIO()
+    image.convert("RGB").save(buffer, format="JPEG", quality=quality)
+
+    return buffer.getvalue()

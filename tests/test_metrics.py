@@ -189,6 +189,29 @@ def test_learning_metrics_history_limit(engine):
         assert [p.eligible_count for p in metrics.pass_history] == [10, 11, 12, 13, 14]
 
 
+def test_learning_metrics_default_history_limit_covers_more_than_ten_passes(engine):
+    with Session(engine) as session:
+        for i in range(30):
+            session.add(
+                ClassificationPass(
+                    status=ClassificationPassStatus.COMPLETED,
+                    classifier_version="v1",
+                    threshold=0.80,
+                    eligible_count=i,
+                )
+            )
+        session.commit()
+
+        metrics = MetricsService(session).learning_metrics()
+
+        # Default history_limit must exceed 10 so the full history is
+        # returned instead of a moving 10-pass window -- downsampling for
+        # display is the UI's job, not this service's.
+        assert len(metrics.pass_history) == 30
+        assert metrics.pass_history[0].eligible_count == 0
+        assert metrics.pass_history[-1].eligible_count == 29
+
+
 def test_species_breakdown_keys_off_crop_species_not_detection_label(engine):
     """
     A species-corrected crop must be counted under its corrected species
