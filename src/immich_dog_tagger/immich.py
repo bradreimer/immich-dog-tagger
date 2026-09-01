@@ -212,32 +212,6 @@ class ImmichClient:
 
         return response.content
 
-    def download_asset_preview(
-        self,
-        asset_id: str,
-    ) -> bytes:
-        """
-        Download a full-resolution JPEG preview of the asset, transcoded by
-        Immich -- unlike `download_asset`, this is always browser-renderable
-        regardless of the original's format (HEIC, TIFF, etc.). Used for
-        display (issue #206), never for pipeline processing, which needs the
-        real original bytes.
-        """
-
-        response = self.client.get(
-            f"{self.url}/api/assets/{asset_id}/thumbnail",
-            params={"isThumb": "false"},
-        )
-
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ImmichDownloadError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
-
-        return response.content
-
     def list_albums(self) -> list[dict]:
         response = self.client.get(
             f"{self.url}/api/albums",

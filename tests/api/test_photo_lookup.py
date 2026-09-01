@@ -3,8 +3,11 @@ Issue #179: the photo-lookup endpoints backing "paste an Immich link, see
 what this instance tagged in that photo".
 """
 
+import io
 from datetime import UTC, datetime
+from pathlib import Path
 
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import get_immich_client
@@ -12,16 +15,35 @@ from immich_dog_tagger.enums import Species
 from immich_dog_tagger.immich import ImmichDownloadError
 from immich_dog_tagger.models import Asset, Crop, CropClassification, Detection
 
+_HEIC_FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
+# EXIF tag 274 is Orientation.
+_ORIENTATION_TAG = 274
+
+
+def _jpeg_bytes(image: Image.Image, orientation: int | None = None) -> bytes:
+    exif = image.getexif()
+
+    if orientation is not None:
+        exif[_ORIENTATION_TAG] = orientation
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", exif=exif)
+
+    return buffer.getvalue()
+
 
 class FakeImmichClient:
-    def __init__(
-        self, content: bytes = b"fake-jpeg-bytes", error: Exception | None = None
-    ):
-        self.content = content
+    def __init__(self, content: bytes | None = None, error: Exception | None = None):
+        self.content = (
+            content
+            if content is not None
+            else _jpeg_bytes(Image.new("RGB", (200, 100), "white"))
+        )
         self.error = error
         self.requested_asset_ids: list[str] = []
 
-    def download_asset_preview(self, asset_id: str) -> bytes:
+    def download_asset(self, asset_id: str) -> bytes:
         self.requested_asset_ids.append(asset_id)
 
         if self.error is not None:
@@ -128,26 +150,48 @@ def test_photo_lookup_image_404_for_unscanned_asset(api_client):
     assert response.status_code == 404
 
 
-def test_photo_lookup_image_proxies_bytes_from_immich(api_client, engine):
+def test_photo_lookup_image_serves_the_original_as_jpeg(api_client, engine):
     with Session(engine) as session:
         _seed_asset_with_detection(session)
 
-    fake_client = FakeImmichClient(content=b"the-preview-photo-bytes")
+    fake_client = FakeImmichClient(
+        content=_jpeg_bytes(Image.new("RGB", (200, 100), "white"))
+    )
     api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
 
     response = api_client.get("/photo-lookup/asset-1/image")
 
     assert response.status_code == 200
-    assert response.content == b"the-preview-photo-bytes"
     assert response.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(response.content)).size == (200, 100)
     assert fake_client.requested_asset_ids == ["asset-1"]
+
+
+def test_photo_lookup_image_applies_exif_orientation(api_client, engine):
+    # Issue #213: the displayed image must be decoded through the same
+    # open_upright() path the detector used to produce `Detection.x1/y1/
+    # x2/y2`, or the overlay boxes drift out of alignment with (or off of)
+    # whatever ends up on screen. A landscape-stored, portrait-tagged
+    # original (orientation 6) must come back upright, i.e. portrait.
+    with Session(engine) as session:
+        _seed_asset_with_detection(session, immich_asset_id="asset-rotated")
+
+    fake_client = FakeImmichClient(
+        content=_jpeg_bytes(Image.new("RGB", (200, 100), "white"), orientation=6)
+    )
+    api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
+
+    response = api_client.get("/photo-lookup/asset-rotated/image")
+
+    assert response.status_code == 200
+    assert Image.open(io.BytesIO(response.content)).size == (100, 200)
 
 
 def test_photo_lookup_image_is_jpeg_for_a_heic_original(api_client, engine):
     # Issue #206: a HEIC original must not be served as image/heic, which no
-    # standard browser can render inline -- the preview endpoint transcodes
-    # it, and the response's media type must reflect that, not the original
-    # asset's stored extension.
+    # standard browser can render inline -- it's decoded and re-encoded to
+    # JPEG regardless of the original's format, and the response's media
+    # type must reflect that, not the original asset's stored extension.
     with Session(engine) as session:
         _seed_asset_with_detection(session, immich_asset_id="asset-heic")
         session.query(Asset).filter_by(immich_asset_id="asset-heic").update(
@@ -155,13 +199,20 @@ def test_photo_lookup_image_is_jpeg_for_a_heic_original(api_client, engine):
         )
         session.commit()
 
-    fake_client = FakeImmichClient(content=b"transcoded-jpeg-bytes")
+    fake_client = FakeImmichClient(
+        content=(_HEIC_FIXTURES_DIR / "heic_o6.heic").read_bytes()
+    )
     api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
 
     response = api_client.get("/photo-lookup/asset-heic/image")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/jpeg"
+    # Same orientation-6 fixture used in tests/test_images.py, where
+    # open_upright() is asserted to swap it from stored (200, 100) to
+    # upright (100, 200) -- confirms the HEIC path also goes through
+    # open_upright() rather than being served as-is.
+    assert Image.open(io.BytesIO(response.content)).size == (100, 200)
 
 
 def test_photo_lookup_image_502_when_immich_fetch_fails(api_client, engine):
@@ -169,6 +220,18 @@ def test_photo_lookup_image_502_when_immich_fetch_fails(api_client, engine):
         _seed_asset_with_detection(session)
 
     fake_client = FakeImmichClient(error=ImmichDownloadError("boom"))
+    api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
+
+    response = api_client.get("/photo-lookup/asset-1/image")
+
+    assert response.status_code == 502
+
+
+def test_photo_lookup_image_502_when_immich_bytes_are_undecodable(api_client, engine):
+    with Session(engine) as session:
+        _seed_asset_with_detection(session)
+
+    fake_client = FakeImmichClient(content=b"not-an-image")
     api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
 
     response = api_client.get("/photo-lookup/asset-1/image")
