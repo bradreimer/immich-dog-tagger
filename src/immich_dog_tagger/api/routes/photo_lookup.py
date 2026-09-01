@@ -1,3 +1,4 @@
+import io
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -7,6 +8,7 @@ from immich_dog_tagger.api.dependencies import (
     get_photo_lookup_service,
 )
 from immich_dog_tagger.api.schemas import PhotoLookupResponse
+from immich_dog_tagger.images import open_upright, to_jpeg_bytes
 from immich_dog_tagger.immich import ImmichClient, ImmichDownloadError
 from immich_dog_tagger.services.photo_lookup import PhotoLookupService
 
@@ -49,17 +51,33 @@ def photo_lookup_image(
         )
 
     try:
-        # Immich's full-size preview, not the original: always JPEG, so
-        # browsers can render it regardless of the original's format (issue
-        # #206 -- HEIC originals served as-is are unrenderable in <img>).
-        content = client.download_asset_preview(immich_asset_id)
+        content = client.download_asset(immich_asset_id)
     except ImmichDownloadError as e:
         raise HTTPException(
             status_code=502,
             detail=f"Failed to fetch photo from Immich: {e}",
         ) from e
 
+    try:
+        # Decoded and re-encoded through the same open_upright() path the
+        # detector uses (issue #213), not served as-is or through Immich's
+        # own preview/thumbnail pipeline: `Detection.x1/y1/x2/y2` were
+        # computed against an open_upright()-decoded image, so the overlay
+        # boxes only line up with what's displayed here if this is decoded
+        # identically. Also transcodes to JPEG along the way, which is what
+        # makes an unrenderable-in-<img> original (HEIC, issue #206) safe to
+        # display without depending on Immich's independent transcoding
+        # agreeing on orientation (it doesn't always -- see immich-app/
+        # immich#24807 -- which is what broke the boxes when #206 switched
+        # to it).
+        image = open_upright(io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to decode photo from Immich: {e}",
+        ) from e
+
     return Response(
-        content=content,
+        content=to_jpeg_bytes(image),
         media_type="image/jpeg",
     )
