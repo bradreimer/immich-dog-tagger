@@ -1836,3 +1836,64 @@ def test_active_review_excludes_removed_asset(engine):
 
         assert [item.path.name for item in results] == ["active.jpg"]
         assert service.review_queue_count() == 1
+
+
+def test_active_review_preserves_priority_tiers_despite_random_tiebreak(engine):
+    # Issue #216: the tiebreak within a priority tier is now randomized (to
+    # mix consecutive review items across capture time/place instead of the
+    # old confidence/created_at sort), but the tiers themselves -- every
+    # unknown-identity item before every known-but-low-confidence one --
+    # must still hold regardless of how the random tiebreak lands.
+    with Session(engine) as session:
+        unknown_crops = [
+            Crop(detection_id=i, path=f"unknown-{i}.jpg") for i in range(5)
+        ]
+        known_crops = [
+            Crop(detection_id=i + 100, path=f"known-{i}.jpg") for i in range(5)
+        ]
+        session.add_all(unknown_crops + known_crops)
+        session.flush()
+
+        for crop in unknown_crops:
+            session.add(CropClassification(crop=crop, identity=None, confidence=0.5))
+
+        for crop in known_crops:
+            session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.5))
+
+        session.commit()
+
+        results = ReviewQueryService(session).active_review()
+
+        assert len(results) == 10
+
+        identities = [item.prediction.identity for item in results]
+        first_known_index = identities.index("Fibs")
+
+        assert all(identity is None for identity in identities[:first_known_index])
+        assert all(identity == "Fibs" for identity in identities[first_known_index:])
+
+
+def test_active_review_tiebreak_is_randomized(engine):
+    # Confirms the tiebreak is actually shuffled, not just no-longer-sorted
+    # by coincidence. With 30 same-tier items, the odds of two independent
+    # queries landing on the exact same order by chance are astronomically
+    # small, so this is not a flaky assertion in practice.
+    with Session(engine) as session:
+        crops = [Crop(detection_id=i, path=f"crop-{i}.jpg") for i in range(30)]
+        session.add_all(crops)
+        session.flush()
+
+        for crop in crops:
+            session.add(CropClassification(crop=crop, identity=None, confidence=0.5))
+
+        session.commit()
+
+        service = ReviewQueryService(session)
+
+        first_order = [item.crop_id for item in service.active_review()]
+        second_order = [item.crop_id for item in service.active_review()]
+
+        assert (
+            sorted(first_order) == sorted(second_order) == sorted(c.id for c in crops)
+        )
+        assert first_order != second_order
