@@ -133,4 +133,64 @@ describe("ReviewPage", () => {
 
     expect(await screen.findByText("Photo not found")).toBeInTheDocument();
   });
+
+  it("celebrates when a review action crosses a multiple of 10 reviewed", async () => {
+    vi.mocked(api.getReview).mockResolvedValue([buildItem()]);
+    vi.mocked(api.getReviewStats)
+      .mockResolvedValueOnce({ total: 20, reviewed: 9, remaining: 11 })
+      .mockResolvedValueOnce({ total: 20, reviewed: 10, remaining: 10 });
+    vi.mocked(api.correctClassification).mockResolvedValue(undefined);
+
+    render(<ReviewPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
+
+    expect(await screen.findByText(/10 reviewed/i)).toBeInTheDocument();
+  });
+
+  it("does not celebrate on the initial load, only after an action reaches a milestone", async () => {
+    vi.mocked(api.getReview).mockResolvedValue([buildItem()]);
+    vi.mocked(api.getReviewStats).mockResolvedValue({
+      total: 20,
+      reviewed: 10,
+      remaining: 10,
+    });
+
+    render(<ReviewPage />);
+
+    await screen.findByRole("button", { name: /hermann/i });
+
+    expect(screen.queryByText(/10 reviewed/i)).not.toBeInTheDocument();
+  });
+
+  it("does not celebrate when the reviewed count doesn't land on a multiple of 10", async () => {
+    vi.mocked(api.getReview).mockResolvedValue([buildItem()]);
+    vi.mocked(api.getReviewStats)
+      .mockResolvedValueOnce({ total: 20, reviewed: 10, remaining: 10 })
+      .mockResolvedValueOnce({ total: 20, reviewed: 11, remaining: 9 });
+    vi.mocked(api.correctClassification).mockResolvedValue(undefined);
+
+    render(<ReviewPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
+
+    await waitFor(() => expect(api.correctClassification).toHaveBeenCalled());
+    expect(screen.queryByText(/reviewed — nice streak/i)).not.toBeInTheDocument();
+  });
+
+  it("never shows the milestone celebration on the single-item edit view", async () => {
+    vi.mocked(api.getClassification).mockResolvedValue(buildItem());
+    vi.mocked(api.correctClassification).mockResolvedValue(undefined);
+    window.history.replaceState({}, "", "/review?classification_id=42");
+
+    render(<ReviewPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
+
+    await waitFor(() =>
+      expect(api.correctClassification).toHaveBeenCalledWith(42, "Hermann"),
+    );
+    expect(api.getReviewStats).not.toHaveBeenCalled();
+    expect(screen.queryByText(/reviewed — nice streak/i)).not.toBeInTheDocument();
+  });
 });

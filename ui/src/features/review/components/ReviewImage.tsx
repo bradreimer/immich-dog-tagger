@@ -17,6 +17,7 @@ export function ReviewImage({ cropId }: Props) {
           object-contain
           transition-all
           duration-300
+          lg:max-h-[58vh]
         "
       />
     </Card>

@@ -34,9 +34,7 @@ export function ReviewCard({
   disabled,
 }: Props) {
   return (
-    <section className="space-y-8">
-      <ReviewImage cropId={item.crop_id} />
-
+    <section className="space-y-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <ReviewReason reason={item.reason} />
 
@@ -52,46 +50,54 @@ export function ReviewCard({
         <PhotoLookupLink assetId={item.immich_asset_id} />
       </div>
 
-      <SpeciesChooser
-        species={item.species}
-        onCorrectSpecies={onCorrectSpecies}
-        disabled={disabled}
-      />
+      {/* Image and its action panel side by side on desktop so the most-used
+          controls (species, choose identity) are reachable without scrolling
+          past the image -- see docs/specs/review-tab-engagement-and-layout.md. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <ReviewImage cropId={item.crop_id} />
 
-      <NotAnimalToggle
-        notAnimal={item.not_animal}
-        onToggle={onToggleNotAnimal}
-        disabled={disabled}
-      />
-
-      <ReviewActions
-        identities={identities}
-        species={item.species}
-        predictedIdentity={item.prediction.identity}
-        onCorrect={onCorrect}
-        onSkip={onSkip}
-        disabled={disabled}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <PredictionCard
-          identity={item.prediction.identity}
-          similarity={item.prediction.similarity}
-          candidates={item.prediction.candidates}
-          capturedAt={item.captured_at}
-          onCorrect={onCorrect}
-          disabled={disabled}
-        />
-
-        {item.suggestion && (
-          <SimilarExample
-            exampleId={item.suggestion.example_id}
-            identity={item.suggestion.identity}
-            similarity={item.suggestion.similarity}
-            capturedAt={item.suggestion.captured_at}
+        <div className="space-y-4">
+          <PredictionCard
+            identity={item.prediction.identity}
+            similarity={item.prediction.similarity}
+            candidates={item.prediction.candidates}
+            capturedAt={item.captured_at}
+            onCorrect={onCorrect}
+            disabled={disabled}
           />
-        )}
+
+          <SpeciesChooser
+            species={item.species}
+            onCorrectSpecies={onCorrectSpecies}
+            disabled={disabled}
+          />
+
+          <ReviewActions
+            identities={identities}
+            species={item.species}
+            predictedIdentity={item.prediction.identity}
+            onCorrect={onCorrect}
+            onSkip={onSkip}
+            disabled={disabled}
+          />
+
+          <NotAnimalToggle
+            notAnimal={item.not_animal}
+            onToggle={onToggleNotAnimal}
+            disabled={disabled}
+          />
+        </div>
       </div>
+
+      {item.suggestion && (
+        <SimilarExample
+          key={item.classification_id}
+          exampleId={item.suggestion.example_id}
+          identity={item.suggestion.identity}
+          similarity={item.suggestion.similarity}
+          capturedAt={item.suggestion.captured_at}
+        />
+      )}
     </section>
   );
 }
