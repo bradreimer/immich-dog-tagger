@@ -1774,3 +1774,65 @@ def test_library_pagination(engine):
         second_ids = {entry.item.classification_id for entry in second_page.items}
 
         assert first_ids.isdisjoint(second_ids)
+
+
+def test_active_review_excludes_removed_asset(engine):
+    # Issue #194/FR-3: a photo reconciled out because it was deleted in
+    # Immich must not keep showing up for human review.
+    from immich_dog_tagger.enums import AssetStatus
+
+    with Session(engine) as session:
+        removed_asset = Asset(
+            immich_asset_id="removed-1",
+            checksum="a",
+            extension=".jpg",
+            status=AssetStatus.REMOVED,
+        )
+        active_asset = Asset(
+            immich_asset_id="active-1",
+            checksum="b",
+            extension=".jpg",
+            status=AssetStatus.CLASSIFIED,
+        )
+        session.add_all([removed_asset, active_asset])
+        session.flush()
+
+        removed_detection = Detection(
+            asset_id=removed_asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        active_detection = Detection(
+            asset_id=active_asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        session.add_all([removed_detection, active_detection])
+        session.flush()
+
+        removed_crop = Crop(detection_id=removed_detection.id, path="removed.jpg")
+        active_crop = Crop(detection_id=active_detection.id, path="active.jpg")
+        session.add_all([removed_crop, active_crop])
+        session.flush()
+
+        session.add_all(
+            [
+                CropClassification(crop=removed_crop, identity=None, confidence=0.5),
+                CropClassification(crop=active_crop, identity=None, confidence=0.5),
+            ]
+        )
+        session.commit()
+
+        service = ReviewQueryService(session)
+        results = service.active_review()
+
+        assert [item.path.name for item in results] == ["active.jpg"]
+        assert service.review_queue_count() == 1

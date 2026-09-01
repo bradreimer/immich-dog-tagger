@@ -8,6 +8,7 @@ from immich_dog_tagger.api.dependencies import (
     get_false_positive_service,
     get_session,
 )
+from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import Crop
 from immich_dog_tagger.services.false_positives import FalsePositiveService
 
@@ -27,6 +28,18 @@ def crop(
     )
 
     if crop is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Crop {crop_id} not found",
+        )
+
+    # The source photo was deleted in Immich and reconciled out (issue
+    # #194/FR-3) -- serve a clean 404 rather than a stale image (or an
+    # unhandled FileNotFoundError once its cache file is cleaned up).
+    detection = crop.detection
+    asset = detection.asset if detection is not None else None
+
+    if asset is not None and asset.status == AssetStatus.REMOVED:
         raise HTTPException(
             status_code=404,
             detail=f"Crop {crop_id} not found",

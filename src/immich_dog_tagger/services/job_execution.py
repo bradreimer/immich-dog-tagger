@@ -99,6 +99,7 @@ def _scan_handler(
         scanner = Scanner(
             _create_client(config),
             session,
+            config.cache_dir,
         )
         scanned = scanner.scan(
             limit=options.get("limit"),
@@ -137,12 +138,21 @@ def _detect_handler(
             should_cancel=progress.is_cancel_requested,
         )
 
-        progress.message(f"Detected {summary.dogs} dog(s) and {summary.cats} cat(s)")
+        message = f"Detected {summary.dogs} dog(s) and {summary.cats} cat(s)"
+
+        if summary.failed:
+            # Per-asset failures no longer abort the job (issue #194/FR-7) --
+            # surface the count here so a partial run is visibly partial
+            # rather than looking identical to a fully clean one.
+            message += f" ({summary.failed} asset(s) failed)"
+
+        progress.message(message)
         return {
             "processed": summary.processed,
             "detections": summary.detections,
             "dogs": summary.dogs,
             "cats": summary.cats,
+            "failed": summary.failed,
         }
 
     return run
@@ -399,7 +409,7 @@ def _full_pipeline_handler(
         policy = AppSettingsService(session).policy()
 
         pipeline = PipelineService(
-            Scanner(client, session),
+            Scanner(client, session, config.cache_dir),
             Downloader(client, session, config.cache_dir),
             DetectionService(
                 YOLODetector(config.yolo_model),

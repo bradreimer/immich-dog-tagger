@@ -110,7 +110,17 @@ def check_derived_data_command(args) -> None:
     engine = create_database(config.state_dir)
     with Session(engine) as session:
         svc = DerivedDataService(session, config.cache_dir)
-        report = svc.check()
+
+        if getattr(args, "repair", False):
+            summary = svc.repair()
+            print(f"Repaired {summary.total_repaired} asset(s):")
+            print(f"  Routed back to download: {summary.downloads_repaired}")
+            print(f"  Routed back to detect:   {summary.crops_repaired}")
+            print()
+            report = svc.check()
+        else:
+            report = svc.check()
+
     if report.healthy:
         print("Derived data: all referenced artifacts present")
     else:
@@ -232,6 +242,7 @@ def detect_command(args) -> None:
         print(f"Detections: {result.get('detections', 0)}")
         print(f"Dogs: {result.get('dogs', 0)}")
         print(f"Cats: {result.get('cats', 0)}")
+        print(f"Failed: {result.get('failed', 0)}")
 
 
 def classify_command(args) -> None:
@@ -868,9 +879,17 @@ def main(argv: list[str] | None = None) -> None:
     )
     restore_parser.add_argument("path", help="Path to the backup file to restore")
 
-    subparsers.add_parser(
+    check_derived_data_parser = subparsers.add_parser(
         "check-derived-data",
         help="Check for missing derived artifacts (crops, embeddings, downloads)",
+    )
+    check_derived_data_parser.add_argument(
+        "--repair",
+        action="store_true",
+        help=(
+            "Route assets with a missing cached original or crop file back "
+            "through download/detect instead of only reporting them"
+        ),
     )
 
     subparsers.add_parser(

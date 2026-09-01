@@ -1,9 +1,8 @@
 import numpy as np
-import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import ClassificationResult
-from immich_dog_tagger.enums import ClassificationMode
+from immich_dog_tagger.enums import AssetStatus, ClassificationMode
 from immich_dog_tagger.models import (
     Asset,
     ClassificationSources,
@@ -569,16 +568,17 @@ def test_classification_service_commits_in_batches(engine):
         assert session.query(CropClassification).count() == total
 
 
-def test_classification_service_failure_leaves_only_prior_batches_committed(
+def test_classification_service_unexpected_failure_stops_run_without_raising(
     engine,
 ):
     from unittest.mock import Mock
 
-    # Regression test for issue #104: a failure partway through a run must
-    # not discard batches already committed, the same guarantee issue #99
-    # established for scan/download -- and the still-uncommitted straggler
-    # batch must not survive either, since PipelineJobRunner commits the
-    # job's own failure status on this same session right after.
+    # Issue #194/FR-10/FR-11: an unexpected error partway through a chunk
+    # (as opposed to a missing crop file, which is isolated per crop) must
+    # not fail the whole job -- classify() discards that chunk's
+    # uncommitted work and stops the run cleanly. Batches already committed
+    # survive, and mode=ALL's query is stateless, so the next classify()
+    # call simply retries what didn't get committed.
     total = BATCH_SIZE + 200
     fail_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
 
@@ -623,10 +623,14 @@ def test_classification_service_failure_leaves_only_prior_batches_committed(
             classifier,
         )
 
-        with pytest.raises(ValueError, match="simulated failure"):
-            service.classify(
-                mode=ClassificationMode.ALL,
-            )
+        summary = service.classify(
+            mode=ClassificationMode.ALL,
+        )
+
+        # Only the first full chunk's worth is reflected -- the chunk the
+        # failure happened in was discarded, and the run stopped there
+        # rather than continuing past it.
+        assert summary.classified == BATCH_SIZE
 
     with Session(engine) as verify_session:
         # Only the first full batch was committed; the failure happened
@@ -742,3 +746,68 @@ def test_classification_service_chunks_without_an_explicit_limit(engine):
         # Never one call embedding everything -- each call is bounded by
         # BATCH_SIZE.
         assert embed_call_sizes == [BATCH_SIZE, total - BATCH_SIZE]
+
+
+def test_classification_isolates_missing_crop_file(engine, tmp_path):
+    from unittest.mock import Mock
+
+    good_path = tmp_path / "good.jpg"
+    good_path.write_bytes(b"data")
+    missing_path = tmp_path / "missing.jpg"
+
+    with Session(engine) as session:
+        good_asset = Asset(immich_asset_id="good", checksum="a", extension=".jpg")
+        missing_asset = Asset(immich_asset_id="missing", checksum="b", extension=".jpg")
+        session.add_all([good_asset, missing_asset])
+        session.flush()
+
+        good_detection = Detection(
+            asset=good_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        missing_detection = Detection(
+            asset=missing_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        session.add_all([good_detection, missing_detection])
+        session.flush()
+
+        good_crop = Crop(detection=good_detection, path=str(good_path))
+        missing_crop = Crop(detection=missing_detection, path=str(missing_path))
+        session.add_all([good_crop, missing_crop])
+        session.commit()
+
+        embedder = Mock()
+
+        def fake_embed_batch(paths):
+            if str(missing_path) in paths:
+                raise FileNotFoundError(str(missing_path))
+
+            return np.array([[1, 0, 0]], dtype=np.float32)
+
+        embedder.embed_batch.side_effect = fake_embed_batch
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Fibs",
+            similarity=0.95,
+            matched_example_id=None,
+            candidates=[],
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify(mode=ClassificationMode.ALL)
+
+        assert summary.classified == 1
+        assert summary.failed == 1
+
+        session.refresh(missing_asset)
+
+        assert missing_asset.status is AssetStatus.CLASSIFICATION_FAILED
+
+        result = session.query(CropClassification).one()
+
+        assert result.crop_id == good_crop.id

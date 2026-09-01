@@ -7,7 +7,7 @@ from sqlalchemy import case, exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import ClassificationCandidate
-from immich_dog_tagger.enums import ClusterSort
+from immich_dog_tagger.enums import AssetStatus, ClusterSort
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -298,6 +298,7 @@ class ReviewQueryService:
                 (CropClassification.identity.is_(None))
                 | (CropClassification.confidence < threshold)
             )
+            .where(~self._asset_removed())
         )
 
         return self.session.scalar(query) or 0
@@ -333,6 +334,7 @@ class ReviewQueryService:
                 (CropClassification.identity.is_(None))
                 | (CropClassification.confidence < threshold)
             )
+            .where(~self._asset_removed())
             .order_by(
                 priority.asc(),
                 CropClassification.confidence.asc(),
@@ -610,6 +612,14 @@ class ReviewQueryService:
             select(ReviewAction.id).where(
                 ReviewAction.classification_id == CropClassification.id,
             )
+        )
+
+    def _asset_removed(self):
+        # A photo reconciled out because it was deleted in Immich (issue
+        # #194/FR-3) shouldn't be surfaced for human action any more --
+        # there's nothing left to review it against.
+        return CropClassification.crop.has(
+            Crop.detection.has(Detection.asset.has(Asset.status == AssetStatus.REMOVED))
         )
 
     def _review_reason(

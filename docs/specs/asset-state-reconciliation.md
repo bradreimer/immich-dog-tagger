@@ -168,3 +168,42 @@ authoritative store that Immich and the local cache feed into and get synced bac
 - Is `AssetStatus.REMOVED` (FR-2) the right terminal state, or should this instead be a boolean
   soft-delete flag alongside the existing status, to avoid colliding with status-driven logic
   elsewhere that switches on `AssetStatus`?
+
+## Resolved decisions
+
+- **FR-1 implemented by diffing, not a trash/existence endpoint.** `immich.py`'s `ImmichClient`
+  has no trash or single-asset-existence call today, and `list_assets()` already returns Immich's
+  full current asset list on every unlimited scan -- diffing that set against `state.db`'s
+  non-`REMOVED` assets is the mechanism `Scanner._reconcile_removed()` uses. Confirmed
+  intentionally scoped to a **full (unlimited) `scan()` only**: a `--limit`ed scan's result set is
+  a truncated sample, not "everything currently in Immich", so it is never diffed.
+- **`AssetStatus.REMOVED` (FR-2), not a soft-delete boolean.** It composes cleanly with every
+  status-driven query already switching on `AssetStatus` (the `detect`/`classify`/download
+  selection queries, `services/metrics.py`, `services/status.py`) without adding a second axis
+  those call sites would all need to learn about; `metrics.py`/`status.py` already had
+  `DETECTION_FAILED`/`CLASSIFICATION_FAILED`-shaped buckets to extend the same way.
+- **Active-learning embedding examples are retained, not deleted.** `Scanner._mark_removed()`
+  checks each of the removed asset's crop files against `EmbeddingExample.crop_path` before
+  deleting it; a crop still backing an example is left on disk (and the example row untouched).
+  Only crops with no such reference are removed. This favors not silently degrading
+  classification quality for other photos over reclaiming disk space for a reference example --
+  matches this spec's Acceptance Criteria.
+- **A resurrected asset (reappears in a later scan) resets to `PENDING`,** not left at `REMOVED`:
+  `Scanner._process_asset()` special-cases an existing `REMOVED` row that Immich returns again and
+  routes it back through the pipeline from scratch, since its cache/crop files were already
+  cleaned up.
+- **FR-9's retry bound: none added.** A per-asset failure is retried on every subsequent
+  `download`/`detect` invocation the same way `DOWNLOAD_FAILED` already was pre-#194 -- capping
+  retries is left for a follow-up if a fundamentally broken disk/mount in practice turns out to
+  need one; not addressed by this pass.
+- **Jobs UI**: not changed by this pass. `DetectionSummary`/`ClassificationSummary` now carry a
+  `failed` count and `job_execution.py`'s progress messages/result dicts surface it, but the
+  Jobs UI's own succeeded/failed rendering is unchanged -- left as a UI-only follow-up.
+- **FR-11 satisfied as a consequence of FR-7, not a separate job-runner change.** Because
+  `DetectionService.run()`/`ClassificationService.classify()` no longer raise on a per-asset/
+  per-crop failure, `PipelineJobRunner` never sees an exception for that case, so a batch with a
+  mix of successes and isolated failures already completes normally rather than being marked
+  `FAILED` -- no `PipelineJobRunner`/`services/job_runner.py` change was needed.
+- **`check-derived-data --repair` (FR-12) covers `missing_downloads`/`missing_crops` only,**
+  matching the spec's own Acceptance Criteria wording. `missing_embedding_sources` has no source
+  image left to reconstruct from and still requires a human (re-run `learn`/`import-review`).

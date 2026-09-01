@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.detector import DetectionResult
@@ -36,6 +35,8 @@ def test_detection_creates_record(
         )
         session.add(asset)
         session.commit()
+
+        asset.cache_path(tmp_path).write_bytes(b"data")
 
         service = DetectionService(
             FakeDetector(),
@@ -112,6 +113,8 @@ def test_detection_skips_existing_detections_by_default(
         session.add(existing)
         session.commit()
 
+        asset.cache_path(tmp_path).write_bytes(b"data")
+
         service = DetectionService(
             FakeDetector(),
             session,
@@ -155,6 +158,8 @@ def test_detection_force_reprocesses_existing_detections(
         session.add(existing)
         session.commit()
 
+        asset.cache_path(tmp_path).write_bytes(b"data")
+
         service = DetectionService(
             FakeDetector(),
             session,
@@ -192,6 +197,9 @@ def test_detection_respects_limit(
 
         session.add_all(assets)
         session.commit()
+
+        for asset in assets:
+            asset.cache_path(tmp_path).write_bytes(b"data")
 
         service = DetectionService(
             FakeDetector(),
@@ -247,6 +255,8 @@ def test_detection_creates_one_crop_per_species_from_same_photo(
         )
         session.add(asset)
         session.commit()
+
+        asset.cache_path(tmp_path).write_bytes(b"data")
 
         service = DetectionService(
             MixedDetector(),
@@ -323,6 +333,8 @@ def test_detection_force_replaces_existing_crop(
 
         session.commit()
 
+        asset.cache_path(tmp_path).write_bytes(b"data")
+
         service = DetectionService(
             FakeDetector(),
             session,
@@ -345,28 +357,40 @@ def test_detection_force_replaces_existing_crop(
         assert crops[0].path != str(old_crop)
 
 
-def test_detection_failure_is_enriched_with_asset_context(
+def test_detection_failure_is_isolated_to_the_failing_asset(
     engine,
     tmp_path,
     caplog,
 ):
-    # Regression test for issue #88: a bare exception message (e.g. a
-    # Pillow error) gives no way to tell which asset caused a pipeline job
-    # failure without reproducing it. The service should fold the asset id
-    # and image path into the raised error and log a traceback.
+    # Issue #194/FR-7: an unexpected per-asset error (e.g. a Pillow decode
+    # error) must not abort the whole run -- it's recorded on that asset
+    # (DETECTION_FAILED) and logged with enough context to diagnose, while
+    # every other asset in the batch still gets processed.
     class FailingCropWriter:
         def write(self, image_path, asset_id, detections):
-            raise ValueError("boom")
+            if asset_id == "broken-asset":
+                raise ValueError("boom")
+
+            return []
 
     with Session(engine) as session:
-        asset = Asset(
+        broken = Asset(
             immich_asset_id="broken-asset",
             checksum="xyz",
             extension=".jpg",
             status=AssetStatus.DOWNLOADED,
         )
-        session.add(asset)
+        healthy = Asset(
+            immich_asset_id="healthy-asset",
+            checksum="abc",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add_all([broken, healthy])
         session.commit()
+
+        broken.cache_path(tmp_path).write_bytes(b"data")
+        healthy.cache_path(tmp_path).write_bytes(b"data")
 
         service = DetectionService(
             FakeDetector(),
@@ -375,12 +399,55 @@ def test_detection_failure_is_enriched_with_asset_context(
             crop_writer=FailingCropWriter(),
         )
 
-        with caplog.at_level("ERROR"), pytest.raises(RuntimeError) as excinfo:
-            service.run()
+        with caplog.at_level("ERROR"):
+            summary = service.run()
 
-        assert "boom" in str(excinfo.value)
-        assert "broken-asset" in str(excinfo.value)
+        assert summary.processed == 1
+        assert summary.failed == 1
         assert "Detection failed for asset broken-asset" in caplog.text
+        assert "boom" in caplog.text
+
+        session.refresh(broken)
+        session.refresh(healthy)
+
+        assert broken.status is AssetStatus.DETECTION_FAILED
+        assert healthy.status is AssetStatus.DETECTED
+
+
+def test_detection_routes_missing_cached_original_back_to_download(
+    engine,
+    tmp_path,
+):
+    # Issue #194/FR-8: a DOWNLOADED asset whose cached original is missing
+    # (e.g. a state.db restore against a since-cleaned cache dir) must not
+    # fail the same way on every retry -- route it back to DOWNLOAD_FAILED
+    # so the pipeline's own next download batch re-fetches it.
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="missing-original",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        session.add(asset)
+        session.commit()
+
+        # Deliberately never write asset.cache_path(tmp_path).
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+        )
+
+        summary = service.run()
+
+        assert summary.processed == 0
+        assert summary.failed == 1
+
+        session.refresh(asset)
+
+        assert asset.status is AssetStatus.DOWNLOAD_FAILED
 
 
 def test_detection_deletes_cached_original_after_crop_writer_succeeds(
@@ -590,6 +657,9 @@ def test_detection_commits_in_batches(
         session.add_all(assets)
         session.commit()
 
+        for asset in assets:
+            asset.cache_path(tmp_path).write_bytes(b"data")
+
         service = DetectionService(
             FakeDetector(),
             session,
@@ -615,13 +685,14 @@ def test_detection_commits_in_batches(
         assert session.query(Detection).count() == total
 
 
-def test_detection_failure_leaves_only_prior_batches_committed(
+def test_detection_one_bad_asset_does_not_abort_the_rest_of_the_run(
     engine,
     tmp_path,
 ):
-    # Regression test for issue #104: a failure partway through a run must
-    # not discard batches already committed, the same guarantee issue #99
-    # established for scan/download.
+    # Issue #194/FR-7/FR-11: a single asset failing partway through a run
+    # must not take the rest of the batch/job down with it -- every other
+    # asset still gets detected and committed, and the run completes
+    # (rather than raising) with the failure counted on its own asset.
     total = BATCH_SIZE + 500
     fail_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
 
@@ -650,20 +721,28 @@ def test_detection_failure_leaves_only_prior_batches_committed(
         session.add_all(assets)
         session.commit()
 
+        for asset in assets:
+            asset.cache_path(tmp_path).write_bytes(b"data")
+
         service = DetectionService(
             FlakyDetector(),
             session,
             tmp_path,
         )
 
-        with pytest.raises(RuntimeError, match="simulated failure"):
-            service.run()
+        summary = service.run()
+
+        assert summary.failed == 1
+        assert summary.processed == total - 1
 
     with Session(engine) as verify_session:
-        # Only the first full batch was committed; the failure happened
-        # inside the still-uncommitted second batch, which was never
-        # flushed to disk.
-        assert verify_session.query(Detection).count() == BATCH_SIZE
+        assert verify_session.query(Detection).count() == total - 1
+        assert (
+            verify_session.query(Asset)
+            .filter_by(status=AssetStatus.DETECTION_FAILED)
+            .count()
+            == 1
+        )
 
 
 def test_detection_honors_should_cancel_and_keeps_only_committed_batches(
@@ -687,6 +766,9 @@ def test_detection_honors_should_cancel_and_keeps_only_committed_batches(
         ]
         session.add_all(assets)
         session.commit()
+
+        for asset in assets:
+            asset.cache_path(tmp_path).write_bytes(b"data")
 
         service = DetectionService(
             FakeDetector(),

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import (
     CropClassification,
     ManualAssetTag,
@@ -84,7 +85,14 @@ class SyncService:
             # goes through.
             detection = classification.crop.detection
 
-            if detection is None or detection.asset is None:
+            # A removed asset (issue #194/FR-6) no longer exists in Immich
+            # at all -- there's no album membership left to add/maintain
+            # for it, same as a genuinely missing asset row.
+            if (
+                detection is None
+                or detection.asset is None
+                or detection.asset.status == AssetStatus.REMOVED
+            ):
                 skipped_missing_asset += 1
                 continue
 
@@ -106,7 +114,7 @@ class SyncService:
         manual_tag_count = 0
 
         for tag in manual_tags:
-            if tag.asset is None:
+            if tag.asset is None or tag.asset.status == AssetStatus.REMOVED:
                 skipped_missing_asset += 1
                 continue
 
