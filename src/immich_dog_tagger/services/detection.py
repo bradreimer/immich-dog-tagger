@@ -34,6 +34,10 @@ class DetectionSummary:
     detections: int
     dogs: int
     cats: int
+    # Assets whose detection failed and were routed to DOWNLOAD_FAILED
+    # (missing cached original -- issue #194/FR-8) or DETECTION_FAILED
+    # (any other error -- FR-9) instead of aborting the batch/job.
+    failed: int = 0
 
 
 class DetectionService:
@@ -80,10 +84,12 @@ class DetectionService:
         detection_count = 0
         dog_count = 0
         cat_count = 0
+        failed_count = 0
         committed_processed = 0
         committed_detection_count = 0
         committed_dog_count = 0
         committed_cat_count = 0
+        committed_failed_count = 0
         since_commit = 0
         pending_unlinks: list[tuple[str, Path]] = []
 
@@ -101,6 +107,7 @@ class DetectionService:
                     detections=committed_detection_count,
                     dogs=committed_dog_count,
                     cats=committed_cat_count,
+                    failed=committed_failed_count,
                 )
 
             image_path = asset.cache_path(self.cache_dir)
@@ -126,6 +133,37 @@ class DetectionService:
 
                 self.session.flush()
 
+            if not image_path.exists():
+                # The cached original is gone -- most likely a state.db
+                # restore against a since-cleaned cache directory, or the
+                # cache dir cleared out of band. Route back to
+                # DOWNLOAD_FAILED (issue #194/FR-8): Downloader.download_pending()
+                # already includes that status in its default query, so the
+                # pipeline's own next download batch re-fetches it instead
+                # of this asset failing identically on every retry.
+                asset.status = AssetStatus.DOWNLOAD_FAILED
+                logger.warning(
+                    "Missing cached original for asset %s (%s); routed back "
+                    "to download_failed for re-download",
+                    asset.immich_asset_id,
+                    image_path,
+                )
+                failed_count += 1
+                since_commit += 1
+
+                if since_commit >= BATCH_SIZE:
+                    self._commit(since_commit)
+                    committed_processed = processed
+                    committed_detection_count = detection_count
+                    committed_dog_count = dog_count
+                    committed_cat_count = cat_count
+                    committed_failed_count = failed_count
+                    since_commit = 0
+                    self._unlink_all(pending_unlinks)
+                    pending_unlinks.clear()
+
+                continue
+
             try:
                 detections = self.detector.detect(str(image_path))
 
@@ -139,27 +177,40 @@ class DetectionService:
                     )
 
                     crop_map = dict(crop_results)
-            except Exception as exc:
-                # Discard the still-uncommitted batch before propagating --
-                # otherwise the caller's own failure-handling commit (job
-                # status update, sharing this same session) would silently
-                # persist it anyway, defeating the point of batching commits
-                # in the first place (issue #104).
-                self.session.rollback()
+            except Exception:
+                # Isolated to this asset (issue #194/FR-7), mirroring
+                # Downloader._download_one(): nothing has been added to the
+                # session for this asset yet, so there is nothing to roll
+                # back -- record the failure and move on to the rest of the
+                # batch/job instead of aborting it.
+                asset.status = AssetStatus.DETECTION_FAILED
 
                 # A bare exception message (e.g. a Pillow decoding error)
                 # gives no way to tell which asset caused it without
-                # reproducing the failure -- fold that context into both
-                # the log (with a traceback) and the re-raised message, so
-                # it also reaches the job's error_message shown in the UI.
+                # reproducing the failure -- fold that context into the log
+                # (with a traceback) the same way the job's error_message
+                # used to, so it's still diagnosable now that it no longer
+                # aborts the job.
                 logger.exception(
                     "Detection failed for asset %s (%s)",
                     asset.immich_asset_id,
                     image_path,
                 )
-                raise RuntimeError(
-                    f"{exc} (asset={asset.immich_asset_id}, image={image_path})"
-                ) from exc
+                failed_count += 1
+                since_commit += 1
+
+                if since_commit >= BATCH_SIZE:
+                    self._commit(since_commit)
+                    committed_processed = processed
+                    committed_detection_count = detection_count
+                    committed_dog_count = dog_count
+                    committed_cat_count = cat_count
+                    committed_failed_count = failed_count
+                    since_commit = 0
+                    self._unlink_all(pending_unlinks)
+                    pending_unlinks.clear()
+
+                continue
 
             for index, detection in enumerate(detections):
                 detection_count += 1
@@ -220,6 +271,7 @@ class DetectionService:
                 committed_detection_count = detection_count
                 committed_dog_count = dog_count
                 committed_cat_count = cat_count
+                committed_failed_count = failed_count
                 since_commit = 0
                 self._unlink_all(pending_unlinks)
                 pending_unlinks.clear()
@@ -232,6 +284,7 @@ class DetectionService:
             detections=detection_count,
             dogs=dog_count,
             cats=cat_count,
+            failed=failed_count,
         )
 
     def _unlink_all(

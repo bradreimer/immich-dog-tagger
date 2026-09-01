@@ -2,7 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.models import Crop, CropClassification
+from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.models import Asset, Crop, CropClassification, Detection
 
 
 def test_get_crop_image(api_client, engine, tmp_path):
@@ -32,6 +33,46 @@ def test_get_crop_image_not_found(api_client):
     response = api_client.get(
         "/crops/999999",
     )
+
+    assert response.status_code == 404
+
+
+def test_get_crop_image_404s_for_a_removed_asset(api_client, engine, tmp_path):
+    # Issue #194/FR-3: the source photo was deleted in Immich and
+    # reconciled out -- serve a clean 404, not the (possibly already
+    # cleaned-up) crop file.
+    image = tmp_path / "crop.jpg"
+    image.write_bytes(b"fake-jpeg-data")
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="removed-1",
+            checksum="a",
+            extension=".jpg",
+            status=AssetStatus.REMOVED,
+        )
+        session.add(asset)
+        session.flush()
+
+        detection = Detection(
+            asset_id=asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        session.add(detection)
+        session.flush()
+
+        crop = Crop(detection_id=detection.id, path=str(image))
+        session.add(crop)
+        session.commit()
+
+        crop_id = crop.id
+
+    response = api_client.get(f"/crops/{crop_id}")
 
     assert response.status_code == 404
 

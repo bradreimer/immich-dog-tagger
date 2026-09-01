@@ -166,3 +166,98 @@ def test_report_as_dict_keys():
         "missing_embedding_sources",
         "total_missing",
     } <= d.keys()
+
+
+def test_check_excludes_crops_of_a_removed_asset(session, tmp_path):
+    # Issue #194: a crop deliberately deleted as part of Immich-deletion
+    # reconciliation is not "missing" -- it shouldn't show up as something
+    # to repair forever.
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.REMOVED)
+    det = _make_detection(session, asset)
+    _make_crop(session, det, str(tmp_path / "gone.jpg"))
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    report = svc.check()
+
+    assert report.missing_crops == []
+    assert report.healthy
+
+
+def test_repair_routes_missing_download_back_to_download_failed(session, tmp_path):
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session)
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    summary = svc.repair()
+
+    assert summary.downloads_repaired == 1
+
+    session.refresh(asset)
+    assert asset.status is AssetStatus.DOWNLOAD_FAILED
+
+    report = svc.check()
+    assert report.missing_downloads == []
+
+
+def test_repair_routes_missing_crop_back_to_downloaded_for_redetect(session, tmp_path):
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+    file = asset.cache_path(cache_dir)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.touch()
+
+    det = _make_detection(session, asset)
+    _make_crop(session, det, str(tmp_path / "missing_crop.jpg"))
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    summary = svc.repair()
+
+    assert summary.crops_repaired == 1
+
+    session.refresh(asset)
+    assert asset.status is AssetStatus.DOWNLOADED
+    assert session.query(Detection).filter_by(asset_id=asset.id).count() == 0
+    assert session.query(Crop).count() == 0
+
+    report = svc.check()
+    assert report.missing_crops == []
+
+
+def test_repair_leaves_missing_embedding_sources_alone(session, tmp_path):
+    # No original crop/photo remains to regenerate an embedding source
+    # from -- repair only fixes what's actually reconstructible.
+    _make_example(session, str(tmp_path / "missing_emb.jpg"))
+    session.commit()
+
+    svc = DerivedDataService(session, tmp_path / "cache")
+    summary = svc.repair()
+
+    assert summary.total_repaired == 0
+
+    report = svc.check()
+    assert len(report.missing_embedding_sources) == 1
+
+
+def test_repair_prioritizes_download_when_both_original_and_crop_missing(
+    session, tmp_path
+):
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DOWNLOADED)
+    det = _make_detection(session, asset)
+    _make_crop(session, det, str(tmp_path / "missing_crop.jpg"))
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    svc.repair()
+
+    session.refresh(asset)
+
+    # Original is also missing -- download must run before detect, so the
+    # asset stays DOWNLOAD_FAILED rather than being sent straight back to
+    # DOWNLOADED with no file to detect against.
+    assert asset.status is AssetStatus.DOWNLOAD_FAILED
+    assert session.query(Detection).filter_by(asset_id=asset.id).count() == 0

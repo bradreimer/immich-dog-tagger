@@ -26,6 +26,13 @@ class AssetStatus(StrEnum):
     # so download skips it rather than fetching bytes nothing will use.
     UNSUPPORTED = "unsupported"
 
+    # Terminal: the asset was deleted in Immich and a scan no longer sees it
+    # (issue #194). Not a hard delete of the Asset row itself -- provenance,
+    # review history and any classification referencing it stay queryable
+    # (ADR-001) -- but it is excluded from review/sync and its cached
+    # original/crop files are cleaned up from disk.
+    REMOVED = "removed"
+
 
 class EmbeddingSources(StrEnum):
     BOOTSTRAP = "bootstrap"

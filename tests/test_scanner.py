@@ -403,3 +403,171 @@ def test_scan_honors_should_cancel_and_keeps_only_committed_batches(engine):
 
     with Session(engine) as verify_session:
         assert verify_session.query(Asset).count() == BATCH_SIZE
+
+
+def test_scan_reconciles_asset_deleted_from_immich(engine, tmp_path):
+    class EmptyClient:
+        def list_assets(self):
+            return []
+
+    with Session(engine) as session:
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        cache_file = cache_dir / "gone123.jpg"
+        cache_file.write_bytes(b"data")
+
+        session.add(
+            Asset(
+                immich_asset_id="gone123",
+                checksum="xyz",
+                extension=".jpg",
+                status=AssetStatus.DOWNLOADED,
+            )
+        )
+        session.commit()
+
+        Scanner(EmptyClient(), session, cache_dir).scan()
+
+        asset = session.query(Asset).filter_by(immich_asset_id="gone123").one()
+
+        assert asset.status is AssetStatus.REMOVED
+        assert not cache_file.exists()
+
+
+def test_scan_retains_crop_backing_active_embedding_example(engine, tmp_path):
+    from immich_dog_tagger.enums import EmbeddingSources
+    from immich_dog_tagger.models import Crop, Detection, EmbeddingExample, Identity
+
+    class EmptyClient:
+        def list_assets(self):
+            return []
+
+    with Session(engine) as session:
+        crop_dir = tmp_path / "crops"
+        crop_dir.mkdir()
+        in_use_crop_path = crop_dir / "in_use.jpg"
+        in_use_crop_path.write_bytes(b"data")
+        orphan_crop_path = crop_dir / "orphan.jpg"
+        orphan_crop_path.write_bytes(b"data")
+
+        asset = Asset(
+            immich_asset_id="asset-1",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.CLASSIFIED,
+        )
+        session.add(asset)
+        session.flush()
+
+        detection = Detection(
+            asset_id=asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        session.add(detection)
+        session.flush()
+
+        session.add(Crop(detection_id=detection.id, path=str(in_use_crop_path)))
+
+        other_asset = Asset(
+            immich_asset_id="asset-2",
+            checksum="abc",
+            extension=".jpg",
+            status=AssetStatus.CLASSIFIED,
+        )
+        session.add(other_asset)
+        session.flush()
+
+        other_detection = Detection(
+            asset_id=other_asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=1,
+            y2=1,
+        )
+        session.add(other_detection)
+        session.flush()
+
+        session.add(Crop(detection_id=other_detection.id, path=str(orphan_crop_path)))
+
+        identity = Identity(name="Fibs")
+        session.add(identity)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=identity.id,
+                crop_path=str(in_use_crop_path),
+                embedding=b"123",
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+        session.commit()
+
+        Scanner(EmptyClient(), session, tmp_path / "cache").scan()
+
+        assert in_use_crop_path.exists()
+        assert not orphan_crop_path.exists()
+
+
+def test_scan_undeletes_asset_that_reappears(engine, tmp_path):
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(
+                    id="back-again",
+                    filename="dog.jpg",
+                    checksum="xyz",
+                )
+            ]
+
+    with Session(engine) as session:
+        session.add(
+            Asset(
+                immich_asset_id="back-again",
+                checksum="xyz",
+                extension=".jpg",
+                status=AssetStatus.REMOVED,
+            )
+        )
+        session.commit()
+
+        Scanner(FakeClient(), session).scan()
+
+        asset = session.query(Asset).filter_by(immich_asset_id="back-again").one()
+
+        assert asset.status is AssetStatus.PENDING
+
+
+def test_scan_with_limit_does_not_reconcile(engine, tmp_path):
+    # A --limit scan's result set is a truncated sample, not "everything
+    # currently in Immich" -- it must never be diffed against state.db to
+    # avoid falsely marking untouched assets as deleted.
+    class FakeClient:
+        def list_assets(self):
+            return [
+                ImmichAsset(id="1", filename="a.jpg", checksum="a"),
+            ]
+
+    with Session(engine) as session:
+        session.add(
+            Asset(
+                immich_asset_id="untouched",
+                checksum="z",
+                extension=".jpg",
+                status=AssetStatus.DOWNLOADED,
+            )
+        )
+        session.commit()
+
+        Scanner(FakeClient(), session).scan(limit=1)
+
+        asset = session.query(Asset).filter_by(immich_asset_id="untouched").one()
+
+        assert asset.status is AssetStatus.DOWNLOADED

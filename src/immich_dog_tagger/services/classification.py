@@ -6,12 +6,13 @@ import logging
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy.orm import Session, joinedload
 
 from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.embeddings import embedding_to_blob
-from immich_dog_tagger.enums import ClassificationMode
+from immich_dog_tagger.enums import AssetStatus, ClassificationMode
 from immich_dog_tagger.models import (
     ClassificationSources,
     Crop,
@@ -41,6 +42,9 @@ BATCH_SIZE = 25
 class ClassificationSummary:
     classified: int
     identities: dict[str, int]
+    # Crops skipped because their file was missing on disk, routed to
+    # AssetStatus.CLASSIFICATION_FAILED (issue #194/FR-10).
+    failed: int = 0
 
 
 class ClassificationService:
@@ -69,6 +73,7 @@ class ClassificationService:
         )
 
         total = 0
+        failed_total = 0
         counts = Counter()
         remaining = limit
         last_id = 0
@@ -100,18 +105,42 @@ class ClassificationService:
             if not crops:
                 break
 
-            embeddings = self.embedder.embed_batch(
-                [crop.path for crop in crops],
-            )
+            embeddable = crops
+
+            try:
+                embeddings = self.embedder.embed_batch(
+                    [crop.path for crop in crops],
+                )
+            except FileNotFoundError:
+                # A missing crop file took the whole chunk's embed_batch()
+                # call down with it -- isolate it (issue #194/FR-10, the
+                # classify-side equivalent of detect's missing-cached-
+                # original handling): route just that crop's asset to
+                # CLASSIFICATION_FAILED and retry with only the crops that
+                # still exist, instead of losing the rest of the chunk too.
+                embeddable = []
+
+                for crop in crops:
+                    if Path(crop.path).exists():
+                        embeddable.append(crop)
+                    else:
+                        self._mark_classification_failed(crop, "missing crop file")
+                        failed_total += 1
+
+                embeddings = (
+                    self.embedder.embed_batch([crop.path for crop in embeddable])
+                    if embeddable
+                    else []
+                )
 
             # One query per batch, not per crop -- see rejections.py.
             rejections = rejected_identities_for(
                 self.session,
-                [crop.id for crop in crops],
+                [crop.id for crop in embeddable],
             )
 
             try:
-                for crop, embedding in zip(crops, embeddings):
+                for crop, embedding in zip(embeddable, embeddings):
                     classification = self._classify_crop(
                         crop,
                         embedding,
@@ -124,35 +153,58 @@ class ClassificationService:
                     else:
                         counts["Unknown"] += 1
             except Exception:
-                # Discard the still-uncommitted chunk before propagating --
-                # otherwise the caller's own failure-handling commit (job
-                # status update, sharing this same session) would silently
-                # persist it anyway, defeating the point of batching commits
-                # in the first place (issue #104).
+                # Unexpected (as opposed to the missing-file case above,
+                # which is isolated per crop) -- e.g. a corrupt embedding.
+                # Discard this chunk's uncommitted work and stop the run
+                # rather than raising (issue #194/FR-10/FR-11): a bad chunk
+                # no longer fails the whole job, and PENDING/LOW_CONFIDENCE
+                # mode's query is stateless, so the next classify() call
+                # simply retries whatever this chunk didn't get to commit.
                 self.session.rollback()
-                raise
+                logger.exception("Classification chunk failed; stopping this run early")
+                break
 
             self._commit(len(crops))
 
-            total += len(crops)
+            total += len(embeddable)
             last_id = crops[-1].id
 
             if remaining is not None:
                 remaining -= chunk_size
 
-        if total == 0:
+        if total == 0 and failed_total == 0:
             logger.info("Classify (mode=%s): no eligible crops", mode.value)
         else:
             logger.info(
-                "Classify (mode=%s): classified %d crop(s), %d unknown",
+                "Classify (mode=%s): classified %d crop(s), %d unknown, %d failed",
                 mode.value,
                 total,
                 counts.get("Unknown", 0),
+                failed_total,
             )
 
         return ClassificationSummary(
             classified=total,
             identities=dict(counts),
+            failed=failed_total,
+        )
+
+    def _mark_classification_failed(
+        self,
+        crop: Crop,
+        reason: str,
+    ) -> None:
+        detection = crop.detection
+        asset = detection.asset if detection is not None else None
+
+        if asset is not None:
+            asset.status = AssetStatus.CLASSIFICATION_FAILED
+
+        logger.warning(
+            "Classification skipped for crop %s (%s): %s",
+            crop.id,
+            crop.path,
+            reason,
         )
 
     def _commit(

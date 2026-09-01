@@ -397,6 +397,47 @@ def test_sync_skips_classification_missing_detection_instead_of_crashing(engine)
         assert albums.calls == [("Hermann", ["asset1"], "dog")]
 
 
+def test_sync_skips_a_removed_asset(engine):
+    # Issue #194/FR-6: an asset reconciled out because it was deleted in
+    # Immich no longer exists there at all -- there's no album membership
+    # left to add/maintain for it.
+    from immich_dog_tagger.enums import AssetStatus
+
+    with Session(engine) as session:
+        removed_asset = Asset(
+            immich_asset_id="removed-1",
+            checksum="a",
+            extension=".jpg",
+            status=AssetStatus.REMOVED,
+        )
+        removed_detection = Detection(
+            asset=removed_asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        removed_crop = Crop(detection=removed_detection, path="removed.jpg")
+
+        good_asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        good_detection = Detection(
+            asset=good_asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        good_crop = Crop(detection=good_detection, path="good.jpg")
+
+        session.add_all(
+            [
+                CropClassification(crop=removed_crop, identity="Fibs", confidence=0.95),
+                CropClassification(crop=good_crop, identity="Hermann", confidence=0.95),
+            ]
+        )
+        session.commit()
+
+        albums = FakeAlbums()
+        summary = SyncService(session, albums).sync()
+
+        assert summary.skipped_missing_asset == 1
+        assert len(summary.identities) == 1
+        assert summary.identities[0].identity == "Hermann"
+        assert albums.calls == [("Hermann", ["asset1"], "dog")]
+
+
 def test_sync_full_accounting_matches_issue_11_scenario(engine):
     """Reproduces the reported scenario: several reviewed/classified
     animals, but only some are eligible to sync -- the summary must account

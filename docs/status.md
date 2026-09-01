@@ -567,6 +567,24 @@
   history; axis scaling and the "Review Queue Reduction ... since pass #N" stat continue to read
   the full, undownsampled series so nothing sampled out shrinks the axis or changes what "first
   pass" means.
+- [#194](https://github.com/bradreimer/immich-dog-tagger/issues/194) asset state reconciliation and
+  pipeline self-healing, per
+  [docs/specs/asset-state-reconciliation.md](specs/asset-state-reconciliation.md) (FR-1 through
+  FR-12). `Scanner.scan()` now diffs a full (unlimited) scan's result set against `state.db` and
+  moves any asset Immich no longer returns to a new terminal `AssetStatus.REMOVED`, cleaning up its
+  cached original and any crop files not still backing an active-learning embedding example (FR-5);
+  `ReviewQueryService.active_review()`/`review_queue_count()`, `GET /crops/{id}`, and
+  `SyncService.sync()` all now exclude/skip a removed asset. A resurrected asset (reappears in a
+  later scan) resets to `PENDING` rather than staying stranded. Separately, `DetectionService.run()`
+  and `ClassificationService.classify()` gained per-asset/per-crop failure isolation mirroring
+  `Downloader._download_one()`: a missing cached original or crop file routes the asset back to
+  `DOWNLOAD_FAILED` (self-repairing on the next `download`/`detect` pass) instead of aborting the
+  whole batch, and a genuine detection/classification error is recorded on that asset
+  (`DETECTION_FAILED`/`CLASSIFICATION_FAILED`, now actually assigned for the first time) rather than
+  failing the entire job -- resolving the "Detection/classification status ownership needs review"
+  Known Issue below. `check-derived-data --repair` turns the existing report-only health check into
+  an actual fix for missing downloads/crops (missing embedding sources still need a human, per the
+  spec's scope).
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
@@ -653,6 +671,5 @@ change smaller).
 
 ## Known Issues
 - Some pipeline status counters may need future cleanup.
-- Detection/classification status ownership needs review.
 - Endpoint-level API auth is not implemented yet.
 - DT-1008's scale validation used synthetic-scale regression tests rather than a literal 30,000-real-image run (no GPU/Immich instance in the development environment); a real-library run is recommended before relying on it at that scale in production.
