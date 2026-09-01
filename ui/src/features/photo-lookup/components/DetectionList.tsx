@@ -1,10 +1,12 @@
 import { useState } from "react";
 
-import { IconX } from "@tabler/icons-react";
+import { IconCat, IconDog, IconX } from "@tabler/icons-react";
 
+import { SPECIES_STYLES } from "@/features/review/utils/speciesStyles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { Dog } from "@/types/dogs";
 import type { PhotoLookupDetection } from "@/types/photoLookup";
 
@@ -17,6 +19,7 @@ interface RowProps {
   detection: PhotoLookupDetection;
   identities: Dog[];
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
+  onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
 }
 
@@ -25,6 +28,7 @@ function DetectionRow({
   detection,
   identities,
   onCorrect,
+  onCorrectSpecies,
   onToggleNotAnimal,
 }: RowProps) {
   const [saving, setSaving] = useState(false);
@@ -53,6 +57,23 @@ function DetectionRow({
     }
   };
 
+  const handleCorrectSpecies = async (species: "dog" | "cat") => {
+    if (species === detection.species || detection.classification_id === null) {
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+
+    try {
+      await onCorrectSpecies(detection.classification_id, species);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to correct species");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleToggleNotAnimal = async () => {
     if (detection.crop_id === null) {
       return;
@@ -76,7 +97,41 @@ function DetectionRow({
         {index + 1}
       </span>
 
-      <Badge variant="outline">{speciesLabel(detection.species)}</Badge>
+      {detection.not_animal || detection.classification_id === null ? (
+        <Badge variant="outline">{speciesLabel(detection.species)}</Badge>
+      ) : (
+        <div
+          className="flex shrink-0 gap-1"
+          role="group"
+          aria-label={`Correct species for detection ${index + 1}`}
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(SPECIES_STYLES.dog)}
+            aria-pressed={detection.species === "dog"}
+            aria-label="Set species to Dog"
+            disabled={saving || detection.species === "dog"}
+            onClick={() => handleCorrectSpecies("dog")}
+          >
+            <IconDog className="h-4 w-4" aria-hidden="true" />
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(SPECIES_STYLES.cat)}
+            aria-pressed={detection.species === "cat"}
+            aria-label="Set species to Cat"
+            disabled={saving || detection.species === "cat"}
+            onClick={() => handleCorrectSpecies("cat")}
+          >
+            <IconCat className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      )}
 
       {detection.not_animal ? (
         <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">
@@ -142,6 +197,7 @@ interface Props {
   detections: PhotoLookupDetection[];
   identities: Dog[];
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
+  onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
 }
 
@@ -149,6 +205,7 @@ export function DetectionList({
   detections,
   identities,
   onCorrect,
+  onCorrectSpecies,
   onToggleNotAnimal,
 }: Props) {
   if (detections.length === 0) {
@@ -170,6 +227,7 @@ export function DetectionList({
             index={index}
             detection={detection}
             identities={identities}
+            onCorrectSpecies={onCorrectSpecies}
             onCorrect={onCorrect}
             onToggleNotAnimal={onToggleNotAnimal}
           />

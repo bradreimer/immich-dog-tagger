@@ -94,5 +94,19 @@ card's "View in Photo Lookup" link uses (`item.immich_asset_id` is already known
 needs to be constructed or parsed) -- it opens in a new tab so the reviewer doesn't lose their place
 in the review queue. The manual paste-a-URL flow is unchanged.
 
+## Addendum: correct species too (issue #221)
+
+A photo lookup box's identity `<select>` only ever offers identities of the species the crop was
+already assigned -- if that assignment itself is wrong (a cat cropped and classified as a dog),
+there's no identity in the list that fixes it. Each row now also carries a compact Dog/Cat control
+alongside the identity select, reusing Review's existing species-correction write path (`POST
+/classifications/{id}/species`, `ClassificationCorrectionService.correct_species`, issue #116) and
+its blue/amber palette (`ui/src/features/review/utils/speciesStyles.ts`, shared with Review's
+`SpeciesChooser` rather than redefined). Correcting species can reclassify identity/confidence
+under the new species server-side, so the page re-fetches the full lookup afterward rather than
+patching the row in place, the same as the not-animal toggle does. The control is hidden for a
+detection marked "not a dog or cat" or one with no classification yet, matching the identity
+select's own "nothing to correct against" cases.
+
 ## Open questions
 - None.

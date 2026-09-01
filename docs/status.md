@@ -585,6 +585,17 @@
   Known Issue below. `check-derived-data --repair` turns the existing report-only health check into
   an actual fix for missing downloads/crops (missing embedding sources still need a human, per the
   spec's scope).
+- [#221](https://github.com/bradreimer/immich-dog-tagger/issues/221) Photo Lookup can now correct a
+  detection's species, not just its identity -- each row's identity `<select>` previously had no
+  way to fix a crop assigned the wrong species in the first place (e.g. a cat cropped and
+  classified as a dog), since it only ever listed identities of the species already on the crop.
+  Reuses Review's existing species-correction write path as-is (`POST
+  /classifications/{id}/species`, `ClassificationCorrectionService.correct_species`, #116) rather
+  than adding a second one; the shared blue/amber palette moved to
+  `ui/src/features/review/utils/speciesStyles.ts` so Review's `SpeciesChooser` and Photo Lookup's
+  new compact per-row control read from the same place instead of each defining it. Correcting
+  species re-fetches the full lookup afterward (identity/confidence can be reclassified server-side
+  under the new species), the same pattern the existing not-animal toggle already uses.
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),

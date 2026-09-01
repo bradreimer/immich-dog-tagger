@@ -3,20 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+import { SPECIES_STYLES } from "../utils/speciesStyles";
+
 interface Props {
   species: string;
   onCorrectSpecies: (species: "dog" | "cat") => void;
   disabled?: boolean;
 }
-
-// Reuses the app's existing validated categorical chart palette (blue/amber)
-// to make Dog and Cat visually distinguishable from each other and from the
-// single-accent-color identity/action buttons -- not a new color invented
-// for this feature (ux-principles.md #2/#20).
-const SPECIES_STYLES: Record<"dog" | "cat", string> = {
-  dog: "border-chart-1/45 bg-chart-1/12 text-chart-1 hover:bg-chart-1/20",
-  cat: "border-chart-4/45 bg-chart-4/12 text-chart-4 hover:bg-chart-4/20",
-};
 
 export function SpeciesChooser({ species, onCorrectSpecies, disabled }: Props) {
   return (
