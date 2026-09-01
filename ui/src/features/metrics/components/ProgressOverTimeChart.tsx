@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { downsampleForDisplay } from "../utils/downsample";
+
 export interface ProgressPassPoint {
   id: number;
   eligibleCount: number;
@@ -20,6 +22,11 @@ const PAD_RIGHT = 64;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 32;
 const GRID_STEPS = 4;
+// Above this many passes, only a sampled subset is plotted (see
+// downsampleForDisplay) so the line stays legible instead of one
+// increasingly cramped point per pass -- the first and last pass are
+// always kept so the chart still spans the full recorded history.
+const MAX_DISPLAY_POINTS = 20;
 
 const COLOR_NEEDS_REVIEW = "var(--status-warning)";
 const COLOR_CONFIDENT = "var(--status-good)";
@@ -35,7 +42,12 @@ export function ProgressOverTimeChart({ passes }: Props) {
 
   const plotWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
   const plotHeight = HEIGHT - PAD_TOP - PAD_BOTTOM;
-  const pointCount = passes.length;
+  // Plot a sampled subset for legibility, but scale the axes and compute
+  // the "since pass #N" comparisons off the full history -- a value that
+  // got sampled out shouldn't shrink the axis or change what "first pass"
+  // means.
+  const displayPasses = downsampleForDisplay(passes, MAX_DISPLAY_POINTS);
+  const pointCount = displayPasses.length;
 
   const leftMax = niceMax(Math.max(...passes.flatMap((p) => [p.needsReviewCount, p.confidentCount, p.unknownCount])));
   const rightMax = niceMax(Math.max(...passes.map((p) => p.labeledExampleCount)));
@@ -90,7 +102,7 @@ export function ProgressOverTimeChart({ passes }: Props) {
       key: "needsReview",
       label: "Needs Review",
       color: COLOR_NEEDS_REVIEW,
-      values: passes.map((p) => p.needsReviewCount),
+      values: displayPasses.map((p) => p.needsReviewCount),
       yAt: yLeftAt,
       labelOffset: -10,
     },
@@ -98,7 +110,7 @@ export function ProgressOverTimeChart({ passes }: Props) {
       key: "confident",
       label: "Confidently Classified",
       color: COLOR_CONFIDENT,
-      values: passes.map((p) => p.confidentCount),
+      values: displayPasses.map((p) => p.confidentCount),
       yAt: yLeftAt,
       labelOffset: -10,
     },
@@ -106,7 +118,7 @@ export function ProgressOverTimeChart({ passes }: Props) {
       key: "unknown",
       label: "Unknown",
       color: COLOR_UNKNOWN,
-      values: passes.map((p) => p.unknownCount),
+      values: displayPasses.map((p) => p.unknownCount),
       yAt: yLeftAt,
       labelOffset: 16,
     },
@@ -115,7 +127,7 @@ export function ProgressOverTimeChart({ passes }: Props) {
       label: "Labeled Examples",
       color: COLOR_LABELED,
       dashed: true,
-      values: passes.map((p) => p.labeledExampleCount),
+      values: displayPasses.map((p) => p.labeledExampleCount),
       yAt: yRightAt,
       labelOffset: 16,
     },
@@ -147,7 +159,7 @@ export function ProgressOverTimeChart({ passes }: Props) {
           width="100%"
           height={HEIGHT}
           role="img"
-          aria-label={`Needs review, confidently classified, unknown, and labeled example counts across ${pointCount} reclassification passes`}
+          aria-label={`Needs review, confidently classified, unknown, and labeled example counts across ${passes.length} reclassification passes${pointCount < passes.length ? `, sampled to ${pointCount} points` : ""}`}
           onMouseMove={handleMove}
           onMouseLeave={() => setHoverIndex(null)}
           className="overflow-visible"
@@ -190,7 +202,7 @@ export function ProgressOverTimeChart({ passes }: Props) {
             Labeled Examples
           </text>
 
-          {passes.map((pass, i) => (
+          {displayPasses.map((pass, i) => (
             <text key={pass.id} x={xAt(i)} y={HEIGHT - 8} textAnchor="middle" className="fill-muted-foreground text-[10px]">
               Pass #{pass.id}
             </text>
@@ -250,29 +262,29 @@ export function ProgressOverTimeChart({ passes }: Props) {
             className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md"
             style={{ left: `${(xAt(hoverIndex) / WIDTH) * 100}%` }}
           >
-            <p className="mb-1.5 font-medium">Pass #{passes[hoverIndex].id}</p>
+            <p className="mb-1.5 font-medium">Pass #{displayPasses[hoverIndex].id}</p>
             <div className="space-y-0.5">
               <p className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: COLOR_LABELED }} aria-hidden="true" />
-                Labeled examples: <span className="font-medium text-foreground">{passes[hoverIndex].labeledExampleCount}</span>
+                Labeled examples: <span className="font-medium text-foreground">{displayPasses[hoverIndex].labeledExampleCount}</span>
               </p>
               <p className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: COLOR_CONFIDENT }} aria-hidden="true" />
-                Confidently classified: <span className="font-medium text-foreground">{passes[hoverIndex].confidentCount}</span>
+                Confidently classified: <span className="font-medium text-foreground">{displayPasses[hoverIndex].confidentCount}</span>
               </p>
               <p className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: COLOR_NEEDS_REVIEW }} aria-hidden="true" />
-                Needs review: <span className="font-medium text-foreground">{passes[hoverIndex].needsReviewCount}</span>
+                Needs review: <span className="font-medium text-foreground">{displayPasses[hoverIndex].needsReviewCount}</span>
               </p>
               <p className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: COLOR_UNKNOWN }} aria-hidden="true" />
-                Unknown: <span className="font-medium text-foreground">{passes[hoverIndex].unknownCount}</span>
+                Unknown: <span className="font-medium text-foreground">{displayPasses[hoverIndex].unknownCount}</span>
               </p>
             </div>
             <div className="mt-1.5 border-t pt-1.5 text-muted-foreground">
-              <p>{passes[hoverIndex].eligibleCount} eligible items</p>
+              <p>{displayPasses[hoverIndex].eligibleCount} eligible items</p>
               {(() => {
-                const reduction = reductionSince(passes[hoverIndex]);
+                const reduction = reductionSince(displayPasses[hoverIndex]);
                 if (reduction === null || hoverIndex === 0) {
                   return null;
                 }

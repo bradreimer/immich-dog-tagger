@@ -178,7 +178,12 @@ class MetricsService:
         self,
         session: Session,
         policy: ClassifierPolicy = DEFAULT_POLICY,
-        history_limit: int = 10,
+        # One ClassificationPass row per Reclassify run -- effectively full
+        # history for any realistic cadence (even daily runs take ~1.5
+        # years to reach this), while still bounding the query rather than
+        # leaving it truly unbounded. The UI downsamples for display; this
+        # limit is a resource bound, not a display window.
+        history_limit: int = 500,
     ):
         self.session = session
         self.policy = policy
