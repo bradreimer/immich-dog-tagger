@@ -26,7 +26,7 @@ class RecordingProgress:
 
 
 class FakeScanner:
-    def __init__(self, client, session):
+    def __init__(self, client, session, cache_dir=None):
         pass
 
     def scan(self, limit=None, force=False, should_cancel=None):

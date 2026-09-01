@@ -70,7 +70,7 @@ def test_classify_accepts_all(capsys):
 
 def test_scan_runs_through_job_runner_and_persists_job(capsys):
     class FakeScanner:
-        def __init__(self, client, session):
+        def __init__(self, client, session, cache_dir=None):
             pass
 
         def scan(self, limit=None, force=False, should_cancel=None):
@@ -103,7 +103,7 @@ def test_scan_runs_through_job_runner_and_persists_job(capsys):
 
 def test_scan_failure_returns_nonzero_and_persists_failed_job():
     class FailingScanner:
-        def __init__(self, client, session):
+        def __init__(self, client, session, cache_dir=None):
             pass
 
         def scan(self, limit=None, force=False, should_cancel=None):
