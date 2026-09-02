@@ -10,6 +10,7 @@ vi.mock("@/lib/api", () => ({
   getDogs: vi.fn(),
   getPhotoLookup: vi.fn(),
   correctClassification: vi.fn(),
+  correctSpecies: vi.fn(),
   markCropNotAnimal: vi.fn(),
   unmarkCropNotAnimal: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
@@ -17,6 +18,7 @@ vi.mock("@/lib/api", () => ({
 
 const HERMANN: Dog = { id: 1, name: "Hermann", species: "dog", active: true };
 const FIBS: Dog = { id: 2, name: "Fibs", species: "dog", active: true };
+const WHISKERS: Dog = { id: 3, name: "Whiskers", species: "cat", active: true };
 
 function buildResult(): PhotoLookupResult {
   return {
@@ -150,6 +152,39 @@ describe("PhotoLookupPage", () => {
     });
 
     expect(await screen.findAllByText("Fibs")).not.toHaveLength(0);
+  });
+
+  it("corrects a detection's species and re-fetches so identity/confidence stay in sync", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS, WHISKERS]);
+
+    const initial = buildResult();
+    const afterSpeciesCorrection: PhotoLookupResult = {
+      ...initial,
+      detections: [
+        { ...initial.detections[0], species: "cat", identity: null, confidence: null },
+      ],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterSpeciesCorrection);
+    vi.mocked(api.correctSpecies).mockResolvedValue({} as unknown as never);
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    fireEvent.click(await screen.findByLabelText("Set species to Cat"));
+
+    await waitFor(() => {
+      expect(api.correctSpecies).toHaveBeenCalledWith(100, "cat");
+    });
+
+    expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    expect(await screen.findByLabelText("Set species to Cat")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("marks a detection as not a dog or cat, and can undo it", async () => {

@@ -5,6 +5,7 @@ import { IconSearch } from "@tabler/icons-react";
 import {
   PhotoLookupNotFoundError,
   correctClassification,
+  correctSpecies,
   getDogs,
   getPhotoLookup,
   markCropNotAnimal,
@@ -98,6 +99,21 @@ export function PhotoLookupPage() {
     );
   };
 
+  const handleCorrectSpecies = async (
+    classificationId: number,
+    species: "dog" | "cat",
+  ) => {
+    await correctSpecies(classificationId, species);
+
+    // Species correction can reclassify the identity/confidence under the
+    // new species server-side (ClassificationCorrectionService.correct_
+    // species), so a full re-fetch, like the not-animal toggle above, is
+    // what keeps this box's identity/confidence from going stale.
+    if (result) {
+      setResult(await getPhotoLookup(result.immich_asset_id));
+    }
+  };
+
   const handleToggleNotAnimal = async (cropId: number, notAnimal: boolean) => {
     if (notAnimal) {
       await markCropNotAnimal(cropId);
@@ -155,6 +171,7 @@ export function PhotoLookupPage() {
             detections={result.detections}
             identities={identities}
             onCorrect={handleCorrect}
+            onCorrectSpecies={handleCorrectSpecies}
             onToggleNotAnimal={handleToggleNotAnimal}
           />
         </div>
