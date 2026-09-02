@@ -8,7 +8,7 @@ import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
-import type { LibraryPage } from "../types/library";
+import type { LibraryPage, LibrarySort } from "../types/library";
 import type {
   ClusterApprovalResult,
   ClusterProposal,
@@ -72,7 +72,7 @@ export type LibraryQuery = {
   reviewed?: boolean;
   captured_after?: string;
   captured_before?: string;
-  sort?: ClusterSort;
+  sort?: LibrarySort;
   limit?: number;
   offset?: number;
 };

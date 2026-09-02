@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
-import type { ClusterSort } from "@/types/clusters";
 import type { Dog } from "@/types/dogs";
+import type { LibrarySort } from "@/types/library";
 
 export type LibrarySpeciesFilter = "all" | "dog" | "cat";
 export type LibraryReviewedFilter = "all" | "reviewed" | "unreviewed";
@@ -20,8 +20,8 @@ interface Props {
   onCapturedAfterChange: (value: string) => void;
   capturedBefore: string;
   onCapturedBeforeChange: (value: string) => void;
-  sort: ClusterSort;
-  onSortChange: (sort: ClusterSort) => void;
+  sort: LibrarySort;
+  onSortChange: (sort: LibrarySort) => void;
 }
 
 export function LibraryFilters({
@@ -115,13 +115,15 @@ export function LibraryFilters({
           Sort
           <select
             value={sort}
-            onChange={(event) => onSortChange(event.target.value as ClusterSort)}
+            onChange={(event) => onSortChange(event.target.value as LibrarySort)}
             className={SELECT_CLASS}
           >
             <option value="captured_desc">Newest first</option>
             <option value="captured_asc">Oldest first</option>
             <option value="confidence_desc">Most confident first</option>
             <option value="confidence_asc">Least confident first</option>
+            <option value="reviewed_desc">Most recently classified first</option>
+            <option value="reviewed_asc">Least recently classified first</option>
           </select>
         </label>
       </CardContent>

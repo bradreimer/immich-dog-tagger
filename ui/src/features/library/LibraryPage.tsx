@@ -3,9 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
 import { getDogs, getLibrary, getSettings } from "@/lib/api";
 import type { LibraryQuery } from "@/lib/api";
-import type { ClusterSort } from "@/types/clusters";
 import type { Dog } from "@/types/dogs";
-import type { LibraryEntry } from "@/types/library";
+import type { LibraryEntry, LibrarySort } from "@/types/library";
 import { Button } from "@/components/ui/button";
 import { LibraryDetailsPanel } from "./components/LibraryDetailsPanel";
 import {
@@ -23,7 +22,7 @@ export function LibraryPage() {
   const [reviewedFilter, setReviewedFilter] = useState<LibraryReviewedFilter>("all");
   const [capturedAfter, setCapturedAfter] = useState("");
   const [capturedBefore, setCapturedBefore] = useState("");
-  const [sort, setSort] = useState<ClusterSort>("captured_desc");
+  const [sort, setSort] = useState<LibrarySort>("captured_desc");
 
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [immichUrl, setImmichUrl] = useState<string | null>(null);

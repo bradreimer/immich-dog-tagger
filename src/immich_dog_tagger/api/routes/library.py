@@ -20,7 +20,7 @@ from immich_dog_tagger.api.schemas import (
     ClusterRejectionRequest,
     LibraryPageResponse,
 )
-from immich_dog_tagger.enums import ClusterSort, Species
+from immich_dog_tagger.enums import ClusterSort, LibrarySort, Species
 from immich_dog_tagger.services.app_settings import AutoReclassifyService
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
@@ -44,7 +44,7 @@ def library(
     reviewed: bool | None = Query(None),
     captured_after: datetime | None = Query(None),
     captured_before: datetime | None = Query(None),
-    sort: ClusterSort = Query(ClusterSort.CAPTURED_DESC),
+    sort: LibrarySort = Query(LibrarySort.CAPTURED_DESC),
     limit: int = Query(50),
     offset: int = Query(0),
 ):

@@ -1579,7 +1579,7 @@ def test_library_sorts_by_captured_date_across_pagination(engine):
     page boundary would cut across an unsorted DB order and the "full
     filtered set" ordering promised by the spec would only hold within a
     single page."""
-    from immich_dog_tagger.enums import ClusterSort
+    from immich_dog_tagger.enums import LibrarySort
 
     with Session(engine) as session:
         dates = [
@@ -1606,17 +1606,17 @@ def test_library_sorts_by_captured_date_across_pagination(engine):
         session.commit()
 
         first = ReviewQueryService(session).library(
-            sort=ClusterSort.CAPTURED_DESC, limit=2, offset=0
+            sort=LibrarySort.CAPTURED_DESC, limit=2, offset=0
         )
         second = ReviewQueryService(session).library(
-            sort=ClusterSort.CAPTURED_DESC, limit=2, offset=2
+            sort=LibrarySort.CAPTURED_DESC, limit=2, offset=2
         )
 
         ordered_paths = [entry.item.filename for entry in first.items + second.items]
         assert ordered_paths == ["1.jpg", "2.jpg", "0.jpg", "3.jpg"]
 
         ascending = ReviewQueryService(session).library(
-            sort=ClusterSort.CAPTURED_ASC, limit=4, offset=0
+            sort=LibrarySort.CAPTURED_ASC, limit=4, offset=0
         )
         assert [e.item.filename for e in ascending.items] == [
             "3.jpg",
@@ -1627,7 +1627,7 @@ def test_library_sorts_by_captured_date_across_pagination(engine):
 
 
 def test_library_sorts_by_confidence(engine):
-    from immich_dog_tagger.enums import ClusterSort
+    from immich_dog_tagger.enums import LibrarySort
 
     with Session(engine) as session:
         low_crop = Crop(detection_id=1, path="low.jpg")
@@ -1644,15 +1644,15 @@ def test_library_sorts_by_confidence(engine):
         )
         session.commit()
 
-        desc = ReviewQueryService(session).library(sort=ClusterSort.CONFIDENCE_DESC)
-        asc = ReviewQueryService(session).library(sort=ClusterSort.CONFIDENCE_ASC)
+        desc = ReviewQueryService(session).library(sort=LibrarySort.CONFIDENCE_DESC)
+        asc = ReviewQueryService(session).library(sort=LibrarySort.CONFIDENCE_ASC)
 
         assert [e.item.filename for e in desc.items] == ["high.jpg", "low.jpg"]
         assert [e.item.filename for e in asc.items] == ["low.jpg", "high.jpg"]
 
 
 def test_library_captured_sort_puts_undated_photos_last_both_directions(engine):
-    from immich_dog_tagger.enums import ClusterSort
+    from immich_dog_tagger.enums import LibrarySort
 
     with Session(engine) as session:
         dated_asset = Asset(
@@ -1681,11 +1681,145 @@ def test_library_captured_sort_puts_undated_photos_last_both_directions(engine):
         )
         session.commit()
 
-        desc = ReviewQueryService(session).library(sort=ClusterSort.CAPTURED_DESC)
-        asc = ReviewQueryService(session).library(sort=ClusterSort.CAPTURED_ASC)
+        desc = ReviewQueryService(session).library(sort=LibrarySort.CAPTURED_DESC)
+        asc = ReviewQueryService(session).library(sort=LibrarySort.CAPTURED_ASC)
 
         assert [e.item.filename for e in desc.items] == ["dated.jpg", "undated.jpg"]
         assert [e.item.filename for e in asc.items] == ["dated.jpg", "undated.jpg"]
+
+
+def test_library_sorts_by_reviewed_date_across_pagination(engine):
+    """issue #225: same "sort in SQL before LIMIT/OFFSET" requirement
+    test_library_sorts_by_captured_date_across_pagination pins for the
+    capture-date axis, applied to the new reviewed-date axis."""
+    from immich_dog_tagger.enums import LibrarySort
+
+    with Session(engine) as session:
+        crops = [Crop(detection_id=1, path=f"{i}.jpg") for i in range(4)]
+        session.add_all(crops)
+        session.flush()
+
+        classifications = [
+            CropClassification(crop=crop, identity="Fibs", confidence=0.9)
+            for crop in crops
+        ]
+        session.add_all(classifications)
+        session.flush()
+
+        reviewed_ats = [
+            datetime(2020, 1, 1, tzinfo=UTC),
+            datetime(2022, 1, 1, tzinfo=UTC),
+            datetime(2021, 1, 1, tzinfo=UTC),
+            datetime(2019, 1, 1, tzinfo=UTC),
+        ]
+
+        for classification, reviewed_at in zip(classifications, reviewed_ats):
+            session.add(
+                ReviewAction(
+                    classification_id=classification.id,
+                    action=ReviewActions.CORRECT,
+                    identity="Fibs",
+                    created_at=reviewed_at,
+                )
+            )
+
+        session.commit()
+
+        first = ReviewQueryService(session).library(
+            sort=LibrarySort.REVIEWED_DESC, limit=2, offset=0
+        )
+        second = ReviewQueryService(session).library(
+            sort=LibrarySort.REVIEWED_DESC, limit=2, offset=2
+        )
+
+        ordered_paths = [entry.item.filename for entry in first.items + second.items]
+        assert ordered_paths == ["1.jpg", "2.jpg", "0.jpg", "3.jpg"]
+
+        ascending = ReviewQueryService(session).library(
+            sort=LibrarySort.REVIEWED_ASC, limit=4, offset=0
+        )
+        assert [e.item.filename for e in ascending.items] == [
+            "3.jpg",
+            "0.jpg",
+            "2.jpg",
+            "1.jpg",
+        ]
+
+
+def test_library_reviewed_sort_puts_unreviewed_photos_last_both_directions(engine):
+    from immich_dog_tagger.enums import LibrarySort
+
+    with Session(engine) as session:
+        reviewed_crop = Crop(detection_id=1, path="reviewed.jpg")
+        unreviewed_crop = Crop(detection_id=1, path="unreviewed.jpg")
+
+        session.add_all([reviewed_crop, unreviewed_crop])
+        session.flush()
+
+        reviewed_classification = CropClassification(
+            crop=reviewed_crop, identity="Fibs", confidence=0.9
+        )
+        unreviewed_classification = CropClassification(
+            crop=unreviewed_crop, identity="Fibs", confidence=0.9
+        )
+        session.add_all([reviewed_classification, unreviewed_classification])
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=reviewed_classification.id,
+                action=ReviewActions.CORRECT,
+                identity="Fibs",
+            )
+        )
+        session.commit()
+
+        desc = ReviewQueryService(session).library(sort=LibrarySort.REVIEWED_DESC)
+        asc = ReviewQueryService(session).library(sort=LibrarySort.REVIEWED_ASC)
+
+        assert [e.item.filename for e in desc.items] == [
+            "reviewed.jpg",
+            "unreviewed.jpg",
+        ]
+        assert [e.item.filename for e in asc.items] == [
+            "reviewed.jpg",
+            "unreviewed.jpg",
+        ]
+
+
+def test_library_reviewed_sort_tiebreaks_by_classification_id(engine):
+    from immich_dog_tagger.enums import LibrarySort
+
+    with Session(engine) as session:
+        crops = [Crop(detection_id=1, path=f"{i}.jpg") for i in range(3)]
+        session.add_all(crops)
+        session.flush()
+
+        classifications = [
+            CropClassification(crop=crop, identity="Fibs", confidence=0.9)
+            for crop in crops
+        ]
+        session.add_all(classifications)
+        session.flush()
+
+        # The first two classifications were reviewed at the exact same
+        # instant; the third was never reviewed at all.
+        same_time = datetime(2021, 1, 1, tzinfo=UTC)
+        for classification in classifications[:2]:
+            session.add(
+                ReviewAction(
+                    classification_id=classification.id,
+                    action=ReviewActions.CORRECT,
+                    identity="Fibs",
+                    created_at=same_time,
+                )
+            )
+
+        session.commit()
+
+        page = ReviewQueryService(session).library(sort=LibrarySort.REVIEWED_DESC)
+
+        assert [e.item.filename for e in page.items] == ["0.jpg", "1.jpg", "2.jpg"]
 
 
 def test_review_item_reports_location(engine):
