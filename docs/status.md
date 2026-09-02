@@ -605,6 +605,20 @@
   new compact per-row control read from the same place instead of each defining it. Correcting
   species re-fetches the full lookup afterward (identity/confidence can be reclassified server-side
   under the new species), the same pattern the existing not-animal toggle already uses.
+- [#220](https://github.com/bradreimer/immich-dog-tagger/issues/220) stopped Photo Lookup from
+  rendering an obviously-wrong overlay box for a `Detection` row that predates the EXIF-orientation
+  fixes (#137/#192). That class of stale data was already known and documented (`docs/workflow.md`
+  §7: crops/detections written before those fixes stay wrong until an operator manually runs
+  `pipeline --force`), but #213/PR #214 made it newly visible -- once Photo Lookup's `/image` route
+  started always rendering a correctly-upright image, a stale detection's pre-fix coordinates no
+  longer had a similarly-wrong image to (coincidentally) line up with, so the box landed clearly off
+  the animal instead. `PhotoLookupImage.tsx` now checks each detection's box against the loaded
+  image's actual `naturalWidth`/`naturalHeight` (the same bounds check `crops.py:47` already applies
+  at crop-write time, issue #88) and, when it falls outside the frame, shows a "Box not shown ...
+  predates an orientation fix and needs reprocessing" banner instead of drawing a mispositioned box.
+  Backend/`Detection` rows are untouched -- this is a display-only safeguard, not a fix for the
+  underlying stale coordinates, which still needs the `pipeline --force` migration `docs/workflow.md`
+  §7 describes (or a lighter-weight per-asset reprocessing path, which #220 leaves open).
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
