@@ -6,7 +6,7 @@ interface Props {
 
 export function ReviewImage({ cropId }: Props) {
   return (
-    <Card className="flex items-center justify-center overflow-hidden p-4">
+    <Card className="flex items-center justify-center overflow-hidden p-4 lg:h-full">
       <img
         src={`/api/crops/${cropId}`}
         alt="dog crop"
@@ -17,7 +17,8 @@ export function ReviewImage({ cropId }: Props) {
           object-contain
           transition-all
           duration-300
-          lg:max-h-[58vh]
+          lg:h-full
+          lg:max-h-none
         "
       />
     </Card>

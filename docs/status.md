@@ -585,6 +585,15 @@
   Known Issue below. `check-derived-data --repair` turns the existing report-only health check into
   an actual fix for missing downloads/crops (missing embedding sources still need a human, per the
   spec's scope).
+- [#218](https://github.com/bradreimer/immich-dog-tagger/issues/218) tightened the review panel's
+  desktop two-column layout, per
+  [docs/specs/review-panel-space-efficiency.md](specs/review-panel-space-efficiency.md): the image
+  and action columns now stretch to the same row height (`ReviewCard.tsx` grid, `ReviewImage.tsx`)
+  instead of top-aligning, so a wide/landscape crop no longer leaves a large empty gap below it next
+  to the taller action column; "Wrong species?" and "Not a dog or cat?" (`SpeciesChooser.tsx`,
+  `NotAnimalToggle.tsx`) now share one compact card instead of a full card each. Confirmed "View in
+  Immich"/"Edit Details" links (`ImmichPhotoLink`, `PhotoLookupLink`) were already present on every
+  review item, queue and single-item edit view alike -- no gap there.
 - [#221](https://github.com/bradreimer/immich-dog-tagger/issues/221) Photo Lookup can now correct a
   detection's species, not just its identity -- each row's identity `<select>` previously had no
   way to fix a crop assigned the wrong species in the first place (e.g. a cat cropped and

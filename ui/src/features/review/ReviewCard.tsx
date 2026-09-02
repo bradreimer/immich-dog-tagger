@@ -1,6 +1,7 @@
 import type { ReviewItem } from "../../types/review";
 import { formatDate } from "../../lib/utils";
 
+import { Card, CardContent } from "@/components/ui/card";
 import { ImmichPhotoLink } from "./components/ImmichPhotoLink";
 import { NotAnimalToggle } from "./components/NotAnimalToggle";
 import { PhotoLookupLink } from "./components/PhotoLookupLink";
@@ -52,23 +53,20 @@ export function ReviewCard({
 
       {/* Image and its action panel side by side on desktop so the most-used
           controls (species, choose identity) are reachable without scrolling
-          past the image -- see docs/specs/review-tab-engagement-and-layout.md. */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+          past the image -- see docs/specs/review-tab-engagement-and-layout.md.
+          Columns stretch to the same row height (rather than top-aligning)
+          so a short/wide image doesn't leave a gap below it -- see
+          docs/specs/review-panel-space-efficiency.md. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <ReviewImage cropId={item.crop_id} />
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <PredictionCard
             identity={item.prediction.identity}
             similarity={item.prediction.similarity}
             candidates={item.prediction.candidates}
             capturedAt={item.captured_at}
             onCorrect={onCorrect}
-            disabled={disabled}
-          />
-
-          <SpeciesChooser
-            species={item.species}
-            onCorrectSpecies={onCorrectSpecies}
             disabled={disabled}
           />
 
@@ -81,11 +79,24 @@ export function ReviewCard({
             disabled={disabled}
           />
 
-          <NotAnimalToggle
-            notAnimal={item.not_animal}
-            onToggle={onToggleNotAnimal}
-            disabled={disabled}
-          />
+          {/* Wrong species / not-a-dog-or-cat are both low-frequency
+              edge-case corrections, so they share one compact card instead
+              of a full card each. */}
+          <Card size="sm">
+            <CardContent className="space-y-4">
+              <SpeciesChooser
+                species={item.species}
+                onCorrectSpecies={onCorrectSpecies}
+                disabled={disabled}
+              />
+
+              <NotAnimalToggle
+                notAnimal={item.not_animal}
+                onToggle={onToggleNotAnimal}
+                disabled={disabled}
+              />
+            </CardContent>
+          </Card>
         </div>
       </div>
 
