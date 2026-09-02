@@ -67,6 +67,7 @@ class ClassificationService:
         limit: int | None = None,
         threshold: float | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        asset_id: int | None = None,
     ) -> ClassificationSummary:
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold
@@ -95,7 +96,7 @@ class ClassificationService:
                 break
 
             crops = (
-                self._classification_query(mode, threshold)
+                self._classification_query(mode, threshold, asset_id)
                 .filter(Crop.id > last_id)
                 .order_by(Crop.id)
                 .limit(chunk_size)
@@ -298,6 +299,7 @@ class ClassificationService:
         self,
         mode: ClassificationMode,
         threshold: float,
+        asset_id: int | None = None,
     ):
         # joinedload(Crop.detection).joinedload(Detection.asset):
         # _classify_crop() reads crop.species (derived from crop.detection.label)
@@ -306,6 +308,13 @@ class ClassificationService:
         query = self.session.query(Crop).options(
             joinedload(Crop.detection).joinedload(Detection.asset)
         )
+
+        # Scopes to a single asset's crops (issue #226's per-photo Repair
+        # action), independent of `mode` -- a repair only wants the asset it
+        # just re-detected classified, not every other pending crop in the
+        # library.
+        if asset_id is not None:
+            query = query.filter(Crop.detection.has(Detection.asset_id == asset_id))
 
         if mode == ClassificationMode.LOW_CONFIDENCE:
             return query.join(CropClassification).filter(

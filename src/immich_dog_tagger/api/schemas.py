@@ -726,3 +726,27 @@ class PhotoLookupResponse(BaseModel):
                 for detection in lookup.detections
             ],
         )
+
+
+class AssetRepairResponse(BaseModel):
+    asset_id: int
+    immich_asset_id: str
+    status: str
+    detections: int
+    dogs: int
+    cats: int
+    classified: int
+    message: str
+
+    @classmethod
+    def from_result(cls, result):
+        return cls(
+            asset_id=result.asset_id,
+            immich_asset_id=result.immich_asset_id,
+            status=result.status.value,
+            detections=result.detections,
+            dogs=result.dogs,
+            cats=result.cats,
+            classified=result.classified,
+            message=result.message,
+        )

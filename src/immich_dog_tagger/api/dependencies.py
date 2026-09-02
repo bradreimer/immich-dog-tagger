@@ -6,18 +6,26 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
-from immich_dog_tagger.config import load_config
+from immich_dog_tagger.config import Config, load_config
+from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.database import create_database
+from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.immich import ImmichClient
-from immich_dog_tagger.runtime import get_embedder
-from immich_dog_tagger.services.app_settings import AutoReclassifyService
+from immich_dog_tagger.runtime import get_embedder, get_yolo_detector
+from immich_dog_tagger.services.app_settings import (
+    AppSettingsService,
+    AutoReclassifyService,
+)
+from immich_dog_tagger.services.asset_repair import AssetRepairService
+from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
     ConfirmedClusterService,
     RecommendationClusterService,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
+from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.dogs import DogService
 from immich_dog_tagger.services.false_positives import FalsePositiveService
 from immich_dog_tagger.services.insights import InsightsService
@@ -213,4 +221,30 @@ def get_immich_client() -> ImmichClient:
     return ImmichClient(
         config.immich_url,
         config.immich_api_key,
+    )
+
+
+def get_asset_repair_service(
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+    client: Annotated[ImmichClient, Depends(get_immich_client)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> AssetRepairService:
+    policy = AppSettingsService(session).policy()
+
+    return AssetRepairService(
+        session,
+        Downloader(client, session, config.cache_dir),
+        DetectionService(
+            get_yolo_detector(),
+            session,
+            config.cache_dir,
+            CropWriter(config.crop_dir, config.crop_padding),
+        ),
+        ClassificationService(
+            session,
+            embedder,
+            IdentityClassifier(session, policy=policy),
+            policy=policy,
+        ),
     )

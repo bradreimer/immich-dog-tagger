@@ -13,6 +13,7 @@ vi.mock("@/lib/api", () => ({
   correctSpecies: vi.fn(),
   markCropNotAnimal: vi.fn(),
   unmarkCropNotAnimal: vi.fn(),
+  repairAsset: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
 }));
 

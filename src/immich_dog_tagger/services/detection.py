@@ -58,6 +58,7 @@ class DetectionService:
         limit: int | None = None,
         force: bool = False,
         should_cancel: Callable[[], bool] | None = None,
+        asset_id: int | None = None,
     ) -> DetectionSummary:
 
         query = select(Asset).where(
@@ -74,6 +75,12 @@ class DetectionService:
                     ]
                 )
             )
+
+        # Scopes to a single asset (issue #226's per-photo Repair action),
+        # overriding the status filters above the same way `force` does --
+        # a repair has to work whatever state the asset is in.
+        if asset_id is not None:
+            query = select(Asset).where(Asset.id == asset_id)
 
         if limit is not None:
             query = query.limit(limit)

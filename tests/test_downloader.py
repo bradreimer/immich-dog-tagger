@@ -436,3 +436,45 @@ def test_download_force_cleans_up_previously_downloaded_unsupported_asset(
 
         assert asset.status == AssetStatus.UNSUPPORTED
         assert not stale_file.exists()
+
+
+def test_download_pending_asset_id_scopes_to_one_asset(
+    engine,
+    tmp_path,
+):
+    # Issue #226's Repair action forces one photo back through
+    # download/detect/classify -- asset_id is what keeps that scoped to the
+    # one asset a human is looking at rather than every DOWNLOADED asset in
+    # the library.
+    with Session(engine) as session:
+        target = Asset(
+            immich_asset_id="target",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        other = Asset(
+            immich_asset_id="other",
+            checksum="abc",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+
+        session.add_all([target, other])
+        session.commit()
+
+        client = Mock()
+        client.download_asset.return_value = b"image data"
+
+        downloader = Downloader(
+            client,
+            session,
+            tmp_path,
+        )
+
+        count = downloader.download_pending(force=True, asset_id=target.id)
+
+        assert count == 1
+        client.download_asset.assert_called_once_with("target")
+        assert (tmp_path / "target.jpg").exists()
+        assert not (tmp_path / "other.jpg").exists()

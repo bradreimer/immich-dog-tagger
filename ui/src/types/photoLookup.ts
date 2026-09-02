@@ -18,3 +18,15 @@ export interface PhotoLookupResult {
   captured_at: string | null;
   detections: PhotoLookupDetection[];
 }
+
+/** Result of forcing one asset back through download/detect/classify (issue #226). */
+export interface AssetRepairResult {
+  asset_id: number;
+  immich_asset_id: string;
+  status: string;
+  detections: number;
+  dogs: number;
+  cats: number;
+  classified: number;
+  message: string;
+}

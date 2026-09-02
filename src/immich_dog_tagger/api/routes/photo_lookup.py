@@ -4,12 +4,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from immich_dog_tagger.api.dependencies import (
+    get_asset_repair_service,
     get_immich_client,
     get_photo_lookup_service,
 )
-from immich_dog_tagger.api.schemas import PhotoLookupResponse
+from immich_dog_tagger.api.schemas import AssetRepairResponse, PhotoLookupResponse
 from immich_dog_tagger.images import open_upright, to_jpeg_bytes
 from immich_dog_tagger.immich import ImmichClient, ImmichDownloadError
+from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.photo_lookup import PhotoLookupService
 
 router = APIRouter(
@@ -81,3 +83,24 @@ def photo_lookup_image(
         content=to_jpeg_bytes(image),
         media_type="image/jpeg",
     )
+
+
+@router.post("/{immich_asset_id}/repair", response_model=AssetRepairResponse)
+def repair_photo(
+    immich_asset_id: str,
+    service: Annotated[AssetRepairService, Depends(get_asset_repair_service)],
+):
+    # Forces this one asset back through download/detect/classify (issue
+    # #226) -- a deliberate, per-photo action a human takes from Review or
+    # Photo Lookup when a photo's detections look stale, not something run
+    # automatically across the library. See AssetRepairService's docstring
+    # for what this discards on an already-reviewed photo.
+    try:
+        result = service.repair(immich_asset_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        ) from e
+
+    return AssetRepairResponse.from_result(result)

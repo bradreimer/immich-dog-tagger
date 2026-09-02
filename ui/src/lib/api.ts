@@ -23,7 +23,7 @@ import type {
   PlaceCount,
   TopPhoto,
 } from "../types/insights";
-import type { PhotoLookupResult } from "../types/photoLookup";
+import type { AssetRepairResult, PhotoLookupResult } from "../types/photoLookup";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -731,6 +731,36 @@ export async function getPhotoLookup(
 
   if (!response.ok) {
     throw new Error("Failed to look up photo");
+  }
+
+  return response.json();
+}
+
+/**
+ * Forces one asset back through download/detect/classify (issue #226), for
+ * a photo whose detections look stale (predate the EXIF-orientation fix).
+ * Discards that asset's current Detection/Crop/CropClassification rows --
+ * and, with them, any recorded review history -- so callers should confirm
+ * with the user before invoking this.
+ */
+export async function repairAsset(
+  immichAssetId: string,
+): Promise<AssetRepairResult> {
+  const response = await fetch(
+    `/api/photo-lookup/${encodeURIComponent(immichAssetId)}/repair`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (response.status === 404) {
+    throw new PhotoLookupNotFoundError(
+      "That photo hasn't been scanned by this instance yet.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to repair photo");
   }
 
   return response.json();
