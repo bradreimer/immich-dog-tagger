@@ -70,6 +70,26 @@ class ClusterSort(StrEnum):
     CONFIDENCE_ASC = "confidence_asc"
 
 
+class LibrarySort(StrEnum):
+    """
+    How the flat Library catalogue (v1.11, `GET /api/library`) orders its
+    filtered, paginated result set. A superset of `ClusterSort`'s four
+    values plus a reviewed-date axis (issue #225) -- kept as its own enum
+    rather than folded into `ClusterSort` because "reviewed date" has no
+    meaning for the cluster-approval workspace's pools, which are
+    unreviewed by definition; reusing `ClusterSort` there would let a
+    reviewed-date value reach `/library/clusters*` and silently fall
+    through to a confidence sort instead of failing validation.
+    """
+
+    CAPTURED_ASC = "captured_asc"
+    CAPTURED_DESC = "captured_desc"
+    CONFIDENCE_DESC = "confidence_desc"
+    CONFIDENCE_ASC = "confidence_asc"
+    REVIEWED_DESC = "reviewed_desc"
+    REVIEWED_ASC = "reviewed_asc"
+
+
 class PipelineOperation(StrEnum):
     SCAN = "scan"
     DETECT = "detect"

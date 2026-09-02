@@ -7,7 +7,7 @@ from sqlalchemy import case, exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import ClassificationCandidate
-from immich_dog_tagger.enums import AssetStatus, ClusterSort
+from immich_dog_tagger.enums import AssetStatus, LibrarySort
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -381,7 +381,7 @@ class ReviewQueryService:
         reviewed: bool | None = None,
         captured_after: datetime | None = None,
         captured_before: datetime | None = None,
-        sort: ClusterSort = ClusterSort.CAPTURED_DESC,
+        sort: LibrarySort = LibrarySort.CAPTURED_DESC,
         limit: int = 50,
         offset: int = 0,
     ) -> LibraryPage:
@@ -390,10 +390,11 @@ class ReviewQueryService:
         `active_review()`, this never excludes already-reviewed items. The
         library is a browsable catalogue, not a queue that empties out.
 
-        `sort` reuses `ClusterSort` (v1.11): unlike clustering, which sorts a
-        single bounded in-memory pool, the library paginates over a
-        potentially large filtered set, so ordering is applied in SQL before
-        LIMIT/OFFSET rather than after fetching a page.
+        `sort` is `LibrarySort` (v1.11, extended by issue #225 with a
+        reviewed-date axis): unlike clustering, which sorts a single bounded
+        in-memory pool, the library paginates over a potentially large
+        filtered set, so ordering is applied in SQL before LIMIT/OFFSET
+        rather than after fetching a page.
         """
         filters = self._library_filters(
             identity=identity,
@@ -426,12 +427,35 @@ class ReviewQueryService:
             offset=offset,
         )
 
-    def _order_library(self, query, sort: ClusterSort):
-        if sort in (ClusterSort.CONFIDENCE_DESC, ClusterSort.CONFIDENCE_ASC):
+    def _order_library(self, query, sort: LibrarySort):
+        if sort in (LibrarySort.CONFIDENCE_DESC, LibrarySort.CONFIDENCE_ASC):
             return query.order_by(
                 CropClassification.confidence.desc()
-                if sort is ClusterSort.CONFIDENCE_DESC
+                if sort is LibrarySort.CONFIDENCE_DESC
                 else CropClassification.confidence.asc(),
+                CropClassification.id.asc(),
+            )
+
+        if sort in (LibrarySort.REVIEWED_DESC, LibrarySort.REVIEWED_ASC):
+            # A classification can carry more than one ReviewAction (e.g.
+            # corrected twice), so this orders by its *latest* action --
+            # a correlated MAX(...) scalar subquery, same shape as the
+            # captured-date subquery below.
+            reviewed_at = (
+                select(func.max(ReviewAction.created_at))
+                .select_from(ReviewAction)
+                .where(ReviewAction.classification_id == CropClassification.id)
+                .correlate(CropClassification)
+                .scalar_subquery()
+            )
+
+            # Never-reviewed photos sort last under both directions, the
+            # same null-last convention the captured-date sort below uses.
+            return query.order_by(
+                reviewed_at.is_(None).asc(),
+                reviewed_at.desc()
+                if sort is LibrarySort.REVIEWED_DESC
+                else reviewed_at.asc(),
                 CropClassification.id.asc(),
             )
 
@@ -454,7 +478,7 @@ class ReviewQueryService:
         return query.order_by(
             captured_at.is_(None).asc(),
             captured_at.desc()
-            if sort is ClusterSort.CAPTURED_DESC
+            if sort is LibrarySort.CAPTURED_DESC
             else captured_at.asc(),
             CropClassification.id.asc(),
         )

@@ -619,6 +619,20 @@
   Backend/`Detection` rows are untouched -- this is a display-only safeguard, not a fix for the
   underlying stale coordinates, which still needs the `pipeline --force` migration `docs/workflow.md`
   §7 describes (or a lighter-weight per-asset reprocessing path, which #220 leaves open).
+- [#225](https://github.com/bradreimer/immich-dog-tagger/issues/225) Library sort by most/least
+  recently classified: extends FR-2's two sort axes with a third, reusing `ReviewAction.created_at`
+  (already captured, already returned as `LibraryEntry.reviewed_at`) but not previously a sort
+  option. New `LibrarySort` enum (`enums.py`) -- a `GET /api/library`-only superset of `ClusterSort`
+  plus `reviewed_desc`/`reviewed_asc` -- deliberately kept separate from `ClusterSort` rather than
+  extended in place, since "reviewed date" has no meaning for the cluster-approval workspace's
+  pending-recommendation pools (`/library/clusters*`, still typed `ClusterSort`); a stray
+  `reviewed_desc` there now 422s instead of silently falling through to a confidence sort.
+  `ReviewQueryService._order_library()` orders by each classification's most recent `ReviewAction`
+  via a correlated `MAX(...)` scalar subquery, same shape as the existing capture-date subquery,
+  with never-reviewed photos sorting last under both directions and a classification-id tiebreak --
+  the same conventions FR-2.4 already established. See
+  [docs/specs/v1.11-library-browse-and-correct.md](specs/v1.11-library-browse-and-correct.md)'s
+  addendum.
 
 ## Current Milestone
 v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),

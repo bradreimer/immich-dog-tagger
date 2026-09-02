@@ -121,6 +121,50 @@ def test_library_pagination_params(api_client, engine):
     assert len(payload["items"]) == 2
 
 
+def test_library_accepts_reviewed_sort(api_client, engine):
+    """issue #225: GET /library's sort axis reuses ReviewAction.created_at,
+    already returned as `reviewed_at` -- unlike /library/clusters, which has
+    no meaning for a reviewed-date sort (see the rejection test below)."""
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="fibs.jpg")
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.9)
+        session.add(classification)
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.CORRECT,
+                identity="Fibs",
+            )
+        )
+        session.commit()
+
+    for sort in ("reviewed_desc", "reviewed_asc"):
+        response = api_client.get("/library", params={"sort": sort})
+
+        assert response.status_code == 200
+        assert response.json()["total"] == 1
+
+
+def test_clusters_endpoint_rejects_a_reviewed_date_sort(api_client, engine):
+    """issue #225: `reviewed_desc`/`reviewed_asc` are Library-only
+    (`LibrarySort`) -- the cluster-approval endpoints keep `ClusterSort`
+    and must 422 rather than silently falling through to a confidence
+    sort."""
+    with Session(engine) as session:
+        _seed_pet_with_candidates(session)
+
+    response = api_client.get(
+        "/library/clusters?identity=Fibs&species=dog&sort=reviewed_desc"
+    )
+
+    assert response.status_code == 422
+
+
 def test_review_queue_unaffected_by_library_route(api_client, engine):
     """DT-1112 acceptance criterion: the existing GET /review queue endpoint
     is unchanged in behavior by the addition of GET /library."""

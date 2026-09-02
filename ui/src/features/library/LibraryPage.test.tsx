@@ -142,6 +142,24 @@ describe("LibraryPage", () => {
     await waitFor(() => expect(lastLibraryQuery().sort).toBe("confidence_desc"));
   });
 
+  it("sends the reviewed-date sort order (issue #225)", async () => {
+    render(<LibraryPage />);
+
+    await waitFor(() => expect(lastLibraryQuery().sort).toBe("captured_desc"));
+
+    fireEvent.change(await screen.findByLabelText("Sort"), {
+      target: { value: "reviewed_desc" },
+    });
+
+    await waitFor(() => expect(lastLibraryQuery().sort).toBe("reviewed_desc"));
+
+    fireEvent.change(screen.getByLabelText("Sort"), {
+      target: { value: "reviewed_asc" },
+    });
+
+    await waitFor(() => expect(lastLibraryQuery().sort).toBe("reviewed_asc"));
+  });
+
   it("resets pagination when a filter or the sort changes", async () => {
     mockLibrary(120);
 
