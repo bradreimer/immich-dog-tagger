@@ -1,10 +1,12 @@
 import type { ReviewItem } from "../../types/review";
+import type { AssetRepairResult } from "../../types/photoLookup";
 import { formatDate } from "../../lib/utils";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { ImmichPhotoLink } from "./components/ImmichPhotoLink";
 import { NotAnimalToggle } from "./components/NotAnimalToggle";
 import { PhotoLookupLink } from "./components/PhotoLookupLink";
+import { RepairButton } from "./components/RepairButton";
 import { ReviewImage } from "./components/ReviewImage";
 import { PredictionCard } from "./components/PredictionCard";
 import { SimilarExample } from "./components/SimilarExample";
@@ -21,6 +23,7 @@ interface Props {
   /** Omitted in single-item mode (v1.11): there is no queue to skip past. */
   onSkip?: () => void;
   onToggleNotAnimal: () => void;
+  onRepaired: (result: AssetRepairResult) => void;
   disabled: boolean;
 }
 
@@ -32,6 +35,7 @@ export function ReviewCard({
   onCorrectSpecies,
   onSkip,
   onToggleNotAnimal,
+  onRepaired,
   disabled,
 }: Props) {
   return (
@@ -49,6 +53,11 @@ export function ReviewCard({
         />
 
         <PhotoLookupLink assetId={item.immich_asset_id} />
+
+        <RepairButton
+          immichAssetId={item.immich_asset_id}
+          onRepaired={onRepaired}
+        />
       </div>
 
       {/* Image and its action panel side by side on desktop so the most-used

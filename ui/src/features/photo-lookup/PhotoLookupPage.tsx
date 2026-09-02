@@ -15,8 +15,9 @@ import { parseImmichAssetId } from "@/lib/immich";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
+import { RepairButton } from "@/features/review/components/RepairButton";
 import type { Dog } from "@/types/dogs";
-import type { PhotoLookupResult } from "@/types/photoLookup";
+import type { AssetRepairResult, PhotoLookupResult } from "@/types/photoLookup";
 
 import { DetectionList } from "./components/DetectionList";
 import { PhotoLookupImage } from "./components/PhotoLookupImage";
@@ -27,6 +28,7 @@ export function PhotoLookupPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PhotoLookupResult | null>(null);
   const [identities, setIdentities] = useState<Dog[]>([]);
+  const [repairMessage, setRepairMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getDogs()
@@ -36,6 +38,7 @@ export function PhotoLookupPage() {
 
   const runLookup = async (assetId: string) => {
     setError(null);
+    setRepairMessage(null);
     setLoading(true);
 
     try {
@@ -130,6 +133,11 @@ export function PhotoLookupPage() {
     }
   };
 
+  const handleRepaired = async (repairResult: AssetRepairResult) => {
+    setRepairMessage(repairResult.message);
+    setResult(await getPhotoLookup(repairResult.immich_asset_id));
+  };
+
   return (
     <section className="space-y-6">
       <Card>
@@ -158,9 +166,20 @@ export function PhotoLookupPage() {
 
       {result && (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Taken {formatDate(result.captured_at)}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-sm text-muted-foreground">
+              Taken {formatDate(result.captured_at)}
+            </p>
+
+            <RepairButton
+              immichAssetId={result.immich_asset_id}
+              onRepaired={handleRepaired}
+            />
+          </div>
+
+          {repairMessage && (
+            <p className="text-sm text-muted-foreground">{repairMessage}</p>
+          )}
 
           <PhotoLookupImage
             imageUrl={`/api/photo-lookup/${encodeURIComponent(result.immich_asset_id)}/image`}

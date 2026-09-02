@@ -811,3 +811,75 @@ def test_classification_isolates_missing_crop_file(engine, tmp_path):
         result = session.query(CropClassification).one()
 
         assert result.crop_id == good_crop.id
+
+
+def test_classification_asset_id_scopes_to_one_asset(engine):
+    from unittest.mock import Mock
+
+    # Issue #226's Repair action classifies only the one photo it just
+    # re-detected -- asset_id keeps a mode=PENDING classify from also
+    # picking up unrelated pending crops elsewhere in the library.
+    with Session(engine) as session:
+        target_asset = Asset(
+            immich_asset_id="target",
+            checksum="xyz",
+            extension=".jpg",
+        )
+        other_asset = Asset(
+            immich_asset_id="other",
+            checksum="abc",
+            extension=".jpg",
+        )
+
+        target_detection = Detection(
+            asset=target_asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+        other_detection = Detection(
+            asset=other_asset,
+            label="dog",
+            confidence=0.99,
+            x1=0,
+            y1=0,
+            x2=100,
+            y2=100,
+        )
+
+        target_crop = Crop(detection=target_detection, path="target.jpg")
+        other_crop = Crop(detection=other_detection, path="other.jpg")
+
+        session.add_all([target_crop, other_crop])
+        session.commit()
+
+        embedder = Mock()
+        embedder.embed_batch.return_value = np.zeros((1, 512), dtype=np.float32)
+
+        classifier = Mock()
+        classifier.classify.return_value = ClassificationResult(
+            identity="Hermann",
+            similarity=0.95,
+            matched_example_id=None,
+            candidates=[],
+        )
+
+        service = ClassificationService(
+            session,
+            embedder,
+            classifier,
+        )
+
+        summary = service.classify(asset_id=target_asset.id)
+
+        assert summary.classified == 1
+
+        result = session.query(CropClassification).one()
+
+        assert result.crop_id == target_crop.id
+        assert (
+            session.query(Crop).filter_by(id=other_crop.id).one().classification is None
+        )

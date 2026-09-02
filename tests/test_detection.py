@@ -792,3 +792,51 @@ def test_detection_honors_should_cancel_and_keeps_only_committed_batches(
             verify_session.query(Asset).filter_by(status=AssetStatus.DETECTED).count()
             == BATCH_SIZE
         )
+
+
+def test_detection_asset_id_scopes_to_one_asset(
+    engine,
+    tmp_path,
+):
+    # Issue #226's Repair action re-detects one photo -- asset_id keeps
+    # `force` (which would otherwise replace every DOWNLOADED/DETECTED
+    # asset's detections) scoped to just that one.
+    with Session(engine) as session:
+        target = Asset(
+            immich_asset_id="target",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+        other = Asset(
+            immich_asset_id="other",
+            checksum="abc",
+            extension=".jpg",
+            status=AssetStatus.DOWNLOADED,
+        )
+
+        session.add_all([target, other])
+        session.commit()
+
+        target.cache_path(tmp_path).write_bytes(b"data")
+        other.cache_path(tmp_path).write_bytes(b"data")
+
+        service = DetectionService(
+            FakeDetector(),
+            session,
+            tmp_path,
+        )
+
+        summary = service.run(force=True, asset_id=target.id)
+
+        assert summary.processed == 1
+
+        session.refresh(target)
+        session.refresh(other)
+
+        assert target.status == AssetStatus.DETECTED
+        assert other.status == AssetStatus.DOWNLOADED
+
+        detections = session.query(Detection).all()
+        assert len(detections) == 1
+        assert detections[0].asset_id == target.id

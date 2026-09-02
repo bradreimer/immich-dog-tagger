@@ -36,6 +36,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -54,6 +55,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -78,6 +80,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -98,6 +101,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -116,6 +120,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -136,6 +141,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -156,6 +162,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={onToggleNotAnimal}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -174,6 +181,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );
@@ -192,6 +200,7 @@ describe("ReviewCard", () => {
         onCorrectSpecies={vi.fn()}
         onSkip={vi.fn()}
         onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
         disabled={false}
       />,
     );

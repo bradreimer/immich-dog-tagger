@@ -14,6 +14,7 @@ import {
   skipClassification,
   unmarkCropNotAnimal,
 } from "../../lib/api";
+import type { AssetRepairResult } from "../../types/photoLookup";
 
 import { Button } from "@/components/ui/button";
 import { KeyboardHints } from "./components/KeyboardHints";
@@ -58,6 +59,7 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
   const [immichUrl, setImmichUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [repaired, setRepaired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -149,6 +151,13 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
     }
   }, [item, classificationId]);
 
+  // Repairing recreates this photo's Detection/Crop/CropClassification rows
+  // (issue #226), so `classificationId` -- and this page's URL -- no longer
+  // points at anything: there is nothing left here to refetch or re-edit.
+  const handleRepaired = useCallback(() => {
+    setRepaired(true);
+  }, []);
+
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl">
@@ -163,6 +172,23 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
         <h1 className="text-3xl font-semibold tracking-tight">Photo not found</h1>
         <p className="text-muted-foreground">
           That classification doesn&apos;t exist.
+        </p>
+        <a
+          href="/library"
+          className="text-sm text-primary underline-offset-4 hover:underline"
+        >
+          Back to Library
+        </a>
+      </div>
+    );
+  }
+
+  if (repaired) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4">
+        <h1 className="text-3xl font-semibold tracking-tight">Photo repaired</h1>
+        <p className="text-muted-foreground">
+          This photo was reprocessed, so this link no longer points at a valid edit.
         </p>
         <a
           href="/library"
@@ -214,6 +240,7 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
         onCorrect={correct}
         onCorrectSpecies={correctSpeciesForItem}
         onToggleNotAnimal={toggleNotAnimal}
+        onRepaired={handleRepaired}
         disabled={saving}
       />
     </div>
@@ -229,6 +256,7 @@ function ReviewQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [repairMessage, setRepairMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>("all");
   const [saving, setSaving] = useState(false);
   const [milestone, setMilestone] = useState<number | null>(null);
@@ -261,6 +289,7 @@ function ReviewQueuePage() {
     setLoading(true);
     setError(null);
     setActionError(null);
+    setRepairMessage(null);
 
     try {
       const [queue, queueStats, dogItems, settings] = await Promise.all([
@@ -428,6 +457,26 @@ function ReviewQueuePage() {
   }, [items, index, applyReviewStats]);
 
 
+  // Repairing recreates the current item's Detection/Crop/CropClassification
+  // rows (issue #226) under a new classification_id, so it leaves the queue
+  // the same way correct/skip do -- it'll reappear on the next load if the
+  // freshly classified result still needs review.
+  const handleRepaired = useCallback(
+    async (result: AssetRepairResult) => {
+      setActionError(null);
+      setRepairMessage(result.message);
+
+      setItems((current) => {
+        const next = current.filter((_, i) => i !== index);
+        setIndex((currentIndex) => Math.min(currentIndex, next.length - 1));
+        return next;
+      });
+
+      applyReviewStats(await getReviewStats());
+    },
+    [index, applyReviewStats],
+  );
+
   const previous = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
   }, []);
@@ -578,6 +627,12 @@ function ReviewQueuePage() {
       </p>
     )}
 
+    {repairMessage && (
+      <p className="text-sm text-muted-foreground">
+      {repairMessage}
+      </p>
+    )}
+
     <ReviewCard
       item={item}
       identities={speciesIdentities}
@@ -586,6 +641,7 @@ function ReviewQueuePage() {
       onCorrectSpecies={correctSpeciesForCurrentItem}
       onSkip={skip}
       onToggleNotAnimal={toggleNotAnimal}
+      onRepaired={handleRepaired}
       disabled={saving}
     />
 

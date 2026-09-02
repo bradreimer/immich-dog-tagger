@@ -17,6 +17,7 @@ vi.mock("@/lib/api", () => ({
   markCropNotAnimal: vi.fn(),
   unmarkCropNotAnimal: vi.fn(),
   getClassification: vi.fn(),
+  repairAsset: vi.fn(),
   ClassificationNotFoundError: class ClassificationNotFoundError extends Error {},
 }));
 
