@@ -4,7 +4,7 @@ import { cancelJob, clearJobHistory, getDiagnostics, getJobs } from "../../lib/a
 import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
 import type { JobOperation, PipelineJob } from "../../types/jobs";
 import type { Diagnostics } from "../../types/diagnostics";
-import { IconAlertTriangle, IconLoader2, IconPlayerStop, IconRefresh, IconTrash } from "@tabler/icons-react";
+import { IconAlertTriangle, IconLoader2, IconPlayerStop, IconRefresh, IconTrash, IconX } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,6 +128,7 @@ export function JobQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [clearConfirming, setClearConfirming] = useState(false);
   const [cancelingIds, setCancelingIds] = useState<Set<number>>(new Set());
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -185,6 +186,7 @@ export function JobQueuePage() {
       setError(err instanceof Error ? err.message : "Failed to clear job history");
     } finally {
       setClearing(false);
+      setClearConfirming(false);
     }
   }, [groups.history, load]);
 
@@ -326,10 +328,38 @@ export function JobQueuePage() {
             <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
           </div>
 
-          <Button variant="outline" size="sm" onClick={clearVisibleHistory} disabled={groups.history.length === 0 || clearing}>
-            <IconTrash className="h-4 w-4" aria-hidden="true" />
-            Clear list
-          </Button>
+          {clearConfirming ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={clearVisibleHistory}
+                disabled={clearing}
+              >
+                <IconTrash className="h-4 w-4" aria-hidden="true" />
+                {clearing ? "Clearing…" : "Yes, clear list"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setClearConfirming(false)}
+                disabled={clearing}
+              >
+                <IconX className="h-4 w-4" aria-hidden="true" />
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setClearConfirming(true)}
+              disabled={groups.history.length === 0 || clearing}
+            >
+              <IconTrash className="h-4 w-4" aria-hidden="true" />
+              Clear list
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {groups.history.length === 0 ? (
