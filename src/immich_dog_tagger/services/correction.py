@@ -57,6 +57,22 @@ class ClassificationCorrectionService:
             raise ValueError(f"Classification {classification_id} not found")
 
         original_identity = classification.identity
+        crop_path = Path(classification.crop.path) if self.learner is not None else None
+        is_learnable = (
+            self.learner is not None and identity is not None and identity != "Unknown"
+        )
+
+        # Run embedding inference (if any) before any write touches the
+        # session below. This is a slow, CPU/GPU-bound step, and running it
+        # after the classification/ReviewAction writes would hold state.db's
+        # write lock -- taken as soon as those writes autoflush -- for
+        # however long inference takes, blocking every other writer in the
+        # app (e.g. creating a new pipeline job) until it either finishes or
+        # exhausts the busy_timeout (issue #234). Nothing here has written
+        # anything yet, so this only needs a read lock.
+        learn_embedding = (
+            self.learner.embedder.embed(crop_path) if is_learnable else None
+        )
 
         self.session.add(
             ReviewAction(
@@ -74,9 +90,7 @@ class ClassificationCorrectionService:
         PetOccurrenceService(self.session).sync_classification(classification)
 
         if self.learner is not None:
-            crop_path = Path(classification.crop.path)
-
-            if identity is not None and identity != "Unknown":
+            if is_learnable:
                 captured_at = None
                 latitude = None
                 longitude = None
@@ -98,6 +112,7 @@ class ClassificationCorrectionService:
                     captured_at=captured_at,
                     latitude=latitude,
                     longitude=longitude,
+                    embedding=learn_embedding,
                 )
             else:
                 # Corrected to Unknown: this crop should no longer serve as a
