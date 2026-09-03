@@ -36,6 +36,22 @@ class ImmichRemoveAssetsFromAlbumError(Exception):
     pass
 
 
+class ImmichListTagsError(Exception):
+    pass
+
+
+class ImmichCreateTagError(Exception):
+    pass
+
+
+class ImmichTagAssetsError(Exception):
+    pass
+
+
+class ImmichUntagAssetsError(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class ImmichPerson:
     """
@@ -285,5 +301,80 @@ class ImmichClient:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise ImmichRemoveAssetsFromAlbumError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
+
+    def list_tags(self) -> list[dict]:
+        response = self.client.get(
+            f"{self.url}/api/tags",
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichListTagsError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
+
+        return response.json()
+
+    def create_tag(
+        self,
+        name: str,
+    ) -> str:
+        response = self.client.post(
+            f"{self.url}/api/tags",
+            json={
+                "name": name,
+            },
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichCreateTagError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
+
+        return response.json()["id"]
+
+    def tag_assets(
+        self,
+        tag_id: str,
+        asset_ids: list[str],
+    ) -> None:
+        response = self.client.put(
+            f"{self.url}/api/tags/{tag_id}/assets",
+            json={
+                "ids": asset_ids,
+            },
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichTagAssetsError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
+
+    def untag_assets(
+        self,
+        tag_id: str,
+        asset_ids: list[str],
+    ) -> None:
+        # DELETE with a JSON body, same as remove_assets_from_album -- httpx.Client.request()
+        # is needed directly since .delete() doesn't accept a json= body.
+        response = self.client.request(
+            "DELETE",
+            f"{self.url}/api/tags/{tag_id}/assets",
+            json={
+                "ids": asset_ids,
+            },
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichUntagAssetsError(
                 f"Immich API error {response.status_code}: {response.text}"
             ) from exc

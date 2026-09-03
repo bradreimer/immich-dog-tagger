@@ -184,7 +184,7 @@ export function DogManagementCard({ onNavigate }: Props) {
         `Merged “${result.source.name}” into “${result.target.name}”: ` +
           `${result.classifications_reassigned} photo(s) and ` +
           `${result.examples_reassigned} reference example(s) moved. ` +
-          `“${result.source.name}” is now deactivated. Run a sync to update the Immich albums.`,
+          `“${result.source.name}” is now deactivated. Run a sync to update the Immich albums and tags.`,
       );
       closeMerge();
     } catch (err) {

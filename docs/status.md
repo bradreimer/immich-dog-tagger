@@ -633,9 +633,27 @@
   the same conventions FR-2.4 already established. See
   [docs/specs/v1.11-library-browse-and-correct.md](specs/v1.11-library-browse-and-correct.md)'s
   addendum.
+- [#230](https://github.com/bradreimer/immich-dog-tagger/issues/230) v1.12.0 Immich Tag Sync: Sync
+  previously wrote each classified identity back to Immich as an album only; it now also writes it
+  as an Immich **tag** (`/api/tags`), so identity is searchable/filterable directly on the asset in
+  Immich, not just implied by album membership. New `TagService`, structurally identical to
+  `AlbumService`, and `ImmichClient.list_tags`/`create_tag`/`tag_assets`/`untag_assets`.
+  `SyncService` gained an optional `tags: TagService | None` parameter; when provided, `sync()`
+  tags new membership and untags stale membership (DT-1113) over the exact same
+  `(species, identity) -> asset_ids` map already computed for albums, including manual tags
+  (issue #147/#200's `ManualAssetTag`). Both production sync call sites always pass a `TagService`,
+  so this is on by default. Deliberately out of scope: writing to Immich's People/face-recognition
+  surface -- called out as a bigger, separate decision in
+  `docs/competitive-analysis-library-workflow.md` (G8). See
+  [docs/specs/immich-tag-sync.md](specs/immich-tag-sync.md).
 
 ## Current Milestone
-v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
+v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),
+[docs/specs/immich-tag-sync.md](specs/immich-tag-sync.md)) is **complete**. Sync now also writes
+each classified identity to Immich as a tag alongside the existing album, on by default. See the
+Completed entry above for detail.
+
+Previously: v1.11.0 Library as a browse-and-correct catalogue ([#196](https://github.com/bradreimer/immich-dog-tagger/issues/196),
 [docs/specs/v1.11-library-browse-and-correct.md](specs/v1.11-library-browse-and-correct.md)) is
 **complete**. It reverts the Library page's primary UI to a flat, filterable, sortable, paginated
 catalogue with a per-photo details panel, and lets the Review page edit any single classification
@@ -685,7 +703,8 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-No queued numbered milestone -- v1.11.0 (#196) shipped complete, with one open question left in
+No queued numbered milestone -- v1.12.0 (#230) shipped complete, no open questions. v1.11.0 (#196)
+also shipped complete, with one open question left in
 its spec: what becomes of the cluster-approval workspace UI removed from the Library page (a
 separate page, a second tab, or left unreachable until there's a concrete need). v1.10.0 (#183)
 also shipped complete, including its own open question (FR-6-style "reject to no pet" from the
@@ -693,8 +712,8 @@ confirmed view was considered and left out of scope; see that spec's Open questi
 
 Loose threads, none of them blocking: #146's coverage figure is a share while
 review settled on two plain counts (spec Open questions); and whether confirmed pets should
-also be written to Immich's People surface rather than only albums remains an open ADR-sized
-question, deliberately out of v1.8.0's scope.
+also be written to Immich's People surface, rather than only albums and (as of #230) tags, remains
+an open ADR-sized question, deliberately out of v1.8.0's and #230's scope.
 
 New: [docs/specs/automation-schedule-settings.md](specs/automation-schedule-settings.md) scopes
 moving Automation Schedules off Overview and into Settings, replacing the free-form

@@ -22,6 +22,7 @@ from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.pipeline import PipelineService
 from immich_dog_tagger.services.reclassify import ReclassifyService
 from immich_dog_tagger.services.sync import SyncService
+from immich_dog_tagger.services.tags import TagService
 from immich_dog_tagger.yolo_detector import YOLODetector
 
 
@@ -347,11 +348,14 @@ def _sync_handler(
     options: dict,
 ):
     def run(progress: JobProgressReporter) -> dict[str, int]:
-        progress.message("Synchronizing albums")
+        progress.message("Synchronizing albums and tags")
+
+        client = _create_client(config)
 
         service = SyncService(
             session,
-            AlbumService(_create_client(config)),
+            AlbumService(client),
+            tags=TagService(client),
         )
         summary = service.sync(
             dry_run=options.get("dry_run", False),

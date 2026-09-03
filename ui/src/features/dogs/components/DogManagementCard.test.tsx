@@ -78,6 +78,8 @@ describe("DogManagementCard merge", () => {
     expect(
       await screen.findByText(/12 photo\(s\) and 3 reference example\(s\) moved/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Run a sync to update the Immich albums/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Run a sync to update the Immich albums and tags/),
+    ).toBeInTheDocument();
   });
 });

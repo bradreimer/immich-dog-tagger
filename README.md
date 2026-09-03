@@ -5,7 +5,7 @@
 Immich can already tell you a photo contains a dog. It can't tell you it's *Hermann*. This project
 adds that layer: it finds each animal in your [Immich](https://immich.app/) photo library, learns
 to tell individual pets apart from corrections you make in a review UI, and syncs the results back
-to Immich as albums — one per pet.
+to Immich as albums and tags — one of each per pet.
 
 It's a sidecar, not a fork or a replacement. It runs next to your Immich instance, talks to it
 only through the API, and never touches Immich's own database. Everything it learns lives in its
@@ -35,8 +35,9 @@ detect → classify → review → correct → learn → sync
 4. **Correct.** Wrong guesses get fixed with one click or keypress.
 5. **Learn.** Every correction becomes a new reference example. Future guesses get better because
    there are more examples to compare against — no retraining, no model weights change.
-6. **Sync.** Confirmed identities are published back to Immich as albums (`Dog - Hermann`,
-   `Cat - Rory`, ...).
+6. **Sync.** Confirmed identities are published back to Immich as albums and tags (`Dog - Hermann`,
+   `Cat - Rory`, ...), so each pet is both browsable as an album and searchable/filterable as a tag
+   directly on the photo in Immich.
 
 Run the loop, review a batch, hit Reclassify to re-score everything else against what you just
 taught it, repeat. The more you review, the less you need to.

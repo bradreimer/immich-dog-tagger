@@ -71,7 +71,7 @@ const AUTOMATION_OPERATIONS: AutomationOperation[] = [
     operation: "sync",
     title: "Publish labels back to Immich",
     description:
-      "Use this when the current classifications look good and you want to write those identities into Immich albums.",
+      "Use this when the current classifications look good and you want to write those identities into Immich albums and tags.",
     toggleLabel: "Enable automatic sync to Immich",
     icon: IconCloudUpload,
   },

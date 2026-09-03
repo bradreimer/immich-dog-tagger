@@ -12,6 +12,7 @@ from immich_dog_tagger.models import (
 )
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.sync_policy import SyncPolicy
+from immich_dog_tagger.services.tags import TagService
 
 
 @dataclass(frozen=True)
@@ -42,10 +43,12 @@ class SyncService:
         session: Session,
         albums: AlbumService,
         policy: SyncPolicy | None = None,
+        tags: TagService | None = None,
     ):
         self.session = session
         self.albums = albums
         self.policy = policy or SyncPolicy()
+        self.tags = tags
 
     def sync(
         self,
@@ -134,6 +137,13 @@ class SyncService:
                     species=species,
                 )
 
+                if self.tags is not None:
+                    self.tags.sync_identity(
+                        identity,
+                        sorted(asset_ids),
+                        species=species,
+                    )
+
             summary.append(
                 SyncIdentitySummary(
                     identity=identity,
@@ -170,8 +180,9 @@ class SyncService:
         what was last synced (DT-1113). An asset present in a previous
         membership but absent from that same membership now -- because it
         was corrected to a different identity, or to Unknown -- needs
-        removing from its old album; otherwise it silently stays in both
-        the old and new identity's albums forever.
+        removing from its old album (and, when tag sync is enabled, its old
+        tag, issue #230); otherwise it silently stays attached to both the
+        old and new identity forever.
         """
         previous = self._previously_synced_state()
 
@@ -185,6 +196,13 @@ class SyncService:
                     sorted(stale),
                     species=species,
                 )
+
+                if self.tags is not None:
+                    self.tags.remove_from_identity(
+                        identity,
+                        sorted(stale),
+                        species=species,
+                    )
 
     def _save_synced_state(
         self,

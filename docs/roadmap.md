@@ -336,6 +336,31 @@ Completed.
 
 ---
 
+## v1.12.0 - Immich Tag Sync
+
+See [docs/specs/immich-tag-sync.md](specs/immich-tag-sync.md). Tracking issue:
+[#230](https://github.com/bradreimer/immich-dog-tagger/issues/230).
+
+Goal:
+Sync wrote each classified identity back to Immich as an album only. Also write it as an Immich
+**tag**, so identity is a first-class, searchable attribute of the asset itself in Immich, not
+just implied by album membership.
+
+Completed:
+- #230: new `TagService` (structurally identical to `AlbumService`) and `ImmichClient.list_tags`/
+  `create_tag`/`tag_assets`/`untag_assets`, wrapping Immich's `/api/tags` endpoints. `SyncService`
+  gained an optional `tags: TagService | None` constructor parameter; when provided, `sync()` tags
+  every asset it adds to an identity's album and untags stale membership the same way it already
+  removes stale album membership (DT-1113). Both production sync call sites (`cli.py`'s dry-run
+  path, `services/job_execution.py`'s `_sync_handler`) always pass a `TagService`, so tag sync is
+  on by default, not opt-in. Deliberately out of scope: writing to Immich's People/face-recognition
+  surface (a materially bigger integration, see `docs/competitive-analysis-library-workflow.md` G8).
+
+Exit criteria:
+Completed.
+
+---
+
 ## Active Learning Improvements
 
 Goal:

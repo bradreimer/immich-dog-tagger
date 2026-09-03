@@ -88,9 +88,9 @@ export function OverviewPage() {
       headline: "Publish labels back to Immich",
       actionLabel: "Sync",
       description:
-        "Use this when the current classifications look good and you want to write those identities into Immich albums.",
+        "Use this when the current classifications look good and you want to write those identities into Immich albums and tags.",
       icon: IconCloudUpload,
-      ariaLabel: "Synchronize album to Immich",
+      ariaLabel: "Synchronize albums and tags to Immich",
     },
   ];
 
