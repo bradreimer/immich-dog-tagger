@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
@@ -93,6 +93,23 @@ class PipelineJobRepository:
             query = query.where(PipelineJob.id != exclude_job_id)
 
         return self.session.scalar(query.limit(1)) is not None
+
+    def status_counts(self) -> dict[PipelineJobStatus, int]:
+        rows = self.session.execute(
+            select(PipelineJob.status, func.count(PipelineJob.id)).group_by(
+                PipelineJob.status
+            )
+        ).all()
+
+        return {status: count for status, count in rows}
+
+    def recent_failures(self, *, limit: int = 5) -> list[PipelineJob]:
+        return self.session.scalars(
+            select(PipelineJob)
+            .where(PipelineJob.status == PipelineJobStatus.FAILED)
+            .order_by(PipelineJob.completed_at.desc())
+            .limit(limit)
+        ).all()
 
     def hide_finished_jobs(self) -> int:
         """
@@ -254,6 +271,12 @@ class PipelineJobService:
                 select(PipelineJob.cancel_requested).where(PipelineJob.id == job_id)
             ).scalar_one()
         )
+
+    def status_counts(self) -> dict[PipelineJobStatus, int]:
+        return self.repository.status_counts()
+
+    def recent_failures(self, *, limit: int = 5) -> list[PipelineJob]:
+        return self.repository.recent_failures(limit=limit)
 
     def clear_history(self) -> int:
         cleared = self.repository.hide_finished_jobs()

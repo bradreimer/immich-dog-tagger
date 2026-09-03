@@ -3,19 +3,17 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.api.dependencies import get_config, get_session
+from immich_dog_tagger.api.dependencies import get_config, get_job_service, get_session
 from immich_dog_tagger.config import Config
-from immich_dog_tagger.enums import PipelineJobStatus
-from immich_dog_tagger.models import PipelineJob
 from immich_dog_tagger.services.backup import BackupService
 from immich_dog_tagger.services.derived_data import DerivedDataService
 from immich_dog_tagger.services.job_recovery import (
     STUCK_JOB_IDLE_THRESHOLD,
     find_stuck_jobs,
 )
+from immich_dog_tagger.services.jobs import PipelineJobService
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth
 
 router = APIRouter()
@@ -26,25 +24,18 @@ def diagnostics(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
     config: Annotated[Config, Depends(get_config)],
+    job_service: Annotated[PipelineJobService, Depends(get_job_service)],
 ):
     scheduler_health: SchedulerHealth | None = getattr(
         request.app.state, "scheduler_health", None
     )
 
     # Job summary
-    job_rows = session.execute(
-        select(PipelineJob.status, func.count(PipelineJob.id)).group_by(
-            PipelineJob.status
-        )
-    ).all()
-    job_counts: dict[str, int] = {str(row[0].value): row[1] for row in job_rows}
+    job_counts: dict[str, int] = {
+        status.value: count for status, count in job_service.status_counts().items()
+    }
 
-    recent_failures = session.scalars(
-        select(PipelineJob)
-        .where(PipelineJob.status == PipelineJobStatus.FAILED)
-        .order_by(PipelineJob.completed_at.desc())
-        .limit(5)
-    ).all()
+    recent_failures = job_service.recent_failures(limit=5)
 
     # Not "every RUNNING/PENDING job" -- an active job is a healthy job
     # until it stops making progress (issue #134).
