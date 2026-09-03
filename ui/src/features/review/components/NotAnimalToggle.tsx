@@ -8,9 +8,12 @@ interface Props {
 }
 
 /**
- * A YOLO false positive, distinct from a species or identity mistake (issue
- * #185) -- this box isn't a dog or cat at all. Mirrors Photo Lookup's
- * DetectionList row, the toggle's original home.
+ * Distinct from a species or identity mistake (issue #185): either this box
+ * isn't a dog or cat at all (a YOLO false positive), or it is one but the
+ * reviewer doesn't recognize it / doesn't want to assign it an identity --
+ * both settle to the same Unknown state, so one toggle covers both, per
+ * ADR-009. Mirrors Photo Lookup's DetectionList row, the toggle's original
+ * home.
  *
  * Content-only (no Card wrapper) so ReviewCard can group this with
  * SpeciesChooser inside one shared card -- see
