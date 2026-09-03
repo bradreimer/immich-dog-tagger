@@ -3,7 +3,12 @@ import json
 import httpx
 import pytest
 
-from immich_dog_tagger.immich import ImmichClient, ImmichRemoveAssetsFromAlbumError
+from immich_dog_tagger.immich import (
+    ImmichClient,
+    ImmichRemoveAssetsFromAlbumError,
+    ImmichTagAssetsError,
+    ImmichUntagAssetsError,
+)
 
 
 def test_list_assets():
@@ -263,6 +268,114 @@ def test_remove_assets_from_album_raises_on_error():
 
     with pytest.raises(ImmichRemoveAssetsFromAlbumError):
         client.remove_assets_from_album("album1", ["asset1"])
+
+
+def test_list_tags():
+    def handler(request):
+        assert request.headers["x-api-key"] == "secret"
+
+        return httpx.Response(
+            200,
+            json=[{"id": "tag1", "name": "Dog - Fibs"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    tags = client.list_tags()
+
+    assert tags == [{"id": "tag1", "name": "Dog - Fibs"}]
+
+
+def test_create_tag():
+    captured = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+
+        return httpx.Response(201, json={"id": "tag1", "name": "Dog - Fibs"})
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    tag_id = client.create_tag("Dog - Fibs")
+
+    assert tag_id == "tag1"
+    assert captured["body"] == {"name": "Dog - Fibs"}
+
+
+def test_tag_assets():
+    captured = {}
+
+    def handler(request):
+        captured["method"] = request.method
+        captured["url"] = str(request.url)
+        captured["body"] = json.loads(request.content)
+
+        return httpx.Response(200, json=[{"success": True}])
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.tag_assets("tag1", ["asset1", "asset2"])
+
+    assert captured["method"] == "PUT"
+    assert captured["url"] == "http://immich.test/api/tags/tag1/assets"
+    assert captured["body"] == {"ids": ["asset1", "asset2"]}
+
+
+def test_tag_assets_raises_on_error():
+    def handler(request):
+        return httpx.Response(500, text="boom")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport)
+
+    with pytest.raises(ImmichTagAssetsError):
+        client.tag_assets("tag1", ["asset1"])
+
+
+def test_untag_assets():
+    captured = {}
+
+    def handler(request):
+        captured["method"] = request.method
+        captured["url"] = str(request.url)
+        captured["body"] = json.loads(request.content)
+
+        return httpx.Response(200, json=[{"success": True}])
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.untag_assets("tag1", ["asset1", "asset2"])
+
+    assert captured["method"] == "DELETE"
+    assert captured["url"] == "http://immich.test/api/tags/tag1/assets"
+    assert captured["body"] == {"ids": ["asset1", "asset2"]}
+
+
+def test_untag_assets_raises_on_error():
+    def handler(request):
+        return httpx.Response(500, text="boom")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport)
+
+    with pytest.raises(ImmichUntagAssetsError):
+        client.untag_assets("tag1", ["asset1"])
 
 
 def test_client_creation():

@@ -27,6 +27,7 @@ from .services.pet_occurrences import PetOccurrenceService
 from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
 from .services.sync import SyncService
+from .services.tags import TagService
 
 
 def run_operation_job(
@@ -532,6 +533,7 @@ def sync_command(args) -> None:
             service = SyncService(
                 session,
                 AlbumService(client),
+                tags=TagService(client),
             )
 
             summary = service.sync(

@@ -45,6 +45,40 @@ class FakeAlbums:
         )
 
 
+class FakeTags:
+    def __init__(self):
+        self.calls = []
+        self.removals = []
+
+    def sync_identity(
+        self,
+        identity,
+        asset_ids,
+        species="dog",
+    ):
+        self.calls.append(
+            (
+                identity,
+                asset_ids,
+                species,
+            )
+        )
+
+    def remove_from_identity(
+        self,
+        identity,
+        asset_ids,
+        species="dog",
+    ):
+        self.removals.append(
+            (
+                identity,
+                asset_ids,
+                species,
+            )
+        )
+
+
 def test_sync_groups_assets(engine):
     with Session(engine) as session:
         asset = Asset(
@@ -570,3 +604,119 @@ def test_sync_removes_a_manual_tag_that_was_undone(engine):
         service.sync()
 
         assert albums.removals == [("Fibs", ["missed-asset"], Species.DOG)]
+
+
+def test_sync_tags_assets_alongside_albums(engine):
+    """Issue #230: sync also writes each identity to Immich as a tag,
+    alongside the existing album membership, when a tags service is
+    provided."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="abc", extension=".jpg")
+
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+
+        crop = Crop(detection=detection, path="crop.jpg")
+
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.95)
+
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+        tags = FakeTags()
+
+        summary = SyncService(session, albums, tags=tags).sync()
+
+        assert summary.identities[0].identity == "Fibs"
+        assert albums.calls == [("Fibs", ["asset1"], "dog")]
+        assert tags.calls == [("Fibs", ["asset1"], "dog")]
+
+
+def test_sync_without_tags_service_does_not_error(engine):
+    """SyncService without a tags argument behaves exactly as before --
+    the default None must not be called."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="abc", extension=".jpg")
+
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+
+        crop = Crop(detection=detection, path="crop.jpg")
+
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.95)
+
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+
+        summary = SyncService(session, albums).sync()
+
+        assert summary.identities[0].identity == "Fibs"
+        assert albums.calls == [("Fibs", ["asset1"], "dog")]
+
+
+def test_sync_dry_run_does_not_tag(engine):
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="abc", extension=".jpg")
+
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+
+        crop = Crop(detection=detection, path="crop.jpg")
+
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.95)
+
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+        tags = FakeTags()
+
+        SyncService(session, albums, tags=tags).sync(dry_run=True)
+
+        assert albums.calls == []
+        assert tags.calls == []
+
+
+def test_sync_removes_stale_tag_membership_after_correction(engine):
+    """Mirrors test_sync_removes_stale_membership_after_correction (DT-1113)
+    for tags: correcting a classification to a different identity must
+    untag the asset from its previous identity's tag, not leave it tagged
+    under both."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="abc", extension=".jpg")
+
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+
+        crop = Crop(detection=detection, path="crop.jpg")
+
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.95)
+
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+        tags = FakeTags()
+        service = SyncService(session, albums, tags=tags)
+
+        service.sync()
+
+        assert tags.calls == [("Fibs", ["asset1"], "dog")]
+        assert tags.removals == []
+
+        classification.identity = "Hermann"
+        session.commit()
+
+        tags.calls = []
+
+        service.sync()
+
+        assert tags.calls == [("Hermann", ["asset1"], "dog")]
+        assert tags.removals == [("Fibs", ["asset1"], "dog")]

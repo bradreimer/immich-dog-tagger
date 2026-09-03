@@ -19,6 +19,7 @@ class RecordingProgress:
 class FakeImmichClient:
     def __init__(self):
         self.albums: list[dict] = []
+        self.tags: list[dict] = []
 
     def list_albums(self):
         return self.albums
@@ -32,6 +33,20 @@ class FakeImmichClient:
         pass
 
     def remove_assets_from_album(self, album_id, asset_ids):
+        pass
+
+    def list_tags(self):
+        return self.tags
+
+    def create_tag(self, name):
+        tag = {"id": f"tag-{len(self.tags) + 1}", "name": name}
+        self.tags.append(tag)
+        return tag["id"]
+
+    def tag_assets(self, tag_id, asset_ids):
+        pass
+
+    def untag_assets(self, tag_id, asset_ids):
         pass
 
 
