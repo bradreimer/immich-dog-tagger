@@ -27,9 +27,15 @@ from immich_dog_tagger.services.review_query import ReviewQueryService
 from tests.conftest import create_test_classification
 
 
+class FakeEmbedder:
+    def embed(self, path):
+        return np.array([1, 0, 0], dtype=np.float32)
+
+
 class FakeLearner:
     def __init__(self):
         self.calls = []
+        self.embedder = FakeEmbedder()
 
     def learn_image(
         self,
@@ -40,6 +46,7 @@ class FakeLearner:
         captured_at=None,
         latitude=None,
         longitude=None,
+        embedding=None,
     ):
         self.calls.append(
             {
@@ -418,6 +425,7 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
     class FakeLearner:
         def __init__(self):
             self.calls = []
+            self.embedder = FakeEmbedder()
 
         def learn_image(
             self,
@@ -429,6 +437,7 @@ def test_correction_learns_review_example_with_captured_at(engine, tmp_path):
             captured_at=None,
             latitude=None,
             longitude=None,
+            embedding=None,
         ):
             self.calls.append(
                 {
@@ -709,6 +718,85 @@ def test_correct_species_forgets_stale_learning_example(engine, tmp_path):
         service.correct_species(classification.id, Species.CAT)
 
         assert session.query(EmbeddingExample).count() == 0
+
+
+def test_correction_does_not_hold_write_lock_during_embedding_inference(
+    engine, tmp_path
+):
+    """
+    Regression test for issue #234: correct() used to autoflush the
+    ReviewAction/classification writes -- taking state.db's write lock --
+    and only afterwards call the learner's embedder to compute a reference
+    example. That meant a single review correction held the write lock for
+    however long OpenCLIP inference took, blocking every other writer in
+    the app (e.g. POST /jobs creating a new Sync job) until it either
+    finished or exhausted the busy_timeout. The embedder must run before
+    any write touches the session, so the lock is only held for the fast
+    writes at the end.
+    """
+    import sqlite3
+    import threading
+
+    class SlowEmbedder:
+        def __init__(self):
+            self.embed_started = threading.Event()
+            self.release = threading.Event()
+
+        def embed(self, path):
+            self.embed_started.set()
+            assert self.release.wait(timeout=5), "test did not release embed() in time"
+            return np.array([1, 0, 0], dtype=np.float32)
+
+    image_path = tmp_path / "fibs.jpg"
+    image_path.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path=str(image_path))
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=0.2,
+            source=ClassificationSources.AUTO,
+        )
+        session.add(classification)
+        session.commit()
+
+        embedder = SlowEmbedder()
+        learner = Learner(embedder, session)
+        service = ClassificationCorrectionService(session, learner)
+
+        results = {}
+
+        def run_correction():
+            results["classification"] = service.correct(classification.id, "Fibs")
+
+        thread = threading.Thread(target=run_correction)
+        thread.start()
+
+        assert embedder.embed_started.wait(timeout=5), "embed() was never called"
+
+        # correct() is now blocked inside embed(). If it had already taken
+        # state.db's write lock (the pre-fix ordering), this independent
+        # connection's own write transaction would hang until the
+        # busy_timeout -- instead it must succeed immediately.
+        probe = sqlite3.connect(str(tmp_path / "state.db"), timeout=0)
+        try:
+            probe.execute("BEGIN IMMEDIATE")
+            probe.execute(
+                "INSERT INTO identities (species, name, is_active) "
+                "VALUES ('DOG', 'Probe', 1)"
+            )
+            probe.commit()
+        finally:
+            probe.close()
+
+        embedder.release.set()
+        thread.join(timeout=5)
+
+    assert results["classification"].identity == "Fibs"
 
 
 def test_correct_species_rejects_unknown_classification(engine):

@@ -646,6 +646,18 @@
   surface -- called out as a bigger, separate decision in
   `docs/competitive-analysis-library-workflow.md` (G8). See
   [docs/specs/immich-tag-sync.md](specs/immich-tag-sync.md).
+- [#234](https://github.com/bradreimer/immich-dog-tagger/issues/234) fixed a production bug: a
+  review correction (`POST /classifications/{id}/correct`) autoflushed its `ReviewAction`/
+  `CropClassification` writes -- taking state.db's write lock -- and only afterwards called
+  `Learner.learn_image()`, which ran OpenCLIP inference to build the reference example while that
+  lock was still held. Inference is CPU/GPU-bound and can run long, especially under concurrent
+  pipeline load, so a single correction could hold the write lock long enough to exceed the
+  `busy_timeout` and surface `sqlite3.OperationalError: database is locked` for every other writer
+  in the app, including unrelated actions like creating a new Sync job. `Learner.learn_image()`
+  now accepts a precomputed `embedding`, and `ClassificationCorrectionService.correct()` runs the
+  embedder before touching the session, so the write lock is only held for the fast writes at the
+  end -- matching the embed-before-write ordering `ClassificationService`/`DetectionService`
+  already used for their own batch commits (issues #99/#104/#105/#111).
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -41,6 +42,7 @@ class Learner:
         captured_at: datetime | None = None,
         latitude: float | None = None,
         longitude: float | None = None,
+        embedding: np.ndarray | None = None,
     ) -> bool:
         """
         Upsert a single reference example for `identity_name` at `image_path`.
@@ -51,6 +53,13 @@ class Learner:
         correcting a crop from "Fibs" to "Hermann" removes the stale Fibs
         example instead of leaving it behind to pollute future
         classifications. Caller is responsible for committing.
+
+        `embedding`: pass a precomputed vector to skip running the embedder
+        here. Callers that already hold a pending, unflushed write on this
+        session (e.g. a review correction, issue #234) should compute it
+        *before* touching the session -- otherwise this CPU/GPU-bound step
+        runs while state.db's write lock is held, keeping it locked for
+        however long inference takes instead of just the write itself.
         """
         identity = self._get_or_create_identity(identity_name, species)
 
@@ -61,7 +70,8 @@ class Learner:
         if existing is not None:
             return False
 
-        embedding = self.embedder.embed(image_path)
+        if embedding is None:
+            embedding = self.embedder.embed(image_path)
 
         example = EmbeddingExample(
             identity_id=identity.id,
