@@ -68,6 +68,9 @@ class StatusService:
     ):
         self.session = session
 
+    def asset_count(self) -> int:
+        return self._count(Asset)
+
     def summary(
         self,
         *,

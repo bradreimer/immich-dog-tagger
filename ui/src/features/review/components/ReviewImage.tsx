@@ -2,14 +2,15 @@ import { Card } from "@/components/ui/card";
 
 interface Props {
   cropId: number;
+  species: string;
 }
 
-export function ReviewImage({ cropId }: Props) {
+export function ReviewImage({ cropId, species }: Props) {
   return (
     <Card className="flex items-center justify-center overflow-hidden p-4 lg:h-full">
       <img
         src={`/api/crops/${cropId}`}
-        alt="dog crop"
+        alt={`${species} crop`}
         className="
           max-h-[70vh]
           w-full

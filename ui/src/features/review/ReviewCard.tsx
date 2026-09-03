@@ -67,7 +67,7 @@ export function ReviewCard({
           so a short/wide image doesn't leave a gap below it -- see
           docs/specs/review-panel-space-efficiency.md. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <ReviewImage cropId={item.crop_id} />
+        <ReviewImage cropId={item.crop_id} species={item.species} />
 
         <div className="space-y-3">
           <PredictionCard

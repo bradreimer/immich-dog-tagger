@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import get_config, get_session
@@ -10,8 +9,8 @@ from immich_dog_tagger.api.schemas import (
     TaggingSensitivityRequest,
 )
 from immich_dog_tagger.config import Config
-from immich_dog_tagger.models import Asset
 from immich_dog_tagger.services.app_settings import AppSettingsService
+from immich_dog_tagger.services.status import StatusService
 from immich_dog_tagger.version import get_version
 
 router = APIRouter(
@@ -27,7 +26,7 @@ def get_settings(
     session: Annotated[Session, Depends(get_session)],
     config: Annotated[Config, Depends(get_config)],
 ):
-    scanned_image_count = session.execute(select(func.count(Asset.id))).scalar_one()
+    scanned_image_count = StatusService(session).asset_count()
 
     return SettingsResponse(
         immich_url=config.immich_url,
@@ -57,7 +56,7 @@ def set_tagging_sensitivity(
     settings = AppSettingsService(session)
     settings.set_sensitivity(request.tagging_sensitivity)
 
-    scanned_image_count = session.execute(select(func.count(Asset.id))).scalar_one()
+    scanned_image_count = StatusService(session).asset_count()
 
     return SettingsResponse(
         immich_url=config.immich_url,

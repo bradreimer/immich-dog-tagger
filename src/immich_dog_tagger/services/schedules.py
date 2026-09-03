@@ -34,11 +34,6 @@ class PipelineScheduleRepository:
     def get(self, schedule_id: int) -> PipelineSchedule | None:
         return self.session.get(PipelineSchedule, schedule_id)
 
-    def list_enabled(self) -> list[PipelineSchedule]:
-        return self.session.scalars(
-            select(PipelineSchedule).where(PipelineSchedule.enabled.is_(True))
-        ).all()
-
     def list_all(self) -> list[PipelineSchedule]:
         return self.session.scalars(select(PipelineSchedule)).all()
 

@@ -34,6 +34,7 @@ Photo Lookup, Review and Library already share.
 
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import Crop
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 
@@ -46,6 +47,24 @@ class FalsePositiveService:
     ):
         self.session = session
         self.correction_service = correction_service
+
+    def get_viewable(self, crop_id: int) -> Crop:
+        """
+        A crop fit to serve as an image: exists, and its source photo
+        wasn't deleted in Immich and reconciled out (issue #194/FR-3). A
+        removed asset's crop file may already be cleaned up, so treating it
+        as not-found here keeps callers from serving a stale image or
+        hitting an unhandled FileNotFoundError.
+        """
+        crop = self._get(crop_id)
+
+        detection = crop.detection
+        asset = detection.asset if detection is not None else None
+
+        if asset is not None and asset.status == AssetStatus.REMOVED:
+            raise ValueError(f"Crop {crop_id} not found")
+
+        return crop
 
     def mark(self, crop_id: int) -> Crop:
         crop = self._get(crop_id)
