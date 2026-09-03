@@ -1,6 +1,11 @@
 """
-"This is not a dog or cat" -- flagging a YOLO false positive from the Photo
-Lookup page (issue #185).
+"This is not a dog or cat" -- flagging a crop from the Photo Lookup page
+(issue #185). Despite the name, this covers two legitimate reasons a
+reviewer reaches for it (ADR-009): a literal YOLO false positive (no dog or
+cat present at all), or a crop that does show a dog/cat the reviewer
+doesn't recognize or doesn't want to assign an identity to. Both settle to
+the same Unknown state below, so one flag serves both -- nothing downstream
+distinguishes which reason applied.
 
 Marking a crop settles its classification to Unknown through the same path
 Review/Library corrections already use

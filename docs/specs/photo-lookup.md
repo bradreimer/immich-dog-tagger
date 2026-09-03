@@ -41,6 +41,12 @@ recorded on the crop (`Crop.not_animal`, alongside `species`) via `FalsePositive
 `POST`/`DELETE /crops/{crop_id}/not-animal`, and rendered as a dimmed, dashed box distinct from the
 identified/unknown treatment.
 
+The same control also covers a second case, formalized in
+[ADR-009](../adr/ADR-009-manual-reclassification-contract.md): a box that does show a dog or cat,
+but one the owner doesn't recognize or doesn't want to label right now. Both cases settle to the
+same Unknown state and share the one flag -- nothing distinguishes which reason a mark was made
+for.
+
 #186: the first cut (issue #185) only set the flag and left the crop's classification untouched,
 so a marked photo kept showing "Confirmed as &lt;Dog&gt;" in Library and stayed in that dog's Immich
 album through sync -- the exact case this feature exists to fix ("I have a wrong image in an
