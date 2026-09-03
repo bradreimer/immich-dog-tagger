@@ -1,4 +1,3 @@
-import csv
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,8 +44,6 @@ class ReviewImporter:
                 identities={},
             )
 
-        # manifest = self._load_manifest(confirmed_dir.parent / "manifest.csv")
-
         for identity_dir in sorted(confirmed_dir.iterdir()):
             if not identity_dir.is_dir():
                 continue
@@ -68,15 +65,6 @@ class ReviewImporter:
                 identity_dir,
                 source=EmbeddingSources.REVIEW,
             )
-
-            # for image in images:
-            #     classification_id = manifest.get(image.name)
-
-            #     if classification_id is not None:
-            #         self.review_service.apply_review(
-            #             classification_id,
-            #             identity_dir.name,
-            #         )
 
             total += summary.imported
             skipped += summary.skipped_existing
@@ -112,12 +100,3 @@ class ReviewImporter:
         return ImportPlan(
             identities=identities,
         )
-
-    def _load_manifest(
-        self,
-        manifest_path: Path,
-    ) -> dict[str, int]:
-        with manifest_path.open() as file:
-            reader = csv.DictReader(file)
-
-            return {row["filename"]: int(row["classification_id"]) for row in reader}

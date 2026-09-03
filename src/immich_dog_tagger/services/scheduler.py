@@ -97,21 +97,6 @@ class SchedulerService:
         runner.run_job(job.id)
         return job
 
-    def reconcile_schedules(self) -> list[PipelineSchedule]:
-        schedules = self.session.scalars(
-            select(PipelineSchedule).where(PipelineSchedule.enabled.is_(True))
-        ).all()
-        for schedule in schedules:
-            self._reconcile_schedule(schedule)
-        return schedules
-
-    def _reconcile_schedule(self, schedule: PipelineSchedule) -> None:
-        if self._has_existing_job_for_schedule(schedule):
-            return
-
-        if self._is_due(schedule, self.clock.now()):
-            self._dispatch_schedule(schedule)
-
     def _has_existing_job_for_schedule(self, schedule: PipelineSchedule) -> bool:
         return any(job.schedule_id == schedule.id for job in schedule.jobs)
 
