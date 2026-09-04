@@ -221,6 +221,7 @@ def get_immich_client() -> ImmichClient:
     return ImmichClient(
         config.immich_url,
         config.immich_api_key,
+        timeout=config.immich_timeout_seconds,
     )
 
 

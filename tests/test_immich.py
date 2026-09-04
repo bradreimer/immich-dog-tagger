@@ -11,6 +11,25 @@ from immich_dog_tagger.immich import (
 )
 
 
+def test_default_timeout_is_more_generous_than_httpx_default():
+    client = ImmichClient(
+        "http://immich.test",
+        "secret",
+    )
+
+    assert client.client.timeout == httpx.Timeout(60.0)
+
+
+def test_timeout_is_configurable():
+    client = ImmichClient(
+        "http://immich.test",
+        "secret",
+        timeout=120.0,
+    )
+
+    assert client.client.timeout == httpx.Timeout(120.0)
+
+
 def test_list_assets():
     def handler(request):
         assert request.headers["x-api-key"] == "secret"

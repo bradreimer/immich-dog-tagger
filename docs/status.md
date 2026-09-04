@@ -658,6 +658,13 @@
   embedder before touching the session, so the write lock is only held for the fast writes at the
   end -- matching the embed-before-write ordering `ClassificationService`/`DetectionService`
   already used for their own batch commits (issues #99/#104/#105/#111).
+- [#237](https://github.com/bradreimer/immich-dog-tagger/issues/237) fixed a production bug: a
+  `sync` job failed with `httpx.ReadTimeout` on `PUT /api/tags/{tag_id}/assets` because
+  `ImmichClient` built its `httpx.Client` with no explicit `timeout=`, falling back to httpx's
+  5-second default -- too short for a bulk album/tag membership write that scales with the number
+  of assets in an identity. Added `Config.immich_timeout_seconds` (env `IMMICH_TIMEOUT_SECONDS`,
+  default 60s, following the existing `CROP_PADDING`-style env pattern), threaded through all four
+  `ImmichClient(...)` construction sites.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

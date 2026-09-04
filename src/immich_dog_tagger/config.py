@@ -24,6 +24,12 @@ class Config:
     #: ``immich_url``. Read through :attr:`immich_link_base_url`, never directly.
     immich_external_url: str = ""
 
+    #: Request timeout (seconds) for the Immich API client. Bulk album/tag membership writes
+    #: (issue #237) scale with the number of assets in an identity and can legitimately take
+    #: Immich longer than httpx's 5s default to process, so this needs to be generous rather
+    #: than left at the library default.
+    immich_timeout_seconds: float = 60.0
+
     @property
     def crop_dir(self) -> Path:
         return self.cache_dir / "crops"
@@ -72,6 +78,12 @@ def load_config(load_env_file: bool = True) -> Config:
             "IMMICH_EXTERNAL_URL",
             "",
         ).strip(),
+        immich_timeout_seconds=float(
+            os.environ.get(
+                "IMMICH_TIMEOUT_SECONDS",
+                "60",
+            )
+        ),
         state_dir=state_dir,
         cache_dir=cache_dir,
         yolo_model=Path(
