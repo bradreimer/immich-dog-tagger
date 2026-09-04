@@ -147,12 +147,17 @@ class ImmichClient:
         self,
         url: str,
         api_key: str,
+        timeout: float = 60.0,
     ):
         self.url = url.rstrip("/")
         self.client = httpx.Client(
             headers={
                 "x-api-key": api_key,
-            }
+            },
+            # httpx's 5s default is too short for bulk album/tag membership writes, which scale
+            # with the number of assets in an identity and can legitimately take Immich longer to
+            # process (issue #237).
+            timeout=timeout,
         )
 
     def list_assets(

@@ -63,6 +63,11 @@ card's **View in Immich** link points at an address that only exists inside the 
 The UI reads this value at runtime from `GET /api/settings`, so changing it needs a backend restart
 (`docker compose up -d dog-tagger`) — not a frontend image rebuild.
 
+`IMMICH_TIMEOUT_SECONDS` (default `60`) bounds how long the backend waits on any single Immich API
+request. Bulk sync writes (tagging or albuming many assets in one identity) can legitimately take
+Immich longer to process than a typical read; raise this if `sync` jobs fail with a timeout on a
+large library.
+
 ## Docker network
 
 Both services join the external `proxy` network, so Traefik can reach the frontend and nginx can

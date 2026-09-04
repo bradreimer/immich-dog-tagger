@@ -176,6 +176,7 @@ def test_immich_command(args) -> None:
     client = ImmichClient(
         config.immich_url,
         config.immich_api_key,
+        timeout=config.immich_timeout_seconds,
     )
 
     assets = client.list_assets()
@@ -204,6 +205,7 @@ def download_command(args) -> None:
     client = ImmichClient(
         config.immich_url,
         config.immich_api_key,
+        timeout=config.immich_timeout_seconds,
     )
 
     engine = create_database(config.state_dir)
@@ -523,6 +525,7 @@ def sync_command(args) -> None:
         client = ImmichClient(
             config.immich_url,
             config.immich_api_key,
+            timeout=config.immich_timeout_seconds,
         )
 
         engine = create_database(

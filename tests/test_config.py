@@ -95,3 +95,19 @@ def test_blank_immich_external_url_falls_back_to_the_api_url(monkeypatch):
     config = load_config(load_env_file=False)
 
     assert config.immich_link_base_url == "http://immich-server:2283"
+
+
+def test_immich_timeout_seconds_defaults_to_a_generous_value(monkeypatch):
+    monkeypatch.delenv("IMMICH_TIMEOUT_SECONDS", raising=False)
+
+    config = load_config(load_env_file=False)
+
+    assert config.immich_timeout_seconds == 60.0
+
+
+def test_immich_timeout_seconds_reads_from_environment(monkeypatch):
+    monkeypatch.setenv("IMMICH_TIMEOUT_SECONDS", "120")
+
+    config = load_config(load_env_file=False)
+
+    assert config.immich_timeout_seconds == 120.0
