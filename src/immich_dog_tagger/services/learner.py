@@ -118,6 +118,7 @@ class Learner:
         captured_at: datetime | None = None,
     ) -> LearnSummary:
         identity = self._get_or_create_identity(identity_name, species)
+        self.session.commit()
 
         count = 0
         skipped_existing = 0
@@ -136,6 +137,14 @@ class Learner:
             if existing is not None:
                 skipped_existing += 1
                 continue
+
+            # Commit the previous image's example now, before running this
+            # image's embedder -- otherwise that INSERT sits flushed-but-
+            # uncommitted (the SELECTs above autoflush it) for however long
+            # this image's CPU/GPU-bound embedding takes, holding state.db's
+            # write lock the whole time instead of just for the write itself
+            # (issue #239, same principle documented on learn_image() above).
+            self.session.commit()
 
             embedding = self.embedder.embed(image_path)
 
