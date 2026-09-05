@@ -115,6 +115,60 @@ def test_learner_records_source(engine, tmp_path):
         assert result.source == EmbeddingSources.REVIEW
 
 
+def test_learner_commits_before_each_embed_call(engine, tmp_path):
+    """
+    Regression test for issue #239: embedding image N must never run while
+    a previous write (identity creation, or image N-1's EmbeddingExample) is
+    still uncommitted -- otherwise SQLite's write lock is held for however
+    long embedding takes, instead of just for the write itself, and a
+    concurrent writer (e.g. POST /jobs) fails with "database is locked".
+
+    Verified with a second, independent connection that tries to acquire
+    SQLite's write lock (`BEGIN IMMEDIATE`) at the moment each image is
+    embedded -- `session.new`/`session.dirty` can't be used for this, since
+    autoflush clears them the moment a write is *flushed*, even though the
+    underlying SQLite transaction (and its write lock) isn't released until
+    `commit()`.
+    """
+    import sqlite3
+
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        (image_dir / name).write_bytes(b"fake")
+
+    db_path = tmp_path / "state.db"
+    probe = sqlite3.connect(str(db_path), timeout=0.05)
+
+    try:
+        with Session(engine) as session:
+
+            class RecordingEmbedder:
+                def __init__(self):
+                    self.lock_held_on_embed: list[bool] = []
+
+                def embed(self, image_path: Path):
+                    try:
+                        probe.execute("BEGIN IMMEDIATE")
+                        probe.execute("ROLLBACK")
+                        held = False
+                    except sqlite3.OperationalError:
+                        held = True
+                    self.lock_held_on_embed.append(held)
+                    return np.array([0.1, 0.2, 0.3], dtype=np.float32)
+
+            embedder = RecordingEmbedder()
+            learner = Learner(embedder, session)
+
+            result = learner.learn("Hermann", image_dir)
+
+            assert result.imported == 3
+            assert embedder.lock_held_on_embed == [False, False, False]
+    finally:
+        probe.close()
+
+
 def test_learner_skips_non_images(engine, tmp_path):
     image_dir = tmp_path / "images"
     image_dir.mkdir()

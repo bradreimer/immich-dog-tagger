@@ -14,8 +14,10 @@ _TERMINAL_STATUSES = (
 
 # Operations whose services commit incrementally (issues #99/#104/#105) and
 # so have a checkpoint to roll back to -- the only ones a RUNNING job can be
-# cancelled mid-run for (issue #111). EMBED/LEARN/SYNC each do one big
-# commit at the end (nothing partial to preserve); RECLASSIFY already
+# cancelled mid-run for (issue #111). EMBED/SYNC each do one big commit at
+# the end (nothing partial to preserve); LEARN now commits per learned
+# example too (issue #239), but -- like EMBED/SYNC -- isn't wired to check
+# should_cancel() mid-run, so it stays out of this set. RECLASSIFY already
 # batches the same way but is a deliberately separate follow-up.
 CANCELABLE_WHILE_RUNNING = frozenset(
     {
