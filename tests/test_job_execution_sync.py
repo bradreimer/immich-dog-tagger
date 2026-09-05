@@ -91,6 +91,37 @@ def test_sync_handler_reports_skipped_classifications_in_progress_message(
     assert "1 below confidence threshold" in final_message
 
 
+def test_sync_handler_reports_failed_identities_in_progress_message(
+    engine, monkeypatch
+):
+    """Issue #243: a single identity's bulk write timing out must be
+    visible in the job's own status message, not just the server logs."""
+
+    class FailingImmichClient(FakeImmichClient):
+        def tag_assets(self, tag_id, asset_ids):
+            raise TimeoutError("simulated Immich timeout")
+
+    monkeypatch.setattr(
+        "immich_dog_tagger.services.job_execution._create_client",
+        lambda config: FailingImmichClient(),
+    )
+
+    with Session(engine) as session:
+        _add_classification(session, asset_id="good", identity="Fibs", confidence=1.0)
+        session.commit()
+
+        handler = _sync_handler(session, config=None, options={})
+        progress = RecordingProgress()
+        result = handler(progress)
+
+    assert result["identities"] == 0
+    assert result["failed_identities"] == 1
+
+    final_message = progress.messages[-1]
+    assert "failed to sync 1 identity/ies" in final_message
+    assert "dog/Fibs" in final_message
+
+
 def test_sync_handler_message_has_no_skip_clause_when_nothing_skipped(
     engine, monkeypatch
 ):

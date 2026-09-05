@@ -11,6 +11,17 @@ import truststore
 
 truststore.inject_into_ssl()
 
+# Immich's bulk album/tag membership endpoints take an unbounded "ids" array, but a single
+# request carrying an entire large identity's asset list can take Immich longer to process than
+# any timeout is worth granting (issue #243, following #237's fix of the request timeout itself).
+# Splitting into fixed-size batches keeps each request's processing time bounded regardless of
+# how many assets an identity has.
+ASSET_BATCH_SIZE = 200
+
+
+def _batched(ids: list[str], size: int) -> list[list[str]]:
+    return [ids[i : i + size] for i in range(0, len(ids), size)]
+
 
 class ImmichDownloadError(Exception):
     pass
@@ -272,19 +283,20 @@ class ImmichClient:
         album_id: str,
         asset_ids: list[str],
     ) -> None:
-        response = self.client.put(
-            f"{self.url}/api/albums/{album_id}/assets",
-            json={
-                "ids": asset_ids,
-            },
-        )
+        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
+            response = self.client.put(
+                f"{self.url}/api/albums/{album_id}/assets",
+                json={
+                    "ids": batch,
+                },
+            )
 
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ImmichAddAssetsToAlbumError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise ImmichAddAssetsToAlbumError(
+                    f"Immich API error {response.status_code}: {response.text}"
+                ) from exc
 
     def remove_assets_from_album(
         self,
@@ -294,20 +306,21 @@ class ImmichClient:
         # DELETE with a JSON body -- the same {"ids": [...]} shape as the
         # add endpoint above -- so httpx.Client.request() is used directly;
         # .delete() doesn't accept a json= body.
-        response = self.client.request(
-            "DELETE",
-            f"{self.url}/api/albums/{album_id}/assets",
-            json={
-                "ids": asset_ids,
-            },
-        )
+        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
+            response = self.client.request(
+                "DELETE",
+                f"{self.url}/api/albums/{album_id}/assets",
+                json={
+                    "ids": batch,
+                },
+            )
 
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ImmichRemoveAssetsFromAlbumError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise ImmichRemoveAssetsFromAlbumError(
+                    f"Immich API error {response.status_code}: {response.text}"
+                ) from exc
 
     def list_tags(self) -> list[dict]:
         response = self.client.get(
@@ -348,19 +361,20 @@ class ImmichClient:
         tag_id: str,
         asset_ids: list[str],
     ) -> None:
-        response = self.client.put(
-            f"{self.url}/api/tags/{tag_id}/assets",
-            json={
-                "ids": asset_ids,
-            },
-        )
+        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
+            response = self.client.put(
+                f"{self.url}/api/tags/{tag_id}/assets",
+                json={
+                    "ids": batch,
+                },
+            )
 
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ImmichTagAssetsError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise ImmichTagAssetsError(
+                    f"Immich API error {response.status_code}: {response.text}"
+                ) from exc
 
     def untag_assets(
         self,
@@ -369,17 +383,18 @@ class ImmichClient:
     ) -> None:
         # DELETE with a JSON body, same as remove_assets_from_album -- httpx.Client.request()
         # is needed directly since .delete() doesn't accept a json= body.
-        response = self.client.request(
-            "DELETE",
-            f"{self.url}/api/tags/{tag_id}/assets",
-            json={
-                "ids": asset_ids,
-            },
-        )
+        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
+            response = self.client.request(
+                "DELETE",
+                f"{self.url}/api/tags/{tag_id}/assets",
+                json={
+                    "ids": batch,
+                },
+            )
 
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ImmichUntagAssetsError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise ImmichUntagAssetsError(
+                    f"Immich API error {response.status_code}: {response.text}"
+                ) from exc

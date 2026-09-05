@@ -577,6 +577,12 @@ def sync_command(args) -> None:
     for item in result.get("items", []):
         print(f"{item['identity']}: {item['assets']}")
 
+    failed = result.get("failed_identities", 0)
+
+    if failed:
+        print()
+        print(f"Failed to sync {failed} identity/ies (see logs for details)")
+
 
 def pipeline_command(args) -> None:
     config = load_config()

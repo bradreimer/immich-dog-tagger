@@ -677,6 +677,19 @@
   or identity restored from the URL isn't immediately clobbered before the first load. There is
   only one Library tab/route (`/library`) -- "Photo Library" is spec-title language, not a
   second tab. See [docs/specs/library-url-filter-persistence.md](specs/library-url-filter-persistence.md).
+- [#243](https://github.com/bradreimer/immich-dog-tagger/issues/243) fixed a follow-up to #237: a
+  `sync` job still failed with `httpx.ReadTimeout` on `PUT /api/tags/{tag_id}/assets` for an
+  identity with enough assets that a single bulk request outran even #237's generous 60-second
+  timeout -- and, worse, that one identity's failure aborted every other identity's album/tag sync
+  in the same job. `ImmichClient.add_assets_to_album`/`remove_assets_from_album`/`tag_assets`/
+  `untag_assets` now split `asset_ids` into fixed-size batches (`ASSET_BATCH_SIZE = 200`) rather
+  than sending the whole list in one request. `SyncService.sync()` now catches a per-identity
+  album/tag write failure (add or stale-removal) instead of letting it propagate, logs it, and
+  continues syncing the remaining identities; a failed identity's previous `SyncedAsset` tracking
+  is left untouched (rather than overwritten with a "current" state that was never actually
+  confirmed) so the next sync retries it. `SyncSummary` gained a `failed_identities` list, surfaced
+  in the sync job's progress message and the CLI's `sync` output, so a partial failure stays
+  visible rather than only appearing in the server logs.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),
