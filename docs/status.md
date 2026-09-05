@@ -665,6 +665,18 @@
   of assets in an identity. Added `Config.immich_timeout_seconds` (env `IMMICH_TIMEOUT_SECONDS`,
   default 60s, following the existing `CROP_PADDING`-style env pattern), threaded through all four
   `ImmichClient(...)` construction sites.
+- [#241](https://github.com/bradreimer/immich-dog-tagger/issues/241) Library filters, sort, and
+  page persist in the URL, so a refresh returns to the same view instead of resetting to
+  defaults. `LibraryPage` now reads `species`/`identity`/`reviewed`/`capturedAfter`/
+  `capturedBefore`/`sort`/`offset` from `window.location.search` on mount and writes them back
+  via `history.replaceState` on change (new `libraryUrlState.ts`), omitting params at their
+  default value to keep the URL minimal. `replaceState` rather than `pushState` deliberately
+  avoids filling browser history with every filter tweak. The existing "filter changed -> reset
+  pagination/selection" effects, and the "species changed -> clear a now-invalid pet selection"
+  effect, previously ran (harmlessly, as no-ops) on mount too; they're now guarded so an offset
+  or identity restored from the URL isn't immediately clobbered before the first load. There is
+  only one Library tab/route (`/library`) -- "Photo Library" is spec-title language, not a
+  second tab. See [docs/specs/library-url-filter-persistence.md](specs/library-url-filter-persistence.md).
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

@@ -61,6 +61,7 @@ function lastLibraryQuery() {
 
 describe("LibraryPage", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/library");
     vi.clearAllMocks();
     vi.mocked(api.getDogs).mockResolvedValue([HERMANN, MINA]);
     vi.mocked(api.getSettings).mockResolvedValue({
@@ -197,6 +198,53 @@ describe("LibraryPage", () => {
 
     expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();
     expect(screen.getByText("90.0%")).toBeInTheDocument();
+  });
+
+  it("reflects non-default filters in the URL", async () => {
+    render(<LibraryPage />);
+
+    await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
+    expect(window.location.search).toBe("");
+
+    fireEvent.change(await screen.findByLabelText("Species"), { target: { value: "dog" } });
+    await waitFor(() => expect(lastLibraryQuery()).toMatchObject({ species: "dog" }));
+
+    fireEvent.change(screen.getByLabelText("Pet"), { target: { value: "Hermann" } });
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({ species: "dog", identity: "Hermann" }),
+    );
+
+    const params = new URLSearchParams(window.location.search);
+
+    expect(params.get("species")).toBe("dog");
+    expect(params.get("identity")).toBe("Hermann");
+    expect(params.has("sort")).toBe(false);
+  });
+
+  it("restores filters and sort from the URL on load", async () => {
+    window.history.replaceState({}, "", "/library?species=dog&identity=Hermann&sort=reviewed_asc");
+
+    render(<LibraryPage />);
+
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({
+        species: "dog",
+        identity: "Hermann",
+        sort: "reviewed_asc",
+      }),
+    );
+    expect(await screen.findByLabelText("Species")).toHaveValue("dog");
+    expect(screen.getByLabelText("Pet")).toHaveValue("Hermann");
+    expect(screen.getByLabelText("Sort")).toHaveValue("reviewed_asc");
+  });
+
+  it("restores the page offset from the URL without resetting it", async () => {
+    mockLibrary(120);
+    window.history.replaceState({}, "", "/library?offset=50");
+
+    render(<LibraryPage />);
+
+    await waitFor(() => expect(lastLibraryQuery().offset).toBe(50));
   });
 
   it("clears the selection when a filter changes", async () => {
