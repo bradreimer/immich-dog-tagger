@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
 import { getDogs, getLibrary, getSettings } from "@/lib/api";
@@ -13,22 +13,27 @@ import {
   type LibrarySpeciesFilter,
 } from "./components/LibraryFilters";
 import { LibraryThumbnail } from "./components/LibraryThumbnail";
+import { parseLibraryUrlState, writeLibraryUrlState } from "./libraryUrlState";
 
 const PAGE_SIZE = 50;
 
 export function LibraryPage() {
-  const [species, setSpecies] = useState<LibrarySpeciesFilter>("all");
-  const [identity, setIdentity] = useState("");
-  const [reviewedFilter, setReviewedFilter] = useState<LibraryReviewedFilter>("all");
-  const [capturedAfter, setCapturedAfter] = useState("");
-  const [capturedBefore, setCapturedBefore] = useState("");
-  const [sort, setSort] = useState<LibrarySort>("captured_desc");
+  const [initialUrlState] = useState(() => parseLibraryUrlState(window.location.search));
+
+  const [species, setSpecies] = useState<LibrarySpeciesFilter>(initialUrlState.species);
+  const [identity, setIdentity] = useState(initialUrlState.identity);
+  const [reviewedFilter, setReviewedFilter] = useState<LibraryReviewedFilter>(
+    initialUrlState.reviewedFilter,
+  );
+  const [capturedAfter, setCapturedAfter] = useState(initialUrlState.capturedAfter);
+  const [capturedBefore, setCapturedBefore] = useState(initialUrlState.capturedBefore);
+  const [sort, setSort] = useState<LibrarySort>(initialUrlState.sort);
 
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [immichUrl, setImmichUrl] = useState<string | null>(null);
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(initialUrlState.offset);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -51,12 +56,18 @@ export function LibraryPage() {
   );
 
   // A pet selected under one species no longer applies once the species
-  // changes to something that doesn't include it.
+  // changes to something that doesn't include it. Skipped while dogs
+  // haven't loaded yet -- an identity restored from the URL shouldn't be
+  // cleared just because the reference list is still empty.
   useEffect(() => {
+    if (dogs.length === 0) {
+      return;
+    }
+
     if (identity && !speciesIdentities.some((dog) => dog.name === identity)) {
       setIdentity("");
     }
-  }, [identity, speciesIdentities]);
+  }, [identity, speciesIdentities, dogs]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,16 +117,45 @@ export function LibraryPage() {
 
   // Any filter or sort change resets pagination -- a stale offset into a
   // differently-scoped or differently-ordered result set would otherwise
-  // show an empty or misleading page.
+  // show an empty or misleading page. Skipped on the initial mount so an
+  // offset restored from the URL isn't immediately clobbered back to 0.
+  const skipOffsetReset = useRef(true);
   useEffect(() => {
+    if (skipOffsetReset.current) {
+      skipOffsetReset.current = false;
+      return;
+    }
+
     setOffset(0);
   }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort]);
 
   // The selected photo only means something against the page it was
-  // selected from -- clear it whenever that page changes.
+  // selected from -- clear it whenever that page changes. Also skipped on
+  // mount, for the same reason as above.
+  const skipSelectionReset = useRef(true);
   useEffect(() => {
+    if (skipSelectionReset.current) {
+      skipSelectionReset.current = false;
+      return;
+    }
+
     setSelectedId(null);
   }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
+
+  // Keep the URL in sync with the current filters so a refresh (or a
+  // shared/bookmarked link) returns to the same view. `replaceState` avoids
+  // filling browser history with every filter tweak.
+  useEffect(() => {
+    writeLibraryUrlState({
+      species,
+      identity,
+      reviewedFilter,
+      capturedAfter,
+      capturedBefore,
+      sort,
+      offset,
+    });
+  }, [species, identity, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
 
   const selectedEntry =
     entries.find((entry) => entry.item.classification_id === selectedId) ?? null;
