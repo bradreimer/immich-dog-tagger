@@ -690,6 +690,16 @@
   confirmed) so the next sync retries it. `SyncSummary` gained a `failed_identities` list, surfaced
   in the sync job's progress message and the CLI's `sync` output, so a partial failure stays
   visible rather than only appearing in the server logs.
+- [#245](https://github.com/bradreimer/immich-dog-tagger/issues/245) Photo Lookup can classify a
+  detection that has a `Crop` but no `CropClassification` yet (the classify stage hasn't reached
+  it). A row in this state previously showed a dead-end "Not classified yet" with no correction
+  control -- the only fix was "Repair", which force re-detects the whole photo and discards
+  `CropClassification`/`ReviewAction` rows for every *other* detection on it too. A new "Classify"
+  action (`POST /photo-lookup/{immich_asset_id}/classify-pending`, `ClassificationService.classify
+  (mode=PENDING, asset_id=...)` scoped to that one asset) is non-destructive and idempotent -- it
+  only ever creates a classification where none exists. Once it does, the row gets the same
+  species-correction and identity-`<select>` controls every other row has. See
+  [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s "classify a pending detection" addendum.
 
 - [#246](https://github.com/bradreimer/immich-dog-tagger/issues/246) auto-detect and batch-repair
   stale (EXIF-orientation) detections from Overview. `Asset` gained cached `exif_width`/

@@ -13,6 +13,7 @@ vi.mock("@/lib/api", () => ({
   correctSpecies: vi.fn(),
   markCropNotAnimal: vi.fn(),
   unmarkCropNotAnimal: vi.fn(),
+  classifyPendingDetections: vi.fn(),
   repairAsset: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
 }));
@@ -233,6 +234,54 @@ describe("PhotoLookupPage", () => {
 
     expect(await screen.findByText("Unknown")).toBeInTheDocument();
     expect(api.getPhotoLookup).toHaveBeenCalledTimes(3);
+  });
+
+  it("classifies a pending detection and re-fetches so it becomes correctable", async () => {
+    // Issue #245: a detection with no classification yet had no way to fix
+    // it short of a destructive "Repair" -- clicking "Classify" should
+    // create one and turn the row into a normal species/identity-
+    // correctable row via a re-fetch, the same pattern species correction
+    // and the not-animal toggle already use.
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+
+    const initial = buildResult();
+    initial.detections[0] = {
+      ...initial.detections[0],
+      classification_id: null,
+      identity: null,
+      confidence: null,
+    };
+    const afterClassify: PhotoLookupResult = {
+      ...initial,
+      detections: [
+        { ...initial.detections[0], classification_id: 200, identity: null },
+      ],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterClassify);
+    vi.mocked(api.classifyPendingDetections).mockResolvedValue({
+      classified: 1,
+      message: "Classified 1 pending detection(s).",
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    expect(await screen.findByRole("button", { name: /^classify$/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^classify$/i }));
+
+    await waitFor(() => {
+      expect(api.classifyPendingDetections).toHaveBeenCalledWith("asset-42");
+    });
+
+    expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    expect(
+      await screen.findByLabelText("Correct identity for detection 1"),
+    ).toBeInTheDocument();
   });
 
   it("shows a distinct message when no dogs or cats were detected", async () => {

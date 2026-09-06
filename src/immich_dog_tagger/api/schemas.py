@@ -742,6 +742,22 @@ class StaleDetectionRepairResponse(BaseModel):
         )
 
 
+class ClassifyPendingResponse(BaseModel):
+    classified: int
+    message: str
+
+    @classmethod
+    def from_summary(cls, summary):
+        return cls(
+            classified=summary.classified,
+            message=(
+                f"Classified {summary.classified} pending detection(s)."
+                if summary.classified
+                else "No pending detections to classify."
+            ),
+        )
+
+
 class AssetRepairResponse(BaseModel):
     asset_id: int
     immich_asset_id: str

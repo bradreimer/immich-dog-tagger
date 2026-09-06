@@ -226,14 +226,28 @@ def get_immich_client() -> ImmichClient:
     )
 
 
+def get_classification_service(
+    session: Annotated[Session, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> ClassificationService:
+    policy = AppSettingsService(session).policy()
+
+    return ClassificationService(
+        session,
+        embedder,
+        IdentityClassifier(session, policy=policy),
+        policy=policy,
+    )
+
+
 def get_asset_repair_service(
     session: Annotated[Session, Depends(get_session)],
     config: Annotated[Config, Depends(get_config)],
     client: Annotated[ImmichClient, Depends(get_immich_client)],
-    embedder: Annotated[Embedder, Depends(get_embedder)],
+    classification_service: Annotated[
+        ClassificationService, Depends(get_classification_service)
+    ],
 ) -> AssetRepairService:
-    policy = AppSettingsService(session).policy()
-
     return AssetRepairService(
         session,
         Downloader(client, session, config.cache_dir),
@@ -243,12 +257,7 @@ def get_asset_repair_service(
             config.cache_dir,
             CropWriter(config.crop_dir, config.crop_padding),
         ),
-        ClassificationService(
-            session,
-            embedder,
-            IdentityClassifier(session, policy=policy),
-            policy=policy,
-        ),
+        classification_service,
     )
 
 
