@@ -30,6 +30,7 @@ export function PhotoLookupPage() {
   const [result, setResult] = useState<PhotoLookupResult | null>(null);
   const [identities, setIdentities] = useState<Dog[]>([]);
   const [repairMessage, setRepairMessage] = useState<string | null>(null);
+  const [hoveredDetectionId, setHoveredDetectionId] = useState<number | null>(null);
 
   useEffect(() => {
     getDogs()
@@ -199,6 +200,7 @@ export function PhotoLookupPage() {
           <PhotoLookupImage
             imageUrl={`/api/photo-lookup/${encodeURIComponent(result.immich_asset_id)}/image`}
             detections={result.detections}
+            hoveredDetectionId={hoveredDetectionId}
           />
 
           <DetectionList
@@ -208,6 +210,7 @@ export function PhotoLookupPage() {
             onCorrectSpecies={handleCorrectSpecies}
             onToggleNotAnimal={handleToggleNotAnimal}
             onClassifyPending={handleClassifyPending}
+            onHoverChange={setHoveredDetectionId}
           />
         </div>
       )}

@@ -9,6 +9,7 @@ import type { PhotoLookupDetection } from "@/types/photoLookup";
 interface Props {
   imageUrl: string;
   detections: PhotoLookupDetection[];
+  hoveredDetectionId?: number | null;
 }
 
 interface NaturalSize {
@@ -49,7 +50,7 @@ function describeStaleDetections(indexes: number[]): string {
  * `Detection.x1/y1/x2/y2` describe regardless of how large the image is
  * rendered on screen.
  */
-export function PhotoLookupImage({ imageUrl, detections }: Props) {
+export function PhotoLookupImage({ imageUrl, detections, hoveredDetectionId = null }: Props) {
   const [naturalSize, setNaturalSize] = useState<NaturalSize | null>(null);
 
   const staleIndexes = naturalSize
@@ -88,6 +89,7 @@ export function PhotoLookupImage({ imageUrl, detections }: Props) {
             }
 
             const identified = Boolean(detection.identity);
+            const highlighted = detection.detection_id === hoveredDetectionId;
 
             return (
               <div
@@ -100,6 +102,7 @@ export function PhotoLookupImage({ imageUrl, detections }: Props) {
                         "border-2",
                         identified ? "border-status-good" : "border-status-warning",
                       ),
+                  highlighted && "z-20 ring-4 ring-primary ring-offset-2",
                 )}
                 style={{
                   left: `${(detection.x1 / naturalSize.width) * 100}%`,

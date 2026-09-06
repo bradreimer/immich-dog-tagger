@@ -723,6 +723,12 @@
   `crop_id !== null` (matching the existing "Not a dog or cat" button's gate) and falls back to a
   plain "No crop to classify" message otherwise -- an honest dead end instead of a misleading
   button.
+- [#251](https://github.com/bradreimer/immich-dog-tagger/issues/251) Photo Lookup: hovering a row
+  in the detection list highlights that detection's box on the photo above it (raised `z-index` and
+  a highlight ring), so overlapping boxes stay tellable apart from their numbered row.
+  `PhotoLookupPage` lifts a `hoveredDetectionId` state; `DetectionList` reports hover in/out per row
+  by `detection_id`. See [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s "highlight hovered
+  detection's box" addendum.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

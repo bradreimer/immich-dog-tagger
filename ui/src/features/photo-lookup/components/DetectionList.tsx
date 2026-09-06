@@ -22,6 +22,7 @@ interface RowProps {
   onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
   onClassifyPending: () => Promise<void>;
+  onHoverChange: (detectionId: number | null) => void;
 }
 
 function DetectionRow({
@@ -32,6 +33,7 @@ function DetectionRow({
   onCorrectSpecies,
   onToggleNotAnimal,
   onClassifyPending,
+  onHoverChange,
 }: RowProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +109,11 @@ function DetectionRow({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border py-3 last:border-b-0">
+    <div
+      className="flex flex-wrap items-center gap-3 border-b border-border py-3 last:border-b-0"
+      onMouseEnter={() => onHoverChange(detection.detection_id)}
+      onMouseLeave={() => onHoverChange(null)}
+    >
       <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
         {index + 1}
       </span>
@@ -227,6 +233,7 @@ interface Props {
   onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
   onClassifyPending: () => Promise<void>;
+  onHoverChange: (detectionId: number | null) => void;
 }
 
 export function DetectionList({
@@ -236,6 +243,7 @@ export function DetectionList({
   onCorrectSpecies,
   onToggleNotAnimal,
   onClassifyPending,
+  onHoverChange,
 }: Props) {
   if (detections.length === 0) {
     return (
@@ -260,6 +268,7 @@ export function DetectionList({
             onCorrect={onCorrect}
             onToggleNotAnimal={onToggleNotAnimal}
             onClassifyPending={onClassifyPending}
+            onHoverChange={onHoverChange}
           />
         ))}
       </CardContent>

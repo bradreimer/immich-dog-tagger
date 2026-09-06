@@ -92,6 +92,40 @@ describe("PhotoLookupImage", () => {
     ).toBeInTheDocument();
   });
 
+  it("highlights the box matching the hovered detection id", () => {
+    render(
+      <PhotoLookupImage
+        imageUrl="/api/photo-lookup/asset-1/image"
+        detections={[
+          detection({ detection_id: 1, identity: "Rex" }),
+          detection({ detection_id: 2, identity: "Fido", x1: 60, x2: 100 }),
+        ]}
+        hoveredDetectionId={2}
+      />,
+    );
+
+    loadImage(200, 100);
+
+    const rexBox = screen.getByText("1. Rex").parentElement;
+    const fidoBox = screen.getByText("2. Fido").parentElement;
+
+    expect(rexBox).not.toHaveClass("ring-primary");
+    expect(fidoBox).toHaveClass("ring-primary");
+  });
+
+  it("highlights no box when nothing is hovered", () => {
+    render(
+      <PhotoLookupImage
+        imageUrl="/api/photo-lookup/asset-1/image"
+        detections={[detection({ detection_id: 1, identity: "Rex" })]}
+      />,
+    );
+
+    loadImage(200, 100);
+
+    expect(screen.getByText("1. Rex").parentElement).not.toHaveClass("ring-primary");
+  });
+
   it("does not flag anything before the image has finished loading", () => {
     render(
       <PhotoLookupImage
