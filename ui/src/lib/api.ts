@@ -23,7 +23,11 @@ import type {
   PlaceCount,
   TopPhoto,
 } from "../types/insights";
-import type { AssetRepairResult, PhotoLookupResult } from "../types/photoLookup";
+import type {
+  AssetRepairResult,
+  ClassifyPendingResult,
+  PhotoLookupResult,
+} from "../types/photoLookup";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -761,6 +765,36 @@ export async function repairAsset(
 
   if (!response.ok) {
     throw new Error("Failed to repair photo");
+  }
+
+  return response.json();
+}
+
+/**
+ * Classifies a photo's pending (not-yet-classified) crops (issue #245), so a
+ * "Not classified yet" Photo Lookup row gets a real species/identity
+ * prediction to correct, without the destructive full re-detect a "Repair"
+ * does. Only ever creates classifications where none exist -- never touches
+ * an already-classified or already-reviewed detection on the same photo.
+ */
+export async function classifyPendingDetections(
+  immichAssetId: string,
+): Promise<ClassifyPendingResult> {
+  const response = await fetch(
+    `/api/photo-lookup/${encodeURIComponent(immichAssetId)}/classify-pending`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (response.status === 404) {
+    throw new PhotoLookupNotFoundError(
+      "That photo hasn't been scanned by this instance yet.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to classify pending detections");
   }
 
   return response.json();

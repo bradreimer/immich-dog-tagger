@@ -5,13 +5,20 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from immich_dog_tagger.api.dependencies import (
     get_asset_repair_service,
+    get_classification_service,
     get_immich_client,
     get_photo_lookup_service,
 )
-from immich_dog_tagger.api.schemas import AssetRepairResponse, PhotoLookupResponse
+from immich_dog_tagger.api.schemas import (
+    AssetRepairResponse,
+    ClassifyPendingResponse,
+    PhotoLookupResponse,
+)
+from immich_dog_tagger.enums import ClassificationMode
 from immich_dog_tagger.images import open_upright, to_jpeg_bytes
 from immich_dog_tagger.immich import ImmichClient, ImmichDownloadError
 from immich_dog_tagger.services.asset_repair import AssetRepairService
+from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.photo_lookup import PhotoLookupService
 
 router = APIRouter(
@@ -83,6 +90,38 @@ def photo_lookup_image(
         content=to_jpeg_bytes(image),
         media_type="image/jpeg",
     )
+
+
+@router.post(
+    "/{immich_asset_id}/classify-pending", response_model=ClassifyPendingResponse
+)
+def classify_pending(
+    immich_asset_id: str,
+    lookup_service: Annotated[PhotoLookupService, Depends(get_photo_lookup_service)],
+    classification_service: Annotated[
+        ClassificationService, Depends(get_classification_service)
+    ],
+):
+    # A detection can have a Crop but no CropClassification yet -- the
+    # classify pipeline stage just hasn't reached it (see the "classify a
+    # pending detection" addendum in docs/specs/photo-lookup.md). Scoped to
+    # this one asset and PENDING mode only, so it's non-destructive: it can
+    # only ever create a classification where none exists, never touch an
+    # already-classified or already-reviewed detection on this photo.
+    lookup = lookup_service.get(immich_asset_id)
+
+    if lookup is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No scanned photo found for Immich asset {immich_asset_id}",
+        )
+
+    summary = classification_service.classify(
+        mode=ClassificationMode.PENDING,
+        asset_id=lookup.asset_id,
+    )
+
+    return ClassifyPendingResponse.from_summary(summary)
 
 
 @router.post("/{immich_asset_id}/repair", response_model=AssetRepairResponse)
