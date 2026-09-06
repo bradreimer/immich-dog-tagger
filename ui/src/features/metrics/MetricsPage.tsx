@@ -5,12 +5,12 @@ import type { LearningMetrics } from "../../types/metrics";
 import {
   IconBolt,
   IconBooks,
+  IconCat,
   IconCircleCheck,
   IconClipboardList,
+  IconDog,
   IconHistory,
   IconHourglass,
-  IconPhotoCheck,
-  IconPhotoOff,
   IconPhotoSearch,
   IconQuestionMark,
   IconRefresh,
@@ -249,19 +249,20 @@ export function MetricsPage() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <StatTile
-                  icon={IconPhotoCheck}
+                  icon={IconDog}
                   tone="info"
-                  label="Photos with a pet crop"
-                  value={formatPercent(metrics.detection_coverage.with_crops_rate)}
-                  subtext={`${metrics.detection_coverage.with_crops_count} of ${metrics.detection_coverage.processed_count} photos detection has finished with`}
-                  progress={metrics.detection_coverage.with_crops_rate}
+                  label="Photos with a dog"
+                  value={formatPercent(metrics.detection_coverage.with_dog_rate)}
+                  subtext={`${metrics.detection_coverage.with_dog_count} of ${metrics.detection_coverage.processed_count} photos detection has finished with`}
+                  progress={metrics.detection_coverage.with_dog_rate}
                 />
                 <StatTile
-                  icon={IconPhotoOff}
-                  tone="neutral"
-                  label="Photos with no pet crop"
-                  value={metrics.detection_coverage.without_crops_count}
-                  subtext="detection finished, found nothing to crop -- a missed pet would be in here"
+                  icon={IconCat}
+                  tone="info"
+                  label="Photos with a cat"
+                  value={formatPercent(metrics.detection_coverage.with_cat_rate)}
+                  subtext={`${metrics.detection_coverage.with_cat_count} of ${metrics.detection_coverage.processed_count} photos detection has finished with`}
+                  progress={metrics.detection_coverage.with_cat_rate}
                 />
                 <StatTile
                   icon={IconHourglass}

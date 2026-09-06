@@ -18,11 +18,12 @@ export interface ClassificationPassSummary {
 export interface DetectionCoverage {
   scanned_count: number;
   processed_count: number;
-  with_crops_count: number;
-  without_crops_count: number;
+  with_dog_count: number;
+  with_dog_rate: number | null;
+  with_cat_count: number;
+  with_cat_rate: number | null;
   awaiting_detection_count: number;
   unprocessable_count: number;
-  with_crops_rate: number | null;
 }
 
 export interface LearningMetrics {

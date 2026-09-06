@@ -286,7 +286,13 @@ def test_detection_coverage_counts_photos_in_every_status(engine):
         _asset(session, "detected-one-dog", AssetStatus.DETECTED, crops=1)
         _asset(session, "detected-no-pet", AssetStatus.DETECTED)
         _asset(session, "detected-no-pet-2", AssetStatus.DETECTED)
-        _asset(session, "classified", AssetStatus.CLASSIFIED, crops=1)
+        _asset(
+            session,
+            "classified",
+            AssetStatus.CLASSIFIED,
+            crops=1,
+            species=Species.CAT,
+        )
         _asset(session, "tagged", AssetStatus.TAGGED, crops=1)
         _asset(session, "classify-failed", AssetStatus.CLASSIFICATION_FAILED)
         _asset(session, "scanned", AssetStatus.PENDING)
@@ -302,12 +308,14 @@ def test_detection_coverage_counts_photos_in_every_status(engine):
         assert coverage.scanned_count == 12
         # detected x4 + classified + tagged + classification_failed
         assert coverage.processed_count == 7
-        # Photos, not crops: the two-dog photo counts once.
-        assert coverage.with_crops_count == 4
-        assert coverage.without_crops_count == 3
+        # Photos, not crops: the two-dog photo counts once. "classified" is
+        # a cat photo, so it counts toward with_cat_count, not with_dog_count.
+        assert coverage.with_dog_count == 3
+        assert coverage.with_dog_rate == 3 / 7
+        assert coverage.with_cat_count == 1
+        assert coverage.with_cat_rate == 1 / 7
         assert coverage.awaiting_detection_count == 2
         assert coverage.unprocessable_count == 3
-        assert coverage.with_crops_rate == 4 / 7
 
 
 def test_detection_coverage_has_no_rate_before_detection_runs(engine):
@@ -326,17 +334,18 @@ def test_detection_coverage_has_no_rate_before_detection_runs(engine):
 
         assert coverage.scanned_count == 2
         assert coverage.processed_count == 0
-        assert coverage.with_crops_count == 0
-        assert coverage.without_crops_count == 0
+        assert coverage.with_dog_count == 0
+        assert coverage.with_cat_count == 0
         assert coverage.awaiting_detection_count == 2
-        assert coverage.with_crops_rate is None
+        assert coverage.with_dog_rate is None
+        assert coverage.with_cat_rate is None
 
 
 def test_detection_coverage_ignores_crops_on_assets_awaiting_redetection(engine):
     """
     A rescanned asset goes back to PENDING while keeping the crops from
     its previous detection run. Those crops must not be counted against a
-    denominator that excludes the asset, or with_crops_count could exceed
+    denominator that excludes the asset, or with_dog_count could exceed
     processed_count and the rate could exceed 100%.
     """
     with Session(engine) as session:
@@ -348,9 +357,8 @@ def test_detection_coverage_ignores_crops_on_assets_awaiting_redetection(engine)
         coverage = MetricsService(session).learning_metrics().detection_coverage
 
         assert coverage.processed_count == 1
-        assert coverage.with_crops_count == 1
-        assert coverage.without_crops_count == 0
-        assert coverage.with_crops_rate == 1.0
+        assert coverage.with_dog_count == 1
+        assert coverage.with_dog_rate == 1.0
 
 
 def test_detection_coverage_does_not_shift_the_crop_based_metrics(engine):
@@ -382,5 +390,7 @@ def test_detection_coverage_does_not_shift_the_crop_based_metrics(engine):
         assert metrics.automation_rate == 0.5
 
         assert metrics.detection_coverage.processed_count == 10
-        assert metrics.detection_coverage.without_crops_count == 10
-        assert metrics.detection_coverage.with_crops_rate == 0.0
+        assert metrics.detection_coverage.with_dog_count == 0
+        assert metrics.detection_coverage.with_dog_rate == 0.0
+        assert metrics.detection_coverage.with_cat_count == 0
+        assert metrics.detection_coverage.with_cat_rate == 0.0

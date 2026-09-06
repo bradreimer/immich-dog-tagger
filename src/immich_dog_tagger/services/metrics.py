@@ -132,25 +132,30 @@ class DetectionCoverage:
 
     Explicitly *not* accuracy or recall: nothing here is compared against
     labeled ground truth, and the overwhelming majority of photos with no
-    crop legitimately contain no pet. `with_crops_rate` answers exactly
-    one question -- of the photos detection has finished with, what share
-    produced at least one pet crop -- and `without_crops_count` names the
-    population a missed pet would be hiding in.
+    crop legitimately contain no pet. `with_dog_rate`/`with_cat_rate`
+    answer exactly one question each -- of the photos detection has
+    finished with, what share produced at least one crop of that species.
+
+    Split by species (rather than one combined "has a pet crop" figure)
+    since a photo with both a dog and a cat should count toward both, and
+    an owner watching coverage for one species should not have that
+    figure diluted by the other.
     """
 
     # Every asset row the scanner knows about, whatever stage it reached.
     scanned_count: int
     # The stated denominator: photos detection has finished with.
     processed_count: int
-    with_crops_count: int
-    without_crops_count: int
+    with_dog_count: int
+    with_dog_rate: float | None
+    with_cat_count: int
+    with_cat_rate: float | None
     # Scanned but not yet through detection -- not evidence of anything
     # missed, just work the pipeline still has queued.
     awaiting_detection_count: int
     # Cannot reach detection without operator action (failed download or
     # detection, unsupported file type).
     unprocessable_count: int
-    with_crops_rate: float | None
 
 
 @dataclass(frozen=True)
@@ -275,8 +280,8 @@ class MetricsService:
         """
         Two fixed aggregate queries regardless of library size -- a
         grouped count over asset status, and one distinct-asset count over
-        crops. No per-asset query and no row-by-row Python loop, so this
-        stays as cheap at 30,000 photos as at 30.
+        crops grouped by species. No per-asset query and no row-by-row
+        Python loop, so this stays as cheap at 30,000 photos as at 30.
 
         The denominator is deliberately "photos detection has finished
         with" rather than every scanned photo: assets still queued for
@@ -299,26 +304,34 @@ class MetricsService:
 
         # Scoped to the same status set as the denominator so the two can
         # never disagree -- an asset rescanned back to PENDING keeps its
-        # old crops, and counting those here would let with_crops_count
+        # old crops, and counting those here would let a with_*_count
         # exceed processed_count.
-        with_crops_count = self._count(
-            select(func.count(func.distinct(Detection.asset_id)))
-            .select_from(Crop)
-            .join(Detection, Crop.detection_id == Detection.id)
-            .join(Asset, Detection.asset_id == Asset.id)
-            .where(Asset.status.in_(DETECTION_COMPLETE_STATUSES))
+        with_species_count = dict(
+            self.session.execute(
+                select(Crop.species, func.count(func.distinct(Detection.asset_id)))
+                .select_from(Crop)
+                .join(Detection, Crop.detection_id == Detection.id)
+                .join(Asset, Detection.asset_id == Asset.id)
+                .where(Asset.status.in_(DETECTION_COMPLETE_STATUSES))
+                .group_by(Crop.species)
+            ).all()
         )
+        with_dog_count = with_species_count.get(Species.DOG, 0)
+        with_cat_count = with_species_count.get(Species.CAT, 0)
 
         return DetectionCoverage(
             scanned_count=scanned_count,
             processed_count=processed_count,
-            with_crops_count=with_crops_count,
-            without_crops_count=processed_count - with_crops_count,
-            awaiting_detection_count=total(DETECTION_PENDING_STATUSES),
-            unprocessable_count=total(DETECTION_BLOCKED_STATUSES),
-            with_crops_rate=(with_crops_count / processed_count)
+            with_dog_count=with_dog_count,
+            with_dog_rate=(with_dog_count / processed_count)
             if processed_count
             else None,
+            with_cat_count=with_cat_count,
+            with_cat_rate=(with_cat_count / processed_count)
+            if processed_count
+            else None,
+            awaiting_detection_count=total(DETECTION_PENDING_STATUSES),
+            unprocessable_count=total(DETECTION_BLOCKED_STATUSES),
         )
 
     def _species_breakdown(self) -> list[SpeciesMetrics]:
