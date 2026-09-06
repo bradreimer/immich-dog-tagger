@@ -690,17 +690,6 @@
   confirmed) so the next sync retries it. `SyncSummary` gained a `failed_identities` list, surfaced
   in the sync job's progress message and the CLI's `sync` output, so a partial failure stays
   visible rather than only appearing in the server logs.
-- [#245](https://github.com/bradreimer/immich-dog-tagger/issues/245) Photo Lookup can classify a
-  detection that has a `Crop` but no `CropClassification` yet (the classify stage hasn't reached
-  it). A row in this state previously showed a dead-end "Not classified yet" with no correction
-  control -- the only fix was "Repair", which force re-detects the whole photo and discards
-  `CropClassification`/`ReviewAction` rows for every *other* detection on it too. A new "Classify"
-  action (`POST /photo-lookup/{immich_asset_id}/classify-pending`, `ClassificationService.classify
-  (mode=PENDING, asset_id=...)` scoped to that one asset) is non-destructive and idempotent -- it
-  only ever creates a classification where none exists. Once it does, the row gets the same
-  species-correction and identity-`<select>` controls every other row has. See
-  [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s "classify a pending detection" addendum.
-
 - [#246](https://github.com/bradreimer/immich-dog-tagger/issues/246) auto-detect and batch-repair
   stale (EXIF-orientation) detections from Overview. `Asset` gained cached `exif_width`/
   `exif_height`/`exif_orientation` from the same Immich `exifInfo` response already used for
@@ -714,15 +703,14 @@
   excluded by default -- repairing one discards its review history -- and including them requires
   an explicit opt-in switch, never a hidden default. See
   [docs/specs/stale-detection-auto-repair.md](specs/stale-detection-auto-repair.md).
-- [#249](https://github.com/bradreimer/immich-dog-tagger/issues/249) fixed a bug in #245's
-  "Classify" action: a `Detection` can exist with no `Crop` at all (crop-writing can fail for one
-  detection while others in the same photo succeed), and `DetectionList.tsx` only checked
-  `classification_id === null` to decide whether to show "Classify" -- not whether there was a
-  `Crop` for `ClassificationService.classify()` to ever attach a classification to. Such a row
-  showed a "Classify" button that could never do anything when clicked. It now also requires
-  `crop_id !== null` (matching the existing "Not a dog or cat" button's gate) and falls back to a
-  plain "No crop to classify" message otherwise -- an honest dead end instead of a misleading
-  button.
+- [#253](https://github.com/bradreimer/immich-dog-tagger/issues/253) reverted #245/#250's "Classify"
+  action: clicking it on a real Photo Lookup instance did nothing observable (no error, row never
+  turned into a correctable one), leaving a dead-end control that looked functional but wasn't.
+  Photo Lookup's `classification_id === null` rows are back to the pre-#245 plain "Not classified
+  yet" text, with no on-demand classify-pending endpoint. A proper fix -- letting a human assign an
+  identity (or mark not-a-dog/cat) directly on such a row, and explicitly map a crop-less detection
+  to a dog/cat as a manual override -- is tracked separately; root cause of the non-functional
+  button was not confirmed before reverting.
 - [#251](https://github.com/bradreimer/immich-dog-tagger/issues/251) Photo Lookup: hovering a row
   in the detection list highlights that detection's box on the photo above it (raised `z-index` and
   a highlight ring), so overlapping boxes stay tellable apart from their numbered row.

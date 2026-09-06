@@ -40,7 +40,6 @@ describe("DetectionList", () => {
         onCorrect={noop}
         onCorrectSpecies={noop}
         onToggleNotAnimal={noop}
-        onClassifyPending={noop}
         onHoverChange={onHoverChange}
       />,
     );

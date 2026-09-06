@@ -114,62 +114,6 @@ patching the row in place, the same as the not-animal toggle does. The control i
 detection marked "not a dog or cat" or one with no classification yet, matching the identity
 select's own "nothing to correct against" cases.
 
-## Addendum: classify a pending detection (issue #245)
-
-A detection can reach Photo Lookup with a `Crop` but no `CropClassification` at all -- the
-classify pipeline stage simply hasn't reached it yet (e.g. the asset was re-detected by "Repair"
-or scanned recently and the scheduled `classify` run hasn't caught up, or a prior classify chunk
-failed and left the asset's other crops pending). Until #221, every correction control already
-required a `classification_id` to write against, so a detection in this state rendered as a bare
-species badge and "Not classified yet" with nothing to fix it except a full "Repair" -- which forces
-re-download/re-detect and, per `AssetRepairService`, discards any review already recorded for the
-photo's *other* detections. That's a disproportionate hammer for "this one box was never classified."
-
-Each such row now also gets a "Classify" action that runs `ClassificationService.classify(mode=
-PENDING, asset_id=...)` scoped to this photo -- the same non-destructive, idempotent step the
-scheduled `classify` job already runs library-wide, just triggered on demand for one photo instead
-of waited on. It only classifies crops that have no `CropClassification` yet; it never touches
-already-classified or already-reviewed detections on the same photo. Once it produces a
-classification (an automatic best-guess identity, or Unknown if none clears the confidence
-threshold), the row immediately gets the same species-correction and identity-`<select>` controls
-every other row has -- reusing `POST /classifications/{id}/species` and `POST
-/classifications/{id}/correct`, no new correction path.
-
-This is a deliberate, narrow exception to this spec's "doesn't trigger detect/classify" non-goal,
-same as the "Repair" action already is: both are explicit, human-triggered, single-photo actions,
-not something run automatically or library-wide from a read of Photo Lookup.
-
-### Requirements
-- New endpoint, `POST /photo-lookup/{immich_asset_id}/classify-pending`, calling
-  `ClassificationService.classify(mode=ClassificationMode.PENDING, asset_id=...)` for the looked-up
-  asset only.
-- A row with `classification_id === null` **and a `crop_id`** shows a "Classify" action instead of
-  the identity `<select>`/"Not classified yet" text. Clicking it calls the new endpoint, then
-  re-fetches the full lookup (same pattern as the not-animal toggle and species correction), which
-  fills in every now-classified row's species and identity controls.
-- A row with `classification_id === null` and **no `crop_id`** (a `Detection` with no `Crop` at
-  all -- crop-writing can fail for one detection while others in the same photo succeed) must not
-  show "Classify": `ClassificationService.classify()` only ever operates on `Crop` rows, so the
-  action could never do anything for it. This mirrors the existing "Not a dog or cat" button, which
-  already only renders when `crop_id !== null` (issue #249 -- the button previously rendered
-  unconditionally whenever there was no classification, regardless of whether there was a crop to
-  classify).
-- A no-op when the asset has no pending crops (e.g. a second click, or a race with the scheduled
-  classify job) -- calling `classify(mode=PENDING)` is already idempotent since it only selects
-  crops without a classification.
-- The "Not a dog or cat" toggle remains available on a pending row too (`FalsePositiveService.mark()`
-  already tolerates `crop.classification is None`) as the existing way to settle a genuine
-  non-animal box without waiting on classification.
-
-### Acceptance criteria
-- A detection with no classification shows a "Classify" button, not a dead-end "Not classified yet"
-  label.
-- Clicking it turns that row (and any other pending row on the same photo) into a normal
-  species-correctable, identity-correctable row, without discarding any other detection's existing
-  classification or review status on that photo.
-- Correcting a photo that has zero pending crops (e.g. everything already classified) never shows
-  this action.
-
 ## Addendum: highlight hovered detection's box (issue #251)
 
 With several overlapping detections, it's hard to tell by eye which numbered row in the detection
