@@ -272,6 +272,26 @@ def test_remove_assets_from_album():
     assert json.loads(captured["body"]) == {"ids": ["asset1", "asset2"]}
 
 
+def test_add_assets_to_album_batches_large_asset_lists():
+    requests = []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json={"success": True})
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    asset_ids = [f"asset{i}" for i in range(250)]
+
+    client.add_assets_to_album("album1", asset_ids)
+
+    assert len(requests) == 2
+    assert [len(req["ids"]) for req in requests] == [200, 50]
+
+
 def test_remove_assets_from_album_raises_on_error():
     def handler(request):
         return httpx.Response(500, text="boom")
@@ -347,6 +367,42 @@ def test_tag_assets():
     assert captured["method"] == "PUT"
     assert captured["url"] == "http://immich.test/api/tags/tag1/assets"
     assert captured["body"] == {"ids": ["asset1", "asset2"]}
+
+
+def test_tag_assets_batches_large_asset_lists():
+    """Issue #243: a single identity with a large number of assets must not
+    require one giant request to fit inside the Immich timeout -- it's split
+    into fixed-size batches instead."""
+    requests = []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json=[{"success": True}])
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    asset_ids = [f"asset{i}" for i in range(450)]
+
+    client.tag_assets("tag1", asset_ids)
+
+    assert len(requests) == 3
+    assert [len(req["ids"]) for req in requests] == [200, 200, 50]
+    assert [id for req in requests for id in req["ids"]] == asset_ids
+
+
+def test_tag_assets_sends_no_request_for_empty_asset_list():
+    def handler(request):
+        raise AssertionError("no request should be made for an empty asset list")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport)
+
+    client.tag_assets("tag1", [])
 
 
 def test_tag_assets_raises_on_error():

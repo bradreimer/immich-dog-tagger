@@ -384,6 +384,15 @@ def _sync_handler(
                 f"{summary.skipped_missing_asset} missing asset data)"
             )
 
+        if summary.failed_identities:
+            # Issue #243: a single identity's bulk membership write can still fail (e.g. an
+            # Immich timeout on a very large batch) without aborting the rest of the job --
+            # that must stay visible here rather than only in the logs.
+            failed_names = ", ".join(
+                f"{item.species}/{item.identity}" for item in summary.failed_identities
+            )
+            message += f"; failed to sync {len(summary.failed_identities)} identity/ies ({failed_names})"
+
         progress.message(message)
 
         return {
@@ -391,6 +400,7 @@ def _sync_handler(
             "skipped_low_confidence": summary.skipped_low_confidence,
             "skipped_unknown": summary.skipped_unknown,
             "skipped_missing_asset": summary.skipped_missing_asset,
+            "failed_identities": len(summary.failed_identities),
             "items": [
                 {
                     "identity": item.identity,

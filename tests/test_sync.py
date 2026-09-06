@@ -12,9 +12,10 @@ from immich_dog_tagger.services.sync_policy import SyncPolicy
 
 
 class FakeAlbums:
-    def __init__(self):
+    def __init__(self, fail_identities=()):
         self.calls = []
         self.removals = []
+        self.fail_identities = set(fail_identities)
 
     def sync_identity(
         self,
@@ -22,6 +23,9 @@ class FakeAlbums:
         asset_ids,
         species="dog",
     ):
+        if identity in self.fail_identities:
+            raise TimeoutError(f"simulated Immich timeout syncing {identity!r}")
+
         self.calls.append(
             (
                 identity,
@@ -36,6 +40,9 @@ class FakeAlbums:
         asset_ids,
         species="dog",
     ):
+        if identity in self.fail_identities:
+            raise TimeoutError(f"simulated Immich timeout removing {identity!r}")
+
         self.removals.append(
             (
                 identity,
@@ -720,3 +727,126 @@ def test_sync_removes_stale_tag_membership_after_correction(engine):
 
         assert tags.calls == [("Hermann", ["asset1"], "dog")]
         assert tags.removals == [("Fibs", ["asset1"], "dog")]
+
+
+def test_sync_one_identity_failing_does_not_block_the_others(engine):
+    """Issue #243: a production sync job failed with httpx.ReadTimeout on a
+    single identity's bulk tag write, which aborted the whole job -- every
+    other identity in that run should still sync even when one raises."""
+    with Session(engine) as session:
+        for identity in ["Fibs", "Hermann", "Henri"]:
+            asset = Asset(
+                immich_asset_id=f"asset-{identity}", checksum="c", extension=".jpg"
+            )
+            detection = Detection(
+                asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+            )
+            crop = Crop(detection=detection, path=f"{identity}.jpg")
+            session.add(
+                CropClassification(crop=crop, identity=identity, confidence=0.95)
+            )
+        session.commit()
+
+        albums = FakeAlbums(fail_identities={"Hermann"})
+        summary = SyncService(session, albums).sync()
+
+        synced = {item.identity for item in summary.identities}
+        failed = {item.identity for item in summary.failed_identities}
+
+        assert synced == {"Fibs", "Henri"}
+        assert failed == {"Hermann"}
+        assert sorted(identity for identity, _, _ in albums.calls) == ["Fibs", "Henri"]
+
+
+def test_sync_failed_identity_is_retried_on_the_next_run(engine):
+    """A failed identity's previous SyncedAsset tracking must be left alone
+    so the next sync recomputes and retries it, rather than the failure
+    being recorded as if it had succeeded."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+        session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.95))
+        session.commit()
+
+        # First run succeeds and records the synced state.
+        albums = FakeAlbums()
+        service = SyncService(session, albums)
+        service.sync()
+
+        assert session.query(SyncedAsset).count() == 1
+
+        # A second asset is added under the same identity, but this run fails.
+        asset2 = Asset(immich_asset_id="asset2", checksum="c", extension=".jpg")
+        detection2 = Detection(
+            asset=asset2, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop2 = Crop(detection=detection2, path="crop2.jpg")
+        session.add(CropClassification(crop=crop2, identity="Fibs", confidence=0.95))
+        session.commit()
+
+        albums.fail_identities = {"Fibs"}
+        albums.calls = []
+        summary = service.sync()
+
+        assert summary.identities == []
+        assert [item.identity for item in summary.failed_identities] == ["Fibs"]
+
+        # The previous, still-accurate state (asset1 only) is preserved, not
+        # overwritten with a "current" state that was never actually synced.
+        synced_ids = {row.immich_asset_id for row in session.query(SyncedAsset).all()}
+        assert synced_ids == {"asset1"}
+
+        # Retrying with the failure resolved must sync both assets and
+        # recognize nothing needs removing (asset1 was never actually stale).
+        albums.fail_identities = set()
+        summary = service.sync()
+
+        assert albums.removals == []
+        assert summary.identities[0].assets == 2
+
+        synced_ids = {row.immich_asset_id for row in session.query(SyncedAsset).all()}
+        assert synced_ids == {"asset1", "asset2"}
+
+
+def test_sync_stale_removal_failure_is_reported_and_retried(engine):
+    """A stale-removal failure for an identity with no current assets left
+    must still show up in the summary and keep its previous tracked state
+    for a retry, even though it never reaches the main sync loop."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.95)
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+        service = SyncService(session, albums)
+        service.sync()
+
+        # Correct away from Fibs entirely -- Fibs has no current assets left,
+        # so its stale removal is the only thing touching it this run.
+        classification.identity = "Hermann"
+        session.commit()
+
+        albums.fail_identities = {"Fibs"}
+        summary = service.sync()
+
+        assert [item.identity for item in summary.failed_identities] == ["Fibs"]
+        assert albums.removals == []
+
+        synced_ids = {
+            (row.identity, row.immich_asset_id)
+            for row in session.query(SyncedAsset).all()
+        }
+        assert ("Fibs", "asset1") in synced_ids
+
+        albums.fail_identities = set()
+        service.sync()
+
+        assert albums.removals == [("Fibs", ["asset1"], "dog")]

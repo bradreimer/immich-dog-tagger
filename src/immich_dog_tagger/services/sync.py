@@ -1,5 +1,6 @@
+import logging
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -13,6 +14,8 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.sync_policy import SyncPolicy
 from immich_dog_tagger.services.tags import TagService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,10 @@ class SyncSummary:
     skipped_low_confidence: int = 0
     skipped_unknown: int = 0
     skipped_missing_asset: int = 0
+    # Identities whose album/tag membership write raised this run (e.g. an Immich timeout on a
+    # large batch, issue #243) rather than one bad identity aborting the whole job silently.
+    # Their previous SyncedAsset tracking is left untouched so the next sync retries them.
+    failed_identities: list[SyncIdentitySummary] = field(default_factory=list)
 
 
 class SyncService:
@@ -124,36 +131,69 @@ class SyncService:
             assets[(tag.species, tag.identity)].add(tag.asset.immich_asset_id)
             manual_tag_count += 1
 
+        previous: dict[tuple[str, str], set[str]] = {}
+        failed: set[tuple[str, str]] = set()
+
         if not dry_run:
-            self._remove_stale_memberships(assets)
+            previous = self._previously_synced_state()
+            failed |= self._remove_stale_memberships(assets, previous)
 
         summary: list[SyncIdentitySummary] = []
+        failed_summary: list[SyncIdentitySummary] = []
 
         for (species, identity), asset_ids in assets.items():
             if not dry_run:
-                self.albums.sync_identity(
-                    identity,
-                    sorted(asset_ids),
-                    species=species,
-                )
-
-                if self.tags is not None:
-                    self.tags.sync_identity(
+                try:
+                    self.albums.sync_identity(
                         identity,
                         sorted(asset_ids),
                         species=species,
                     )
 
-            summary.append(
+                    if self.tags is not None:
+                        self.tags.sync_identity(
+                            identity,
+                            sorted(asset_ids),
+                            species=species,
+                        )
+                except Exception:
+                    # One identity's bulk membership write failing (e.g. an Immich timeout
+                    # on a very large batch, issue #243) must not abort every other
+                    # identity's sync in this job -- log it, mark it failed, and move on.
+                    logger.exception(
+                        "Sync failed for %s identity %r (%d asset(s)); its Immich "
+                        "membership is unchanged and will be retried on the next sync",
+                        species,
+                        identity,
+                        len(asset_ids),
+                    )
+                    failed.add((species, identity))
+
+            item = SyncIdentitySummary(
+                identity=identity,
+                species=species,
+                assets=len(asset_ids),
+            )
+
+            if (species, identity) in failed:
+                failed_summary.append(item)
+            else:
+                summary.append(item)
+
+        # A stale-removal failure for an identity with no current assets left at all never
+        # reaches the loop above, but it still needs reporting -- otherwise it silently
+        # falls out of both `identities` and `failed_identities`.
+        for species, identity in failed - set(assets):
+            failed_summary.append(
                 SyncIdentitySummary(
                     identity=identity,
                     species=species,
-                    assets=len(asset_ids),
+                    assets=len(previous.get((species, identity), set())),
                 )
             )
 
         if not dry_run:
-            self._save_synced_state(assets)
+            self._save_synced_state(assets, previous, failed)
 
         return SyncSummary(
             identities=summary,
@@ -161,6 +201,7 @@ class SyncService:
             skipped_low_confidence=skipped_low_confidence,
             skipped_unknown=skipped_unknown,
             skipped_missing_asset=skipped_missing_asset,
+            failed_identities=failed_summary,
         )
 
     def _previously_synced_state(self) -> dict[tuple[str, str], set[str]]:
@@ -174,7 +215,8 @@ class SyncService:
     def _remove_stale_memberships(
         self,
         current: dict[tuple[str, str], set[str]],
-    ) -> None:
+        previous: dict[tuple[str, str], set[str]],
+    ) -> set[tuple[str, str]]:
         """
         Diff the current (species, identity) -> asset_ids mapping against
         what was last synced (DT-1113). An asset present in a previous
@@ -183,14 +225,21 @@ class SyncService:
         removing from its old album (and, when tag sync is enabled, its old
         tag, issue #230); otherwise it silently stays attached to both the
         old and new identity forever.
+
+        Returns the (species, identity) keys whose removal raised (issue
+        #243), so the caller can leave their previous tracked state alone
+        rather than recording a removal that didn't actually happen.
         """
-        previous = self._previously_synced_state()
+        failed: set[tuple[str, str]] = set()
 
         for key, previous_ids in previous.items():
             species, identity = key
             stale = previous_ids - current.get(key, set())
 
-            if stale:
+            if not stale:
+                continue
+
+            try:
                 self.albums.remove_from_identity(
                     identity,
                     sorted(stale),
@@ -203,14 +252,36 @@ class SyncService:
                         sorted(stale),
                         species=species,
                     )
+            except Exception:
+                logger.exception(
+                    "Failed to remove %d stale asset(s) from %s identity %r; its previous "
+                    "Immich membership is left as-is and will be retried on the next sync",
+                    len(stale),
+                    species,
+                    identity,
+                )
+                failed.add(key)
+
+        return failed
 
     def _save_synced_state(
         self,
         current: dict[tuple[str, str], set[str]],
+        previous: dict[tuple[str, str], set[str]],
+        failed: set[tuple[str, str]],
     ) -> None:
         self.session.execute(delete(SyncedAsset))
 
-        for (species, identity), asset_ids in current.items():
+        for species, identity in set(current) | set(previous):
+            key = (species, identity)
+            # A key whose add or stale-removal raised this run (issue #243) keeps its
+            # previous tracked state untouched -- its Immich membership was never
+            # confirmed to match `current`, so recording `current` here would make the
+            # next sync think it's already in sync and stop retrying it.
+            asset_ids = (
+                previous.get(key, set()) if key in failed else current.get(key, set())
+            )
+
             for asset_id in asset_ids:
                 self.session.add(
                     SyncedAsset(
