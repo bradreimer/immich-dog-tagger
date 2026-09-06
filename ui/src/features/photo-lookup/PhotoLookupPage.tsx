@@ -4,7 +4,6 @@ import { IconSearch } from "@tabler/icons-react";
 
 import {
   PhotoLookupNotFoundError,
-  classifyPendingDetections,
   correctClassification,
   correctSpecies,
   getDogs,
@@ -119,20 +118,6 @@ export function PhotoLookupPage() {
     }
   };
 
-  const handleClassifyPending = async () => {
-    if (!result) {
-      return;
-    }
-
-    await classifyPendingDetections(result.immich_asset_id);
-
-    // Classifying creates fresh CropClassification rows server-side, so a
-    // full re-fetch (like the not-animal toggle and species correction
-    // above) is what turns the now-classified row(s) into normal
-    // species/identity-correctable rows.
-    setResult(await getPhotoLookup(result.immich_asset_id));
-  };
-
   const handleToggleNotAnimal = async (cropId: number, notAnimal: boolean) => {
     if (notAnimal) {
       await markCropNotAnimal(cropId);
@@ -209,7 +194,6 @@ export function PhotoLookupPage() {
             onCorrect={handleCorrect}
             onCorrectSpecies={handleCorrectSpecies}
             onToggleNotAnimal={handleToggleNotAnimal}
-            onClassifyPending={handleClassifyPending}
             onHoverChange={setHoveredDetectionId}
           />
         </div>

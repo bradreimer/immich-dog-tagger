@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { IconCat, IconDog, IconRefresh, IconX } from "@tabler/icons-react";
+import { IconCat, IconDog, IconX } from "@tabler/icons-react";
 
 import { SPECIES_STYLES } from "@/features/review/utils/speciesStyles";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,6 @@ interface RowProps {
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
   onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
-  onClassifyPending: () => Promise<void>;
   onHoverChange: (detectionId: number | null) => void;
 }
 
@@ -32,7 +31,6 @@ function DetectionRow({
   onCorrect,
   onCorrectSpecies,
   onToggleNotAnimal,
-  onClassifyPending,
   onHoverChange,
 }: RowProps) {
   const [saving, setSaving] = useState(false);
@@ -90,19 +88,6 @@ function DetectionRow({
       await onToggleNotAnimal(detection.crop_id, !detection.not_animal);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleClassifyPending = async () => {
-    setError(null);
-    setSaving(true);
-
-    try {
-      await onClassifyPending();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to classify");
     } finally {
       setSaving(false);
     }
@@ -187,21 +172,9 @@ function DetectionRow({
                 </option>
               ))}
             </select>
-          ) : detection.crop_id !== null ? (
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={handleClassifyPending}
-              disabled={saving}
-              className="shrink-0"
-            >
-              <IconRefresh className="h-4 w-4" aria-hidden="true" />
-              {saving ? "Classifying…" : "Classify"}
-            </Button>
           ) : (
             <span className="shrink-0 text-sm text-muted-foreground">
-              No crop to classify
+              Not classified yet
             </span>
           )}
         </>
@@ -232,7 +205,6 @@ interface Props {
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
   onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
-  onClassifyPending: () => Promise<void>;
   onHoverChange: (detectionId: number | null) => void;
 }
 
@@ -242,7 +214,6 @@ export function DetectionList({
   onCorrect,
   onCorrectSpecies,
   onToggleNotAnimal,
-  onClassifyPending,
   onHoverChange,
 }: Props) {
   if (detections.length === 0) {
@@ -267,7 +238,6 @@ export function DetectionList({
             onCorrectSpecies={onCorrectSpecies}
             onCorrect={onCorrect}
             onToggleNotAnimal={onToggleNotAnimal}
-            onClassifyPending={onClassifyPending}
             onHoverChange={onHoverChange}
           />
         ))}

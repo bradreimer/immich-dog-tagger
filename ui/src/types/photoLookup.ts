@@ -19,12 +19,6 @@ export interface PhotoLookupResult {
   detections: PhotoLookupDetection[];
 }
 
-/** Result of classifying a photo's pending (not-yet-classified) crops (issue #245). */
-export interface ClassifyPendingResult {
-  classified: number;
-  message: string;
-}
-
 /** Result of forcing one asset back through download/detect/classify (issue #226). */
 export interface AssetRepairResult {
   asset_id: number;
