@@ -181,7 +181,7 @@ function DetectionRow({
                 </option>
               ))}
             </select>
-          ) : (
+          ) : detection.crop_id !== null ? (
             <Button
               type="button"
               variant="default"
@@ -193,6 +193,10 @@ function DetectionRow({
               <IconRefresh className="h-4 w-4" aria-hidden="true" />
               {saving ? "Classifying…" : "Classify"}
             </Button>
+          ) : (
+            <span className="shrink-0 text-sm text-muted-foreground">
+              No crop to classify
+            </span>
           )}
         </>
       )}

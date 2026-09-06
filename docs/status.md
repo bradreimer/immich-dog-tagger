@@ -714,6 +714,15 @@
   excluded by default -- repairing one discards its review history -- and including them requires
   an explicit opt-in switch, never a hidden default. See
   [docs/specs/stale-detection-auto-repair.md](specs/stale-detection-auto-repair.md).
+- [#249](https://github.com/bradreimer/immich-dog-tagger/issues/249) fixed a bug in #245's
+  "Classify" action: a `Detection` can exist with no `Crop` at all (crop-writing can fail for one
+  detection while others in the same photo succeed), and `DetectionList.tsx` only checked
+  `classification_id === null` to decide whether to show "Classify" -- not whether there was a
+  `Crop` for `ClassificationService.classify()` to ever attach a classification to. Such a row
+  showed a "Classify" button that could never do anything when clicked. It now also requires
+  `crop_id !== null` (matching the existing "Not a dog or cat" button's gate) and falls back to a
+  plain "No crop to classify" message otherwise -- an honest dead end instead of a misleading
+  button.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

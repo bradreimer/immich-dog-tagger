@@ -284,6 +284,103 @@ describe("PhotoLookupPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not show an actionable Classify button for a detection with no crop", async () => {
+    // Issue #249: a Detection can exist with no Crop at all (crop-writing
+    // can fail for one detection while others in the same photo succeed).
+    // ClassificationService.classify() only ever operates on Crop rows, so
+    // "Classify" can never do anything for such a row -- it must not be
+    // offered as if it could.
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+
+    const initial = buildResult();
+    initial.detections[0] = {
+      ...initial.detections[0],
+      crop_id: null,
+      classification_id: null,
+      identity: null,
+      confidence: null,
+    };
+
+    vi.mocked(api.getPhotoLookup).mockResolvedValue(initial);
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    expect(await screen.findByText("No crop to classify")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^classify$/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /not a dog or cat/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves an already-classified row untouched when classifying a different pending detection on the same photo", async () => {
+    // Issue #249: reported symptom was that classifying one pending
+    // detection appeared to strip the identity <select> from an unrelated,
+    // already-classified row on the same photo. ClassificationService.
+    // classify(mode=PENDING) only ever creates classifications where none
+    // exist, so the already-classified row's data (and the select rendered
+    // from it) must be provably unchanged after the re-fetch.
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+
+    const initial = buildResult();
+    initial.detections = [
+      initial.detections[0],
+      {
+        detection_id: 2,
+        x1: 200,
+        y1: 20,
+        x2: 300,
+        y2: 220,
+        species: "dog",
+        crop_id: 2,
+        classification_id: null,
+        identity: null,
+        confidence: null,
+        not_animal: false,
+      },
+    ];
+
+    const afterClassify: PhotoLookupResult = {
+      ...initial,
+      detections: [
+        initial.detections[0],
+        { ...initial.detections[1], classification_id: 201, identity: null },
+      ],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterClassify);
+    vi.mocked(api.classifyPendingDetections).mockResolvedValue({
+      classified: 1,
+      message: "Classified 1 pending detection(s).",
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    expect(
+      await screen.findByLabelText("Correct identity for detection 1"),
+    ).toHaveValue("Hermann");
+
+    fireEvent.click(screen.getByRole("button", { name: /^classify$/i }));
+
+    await waitFor(() => {
+      expect(api.classifyPendingDetections).toHaveBeenCalledWith("asset-42");
+    });
+
+    expect(
+      await screen.findByLabelText("Correct identity for detection 2"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Correct identity for detection 1"),
+    ).toHaveValue("Hermann");
+  });
+
   it("shows a distinct message when no dogs or cats were detected", async () => {
     vi.mocked(api.getDogs).mockResolvedValue([]);
     vi.mocked(api.getPhotoLookup).mockResolvedValue({

@@ -143,10 +143,17 @@ not something run automatically or library-wide from a read of Photo Lookup.
 - New endpoint, `POST /photo-lookup/{immich_asset_id}/classify-pending`, calling
   `ClassificationService.classify(mode=ClassificationMode.PENDING, asset_id=...)` for the looked-up
   asset only.
-- A row with `classification_id === null` shows a "Classify" action instead of the identity
-  `<select>`/"Not classified yet" text. Clicking it calls the new endpoint, then re-fetches the full
-  lookup (same pattern as the not-animal toggle and species correction), which fills in every
-  now-classified row's species and identity controls.
+- A row with `classification_id === null` **and a `crop_id`** shows a "Classify" action instead of
+  the identity `<select>`/"Not classified yet" text. Clicking it calls the new endpoint, then
+  re-fetches the full lookup (same pattern as the not-animal toggle and species correction), which
+  fills in every now-classified row's species and identity controls.
+- A row with `classification_id === null` and **no `crop_id`** (a `Detection` with no `Crop` at
+  all -- crop-writing can fail for one detection while others in the same photo succeed) must not
+  show "Classify": `ClassificationService.classify()` only ever operates on `Crop` rows, so the
+  action could never do anything for it. This mirrors the existing "Not a dog or cat" button, which
+  already only renders when `crop_id !== null` (issue #249 -- the button previously rendered
+  unconditionally whenever there was no classification, regardless of whether there was a crop to
+  classify).
 - A no-op when the asset has no pending crops (e.g. a second click, or a race with the scheduled
   classify job) -- calling `classify(mode=PENDING)` is already idempotent since it only selects
   crops without a classification.
