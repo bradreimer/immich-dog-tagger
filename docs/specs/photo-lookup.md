@@ -170,5 +170,17 @@ not something run automatically or library-wide from a read of Photo Lookup.
 - Correcting a photo that has zero pending crops (e.g. everything already classified) never shows
   this action.
 
+## Addendum: highlight hovered detection's box (issue #251)
+
+With several overlapping detections, it's hard to tell by eye which numbered row in the detection
+list below the photo belongs to which box on it. Hovering a row now highlights that detection's box
+on the photo: `PhotoLookupPage` lifts a `hoveredDetectionId` piece of state, `DetectionList` reports
+hover in/out per row (keyed by `detection.detection_id`, the same id boxes are already keyed by),
+and `PhotoLookupImage` renders the matching box with an added highlight ring and raises it above
+sibling boxes (`z-index`) so it stays visible under overlap. The existing identified/unknown/
+not-animal color coding and label are unchanged -- the highlight is an additional state layered on
+top, not a replacement palette. Reverse direction (hovering a box highlights its row) is out of
+scope for this pass.
+
 ## Open questions
 - None.
