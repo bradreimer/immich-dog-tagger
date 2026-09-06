@@ -218,6 +218,75 @@ def test_list_assets_defaults_missing_metadata():
     assert asset.latitude is None
     assert asset.city is None
     assert asset.people == ()
+    assert asset.exif_width is None
+    assert asset.exif_height is None
+    assert asset.exif_orientation is None
+
+
+def test_list_assets_parses_exif_dimensions_and_orientation():
+    # Immich returns `orientation` as a string (the raw EXIF tag) and the
+    # dimensions as numbers -- parsed defensively into ints either way, for
+    # the stale-detection auto-repair check
+    # (docs/specs/stale-detection-auto-repair.md).
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "assets": {
+                    "items": [
+                        {
+                            "id": "abc123",
+                            "originalFileName": "dog.jpg",
+                            "checksum": "xyz",
+                            "exifInfo": {
+                                "exifImageWidth": 4032,
+                                "exifImageHeight": 3024,
+                                "orientation": "6",
+                            },
+                        }
+                    ]
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    asset = client.list_assets()[0]
+
+    assert asset.exif_width == 4032
+    assert asset.exif_height == 3024
+    assert asset.exif_orientation == 6
+
+
+def test_list_assets_tolerates_unparseable_orientation():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "assets": {
+                    "items": [
+                        {
+                            "id": "abc123",
+                            "originalFileName": "dog.jpg",
+                            "checksum": "xyz",
+                            "exifInfo": {"orientation": "unknown"},
+                        }
+                    ]
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    asset = client.list_assets()[0]
+
+    assert asset.exif_orientation is None
 
 
 def test_download_asset():

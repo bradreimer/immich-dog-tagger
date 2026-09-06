@@ -477,6 +477,80 @@ def test_database_adds_asset_metadata_columns_without_losing_classifications(
         assert migrated.people == []
         assert migrated.metadata_synced_at is None
 
+
+def test_database_adds_asset_exif_dimension_columns_without_losing_classifications(
+    tmp_path: Path,
+):
+    """
+    Same shape as the #94 metadata-columns migration test above, for the
+    exif_width/exif_height/exif_orientation columns added by the
+    stale-detection auto-repair spec (docs/specs/stale-detection-auto-repair.md).
+    """
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-1",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.PENDING,
+        )
+        session.add(asset)
+        session.flush()
+
+        detection = Detection(
+            asset_id=asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=10,
+            y2=10,
+        )
+        session.add(detection)
+        session.flush()
+
+        crop = Crop(detection_id=detection.id, path="hermann.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        session.add(
+            CropClassification(
+                crop_id=crop.id,
+                identity="Hermann",
+                confidence=0.87,
+            )
+        )
+        session.commit()
+
+    engine.dispose()
+
+    connection = sqlite3.connect(tmp_path / "state.db")
+
+    for column in ("exif_width", "exif_height", "exif_orientation"):
+        connection.execute(f"ALTER TABLE assets DROP COLUMN {column}")
+
+    connection.commit()
+    connection.close()
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        migrated = session.scalar(select(Asset))
+
+        assert migrated is not None
+        assert migrated.immich_asset_id == "asset-1"
+        assert migrated.exif_width is None
+        assert migrated.exif_height is None
+        assert migrated.exif_orientation is None
+
+        classification = session.scalar(select(CropClassification))
+        assert classification is not None
+        assert classification.identity == "Hermann"
+
         classification = session.scalar(select(CropClassification))
 
         assert classification is not None

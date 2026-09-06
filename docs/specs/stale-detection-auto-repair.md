@@ -116,10 +116,6 @@ does on demand.
   Non-goal), rather than silently mis-flagged as fine.
 
 ## Open Questions
-- Should assets with recorded review history be excluded from the one-click batch by default,
-  requiring a separate, explicit "include reviewed photos too" opt-in -- or is stating the count
-  up front (FR-5/FR-7) sufficient? This is the main product decision before implementation: the
-  worse failure mode is a user batch-repairing away review history they didn't realize was there.
 - For a large library, is a per-asset SQL check (FR-3) fast enough to run synchronously for
   `GET /diagnostics`, or does it need the same async job treatment `check-derived-data` uses for
   large libraries?
@@ -131,3 +127,12 @@ does on demand.
   `exifImageHeight` sometimes already reflect the rotated (display) dimensions rather than the raw
   sensor dimensions, depending on server version -- this needs confirming against a real Immich
   instance/API response before implementation, not assumed from the field names.
+
+## Resolved decisions
+
+- **Reviewed photos are excluded from the batch by default, opt-in only (FR-7).** Silently
+  discarding review history as a side effect of a one-click "repair everything" action is the
+  worse failure mode; the Overview action states the reviewed-at-risk count (FR-5) and requires an
+  explicit switch to include those photos, never a default. Implemented as
+  `StaleDetectionService.repair(asset_repair_service, include_reviewed=False)` and
+  `POST /diagnostics/stale-detections/repair?include_reviewed=<bool>`.

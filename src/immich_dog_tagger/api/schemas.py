@@ -728,6 +728,20 @@ class PhotoLookupResponse(BaseModel):
         )
 
 
+class StaleDetectionRepairResponse(BaseModel):
+    repaired: int
+    skipped_reviewed: int
+    failed: int
+
+    @classmethod
+    def from_summary(cls, summary):
+        return cls(
+            repaired=summary.repaired,
+            skipped_reviewed=summary.skipped_reviewed,
+            failed=summary.failed,
+        )
+
+
 class AssetRepairResponse(BaseModel):
     asset_id: int
     immich_asset_id: str

@@ -232,4 +232,7 @@ def _apply_immich_metadata(asset: Asset, immich_asset: ImmichAsset) -> None:
     asset.people = [
         {"id": person.id, "name": person.name} for person in immich_asset.people
     ]
+    asset.exif_width = immich_asset.exif_width
+    asset.exif_height = immich_asset.exif_height
+    asset.exif_orientation = immich_asset.exif_orientation
     asset.metadata_synced_at = datetime.now(UTC).replace(tzinfo=None)

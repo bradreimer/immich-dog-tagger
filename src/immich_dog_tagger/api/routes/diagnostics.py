@@ -5,8 +5,16 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.api.dependencies import get_config, get_job_service, get_session
+from immich_dog_tagger.api.dependencies import (
+    get_asset_repair_service,
+    get_config,
+    get_job_service,
+    get_session,
+    get_stale_detection_service,
+)
+from immich_dog_tagger.api.schemas import StaleDetectionRepairResponse
 from immich_dog_tagger.config import Config
+from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.backup import BackupService
 from immich_dog_tagger.services.derived_data import DerivedDataService
 from immich_dog_tagger.services.job_recovery import (
@@ -15,6 +23,7 @@ from immich_dog_tagger.services.job_recovery import (
 )
 from immich_dog_tagger.services.jobs import PipelineJobService
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth
+from immich_dog_tagger.services.stale_detection import StaleDetectionService
 
 router = APIRouter()
 
@@ -49,6 +58,9 @@ def diagnostics(
     # Derived data
     derived_svc = DerivedDataService(session, config.cache_dir)
     derived_report = derived_svc.check()
+
+    # Stale (EXIF-orientation) detections
+    stale_report = StaleDetectionService(session).check()
 
     return {
         "db": {
@@ -93,4 +105,27 @@ def diagnostics(
             "has_backup": last_backup is not None,
         },
         "derived_data": derived_report.as_dict(),
+        "stale_detections": stale_report.as_dict(),
     }
+
+
+@router.post(
+    "/diagnostics/stale-detections/repair",
+    response_model=StaleDetectionRepairResponse,
+)
+def repair_stale_detections(
+    service: Annotated[StaleDetectionService, Depends(get_stale_detection_service)],
+    asset_repair_service: Annotated[
+        AssetRepairService, Depends(get_asset_repair_service)
+    ],
+    include_reviewed: bool = False,
+):
+    # Batch-runs the existing per-photo Repair action (issue #226) over every
+    # currently-flagged asset. Reviewed assets are skipped unless the caller
+    # explicitly opts in (include_reviewed=True) -- repairing one discards
+    # its review history, so that has to be a deliberate choice made with
+    # the count from GET /diagnostics.stale_detections.reviewed_at_risk in
+    # hand, never the silent default.
+    summary = service.repair(asset_repair_service, include_reviewed=include_reviewed)
+
+    return StaleDetectionRepairResponse.from_summary(summary)

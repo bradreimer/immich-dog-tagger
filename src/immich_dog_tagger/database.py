@@ -72,6 +72,7 @@ def create_database(state_dir: Path):
     _ensure_asset_metadata_columns(engine)
     _ensure_embedding_example_location_columns(engine)
     _ensure_crop_not_animal_column(engine)
+    _ensure_asset_exif_dimension_columns(engine)
 
     return engine
 
@@ -302,6 +303,36 @@ def _ensure_asset_metadata_columns(engine) -> None:
 
     if "metadata_synced_at" not in columns:
         statements.append("ALTER TABLE assets ADD COLUMN metadata_synced_at DATETIME")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+
+
+def _ensure_asset_exif_dimension_columns(engine) -> None:
+    """
+    Stale-detection auto-repair spec (docs/specs/stale-detection-auto-repair.md):
+    assets gain cached exifImageWidth/exifImageHeight/orientation from
+    Immich's own exifInfo, alongside the existing latitude/longitude fields.
+    Plain ADD COLUMNs -- an existing asset's values are unknown (NULL) until
+    its next scan, not guessed at.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("assets")}
+
+    statements = []
+
+    if "exif_width" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN exif_width INTEGER")
+
+    if "exif_height" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN exif_height INTEGER")
+
+    if "exif_orientation" not in columns:
+        statements.append("ALTER TABLE assets ADD COLUMN exif_orientation INTEGER")
 
     if not statements:
         return
