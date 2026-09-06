@@ -83,14 +83,17 @@ instead:
 
 | Tile | Meaning |
 |---|---|
-| **Photos with a pet crop** | Of the photos detection has finished with, the share that produced at least one crop. |
-| **Photos with no pet crop** | Detection finished and found nothing to crop. Most of these legitimately contain no pet -- but a pet the detector missed is in here. |
+| **Photos with a dog** | Of the photos detection has finished with, the share that produced at least one dog crop. |
+| **Photos with a cat** | Of the photos detection has finished with, the share that produced at least one cat crop. |
 | **Awaiting detection** | Scanned, not yet through detection. Backlog, not a miss. |
 | **Could not be processed** | Download or detection failed, or the file type is unsupported. |
 
-Expect "photos with no pet crop" to be the large number in a normal library:
-most photos contain no pet. The card is there so that number is *visible*
-rather than absent, and so a detection problem shows up as a shift in it.
+A photo with both a dog and a cat counts toward both tiles -- they are not
+complementary shares of the same total. Together with "awaiting detection"
+and "could not be processed", the gap between the two coverage tiles and
+"processed" is photos detection finished with and found nothing to crop --
+most of those legitimately contain no pet, but a pet the detector missed is
+in there too.
 
 Like everything else on the Metrics tab, this is coverage -- not accuracy and
 not recall. There is no known-correct label for a photo detection never

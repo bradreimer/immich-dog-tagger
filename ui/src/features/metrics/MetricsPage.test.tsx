@@ -22,11 +22,12 @@ const metrics: LearningMetrics = {
   detection_coverage: {
     scanned_count: 120,
     processed_count: 100,
-    with_crops_count: 30,
-    without_crops_count: 70,
+    with_dog_count: 30,
+    with_dog_rate: 0.3,
+    with_cat_count: 12,
+    with_cat_rate: 0.12,
     awaiting_detection_count: 15,
     unprocessable_count: 5,
-    with_crops_rate: 0.3,
   },
 };
 
@@ -36,21 +37,24 @@ vi.mock("../../lib/api", () => ({
 }));
 
 describe("MetricsPage library coverage", () => {
-  it("states the denominator next to the coverage figure", async () => {
+  it("states the denominator next to the dog coverage figure", async () => {
     render(<MetricsPage />);
 
-    expect(await screen.findByText("Photos with a pet crop")).toBeInTheDocument();
+    expect(await screen.findByText("Photos with a dog")).toBeInTheDocument();
     expect(screen.getByText("30%")).toBeInTheDocument();
     expect(
       screen.getByText("30 of 100 photos detection has finished with"),
     ).toBeInTheDocument();
   });
 
-  it("shows photos that produced no crop as their own count", async () => {
+  it("states the denominator next to the cat coverage figure", async () => {
     render(<MetricsPage />);
 
-    expect(await screen.findByText("Photos with no pet crop")).toBeInTheDocument();
-    expect(screen.getByText("70")).toBeInTheDocument();
+    expect(await screen.findByText("Photos with a cat")).toBeInTheDocument();
+    expect(screen.getByText("12%")).toBeInTheDocument();
+    expect(
+      screen.getByText("12 of 100 photos detection has finished with"),
+    ).toBeInTheDocument();
   });
 
   it("does not describe coverage as accuracy or recall", async () => {

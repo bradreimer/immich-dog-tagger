@@ -443,22 +443,24 @@ class SpeciesMetricsResponse(BaseModel):
 class DetectionCoverageResponse(BaseModel):
     scanned_count: int
     processed_count: int
-    with_crops_count: int
-    without_crops_count: int
+    with_dog_count: int
+    with_dog_rate: float | None
+    with_cat_count: int
+    with_cat_rate: float | None
     awaiting_detection_count: int
     unprocessable_count: int
-    with_crops_rate: float | None
 
     @classmethod
     def from_detection_coverage(cls, coverage):
         return cls(
             scanned_count=coverage.scanned_count,
             processed_count=coverage.processed_count,
-            with_crops_count=coverage.with_crops_count,
-            without_crops_count=coverage.without_crops_count,
+            with_dog_count=coverage.with_dog_count,
+            with_dog_rate=coverage.with_dog_rate,
+            with_cat_count=coverage.with_cat_count,
+            with_cat_rate=coverage.with_cat_rate,
             awaiting_detection_count=coverage.awaiting_detection_count,
             unprocessable_count=coverage.unprocessable_count,
-            with_crops_rate=coverage.with_crops_rate,
         )
 
 

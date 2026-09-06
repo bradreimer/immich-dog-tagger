@@ -49,7 +49,7 @@ def test_metrics_reflects_classification_counts(api_client, engine):
     assert payload["review_queue_size"] == 0
 
 
-def _detected_asset(session, immich_asset_id, *, with_crop):
+def _detected_asset(session, immich_asset_id, *, with_crop, species="dog"):
     asset = Asset(
         immich_asset_id=immich_asset_id,
         extension="jpg",
@@ -61,7 +61,7 @@ def _detected_asset(session, immich_asset_id, *, with_crop):
     if with_crop:
         detection = Detection(
             asset_id=asset.id,
-            label="dog",
+            label=species,
             confidence=0.9,
             x1=0,
             y1=0,
@@ -71,12 +71,19 @@ def _detected_asset(session, immich_asset_id, *, with_crop):
         session.add(detection)
         session.flush()
 
-        session.add(Crop(detection_id=detection.id, path=f"{immich_asset_id}.jpg"))
+        session.add(
+            Crop(
+                detection_id=detection.id,
+                path=f"{immich_asset_id}.jpg",
+                species=species,
+            )
+        )
 
 
 def test_metrics_reports_detection_coverage(api_client, engine):
     with Session(engine) as session:
-        _detected_asset(session, "with-dog", with_crop=True)
+        _detected_asset(session, "with-dog", with_crop=True, species="dog")
+        _detected_asset(session, "with-cat", with_crop=True, species="cat")
         _detected_asset(session, "no-pet-1", with_crop=False)
         _detected_asset(session, "no-pet-2", with_crop=False)
 
@@ -93,13 +100,14 @@ def test_metrics_reports_detection_coverage(api_client, engine):
 
     coverage = payload["detection_coverage"]
 
-    assert coverage["scanned_count"] == 4
-    assert coverage["processed_count"] == 3
-    assert coverage["with_crops_count"] == 1
-    assert coverage["without_crops_count"] == 2
+    assert coverage["scanned_count"] == 5
+    assert coverage["processed_count"] == 4
+    assert coverage["with_dog_count"] == 1
+    assert coverage["with_dog_rate"] == 1 / 4
+    assert coverage["with_cat_count"] == 1
+    assert coverage["with_cat_rate"] == 1 / 4
     assert coverage["awaiting_detection_count"] == 1
     assert coverage["unprocessable_count"] == 0
-    assert coverage["with_crops_rate"] == 1 / 3
 
 
 def test_metrics_empty_project_reports_detection_coverage_without_a_rate(api_client):
@@ -107,7 +115,8 @@ def test_metrics_empty_project_reports_detection_coverage_without_a_rate(api_cli
 
     assert coverage["scanned_count"] == 0
     assert coverage["processed_count"] == 0
-    assert coverage["with_crops_rate"] is None
+    assert coverage["with_dog_rate"] is None
+    assert coverage["with_cat_rate"] is None
 
 
 def test_metrics_query_count_does_not_scale_with_library_size(api_client, engine):
