@@ -6,7 +6,7 @@ import type { Dog, DogMergeResult, Species } from "../types/dogs";
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
-import type { Diagnostics } from "../types/diagnostics";
+import type { Diagnostics, StaleDetectionRepairResult } from "../types/diagnostics";
 import type { LearningMetrics } from "../types/metrics";
 import type { LibraryPage, LibrarySort } from "../types/library";
 import type {
@@ -639,6 +639,28 @@ export async function getDiagnostics(): Promise<Diagnostics> {
   if (!response.ok) {
     throw new Error("Failed to load diagnostics");
   }
+  return response.json();
+}
+
+/**
+ * Batch-runs the per-photo Repair action (issue #226) over every currently
+ * flagged stale-detection asset (docs/specs/stale-detection-auto-repair.md).
+ * Reviewed assets are skipped unless `includeReviewed` is explicitly passed
+ * -- repairing one discards its review history, so callers must confirm
+ * with the user and show the reviewed-at-risk count before opting in.
+ */
+export async function repairStaleDetections(
+  includeReviewed = false,
+): Promise<StaleDetectionRepairResult> {
+  const response = await fetch(
+    `/api/diagnostics/stale-detections/repair?include_reviewed=${includeReviewed}`,
+    { method: "POST" },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to repair stale detections");
+  }
+
   return response.json();
 }
 
