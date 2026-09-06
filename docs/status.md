@@ -717,6 +717,11 @@
   `PhotoLookupPage` lifts a `hoveredDetectionId` state; `DetectionList` reports hover in/out per row
   by `detection_id`. See [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s "highlight hovered
   detection's box" addendum.
+- [#257](https://github.com/bradreimer/immich-dog-tagger/issues/257) fixed a false-failure report
+  from the #246 stale-detection batch repair: the `/api/` proxy location in `ui/nginx.conf` had no
+  `proxy_read_timeout`/`proxy_send_timeout` set, so nginx's 60s default would 504 the client on a
+  large batch (repair runs synchronously, one asset at a time) while the backend kept working to a
+  successful completion in the background. Both timeouts are now 600s.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),
