@@ -46,6 +46,14 @@ class FakeEmbedder:
             dtype=np.float32,
         )
 
+    def embed_batch(self, paths):
+        import numpy as np
+
+        return np.array(
+            [[1, 0, 0] for _ in paths],
+            dtype=np.float32,
+        )
+
 
 class FakeJobDispatcher:
     def __init__(self):
