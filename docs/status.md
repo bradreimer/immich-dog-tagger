@@ -701,6 +701,20 @@
   species-correction and identity-`<select>` controls every other row has. See
   [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s "classify a pending detection" addendum.
 
+- [#246](https://github.com/bradreimer/immich-dog-tagger/issues/246) auto-detect and batch-repair
+  stale (EXIF-orientation) detections from Overview. `Asset` gained cached `exif_width`/
+  `exif_height`/`exif_orientation` from the same Immich `exifInfo` response already used for
+  latitude/longitude; `StaleDetectionService.check()` flags photos whose stored `Detection` box
+  geometrically cannot fit a 90/270-degree-rotated asset's upright bounds while still fitting its
+  raw dimensions -- an unambiguous signal needing no re-download or re-detection (only that
+  rotation subset is detectable this way; 180-degree/mirrored cases are out of reach, per the
+  spec's Non-goals). Overview shows a new "Stale Detections" health tile and, when unhealthy, a
+  batch-repair action (`POST /diagnostics/stale-detections/repair`) that reuses the existing
+  per-photo `AssetRepairService.repair()` (#226) across every flagged asset. Reviewed photos are
+  excluded by default -- repairing one discards its review history -- and including them requires
+  an explicit opt-in switch, never a hidden default. See
+  [docs/specs/stale-detection-auto-repair.md](specs/stale-detection-auto-repair.md).
+
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),
 [docs/specs/immich-tag-sync.md](specs/immich-tag-sync.md)) is **complete**. Sync now also writes

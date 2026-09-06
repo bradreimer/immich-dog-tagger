@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Integer,
     LargeBinary,
     String,
     UniqueConstraint,
@@ -288,6 +289,16 @@ class Asset(Base):
         DateTime,
         nullable=True,
     )
+
+    # Immich's own exifInfo.exifImageWidth/exifImageHeight/orientation, cached
+    # from the same metadata response as latitude/longitude above -- not
+    # captured before the stale-detection auto-repair spec
+    # (docs/specs/stale-detection-auto-repair.md), so None on any asset not
+    # yet re-scanned since. Raw (pre-rotation) dimensions and the EXIF
+    # orientation tag value (1-8), not the upright/display dimensions.
+    exif_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    exif_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    exif_orientation: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     pet_occurrences: Mapped[list[PetOccurrence]] = relationship(
         back_populates="asset",

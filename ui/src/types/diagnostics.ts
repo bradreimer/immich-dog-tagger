@@ -46,10 +46,23 @@ export interface JobSummary {
   recent_failures: RecentFailure[];
 }
 
+export interface StaleDetectionStatus {
+  healthy: boolean;
+  flagged: number;
+  reviewed_at_risk: number;
+}
+
+export interface StaleDetectionRepairResult {
+  repaired: number;
+  skipped_reviewed: number;
+  failed: number;
+}
+
 export interface Diagnostics {
   db: { healthy: boolean };
   scheduler: SchedulerStatus | null;
   jobs: JobSummary;
   backup: BackupStatus;
   derived_data: DerivedDataStatus;
+  stale_detections: StaleDetectionStatus;
 }

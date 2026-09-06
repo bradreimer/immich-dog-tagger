@@ -30,6 +30,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
+import { StaleDetectionRepairAction } from "./components/StaleDetectionRepairAction";
 
 function formatOperation(operation: string): string {
   return operation
@@ -351,7 +352,22 @@ export function OverviewPage() {
                     : `${diagnostics.derived_data.total_missing} missing`}
                 </p>
               </div>
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Stale Detections</p>
+                <p className={`mt-1 font-medium ${diagnostics.stale_detections.healthy ? "text-status-good" : "text-status-warning"}`}>
+                  {diagnostics.stale_detections.healthy
+                    ? "None found"
+                    : `${diagnostics.stale_detections.flagged} flagged`}
+                </p>
+              </div>
             </div>
+
+            {!diagnostics.stale_detections.healthy && (
+              <StaleDetectionRepairAction
+                status={diagnostics.stale_detections}
+                onRepaired={() => void load({ silent: true })}
+              />
+            )}
 
             {diagnostics.jobs.stuck.length > 0 && (
               <div className="rounded-md border border-status-warning/40 bg-status-warning/5 p-3">

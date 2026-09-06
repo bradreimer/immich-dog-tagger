@@ -96,9 +96,30 @@ class ImmichAsset:
     is_favorite: bool = False
     people: tuple[ImmichPerson, ...] = ()
 
+    # Raw (pre-rotation) dimensions and EXIF orientation tag (1-8), also from
+    # exifInfo -- added for the stale-detection auto-repair spec
+    # (docs/specs/stale-detection-auto-repair.md). None when Immich has no
+    # EXIF data for the asset, same as the other exifInfo-sourced fields.
+    exif_width: int | None = None
+    exif_height: int | None = None
+    exif_orientation: int | None = None
+
     @property
     def extension(self) -> str:
         return Path(self.filename).suffix.lower()
+
+
+def _parse_int(value) -> int | None:
+    if value is None:
+        return None
+
+    try:
+        return int(value)
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return None
 
 
 def parse_immich_datetime(value: str | None) -> datetime | None:
@@ -146,6 +167,9 @@ def _parse_immich_asset(item: dict) -> ImmichAsset:
         city=exif.get("city"),
         is_favorite=bool(item.get("isFavorite", False)),
         people=people,
+        exif_width=_parse_int(exif.get("exifImageWidth")),
+        exif_height=_parse_int(exif.get("exifImageHeight")),
+        exif_orientation=_parse_int(exif.get("orientation")),
     )
 
 

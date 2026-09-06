@@ -41,6 +41,7 @@ from immich_dog_tagger.services.schedules import (
     PipelineScheduleRepository,
     PipelineScheduleService,
 )
+from immich_dog_tagger.services.stale_detection import StaleDetectionService
 
 
 @cache
@@ -258,3 +259,9 @@ def get_asset_repair_service(
         ),
         classification_service,
     )
+
+
+def get_stale_detection_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> StaleDetectionService:
+    return StaleDetectionService(session)
