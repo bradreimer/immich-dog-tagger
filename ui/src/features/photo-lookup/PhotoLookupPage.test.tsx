@@ -14,6 +14,8 @@ vi.mock("@/lib/api", () => ({
   markCropNotAnimal: vi.fn(),
   unmarkCropNotAnimal: vi.fn(),
   repairAsset: vi.fn(),
+  assignDetection: vi.fn(),
+  markDetectionNotAnimal: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
 }));
 
@@ -233,6 +235,118 @@ describe("PhotoLookupPage", () => {
 
     expect(await screen.findByText("Unknown")).toBeInTheDocument();
     expect(api.getPhotoLookup).toHaveBeenCalledTimes(3);
+  });
+
+  it("maps a crop-less detection to a species and identity, then re-fetches (issue #261)", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+
+    const initial: PhotoLookupResult = {
+      ...buildResult(),
+      detections: [
+        {
+          detection_id: 7,
+          x1: 10,
+          y1: 20,
+          x2: 110,
+          y2: 220,
+          species: "sheep",
+          crop_id: null,
+          classification_id: null,
+          identity: null,
+          confidence: null,
+          not_animal: false,
+        },
+      ],
+    };
+    const afterAssign: PhotoLookupResult = {
+      ...initial,
+      detections: [
+        {
+          ...initial.detections[0],
+          species: "dog",
+          crop_id: 5,
+          classification_id: 500,
+          identity: "Fibs",
+          confidence: 1,
+        },
+      ],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterAssign);
+    vi.mocked(api.assignDetection).mockResolvedValue({
+      crop_id: 5,
+      classification_id: 500,
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    expect(await screen.findByText("Sheep")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Assign identity for detection 1"), {
+      target: { value: "Fibs" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /map to dog/i }));
+
+    await waitFor(() => {
+      expect(api.assignDetection).toHaveBeenCalledWith("asset-42", 7, "dog", "Fibs");
+    });
+
+    expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    expect(await screen.findAllByText("Fibs")).not.toHaveLength(0);
+  });
+
+  it("marks a crop-less detection as not a dog or cat, then re-fetches (issue #261)", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([]);
+
+    const initial: PhotoLookupResult = {
+      ...buildResult(),
+      detections: [
+        {
+          detection_id: 7,
+          x1: 10,
+          y1: 20,
+          x2: 110,
+          y2: 220,
+          species: "sheep",
+          crop_id: null,
+          classification_id: null,
+          identity: null,
+          confidence: null,
+          not_animal: false,
+        },
+      ],
+    };
+    const afterMark: PhotoLookupResult = {
+      ...initial,
+      detections: [
+        { ...initial.detections[0], crop_id: 5, species: "dog", not_animal: true },
+      ],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterMark);
+    vi.mocked(api.markDetectionNotAnimal).mockResolvedValue({
+      crop_id: 5,
+      classification_id: null,
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    fireEvent.click(await screen.findByRole("button", { name: /not a dog or cat/i }));
+
+    await waitFor(() => {
+      expect(api.markDetectionNotAnimal).toHaveBeenCalledWith("asset-42", 7);
+    });
+
+    expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    expect(await screen.findAllByText("Not a dog or cat")).not.toHaveLength(0);
   });
 
   it("shows a distinct message when no dogs or cats were detected", async () => {

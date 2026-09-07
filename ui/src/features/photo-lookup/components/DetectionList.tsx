@@ -14,6 +14,18 @@ function speciesLabel(species: string): string {
   return species === "cat" ? "Cat" : "Dog";
 }
 
+/**
+ * A crop-less detection's `species` is the raw YOLO label (`PhotoLookupService`
+ * falls back to `Detection.label` when there's no `Crop` to read a real
+ * `Species` from), which can be anything COCO detects -- "person", "sheep",
+ * whatever. Shown as-is (title-cased) rather than through `speciesLabel()`,
+ * which would wrongly coerce it to "Dog" and hide that nothing has been
+ * decided about this box yet (issue #261).
+ */
+function rawLabelText(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 interface RowProps {
   index: number;
   detection: PhotoLookupDetection;
@@ -21,7 +33,138 @@ interface RowProps {
   onCorrect: (classificationId: number, identity: string) => Promise<void>;
   onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
   onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
+  onAssign: (
+    detectionId: number,
+    species: "dog" | "cat",
+    identity: string | null,
+  ) => Promise<void>;
+  onMarkNotAnimal: (detectionId: number) => Promise<void>;
   onHoverChange: (detectionId: number | null) => void;
+}
+
+function CropLessDetectionRow({
+  index,
+  detection,
+  identities,
+  onAssign,
+  onMarkNotAnimal,
+  onHoverChange,
+}: Omit<RowProps, "onCorrect" | "onCorrectSpecies" | "onToggleNotAnimal">) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [species, setSpecies] = useState<"dog" | "cat">("dog");
+  const [identity, setIdentity] = useState("");
+
+  const speciesIdentities = identities.filter((dog) => dog.species === species);
+
+  const handleAssign = async () => {
+    setError(null);
+    setSaving(true);
+
+    try {
+      await onAssign(detection.detection_id, species, identity || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to map detection");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMarkNotAnimal = async () => {
+    setError(null);
+    setSaving(true);
+
+    try {
+      await onMarkNotAnimal(detection.detection_id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-3 border-b border-border py-3 last:border-b-0"
+      onMouseEnter={() => onHoverChange(detection.detection_id)}
+      onMouseLeave={() => onHoverChange(null)}
+    >
+      <span className="w-6 shrink-0 text-sm font-semibold text-muted-foreground">
+        {index + 1}
+      </span>
+
+      <Badge variant="outline">{rawLabelText(detection.species)}</Badge>
+
+      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+        Not mapped to a dog or cat yet
+      </span>
+
+      <div
+        className="flex shrink-0 gap-1"
+        role="group"
+        aria-label={`Set species for detection ${index + 1}`}
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn(SPECIES_STYLES.dog)}
+          aria-pressed={species === "dog"}
+          aria-label={`Set species to Dog for detection ${index + 1}`}
+          disabled={saving}
+          onClick={() => setSpecies("dog")}
+        >
+          <IconDog className="h-4 w-4" aria-hidden="true" />
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn(SPECIES_STYLES.cat)}
+          aria-pressed={species === "cat"}
+          aria-label={`Set species to Cat for detection ${index + 1}`}
+          disabled={saving}
+          onClick={() => setSpecies("cat")}
+        >
+          <IconCat className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
+
+      <select
+        value={identity}
+        onChange={(event) => setIdentity(event.target.value)}
+        disabled={saving}
+        aria-label={`Assign identity for detection ${index + 1}`}
+        className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <option value="">Unknown</option>
+        {speciesIdentities.map((dog) => (
+          <option key={dog.id} value={dog.name}>
+            {dog.name}
+          </option>
+        ))}
+      </select>
+
+      <Button type="button" size="sm" onClick={handleAssign} disabled={saving}>
+        Map to {species === "cat" ? "Cat" : "Dog"}
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleMarkNotAnimal}
+        disabled={saving}
+        className="shrink-0"
+      >
+        <IconX className="h-4 w-4" aria-hidden="true" />
+        Not a dog or cat
+      </Button>
+
+      {error && <p className="w-full text-xs text-destructive">{error}</p>}
+    </div>
+  );
 }
 
 function DetectionRow({
@@ -32,7 +175,7 @@ function DetectionRow({
   onCorrectSpecies,
   onToggleNotAnimal,
   onHoverChange,
-}: RowProps) {
+}: Omit<RowProps, "onAssign" | "onMarkNotAnimal">) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -199,14 +342,9 @@ function DetectionRow({
   );
 }
 
-interface Props {
+type Props = RowProps & {
   detections: PhotoLookupDetection[];
-  identities: Dog[];
-  onCorrect: (classificationId: number, identity: string) => Promise<void>;
-  onCorrectSpecies: (classificationId: number, species: "dog" | "cat") => Promise<void>;
-  onToggleNotAnimal: (cropId: number, notAnimal: boolean) => Promise<void>;
-  onHoverChange: (detectionId: number | null) => void;
-}
+};
 
 export function DetectionList({
   detections,
@@ -214,8 +352,10 @@ export function DetectionList({
   onCorrect,
   onCorrectSpecies,
   onToggleNotAnimal,
+  onAssign,
+  onMarkNotAnimal,
   onHoverChange,
-}: Props) {
+}: Omit<Props, "detection" | "index">) {
   if (detections.length === 0) {
     return (
       <Card>
@@ -229,18 +369,30 @@ export function DetectionList({
   return (
     <Card>
       <CardContent>
-        {detections.map((detection, index) => (
-          <DetectionRow
-            key={detection.detection_id}
-            index={index}
-            detection={detection}
-            identities={identities}
-            onCorrectSpecies={onCorrectSpecies}
-            onCorrect={onCorrect}
-            onToggleNotAnimal={onToggleNotAnimal}
-            onHoverChange={onHoverChange}
-          />
-        ))}
+        {detections.map((detection, index) =>
+          detection.crop_id === null ? (
+            <CropLessDetectionRow
+              key={detection.detection_id}
+              index={index}
+              detection={detection}
+              identities={identities}
+              onAssign={onAssign}
+              onMarkNotAnimal={onMarkNotAnimal}
+              onHoverChange={onHoverChange}
+            />
+          ) : (
+            <DetectionRow
+              key={detection.detection_id}
+              index={index}
+              detection={detection}
+              identities={identities}
+              onCorrectSpecies={onCorrectSpecies}
+              onCorrect={onCorrect}
+              onToggleNotAnimal={onToggleNotAnimal}
+              onHoverChange={onHoverChange}
+            />
+          ),
+        )}
       </CardContent>
     </Card>
   );

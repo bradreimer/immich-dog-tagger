@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+from PIL import Image
+
 from .enums import Species
 from .images import open_upright
 
@@ -32,67 +34,82 @@ class CropWriter:
 
         image = open_upright(image_path).convert("RGB")
 
-        width, height = image.size
-
         crops = []
 
         for index, detection in enumerate(detections):
             if detection.label not in _DETECTABLE_LABELS:
                 continue
 
-            if (
-                detection.x1 < 0
-                or detection.y1 < 0
-                or detection.x2 > width
-                or detection.y2 > height
-            ):
-                # Detector output is external, untrusted input -- a
-                # mismatch between the detector's and Pillow's view of the
-                # image's dimensions has previously produced coordinates
-                # outside the actual image (see issue #88). Logging this
-                # makes a recurrence diagnosable without reproducing it.
-                logger.warning(
-                    "Detection box outside image bounds: asset=%s image=%s "
-                    "size=%dx%d label=%s confidence=%.3f box=(%d, %d, %d, %d)",
-                    asset_id,
-                    image_path,
-                    width,
-                    height,
-                    detection.label,
-                    detection.confidence,
-                    detection.x1,
-                    detection.y1,
-                    detection.x2,
-                    detection.y2,
-                )
-
-            box = self._expand_box(
+            cropped = self.crop_one(
+                image,
                 detection.x1,
                 detection.y1,
                 detection.x2,
                 detection.y2,
-                width,
-                height,
+                context=f"asset={asset_id} image={image_path}",
             )
 
-            if box[2] <= box[0] or box[3] <= box[1]:
-                logger.warning(
-                    "Skipping degenerate crop: asset=%s image=%s box=%s",
-                    asset_id,
-                    image_path,
-                    box,
-                )
+            if cropped is None:
                 continue
-
-            crop = image.crop(box)
 
             output = self.crop_dir / f"{asset_id}_{index}.jpg"
 
-            crop.save(output)
+            cropped.save(output)
 
             crops.append((index, output))
 
         return crops
+
+    def crop_one(
+        self,
+        image: Image.Image,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        context: str = "",
+    ) -> Image.Image | None:
+        """
+        Crop and pad a single bounding box out of an already-decoded,
+        upright RGB image, shared by `write()`'s per-detection loop and
+        `ManualDetectionAssignmentService` (issue #261), which crops one
+        detection at a time from a live-downloaded image rather than a
+        batch decoded from a cached original. Returns `None` for a
+        degenerate box (out of bounds or zero-area after clamping/padding)
+        instead of raising, matching `write()`'s existing skip-and-log
+        behavior -- callers that need to distinguish "skipped" from
+        "succeeded" check for `None`.
+        """
+        width, height = image.size
+
+        if x1 < 0 or y1 < 0 or x2 > width or y2 > height:
+            # Detector output is external, untrusted input -- a mismatch
+            # between the detector's and Pillow's view of the image's
+            # dimensions has previously produced coordinates outside the
+            # actual image (see issue #88). Logging this makes a
+            # recurrence diagnosable without reproducing it.
+            logger.warning(
+                "Detection box outside image bounds: %s size=%dx%d box=(%d, %d, %d, %d)",
+                context,
+                width,
+                height,
+                x1,
+                y1,
+                x2,
+                y2,
+            )
+
+        box = self._expand_box(x1, y1, x2, y2, width, height)
+
+        if box[2] <= box[0] or box[3] <= box[1]:
+            logger.warning(
+                "Skipping degenerate crop: %s box=%s",
+                context,
+                box,
+            )
+            return None
+
+        return image.crop(box)
 
     def _expand_box(
         self,
