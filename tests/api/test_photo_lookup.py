@@ -237,3 +237,111 @@ def test_photo_lookup_image_502_when_immich_bytes_are_undecodable(api_client, en
     response = api_client.get("/photo-lookup/asset-1/image")
 
     assert response.status_code == 502
+
+
+def _seed_crop_less_detection(session: Session, *, label="sheep") -> int:
+    # Issue #261: a Detection YOLO labeled outside {dog, cat} never gets a
+    # Crop (CropWriter._DETECTABLE_LABELS), so this is the real shape of the
+    # dead end the new manual-assign/not-animal endpoints exist to fix.
+    asset = Asset(immich_asset_id="asset-crop-less", extension=".jpg")
+    detection = Detection(
+        asset=asset,
+        label=label,
+        confidence=0.6,
+        x1=10,
+        y1=20,
+        x2=110,
+        y2=220,
+    )
+    session.add(detection)
+    session.commit()
+
+    return detection.id
+
+
+def test_assign_detection_maps_a_crop_less_detection_to_an_identity(api_client, engine):
+    with Session(engine) as session:
+        detection_id = _seed_crop_less_detection(session)
+
+    fake_client = FakeImmichClient(
+        content=_jpeg_bytes(Image.new("RGB", (200, 400), "white"))
+    )
+    api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
+
+    response = api_client.post(
+        f"/photo-lookup/asset-crop-less/detections/{detection_id}/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["classification_id"] is not None
+
+    lookup = api_client.get("/photo-lookup/asset-crop-less").json()
+    detection = lookup["detections"][0]
+    assert detection["species"] == "dog"
+    assert detection["identity"] == "Rex"
+    assert detection["confidence"] == 1.0
+    assert detection["crop_id"] == body["crop_id"]
+
+
+def test_assign_detection_404s_for_unknown_detection_id(api_client, engine):
+    with Session(engine) as session:
+        _seed_crop_less_detection(session)
+
+    response = api_client.post(
+        "/photo-lookup/asset-crop-less/detections/999999/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_assign_detection_400s_when_detection_already_has_a_crop(api_client, engine):
+    with Session(engine) as session:
+        asset_id = _seed_asset_with_detection(session)
+        detection = session.query(Detection).filter_by(asset_id=asset_id).one()
+        detection_id = detection.id
+
+    response = api_client.post(
+        f"/photo-lookup/asset-1/detections/{detection_id}/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_assign_detection_502_when_immich_fetch_fails(api_client, engine):
+    with Session(engine) as session:
+        detection_id = _seed_crop_less_detection(session)
+
+    fake_client = FakeImmichClient(error=ImmichDownloadError("boom"))
+    api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
+
+    response = api_client.post(
+        f"/photo-lookup/asset-crop-less/detections/{detection_id}/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 502
+
+
+def test_mark_detection_not_animal_flags_a_crop_less_detection(api_client, engine):
+    with Session(engine) as session:
+        detection_id = _seed_crop_less_detection(session)
+
+    fake_client = FakeImmichClient(
+        content=_jpeg_bytes(Image.new("RGB", (200, 400), "white"))
+    )
+    api_client.app.dependency_overrides[get_immich_client] = lambda: fake_client
+
+    response = api_client.post(
+        f"/photo-lookup/asset-crop-less/detections/{detection_id}/not-animal",
+    )
+
+    assert response.status_code == 200
+
+    lookup = api_client.get("/photo-lookup/asset-crop-less").json()
+    detection = lookup["detections"][0]
+    assert detection["not_animal"] is True
+    assert detection["identity"] is None

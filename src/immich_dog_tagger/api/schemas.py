@@ -730,6 +730,31 @@ class PhotoLookupResponse(BaseModel):
         )
 
 
+class DetectionAssignRequest(BaseModel):
+    """
+    `identity=None` maps the detection to `species` but leaves it Unknown --
+    "confirm the species, decide the identity later" -- the same meaning
+    `None` already carries for `POST /classifications/{id}/correct`.
+    """
+
+    species: Species
+    identity: str | None = None
+
+
+class DetectionAssignResponse(BaseModel):
+    crop_id: int
+    classification_id: int | None
+
+    @classmethod
+    def from_crop(cls, crop):
+        return cls(
+            crop_id=crop.id,
+            classification_id=(
+                crop.classification.id if crop.classification is not None else None
+            ),
+        )
+
+
 class StaleDetectionRepairResponse(BaseModel):
     repaired: int
     skipped_reviewed: int

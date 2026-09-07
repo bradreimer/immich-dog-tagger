@@ -33,6 +33,9 @@ from immich_dog_tagger.services.job_dispatcher import PipelineJobDispatcher
 from immich_dog_tagger.services.job_execution import create_pipeline_job_runner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
+from immich_dog_tagger.services.manual_detection_assignment import (
+    ManualDetectionAssignmentService,
+)
 from immich_dog_tagger.services.photo_lookup import PhotoLookupService
 from immich_dog_tagger.services.rejections import RejectionService
 from immich_dog_tagger.services.review_actions import ReviewActionService
@@ -249,6 +252,30 @@ def get_asset_repair_service(
             IdentityClassifier(session, policy=policy),
             policy=policy,
         ),
+    )
+
+
+def get_manual_detection_assignment_service(
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+    client: Annotated[ImmichClient, Depends(get_immich_client)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+    correction_service: Annotated[
+        ClassificationCorrectionService,
+        Depends(get_correction_service),
+    ],
+    false_positive_service: Annotated[
+        FalsePositiveService,
+        Depends(get_false_positive_service),
+    ],
+) -> ManualDetectionAssignmentService:
+    return ManualDetectionAssignmentService(
+        session=session,
+        client=client,
+        embedder=embedder,
+        crop_writer=CropWriter(config.crop_dir, config.crop_padding),
+        correction_service=correction_service,
+        false_positive_service=false_positive_service,
     )
 
 

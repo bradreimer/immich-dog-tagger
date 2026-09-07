@@ -23,7 +23,11 @@ import type {
   PlaceCount,
   TopPhoto,
 } from "../types/insights";
-import type { AssetRepairResult, PhotoLookupResult } from "../types/photoLookup";
+import type {
+  AssetRepairResult,
+  DetectionAssignResult,
+  PhotoLookupResult,
+} from "../types/photoLookup";
 
 export type ReviewQuery = {
   unknown?: boolean;
@@ -783,6 +787,59 @@ export async function repairAsset(
 
   if (!response.ok) {
     throw new Error("Failed to repair photo");
+  }
+
+  return response.json();
+}
+
+/**
+ * Map a crop-less detection (issue #261) -- YOLO labeled it outside
+ * {dog, cat}, so the pipeline never created a crop for it -- to a species
+ * and, optionally, an identity. `identity=null` confirms the species but
+ * leaves it Unknown.
+ */
+export async function assignDetection(
+  immichAssetId: string,
+  detectionId: number,
+  species: "dog" | "cat",
+  identity: string | null,
+): Promise<DetectionAssignResult> {
+  const response = await fetch(
+    `/api/photo-lookup/${encodeURIComponent(immichAssetId)}/detections/${detectionId}/assign`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ species, identity }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to map detection to a dog or cat");
+  }
+
+  return response.json();
+}
+
+/**
+ * Mark a crop-less detection "not a dog or cat" (issue #261), creating its
+ * crop in the process -- the crop-less counterpart of markCropNotAnimal(),
+ * which needs a crop to already exist.
+ */
+export async function markDetectionNotAnimal(
+  immichAssetId: string,
+  detectionId: number,
+): Promise<DetectionAssignResult> {
+  const response = await fetch(
+    `/api/photo-lookup/${encodeURIComponent(immichAssetId)}/detections/${detectionId}/not-animal`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to mark detection as not a dog or cat");
   }
 
   return response.json();

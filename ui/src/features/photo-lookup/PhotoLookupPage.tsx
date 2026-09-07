@@ -4,11 +4,13 @@ import { IconSearch } from "@tabler/icons-react";
 
 import {
   PhotoLookupNotFoundError,
+  assignDetection,
   correctClassification,
   correctSpecies,
   getDogs,
   getPhotoLookup,
   markCropNotAnimal,
+  markDetectionNotAnimal,
   unmarkCropNotAnimal,
 } from "@/lib/api";
 import { parseImmichAssetId } from "@/lib/immich";
@@ -134,6 +136,34 @@ export function PhotoLookupPage() {
     }
   };
 
+  const handleAssign = async (
+    detectionId: number,
+    species: "dog" | "cat",
+    identity: string | null,
+  ) => {
+    if (!result) {
+      return;
+    }
+
+    await assignDetection(result.immich_asset_id, detectionId, species, identity);
+
+    // The detection gains a crop/classification server-side, not just an
+    // identity string -- a full re-fetch (same pattern species correction
+    // and the not-animal toggle already use) is what turns this row into an
+    // ordinary classified one everywhere it's rendered.
+    setResult(await getPhotoLookup(result.immich_asset_id));
+  };
+
+  const handleMarkNotAnimal = async (detectionId: number) => {
+    if (!result) {
+      return;
+    }
+
+    await markDetectionNotAnimal(result.immich_asset_id, detectionId);
+
+    setResult(await getPhotoLookup(result.immich_asset_id));
+  };
+
   const handleRepaired = async (repairResult: AssetRepairResult) => {
     setRepairMessage(repairResult.message);
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
@@ -194,6 +224,8 @@ export function PhotoLookupPage() {
             onCorrect={handleCorrect}
             onCorrectSpecies={handleCorrectSpecies}
             onToggleNotAnimal={handleToggleNotAnimal}
+            onAssign={handleAssign}
+            onMarkNotAnimal={handleMarkNotAnimal}
             onHoverChange={setHoveredDetectionId}
           />
         </div>

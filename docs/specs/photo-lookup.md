@@ -126,5 +126,118 @@ not-animal color coding and label are unchanged -- the highlight is an additiona
 top, not a replacement palette. Reverse direction (hovering a box highlights its row) is out of
 scope for this pass.
 
+## Addendum: manually map a crop-less or mislabeled detection to a dog/cat (issue #261)
+
+A `Detection` only gets a `Crop` -- and therefore anything to classify -- when its raw `label` is
+already `dog` or `cat` (`CropWriter._DETECTABLE_LABELS`, `crops.py`). A YOLO detection labeled
+something else entirely (`person`, `sheep`, any other COCO class) never becomes a crop, even when
+the box is genuinely a dog or cat the detector misclassified. Confirmed live against a production
+instance (asset `2703e964-f77e-4765-a9b6-c981805c382c`): two detections labeled `person` and
+`sheep`, neither with a `crop_id`, both permanent dead ends -- no control on the page can tell the
+app "this box is actually a dog." Worse, the badge shown today actively misleads:
+`DetectionList.speciesLabel()` renders any non-`cat` label as "Dog", so a `person` or `sheep`
+detection shows a "Dog" badge, masking the real problem (there's no crop) behind a label that
+looks like species is already settled.
+
+This is a different, narrower case than the "classify a pending detection" work attempted in
+#245/#249, shipped, found non-functional in production (#253), and fully reverted in #256: that
+work was about a detection that already had a `Crop` but no `CropClassification` yet, fixable by
+re-running the automatic classifier (`ClassificationService.classify(mode=PENDING)`). This
+addendum is about a detection with no `Crop` at all -- the automatic classifier never runs on it
+because nothing ever creates a crop for it to run against. #256's revert explicitly named this as
+its own follow-up: "explicitly map a crop-less detection to a dog/cat as a manual override, rather
+than depending on an automatic classifier run." Given that #245's automatic-rerun approach failed
+silently in a way that was never root-caused, this addendum deliberately avoids the same shape of
+fix: no dependency on `ClassificationService`/`IdentityClassifier` inference for this path at all.
+A human names the species and identity directly, in one synchronous action, and the row either
+visibly updates or a clear error is shown.
+
+### Goals
+- A crop-less detection row (`crop_id === null`) shows its actual YOLO `label` (e.g. "sheep",
+  "person"), not a "Dog" badge implying species is already settled.
+- From that row, a human can say "this is actually a dog/cat" and directly pick the identity (or
+  leave it at species-only/Unknown) in one action -- no separate crop-generation step, no
+  dependency on a classifier run succeeding.
+- The same row can instead be dismissed as "not a dog or cat" (confirming the detector was right
+  not to treat it as one), consistent with every other detection's tri-state (identified / Unknown
+  / not-animal) contract from [ADR-009](../adr/ADR-009-manual-reclassification-contract.md).
+- The new crop is indistinguishable afterward from an ordinary pipeline-generated one: it can be
+  corrected again, learned as a reference example, synced to Immich, and counted in Insights/
+  Metrics exactly like any other classified crop.
+
+### Non-goals
+- Reopening or re-attempting #245's automatic "classify a pending detection" flow. That case
+  (`crop_id` set, `classification_id` null) is unchanged by this addendum and still shows "Not
+  classified yet" with no action, per #256.
+- Detecting new bounding boxes YOLO missed entirely. This only re-labels a box the detector already
+  drew but assigned the wrong (non-dog/cat) class to -- it does not let a human draw a new box from
+  scratch.
+- Batch/bulk mapping across multiple photos. This is a single-detection, single-photo action from
+  Photo Lookup, matching every other correction control on this page.
+
+### Requirements
+- New backend endpoint, e.g. `POST /photo-lookup/{immich_asset_id}/detections/{detection_id}/assign`,
+  body `{species: "dog" | "cat", identity: string | null}`:
+  - 404 if the asset or detection isn't found, or the detection already has a `Crop` (this path is
+    only for the crop-less case; an existing crop is corrected through the existing species/
+    identity controls instead).
+  - Downloads the original photo live from Immich (`ImmichClient.download_asset`, the same call the
+    existing `/photo-lookup/{id}/image` endpoint already makes -- the pipeline's local cached
+    original is long gone by the time a human notices this in review, per
+    `docs/specs/storage-lifecycle-cleanup.md`).
+  - Crops the detection's stored `(x1, y1, x2, y2)` out of that image, reusing `CropWriter`'s
+    padding/box-expansion/orientation logic (`crops.py`) rather than reimplementing it, and writes
+    the result to the same crop directory pipeline-generated crops use.
+  - Creates the `Crop` (species = the human's chosen species) and a `CropClassification` with
+    `identity` = the human's choice (or `None` for species-only/Unknown), `confidence = 1.0`,
+    `source = ClassificationSources.REVIEW` -- the same values `ClassificationCorrectionService.
+    correct()` already uses for a human decision, so this crop is never mistaken for a lower-
+    confidence auto-classification anywhere confidence is read.
+  - Records a `ReviewAction` and feeds the `Learner` a new reference example exactly as `correct()`
+    does today (a manually-assigned identity is exactly as much ground truth as a queue correction
+    -- see CLAUDE.md's "human review is authoritative input").
+  - Runs `PetOccurrenceService.sync_classification()` so Insights picks it up immediately, matching
+    every other write path.
+- A parallel "not a dog or cat" action for a crop-less row: creates the `Crop`/`CropClassification`
+  the same way, but immediately flags `Crop.not_animal = True` and settles identity to Unknown
+  through the same call `FalsePositiveService.mark()` already makes -- so this is truly the same
+  tri-state as any other row, not a fourth state.
+- `DetectionList.tsx`: a crop-less row gets a "Map to dog/cat" action (species picker + identity
+  `<select>`, or defer to Unknown) alongside a "Not a dog or cat" button, replacing the current bare
+  "Not classified yet" text. `speciesLabel()` shows the detection's real raw label for a crop-less
+  row instead of coercing it to "Dog".
+- `PhotoLookupPage` re-fetches the full lookup after a successful assign, the same refresh-not-patch
+  pattern already used for species correction and the not-animal toggle (both of which can also
+  change more than the one field being edited).
+
+### Acceptance criteria
+- Given a detection with no crop (any raw YOLO label), the Photo Lookup row shows that real label,
+  not a "Dog" badge.
+- A human can pick species + identity for that row in one action; the row becomes an ordinary
+  classified row afterward (species toggle, identity `<select>`, 100% confidence) with no page
+  reload.
+- A human can instead mark that row "not a dog or cat"; the row renders exactly like an existing
+  not-animal crop (dimmed/dashed box, "Not a dog or cat" text, "Undo" available).
+- The newly created classification is excluded from the active review queue (it carries a
+  `ReviewAction`), appears in Insights (`PetOccurrence` reflects it), feeds the learner (a new
+  reference example exists for a named identity), and is picked up by the next `sync` (it joins the
+  identity's Immich album).
+- Attempting this action on a detection that already has a crop is rejected (400/404, not a silent
+  no-op) -- that case goes through the existing species/identity controls.
+- A test in `tests/api/test_photo_lookup.py` mirrors the real bug report this addendum is based on:
+  an asset with detections labeled outside `{dog, cat}` and no crop, asserting the new endpoint
+  creates a real, correctable `Crop`/`CropClassification` -- matching #253's lesson that this exact
+  kind of code path was previously "verified" by inspection alone and still shipped non-functional.
+
+### Open questions
+- Should the padding/box-expansion constants (`CropWriter(padding=0.15)`) be reused as-is for a
+  manually-cropped box, or does a human-confirmed box deserve tighter/no padding since there's no
+  detector-confidence uncertainty to hedge against? Default to reusing the existing constant unless
+  a reviewer finds cropped context insufficient in practice.
+- If the same photo has multiple crop-less detections overlapping the same physical animal (e.g. a
+  dog detected once as `dog` with a crop, and separately as `sheep` with none), should mapping the
+  second one warn about the likely duplicate? Out of scope for the first cut; revisit if duplicate
+  identity examples from the same animal turn out to measurably affect classifier quality.
+
 ## Open questions
-- None.
+- None, other than the addendum above.

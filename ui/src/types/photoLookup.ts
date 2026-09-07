@@ -19,6 +19,12 @@ export interface PhotoLookupResult {
   detections: PhotoLookupDetection[];
 }
 
+/** Result of mapping a crop-less detection to a dog/cat, or marking it not-animal (issue #261). */
+export interface DetectionAssignResult {
+  crop_id: number;
+  classification_id: number | null;
+}
+
 /** Result of forcing one asset back through download/detect/classify (issue #226). */
 export interface AssetRepairResult {
   asset_id: number;
