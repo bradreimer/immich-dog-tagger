@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from immich_dog_tagger.immich import (
+    ImmichAddAssetsToAlbumError,
     ImmichClient,
     ImmichRemoveAssetsFromAlbumError,
     ImmichTagAssetsError,
@@ -320,7 +321,7 @@ def test_remove_assets_from_album():
         captured["url"] = str(request.url)
         captured["body"] = request.content
 
-        return httpx.Response(200, json={"success": True})
+        return httpx.Response(200, json=[{"id": "asset1", "success": True}])
 
     transport = httpx.MockTransport(handler)
 
@@ -346,7 +347,7 @@ def test_add_assets_to_album_batches_large_asset_lists():
 
     def handler(request):
         requests.append(json.loads(request.content))
-        return httpx.Response(200, json={"success": True})
+        return httpx.Response(200, json=[{"id": "assetX", "success": True}])
 
     transport = httpx.MockTransport(handler)
 
@@ -359,6 +360,62 @@ def test_add_assets_to_album_batches_large_asset_lists():
 
     assert len(requests) == 2
     assert [len(req["ids"]) for req in requests] == [200, 50]
+
+
+def test_add_assets_to_album_raises_on_partial_failure():
+    """Issue #259: Immich's bulk membership endpoints return HTTP 200 with a per-asset
+    success/error array even when every asset was rejected (e.g. no_permission) -- that must not
+    be silently treated as a success."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[
+                {"id": "asset1", "success": True},
+                {"id": "asset2", "success": False, "error": "no_permission"},
+            ],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichAddAssetsToAlbumError):
+        client.add_assets_to_album("album1", ["asset1", "asset2"])
+
+
+def test_add_assets_to_album_ignores_duplicate_results():
+    """A `duplicate` result just means the asset was already in the album -- not a failure."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "duplicate"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.add_assets_to_album("album1", ["asset1"])
+
+
+def test_remove_assets_from_album_raises_on_partial_failure():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "no_permission"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichRemoveAssetsFromAlbumError):
+        client.remove_assets_from_album("album1", ["asset1"])
 
 
 def test_remove_assets_from_album_raises_on_error():
@@ -487,6 +544,42 @@ def test_tag_assets_raises_on_error():
         client.tag_assets("tag1", ["asset1"])
 
 
+def test_tag_assets_raises_on_partial_failure():
+    """Issue #259: tagging uses the stricter TagAsset permission (tags aren't shareable in
+    Immich), so an asset an album-add would happily accept can still come back rejected here --
+    HTTP 200, but with success: false in the per-asset body. That must raise, not be swallowed,
+    so the identity is retried on the next sync instead of being recorded as tagged."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "no_permission"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichTagAssetsError):
+        client.tag_assets("tag1", ["asset1"])
+
+
+def test_tag_assets_ignores_duplicate_results():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "duplicate"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.tag_assets("tag1", ["asset1"])
+
+
 def test_untag_assets():
     captured = {}
 
@@ -520,6 +613,37 @@ def test_untag_assets_raises_on_error():
 
     with pytest.raises(ImmichUntagAssetsError):
         client.untag_assets("tag1", ["asset1"])
+
+
+def test_untag_assets_raises_on_partial_failure():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "no_permission"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichUntagAssetsError):
+        client.untag_assets("tag1", ["asset1"])
+
+
+def test_untag_assets_ignores_duplicate_results():
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "duplicate"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.untag_assets("tag1", ["asset1"])
 
 
 def test_client_creation():
