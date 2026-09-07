@@ -130,6 +130,8 @@ and the frontend at `http://localhost:5173` (`cd ui && npm run dev`, proxies `/a
 - [docs/roadmap.md](docs/roadmap.md) / [docs/status.md](docs/status.md) — planning and current state.
 - [docs/development-workflow.md](docs/development-workflow.md) — idea → spec → ticket → implementation → tests → docs → commit → release.
 - [docs/deployment.md](docs/deployment.md) — Docker Compose, Traefik, nginx, scheduler operation.
+- [docs/immich-api-key-permissions.md](docs/immich-api-key-permissions.md) — exact Immich API key
+  permissions this app needs, and troubleshooting Sync writes that silently don't attach photos.
 - [docs/ml-classification.md](docs/ml-classification.md) — classification pipeline detail.
 - [docs/project-health.md](docs/project-health.md) — known risks and gaps.
 - [docs/adr/](docs/adr/) — architectural decisions.

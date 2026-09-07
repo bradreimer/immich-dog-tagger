@@ -73,7 +73,8 @@ The identities screen is where you define your own pets — nothing is hardcoded
 ## Getting started
 
 Requirements: Docker + [Docker Compose](https://docs.docker.com/compose/), and a running Immich
-instance with an API key. GPU recommended, CPU works but is slower.
+instance with an API key ([exact permissions needed](docs/immich-api-key-permissions.md)). GPU
+recommended, CPU works but is slower.
 
 ```bash
 # 1. Grab the compose file and env template
@@ -160,6 +161,8 @@ See [docs/status.md](docs/status.md) for what's actively in progress and
 ## Documentation
 
 - [docs/workflow.md](docs/workflow.md) — the full review/correction workflow
+- [docs/immich-api-key-permissions.md](docs/immich-api-key-permissions.md) — exact Immich API key
+  permissions this app needs, and troubleshooting Sync writes that silently don't attach photos
 - [docs/deployment.md](docs/deployment.md) — Docker + Traefik production setup
 - [docs/ml-classification.md](docs/ml-classification.md) — how detection/classification work
 - [docs/adr/ADR-001-state-database-source-of-truth.md](docs/adr/ADR-001-state-database-source-of-truth.md) — why `state.db`, not Immich, is authoritative

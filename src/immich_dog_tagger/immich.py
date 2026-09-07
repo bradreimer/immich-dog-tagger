@@ -23,6 +23,18 @@ def _batched(ids: list[str], size: int) -> list[list[str]]:
     return [ids[i : i + size] for i in range(0, len(ids), size)]
 
 
+def _bulk_failures(results: list[dict]) -> list[dict]:
+    """Immich's bulk album/tag membership endpoints return HTTP 200 with a per-asset
+    ``[{id, success, error}]`` body (``BulkIdResponseDto``) even when every asset was rejected --
+    e.g. ``no_permission`` when the asset isn't owned by the API key's Immich user (issue #259).
+    ``duplicate`` just means the asset was already a member, not a failure."""
+    return [
+        item
+        for item in results
+        if not item.get("success", True) and item.get("error") != "duplicate"
+    ]
+
+
 class ImmichDownloadError(Exception):
     pass
 
@@ -39,11 +51,28 @@ class ImmichCreateAlbumError(Exception):
     pass
 
 
-class ImmichAddAssetsToAlbumError(Exception):
+class ImmichBulkWriteError(Exception):
+    """Raised for a bulk album/tag membership write Immich rejected -- either at the HTTP level,
+    or (issue #259) via a 200 response whose per-asset body reported failures. `failures` carries
+    the rejected `{id, success, error}` items when known, so callers (e.g. SyncService) can tell
+    a permission problem (`no_permission`, most often a missing `tag.asset`/`albumAsset.*` grant
+    on the Immich API key -- tags in particular are per-owner, not shareable like albums) apart
+    from a transient one, without parsing this exception's message text."""
+
+    def __init__(self, message: str, failures: list[dict] | None = None):
+        super().__init__(message)
+        self.failures = failures or []
+
+    @property
+    def permission_denied(self) -> bool:
+        return any(failure.get("error") == "no_permission" for failure in self.failures)
+
+
+class ImmichAddAssetsToAlbumError(ImmichBulkWriteError):
     pass
 
 
-class ImmichRemoveAssetsFromAlbumError(Exception):
+class ImmichRemoveAssetsFromAlbumError(ImmichBulkWriteError):
     pass
 
 
@@ -55,11 +84,11 @@ class ImmichCreateTagError(Exception):
     pass
 
 
-class ImmichTagAssetsError(Exception):
+class ImmichTagAssetsError(ImmichBulkWriteError):
     pass
 
 
-class ImmichUntagAssetsError(Exception):
+class ImmichUntagAssetsError(ImmichBulkWriteError):
     pass
 
 
@@ -322,6 +351,15 @@ class ImmichClient:
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
+            failures = _bulk_failures(response.json())
+
+            if failures:
+                raise ImmichAddAssetsToAlbumError(
+                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
+                    f"adding to album {album_id}: {failures}",
+                    failures=failures,
+                )
+
     def remove_assets_from_album(
         self,
         album_id: str,
@@ -345,6 +383,15 @@ class ImmichClient:
                 raise ImmichRemoveAssetsFromAlbumError(
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
+
+            failures = _bulk_failures(response.json())
+
+            if failures:
+                raise ImmichRemoveAssetsFromAlbumError(
+                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
+                    f"removing from album {album_id}: {failures}",
+                    failures=failures,
+                )
 
     def list_tags(self) -> list[dict]:
         response = self.client.get(
@@ -400,6 +447,15 @@ class ImmichClient:
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
+            failures = _bulk_failures(response.json())
+
+            if failures:
+                raise ImmichTagAssetsError(
+                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
+                    f"tagging with {tag_id}: {failures}",
+                    failures=failures,
+                )
+
     def untag_assets(
         self,
         tag_id: str,
@@ -422,3 +478,12 @@ class ImmichClient:
                 raise ImmichUntagAssetsError(
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
+
+            failures = _bulk_failures(response.json())
+
+            if failures:
+                raise ImmichUntagAssetsError(
+                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
+                    f"untagging from {tag_id}: {failures}",
+                    failures=failures,
+                )

@@ -722,6 +722,25 @@
   `proxy_read_timeout`/`proxy_send_timeout` set, so nginx's 60s default would 504 the client on a
   large batch (repair runs synchronously, one asset at a time) while the backend kept working to a
   successful completion in the background. Both timeouts are now 600s.
+- [#259](https://github.com/bradreimer/immich-dog-tagger/issues/259) fixed a production bug: Sync
+  reported success and updated albums correctly, but the Immich tags it created (#230) stayed
+  empty -- no photos ever ended up associated with them. Immich's bulk album/tag membership
+  endpoints (`PUT /api/albums/{id}/assets`, `PUT`/`DELETE /api/tags/{id}/assets`) return HTTP 200
+  with a per-asset `[{id, success, error}]` body even when every asset is rejected (e.g.
+  `no_permission`, since Immich tags are per-owner and not shareable the way albums are), and
+  `ImmichClient` only checked `response.raise_for_status()`, ignoring that body entirely.
+  `add_assets_to_album`/`remove_assets_from_album`/`tag_assets`/`untag_assets` now inspect the
+  response for per-item failures (a `duplicate` result is not a failure) and raise their existing
+  client error when found, so the identity is caught by `SyncService`'s existing per-identity
+  failure handling (#243) -- surfaced in `SyncSummary.failed_identities` and retried on the next
+  sync -- instead of being silently recorded as synced. A permission-denied (`no_permission`)
+  failure specifically is now distinguished from other failures end to end: the four
+  `ImmichBulkWriteError` subclasses expose a `permission_denied` property from the failed items
+  they carry, `SyncIdentitySummary` gained a `permission_error` flag set from it, and both the
+  sync job's progress message and the CLI's `sync` output append a pointer to the exact Immich
+  API key permissions Sync needs -- new [docs/immich-api-key-permissions.md](immich-api-key-permissions.md),
+  linked by its `github.com/.../blob/main/...` URL rather than "see logs for details" -- instead
+  of leaving the operator to guess why photos aren't showing up.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

@@ -21,7 +21,7 @@ from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobSe
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.pipeline import PipelineService
 from immich_dog_tagger.services.reclassify import ReclassifyService
-from immich_dog_tagger.services.sync import SyncService
+from immich_dog_tagger.services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
 from immich_dog_tagger.services.tags import TagService
 from immich_dog_tagger.yolo_detector import YOLODetector
 
@@ -384,6 +384,8 @@ def _sync_handler(
                 f"{summary.skipped_missing_asset} missing asset data)"
             )
 
+        permission_error = False
+
         if summary.failed_identities:
             # Issue #243: a single identity's bulk membership write can still fail (e.g. an
             # Immich timeout on a very large batch) without aborting the rest of the job --
@@ -393,6 +395,19 @@ def _sync_handler(
             )
             message += f"; failed to sync {len(summary.failed_identities)} identity/ies ({failed_names})"
 
+            permission_error = any(
+                item.permission_error for item in summary.failed_identities
+            )
+
+            if permission_error:
+                # Issue #259: Immich rejected the write with `no_permission` -- almost always a
+                # missing tag.asset/albumAsset.* grant on the API key, not a transient failure --
+                # so point straight at the exact permissions Sync needs instead of "see logs".
+                message += (
+                    f"; this looks like a missing Immich API key permission -- see "
+                    f"{IMMICH_PERMISSIONS_DOC_URL}"
+                )
+
         progress.message(message)
 
         return {
@@ -401,6 +416,7 @@ def _sync_handler(
             "skipped_unknown": summary.skipped_unknown,
             "skipped_missing_asset": summary.skipped_missing_asset,
             "failed_identities": len(summary.failed_identities),
+            "permission_error": permission_error,
             "items": [
                 {
                     "identity": item.identity,

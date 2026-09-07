@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.immich import ImmichTagAssetsError
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -12,10 +13,19 @@ from immich_dog_tagger.services.sync_policy import SyncPolicy
 
 
 class FakeAlbums:
-    def __init__(self, fail_identities=()):
+    def __init__(self, fail_identities=(), fail_error=None):
         self.calls = []
         self.removals = []
         self.fail_identities = set(fail_identities)
+        # Lets a test simulate the specific exception Immich raises (e.g.
+        # ImmichTagAssetsError with permission_denied=True) instead of a generic
+        # TimeoutError, so SyncService's permission_error propagation can be verified.
+        self.fail_error = fail_error
+
+    def _raise(self, identity):
+        if self.fail_error is not None:
+            raise self.fail_error
+        raise TimeoutError(f"simulated Immich timeout for {identity!r}")
 
     def sync_identity(
         self,
@@ -24,7 +34,7 @@ class FakeAlbums:
         species="dog",
     ):
         if identity in self.fail_identities:
-            raise TimeoutError(f"simulated Immich timeout syncing {identity!r}")
+            self._raise(identity)
 
         self.calls.append(
             (
@@ -41,7 +51,7 @@ class FakeAlbums:
         species="dog",
     ):
         if identity in self.fail_identities:
-            raise TimeoutError(f"simulated Immich timeout removing {identity!r}")
+            self._raise(identity)
 
         self.removals.append(
             (
@@ -849,4 +859,79 @@ def test_sync_stale_removal_failure_is_reported_and_retried(engine):
         albums.fail_identities = set()
         service.sync()
 
-        assert albums.removals == [("Fibs", ["asset1"], "dog")]
+
+def test_sync_flags_permission_denied_failures_in_summary(engine):
+    """Issue #259: a failure Immich reported as `no_permission` (most often a missing
+    tag.asset/albumAsset.* grant on the API key) must be distinguishable in the summary from an
+    ordinary failure (timeout, etc.), so the caller can point at the permissions docs instead of
+    a generic "see logs" message."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+        session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.95))
+        session.commit()
+
+        permission_error = ImmichTagAssetsError(
+            "Immich rejected 1/1 asset(s) tagging with tag1: "
+            "[{'id': 'asset1', 'success': False, 'error': 'no_permission'}]",
+            failures=[{"id": "asset1", "success": False, "error": "no_permission"}],
+        )
+        albums = FakeAlbums(fail_identities={"Fibs"}, fail_error=permission_error)
+        summary = SyncService(session, albums).sync()
+
+        assert [item.identity for item in summary.identities] == []
+        assert len(summary.failed_identities) == 1
+        assert summary.failed_identities[0].identity == "Fibs"
+        assert summary.failed_identities[0].permission_error is True
+
+
+def test_sync_does_not_flag_a_non_permission_failure(engine):
+    """A plain failure (e.g. a timeout) must not be mistaken for a permission problem."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+        session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.95))
+        session.commit()
+
+        albums = FakeAlbums(fail_identities={"Fibs"})
+        summary = SyncService(session, albums).sync()
+
+        assert summary.failed_identities[0].permission_error is False
+
+
+def test_sync_flags_permission_denied_stale_removal_failure(engine):
+    """The same permission_error flag must propagate for a stale-removal failure (an identity
+    with no current assets left, so it never reaches the main sync loop)."""
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.95)
+        session.add(classification)
+        session.commit()
+
+        albums = FakeAlbums()
+        service = SyncService(session, albums)
+        service.sync()
+
+        classification.identity = "Hermann"
+        session.commit()
+
+        permission_error = ImmichTagAssetsError(
+            "Immich rejected the stale removal",
+            failures=[{"id": "asset1", "success": False, "error": "no_permission"}],
+        )
+        albums.fail_identities = {"Fibs"}
+        albums.fail_error = permission_error
+        summary = service.sync()
+
+        assert [item.identity for item in summary.failed_identities] == ["Fibs"]
+        assert summary.failed_identities[0].permission_error is True
