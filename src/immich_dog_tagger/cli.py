@@ -26,7 +26,7 @@ from .services.learner import Learner
 from .services.pet_occurrences import PetOccurrenceService
 from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
-from .services.sync import SyncService
+from .services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
 from .services.tags import TagService
 
 
@@ -582,6 +582,12 @@ def sync_command(args) -> None:
     if failed:
         print()
         print(f"Failed to sync {failed} identity/ies (see logs for details)")
+
+        if result.get("permission_error"):
+            print(
+                "This looks like a missing Immich API key permission -- see "
+                f"{IMMICH_PERMISSIONS_DOC_URL}"
+            )
 
 
 def pipeline_command(args) -> None:

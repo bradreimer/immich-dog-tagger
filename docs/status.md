@@ -733,7 +733,14 @@
   response for per-item failures (a `duplicate` result is not a failure) and raise their existing
   client error when found, so the identity is caught by `SyncService`'s existing per-identity
   failure handling (#243) -- surfaced in `SyncSummary.failed_identities` and retried on the next
-  sync -- instead of being silently recorded as synced.
+  sync -- instead of being silently recorded as synced. A permission-denied (`no_permission`)
+  failure specifically is now distinguished from other failures end to end: the four
+  `ImmichBulkWriteError` subclasses expose a `permission_denied` property from the failed items
+  they carry, `SyncIdentitySummary` gained a `permission_error` flag set from it, and both the
+  sync job's progress message and the CLI's `sync` output append a pointer to the exact Immich
+  API key permissions Sync needs -- new [docs/immich-api-key-permissions.md](immich-api-key-permissions.md),
+  linked by its `github.com/.../blob/main/...` URL rather than "see logs for details" -- instead
+  of leaving the operator to guess why photos aren't showing up.
 
 ## Current Milestone
 v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),

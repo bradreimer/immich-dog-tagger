@@ -51,11 +51,28 @@ class ImmichCreateAlbumError(Exception):
     pass
 
 
-class ImmichAddAssetsToAlbumError(Exception):
+class ImmichBulkWriteError(Exception):
+    """Raised for a bulk album/tag membership write Immich rejected -- either at the HTTP level,
+    or (issue #259) via a 200 response whose per-asset body reported failures. `failures` carries
+    the rejected `{id, success, error}` items when known, so callers (e.g. SyncService) can tell
+    a permission problem (`no_permission`, most often a missing `tag.asset`/`albumAsset.*` grant
+    on the Immich API key -- tags in particular are per-owner, not shareable like albums) apart
+    from a transient one, without parsing this exception's message text."""
+
+    def __init__(self, message: str, failures: list[dict] | None = None):
+        super().__init__(message)
+        self.failures = failures or []
+
+    @property
+    def permission_denied(self) -> bool:
+        return any(failure.get("error") == "no_permission" for failure in self.failures)
+
+
+class ImmichAddAssetsToAlbumError(ImmichBulkWriteError):
     pass
 
 
-class ImmichRemoveAssetsFromAlbumError(Exception):
+class ImmichRemoveAssetsFromAlbumError(ImmichBulkWriteError):
     pass
 
 
@@ -67,11 +84,11 @@ class ImmichCreateTagError(Exception):
     pass
 
 
-class ImmichTagAssetsError(Exception):
+class ImmichTagAssetsError(ImmichBulkWriteError):
     pass
 
 
-class ImmichUntagAssetsError(Exception):
+class ImmichUntagAssetsError(ImmichBulkWriteError):
     pass
 
 
@@ -339,7 +356,8 @@ class ImmichClient:
             if failures:
                 raise ImmichAddAssetsToAlbumError(
                     f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"adding to album {album_id}: {failures}"
+                    f"adding to album {album_id}: {failures}",
+                    failures=failures,
                 )
 
     def remove_assets_from_album(
@@ -371,7 +389,8 @@ class ImmichClient:
             if failures:
                 raise ImmichRemoveAssetsFromAlbumError(
                     f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"removing from album {album_id}: {failures}"
+                    f"removing from album {album_id}: {failures}",
+                    failures=failures,
                 )
 
     def list_tags(self) -> list[dict]:
@@ -433,7 +452,8 @@ class ImmichClient:
             if failures:
                 raise ImmichTagAssetsError(
                     f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"tagging with {tag_id}: {failures}"
+                    f"tagging with {tag_id}: {failures}",
+                    failures=failures,
                 )
 
     def untag_assets(
@@ -464,5 +484,6 @@ class ImmichClient:
             if failures:
                 raise ImmichUntagAssetsError(
                     f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"untagging from {tag_id}: {failures}"
+                    f"untagging from {tag_id}: {failures}",
+                    failures=failures,
                 )

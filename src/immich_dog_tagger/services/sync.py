@@ -17,12 +17,21 @@ from immich_dog_tagger.services.tags import TagService
 
 logger = logging.getLogger(__name__)
 
+# Referenced from a failed sync's user-facing message (issue #259) so a permission-denied
+# failure -- Immich rejecting a bulk album/tag write with `no_permission` -- points straight at
+# the exact Immich API key permissions Sync needs, instead of leaving the operator to guess.
+IMMICH_PERMISSIONS_DOC_URL = "https://github.com/bradreimer/immich-dog-tagger/blob/main/docs/immich-api-key-permissions.md"
+
 
 @dataclass(frozen=True)
 class SyncIdentitySummary:
     identity: str
     species: str
     assets: int
+    # True when this identity's failure was Immich rejecting the write with `no_permission`
+    # (issue #259) -- e.g. a missing `tag.asset` grant on the API key -- rather than some other
+    # failure (timeout, transient error). Always False for a non-failed identity.
+    permission_error: bool = False
 
 
 @dataclass(frozen=True)
@@ -132,7 +141,10 @@ class SyncService:
             manual_tag_count += 1
 
         previous: dict[tuple[str, str], set[str]] = {}
-        failed: set[tuple[str, str]] = set()
+        # Maps a failed (species, identity) key to whether the failure was Immich rejecting the
+        # write with `no_permission` (issue #259) -- surfaced per-identity so the final summary
+        # can tell a permission problem apart from a transient one (e.g. a timeout, #243).
+        failed: dict[tuple[str, str], bool] = {}
 
         if not dry_run:
             previous = self._previously_synced_state()
@@ -156,7 +168,7 @@ class SyncService:
                             sorted(asset_ids),
                             species=species,
                         )
-                except Exception:
+                except Exception as exc:
                     # One identity's bulk membership write failing (e.g. an Immich timeout
                     # on a very large batch, issue #243) must not abort every other
                     # identity's sync in this job -- log it, mark it failed, and move on.
@@ -167,12 +179,15 @@ class SyncService:
                         identity,
                         len(asset_ids),
                     )
-                    failed.add((species, identity))
+                    failed[(species, identity)] = getattr(
+                        exc, "permission_denied", False
+                    )
 
             item = SyncIdentitySummary(
                 identity=identity,
                 species=species,
                 assets=len(asset_ids),
+                permission_error=failed.get((species, identity), False),
             )
 
             if (species, identity) in failed:
@@ -183,17 +198,18 @@ class SyncService:
         # A stale-removal failure for an identity with no current assets left at all never
         # reaches the loop above, but it still needs reporting -- otherwise it silently
         # falls out of both `identities` and `failed_identities`.
-        for species, identity in failed - set(assets):
+        for species, identity in set(failed) - set(assets):
             failed_summary.append(
                 SyncIdentitySummary(
                     identity=identity,
                     species=species,
                     assets=len(previous.get((species, identity), set())),
+                    permission_error=failed[(species, identity)],
                 )
             )
 
         if not dry_run:
-            self._save_synced_state(assets, previous, failed)
+            self._save_synced_state(assets, previous, set(failed))
 
         return SyncSummary(
             identities=summary,
@@ -216,7 +232,7 @@ class SyncService:
         self,
         current: dict[tuple[str, str], set[str]],
         previous: dict[tuple[str, str], set[str]],
-    ) -> set[tuple[str, str]]:
+    ) -> dict[tuple[str, str], bool]:
         """
         Diff the current (species, identity) -> asset_ids mapping against
         what was last synced (DT-1113). An asset present in a previous
@@ -226,11 +242,12 @@ class SyncService:
         tag, issue #230); otherwise it silently stays attached to both the
         old and new identity forever.
 
-        Returns the (species, identity) keys whose removal raised (issue
-        #243), so the caller can leave their previous tracked state alone
-        rather than recording a removal that didn't actually happen.
+        Returns the (species, identity) keys whose removal raised (issue #243), mapped to
+        whether that failure was Immich rejecting it with `no_permission` (issue #259), so the
+        caller can leave their previous tracked state alone rather than recording a removal that
+        didn't actually happen.
         """
-        failed: set[tuple[str, str]] = set()
+        failed: dict[tuple[str, str], bool] = {}
 
         for key, previous_ids in previous.items():
             species, identity = key
@@ -252,7 +269,7 @@ class SyncService:
                         sorted(stale),
                         species=species,
                     )
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "Failed to remove %d stale asset(s) from %s identity %r; its previous "
                     "Immich membership is left as-is and will be retried on the next sync",
@@ -260,7 +277,7 @@ class SyncService:
                     species,
                     identity,
                 )
-                failed.add(key)
+                failed[key] = getattr(exc, "permission_denied", False)
 
         return failed
 

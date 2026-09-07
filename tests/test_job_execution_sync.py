@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.immich import ImmichTagAssetsError
 from immich_dog_tagger.models import Asset, Crop, CropClassification, Detection
 from immich_dog_tagger.services.job_execution import _sync_handler
+from immich_dog_tagger.services.sync import IMMICH_PERMISSIONS_DOC_URL
 
 
 class RecordingProgress:
@@ -120,6 +122,43 @@ def test_sync_handler_reports_failed_identities_in_progress_message(
     final_message = progress.messages[-1]
     assert "failed to sync 1 identity/ies" in final_message
     assert "dog/Fibs" in final_message
+    assert result["permission_error"] is False
+    assert IMMICH_PERMISSIONS_DOC_URL not in final_message
+
+
+def test_sync_handler_links_permissions_doc_on_a_permission_denied_failure(
+    engine, monkeypatch
+):
+    """Issue #259: Immich rejecting a tag/album write with `no_permission` -- almost always a
+    missing API key permission, not a transient failure -- must point the operator at the exact
+    permissions Sync needs instead of a generic "see logs" message."""
+
+    class FailingImmichClient(FakeImmichClient):
+        def tag_assets(self, tag_id, asset_ids):
+            raise ImmichTagAssetsError(
+                "Immich rejected 1/1 asset(s)",
+                failures=[
+                    {"id": asset_ids[0], "success": False, "error": "no_permission"}
+                ],
+            )
+
+    monkeypatch.setattr(
+        "immich_dog_tagger.services.job_execution._create_client",
+        lambda config: FailingImmichClient(),
+    )
+
+    with Session(engine) as session:
+        _add_classification(session, asset_id="good", identity="Fibs", confidence=1.0)
+        session.commit()
+
+        handler = _sync_handler(session, config=None, options={})
+        progress = RecordingProgress()
+        result = handler(progress)
+
+    assert result["permission_error"] is True
+
+    final_message = progress.messages[-1]
+    assert IMMICH_PERMISSIONS_DOC_URL in final_message
 
 
 def test_sync_handler_message_has_no_skip_clause_when_nothing_skipped(
