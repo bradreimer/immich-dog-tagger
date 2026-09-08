@@ -289,7 +289,7 @@ function DetectionRow({
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate font-medium">
-            {detection.identity ?? "Unknown"}
+            {detection.identity ?? "Unknown"} ({detection.species})
           </span>
 
           {detection.confidence !== null && (

@@ -43,7 +43,7 @@ describe("PhotoLookupImage", () => {
 
     loadImage(200, 100);
 
-    expect(screen.getByText("1. Rex")).toBeInTheDocument();
+    expect(screen.getByText("1. Rex (dog)")).toBeInTheDocument();
     expect(screen.queryByText(/coordinates fall outside/i)).not.toBeInTheDocument();
   });
 
@@ -60,7 +60,7 @@ describe("PhotoLookupImage", () => {
 
     loadImage(200, 100);
 
-    expect(screen.queryByText("1. Rex")).not.toBeInTheDocument();
+    expect(screen.queryByText("1. Rex (dog)")).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Box not shown for detection 1: coordinates fall outside this image, which usually means it predates an orientation fix and needs reprocessing.",
@@ -82,9 +82,9 @@ describe("PhotoLookupImage", () => {
 
     loadImage(200, 100);
 
-    expect(screen.getByText("1. Rex")).toBeInTheDocument();
-    expect(screen.queryByText("2. Fido")).not.toBeInTheDocument();
-    expect(screen.queryByText("3. Spot")).not.toBeInTheDocument();
+    expect(screen.getByText("1. Rex (dog)")).toBeInTheDocument();
+    expect(screen.queryByText("2. Fido (dog)")).not.toBeInTheDocument();
+    expect(screen.queryByText("3. Spot (dog)")).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Boxes not shown for detections 2, 3: coordinates fall outside this image, which usually means they predate an orientation fix and need reprocessing.",
@@ -106,8 +106,8 @@ describe("PhotoLookupImage", () => {
 
     loadImage(200, 100);
 
-    const rexBox = screen.getByText("1. Rex").parentElement;
-    const fidoBox = screen.getByText("2. Fido").parentElement;
+    const rexBox = screen.getByText("1. Rex (dog)").parentElement;
+    const fidoBox = screen.getByText("2. Fido (dog)").parentElement;
 
     expect(rexBox).not.toHaveClass("ring-primary");
     expect(fidoBox).toHaveClass("ring-primary");
@@ -123,7 +123,7 @@ describe("PhotoLookupImage", () => {
 
     loadImage(200, 100);
 
-    expect(screen.getByText("1. Rex").parentElement).not.toHaveClass("ring-primary");
+    expect(screen.getByText("1. Rex (dog)").parentElement).not.toHaveClass("ring-primary");
   });
 
   it("does not flag anything before the image has finished loading", () => {
