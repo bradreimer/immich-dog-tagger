@@ -71,7 +71,7 @@ describe("PhotoLookupPage", () => {
 
     render(<PhotoLookupPage />);
 
-    expect(await screen.findAllByText("Hermann")).not.toHaveLength(0);
+    expect(await screen.findAllByText("Hermann (dog)")).not.toHaveLength(0);
     expect(api.getPhotoLookup).toHaveBeenCalledWith("asset-42");
   });
 
@@ -134,7 +134,7 @@ describe("PhotoLookupPage", () => {
 
     await pasteAndSubmit("http://immich.local/photos/asset-42");
 
-    expect(await screen.findAllByText("Hermann")).not.toHaveLength(0);
+    expect(await screen.findAllByText("Hermann (dog)")).not.toHaveLength(0);
     expect(screen.getByText("87.0% confidence")).toBeInTheDocument();
   });
 
@@ -154,7 +154,7 @@ describe("PhotoLookupPage", () => {
       expect(api.correctClassification).toHaveBeenCalledWith(100, "Fibs");
     });
 
-    expect(await screen.findAllByText("Fibs")).not.toHaveLength(0);
+    expect(await screen.findAllByText("Fibs (dog)")).not.toHaveLength(0);
   });
 
   it("corrects a detection's species and re-fetches so identity/confidence stay in sync", async () => {
@@ -233,7 +233,7 @@ describe("PhotoLookupPage", () => {
       expect(api.unmarkCropNotAnimal).toHaveBeenCalledWith(1);
     });
 
-    expect(await screen.findByText("Unknown")).toBeInTheDocument();
+    expect(await screen.findByText("Unknown (dog)")).toBeInTheDocument();
     expect(api.getPhotoLookup).toHaveBeenCalledTimes(3);
   });
 
@@ -296,7 +296,7 @@ describe("PhotoLookupPage", () => {
     });
 
     expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
-    expect(await screen.findAllByText("Fibs")).not.toHaveLength(0);
+    expect(await screen.findAllByText("Fibs (dog)")).not.toHaveLength(0);
   });
 
   it("marks a crop-less detection as not a dog or cat, then re-fetches (issue #261)", async () => {

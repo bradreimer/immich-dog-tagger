@@ -239,5 +239,18 @@ visibly updates or a clear error is shown.
   second one warn about the likely duplicate? Out of scope for the first cut; revisit if duplicate
   identity examples from the same animal turn out to measurably affect classifier quality.
 
+## Addendum: show classification type alongside identity (issue #263)
+
+The identity text shown for a detection -- the box label on the photo and the row text in the list
+below it -- previously showed only the identity or "Unknown", with no indication of what species it
+was classified against. For a crop-less detection this could be actively confusing: an unidentified
+detection with raw YOLO label `couch` showed the same bare "Unknown" as a genuine unidentified dog,
+giving no hint that nothing had actually been mapped to a dog or cat yet. Both `PhotoLookupImage`'s
+box label and `DetectionList`'s row text now append the detection's `species` in parentheses --
+`"Fletch (dog)"`, `"Unknown (dog)"`, `"Unknown (couch)"` -- reusing the `species` field the lookup
+endpoint already returns (the real crop species, or the raw YOLO label for a crop-less detection, per
+the #261 addendum above) rather than adding a new field. A "not a dog or cat" detection is unchanged;
+it keeps showing "Not a dog or cat" with no species suffix.
+
 ## Open questions
-- None, other than the addendum above.
+- None, other than the addenda above.

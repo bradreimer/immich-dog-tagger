@@ -46,7 +46,7 @@ describe("DetectionList", () => {
       />,
     );
 
-    const row = screen.getByText("Fido").closest("div.flex.flex-wrap");
+    const row = screen.getByText("Fido (dog)").closest("div.flex.flex-wrap");
     expect(row).not.toBeNull();
 
     fireEvent.mouseEnter(row!);

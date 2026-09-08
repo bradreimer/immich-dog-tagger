@@ -121,7 +121,10 @@ export function PhotoLookupImage({ imageUrl, detections, hoveredDetectionId = nu
                         : "bg-status-warning",
                   )}
                 >
-                  {index + 1}. {detection.not_animal ? "Not a dog or cat" : (detection.identity ?? "Unknown")}
+                  {index + 1}.{" "}
+                  {detection.not_animal
+                    ? "Not a dog or cat"
+                    : `${detection.identity ?? "Unknown"} (${detection.species})`}
                 </span>
               </div>
             );
