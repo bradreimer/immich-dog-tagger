@@ -361,6 +361,27 @@ Completed.
 
 ---
 
+## v1.13.0 - Feature PR Minor Version Bump
+
+See [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md). Tracking issue:
+[#265](https://github.com/bradreimer/immich-dog-tagger/issues/265).
+
+Goal:
+Keep the version shown in the running app, `pyproject.toml`, and the docs in sync with what has
+actually shipped, without relying on someone remembering to bump it by hand.
+
+Completed:
+- #265: `scripts/bump_minor_version.sh` bumps `pyproject.toml`'s minor version and regenerates
+  `uv.lock`; a new CI job (`feature-version-bump-check`) fails a PR that closes a
+  `user-story`-labeled issue without a matching minor-version bump. `CONTRIBUTING.md` and
+  `docs/development-workflow.md` document the convention. This release is itself the first PR the
+  check applies to.
+
+Exit criteria:
+Completed.
+
+---
+
 ## Active Learning Improvements
 
 Goal:
