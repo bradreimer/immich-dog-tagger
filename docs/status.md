@@ -791,6 +791,17 @@
   `ProgressOverTimeChart`'s existing per-pass X axis are unchanged. See
   [docs/specs/species-volume-over-time-charts.md](specs/species-volume-over-time-charts.md).
 
+- [#273](https://github.com/bradreimer/immich-dog-tagger/issues/273) "Dogs Over Time" / "Cats Over
+  Time" chart refinements, frontend-only, following up on #271's explicitly-deferred filtering
+  polish: X-axis season labels rotate vertically instead of overlapping; `SpeciesTimelineChart` no
+  longer downsamples to 20 points, so every season the backend returns actually renders; the
+  stacked-area boundaries are now a smoothed Catmull-Rom-to-Bezier curve that still passes exactly
+  through each plotted season's true value; each legend entry is clickable to isolate that
+  identity (rescaling the Y axis and tooltip to it alone, click again to restore the full stack);
+  and the chart now measures its container via `ResizeObserver` and renders at that width instead
+  of a fixed 760px SVG, filling the card. No backend/API change. See
+  [docs/specs/species-timeline-chart-refinements.md](specs/species-timeline-chart-refinements.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
