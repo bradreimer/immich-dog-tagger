@@ -41,7 +41,6 @@ describe("DetectionList", () => {
         onCorrectSpecies={noop}
         onToggleNotAnimal={noop}
         onAssign={noop}
-        onMarkNotAnimal={noop}
         onHoverChange={onHoverChange}
       />,
     );
@@ -54,6 +53,31 @@ describe("DetectionList", () => {
 
     fireEvent.mouseLeave(row!);
     expect(onHoverChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("labels the not-animal row's undo control 'Reclassify' and unmarks it on click (issue #267)", async () => {
+    const onToggleNotAnimal = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <DetectionList
+        detections={[detection({ not_animal: true, identity: null, confidence: null })]}
+        identities={[]}
+        onCorrect={noop}
+        onCorrectSpecies={noop}
+        onToggleNotAnimal={onToggleNotAnimal}
+        onAssign={noop}
+        onHoverChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Not a dog or cat")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /undo/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /reclassify/i }));
+
+    await waitFor(() => {
+      expect(onToggleNotAnimal).toHaveBeenCalledWith(1, false);
+    });
   });
 
   describe("a crop-less detection (issue #261)", () => {
@@ -79,7 +103,6 @@ describe("DetectionList", () => {
           onCorrectSpecies={noop}
           onToggleNotAnimal={noop}
           onAssign={noop}
-          onMarkNotAnimal={noop}
           onHoverChange={() => {}}
         />,
       );
@@ -88,7 +111,28 @@ describe("DetectionList", () => {
       expect(screen.queryByText("Dog")).not.toBeInTheDocument();
     });
 
-    it("maps the detection to a chosen species and identity", async () => {
+    it("renders pre-settled as not a dog or cat, with no inline species picker (issue #267)", () => {
+      render(
+        <DetectionList
+          detections={[cropLessDetection()]}
+          identities={[]}
+          onCorrect={noop}
+          onCorrectSpecies={noop}
+          onToggleNotAnimal={noop}
+          onAssign={noop}
+          onHoverChange={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("Not a dog or cat")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /reclassify/i })).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /not a dog or cat/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/assign identity/i)).not.toBeInTheDocument();
+    });
+
+    it("reclassifies the detection to dog, identity Unknown, on Reclassify (issue #267)", async () => {
       const onAssign = vi.fn().mockResolvedValue(undefined);
 
       render(
@@ -99,41 +143,14 @@ describe("DetectionList", () => {
           onCorrectSpecies={noop}
           onToggleNotAnimal={noop}
           onAssign={onAssign}
-          onMarkNotAnimal={noop}
           onHoverChange={() => {}}
         />,
       );
 
-      fireEvent.change(screen.getByLabelText("Assign identity for detection 1"), {
-        target: { value: "Rex" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: /map to dog/i }));
+      fireEvent.click(screen.getByRole("button", { name: /reclassify/i }));
 
       await waitFor(() => {
-        expect(onAssign).toHaveBeenCalledWith(1, "dog", "Rex");
-      });
-    });
-
-    it("marks the detection not a dog or cat", async () => {
-      const onMarkNotAnimal = vi.fn().mockResolvedValue(undefined);
-
-      render(
-        <DetectionList
-          detections={[cropLessDetection()]}
-          identities={[]}
-          onCorrect={noop}
-          onCorrectSpecies={noop}
-          onToggleNotAnimal={noop}
-          onAssign={noop}
-          onMarkNotAnimal={onMarkNotAnimal}
-          onHoverChange={() => {}}
-        />,
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: /not a dog or cat/i }));
-
-      await waitFor(() => {
-        expect(onMarkNotAnimal).toHaveBeenCalledWith(1);
+        expect(onAssign).toHaveBeenCalledWith(1, "dog", null);
       });
     });
   });

@@ -10,7 +10,6 @@ import {
   getDogs,
   getPhotoLookup,
   markCropNotAnimal,
-  markDetectionNotAnimal,
   unmarkCropNotAnimal,
 } from "@/lib/api";
 import { parseImmichAssetId } from "@/lib/immich";
@@ -154,16 +153,6 @@ export function PhotoLookupPage() {
     setResult(await getPhotoLookup(result.immich_asset_id));
   };
 
-  const handleMarkNotAnimal = async (detectionId: number) => {
-    if (!result) {
-      return;
-    }
-
-    await markDetectionNotAnimal(result.immich_asset_id, detectionId);
-
-    setResult(await getPhotoLookup(result.immich_asset_id));
-  };
-
   const handleRepaired = async (repairResult: AssetRepairResult) => {
     setRepairMessage(repairResult.message);
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
@@ -225,7 +214,6 @@ export function PhotoLookupPage() {
             onCorrectSpecies={handleCorrectSpecies}
             onToggleNotAnimal={handleToggleNotAnimal}
             onAssign={handleAssign}
-            onMarkNotAnimal={handleMarkNotAnimal}
             onHoverChange={setHoveredDetectionId}
           />
         </div>

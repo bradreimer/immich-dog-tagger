@@ -75,6 +75,17 @@ without a way to also flag "not a dog or cat" would not satisfy this contract.
 
 ## Consequences
 
+- **Update (issue #267):** Photo Lookup's crop-less rows (no `Crop` at all -- by construction,
+  `CropWriter` only creates one for a raw YOLO label of `dog`/`cat`) are now rendered pre-settled
+  in the not-animal state described here, rather than as a fourth, separately-confirmed "not mapped
+  yet" state -- a crop-less row's raw label already tells you it isn't a dog or cat, so there is
+  nothing left to confirm. `DetectionList.tsx`'s "Undo" control (for leaving this state) is also
+  renamed "Reclassify" everywhere it appears, since it now always leads to the same place: species
+  Dog, identity Unknown, ready for further correction -- not merely reverting a flag. This does not
+  change the tri-state contract itself (identified / Unknown / not-animal); it changes when a
+  crop-less row is considered to already be in the not-animal member of that tri-state (by default,
+  rather than after an explicit confirm click). See
+  [docs/specs/photo-lookup.md](../specs/photo-lookup.md)'s corresponding addendum.
 - No schema or backend behavior changes as a result of this decision alone -- `Crop.not_animal` and
   `ClassificationCorrectionService.correct(id, None)` already implement it correctly; this ADR
   documents the semantics that were already true and makes the dual meaning explicit going forward.
