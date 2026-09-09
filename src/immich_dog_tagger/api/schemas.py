@@ -464,6 +464,32 @@ class DetectionCoverageResponse(BaseModel):
         )
 
 
+class SpeciesTimelinePointResponse(BaseModel):
+    label: str
+    counts: dict[str, int]
+
+    @classmethod
+    def from_point(cls, point):
+        return cls(label=point.label, counts=point.counts)
+
+
+class SpeciesTimelineResponse(BaseModel):
+    species: str
+    identities: list[str]
+    points: list[SpeciesTimelinePointResponse]
+
+    @classmethod
+    def from_timeline(cls, timeline):
+        return cls(
+            species=timeline.species,
+            identities=timeline.identities,
+            points=[
+                SpeciesTimelinePointResponse.from_point(point)
+                for point in timeline.points
+            ],
+        )
+
+
 class LearningMetricsResponse(BaseModel):
     eligible_count: int
     reviewed_count: int

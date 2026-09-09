@@ -777,6 +777,20 @@
   the UI's empty state distinguishes "no auto-classified photos yet" from "no confirmed photos yet."
   See [docs/specs/insights-refinement.md](specs/insights-refinement.md).
 
+- [#271](https://github.com/bradreimer/immich-dog-tagger/issues/271) "Dogs Over Time" / "Cats Over
+  Time" seasonal stacked-area charts on the Metrics tab, below "Progress Over Time" -- confirmed
+  photo volume per season, stacked by individual pet identity (top 4 by total volume + an "Other"
+  band, sized to this app's 5-color validated categorical palette). Sourced from
+  `PetOccurrence`/`Asset.captured_at` (the same "when was this photo taken" concept the Insights
+  page's time-based facts already use), keyed via a new `MetricsService.species_timeline()` and
+  `GET /metrics/species-timeline/{species}` -- a dedicated endpoint so the always-loaded `GET
+  /metrics` payload doesn't grow. Seasons are Northern-Hemisphere meteorological quarters, labeled
+  `"{Season} {Year}"`; Winter is labeled by the December that starts it (Dec Y + Jan/Feb (Y+1) both
+  bucket into `"Winter Y"`), and gap seasons between an identity's first and last confirmed photo
+  are zero-filled rather than skipped. `_species_breakdown()`, `_detection_coverage()`, and
+  `ProgressOverTimeChart`'s existing per-pass X axis are unchanged. See
+  [docs/specs/species-volume-over-time-charts.md](specs/species-volume-over-time-charts.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

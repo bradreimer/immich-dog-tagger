@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { getDogs, getLearningMetrics } from "../../lib/api";
-import type { LearningMetrics } from "../../types/metrics";
+import { getDogs, getLearningMetrics, getSpeciesTimeline } from "../../lib/api";
+import type { LearningMetrics, SpeciesTimeline } from "../../types/metrics";
 import {
   IconBolt,
   IconBooks,
@@ -31,6 +31,7 @@ import {
 import { StatTile } from "@/components/ui/stat-tile";
 import { DonutChart } from "./components/DonutChart";
 import { ProgressOverTimeChart, type ProgressPassPoint } from "./components/ProgressOverTimeChart";
+import { SpeciesTimelineChart } from "./components/SpeciesTimelineChart";
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
@@ -110,6 +111,8 @@ function ProgressFooterStats({
 export function MetricsPage() {
   const [metrics, setMetrics] = useState<LearningMetrics | null>(null);
   const [activeDogCount, setActiveDogCount] = useState<number | null>(null);
+  const [dogTimeline, setDogTimeline] = useState<SpeciesTimeline | null>(null);
+  const [catTimeline, setCatTimeline] = useState<SpeciesTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,12 +121,16 @@ export function MetricsPage() {
     setError(null);
 
     try {
-      const [learningMetrics, dogs] = await Promise.all([
+      const [learningMetrics, dogs, dogTimelineData, catTimelineData] = await Promise.all([
         getLearningMetrics(),
         getDogs({ includeInactive: false }).catch(() => null),
+        getSpeciesTimeline("dog").catch(() => null),
+        getSpeciesTimeline("cat").catch(() => null),
       ]);
       setMetrics(learningMetrics);
       setActiveDogCount(dogs ? dogs.length : null);
+      setDogTimeline(dogTimelineData);
+      setCatTimeline(catTimelineData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load metrics");
     } finally {
@@ -396,6 +403,52 @@ export function MetricsPage() {
                   reductionSincePassId={chartPasses[0].id}
                 />
               </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {metrics && dogTimeline && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Dogs Over Time</CardTitle>
+            <CardDescription>Confirmed dog photos per season, by pet.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {dogTimeline.points.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No confirmed dog photos yet. This chart appears once at least one dog photo has
+                been classified or reviewed with a known capture date.
+              </p>
+            ) : (
+              <SpeciesTimelineChart
+                title="Dogs Over Time"
+                identities={dogTimeline.identities}
+                points={dogTimeline.points}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {metrics && catTimeline && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cats Over Time</CardTitle>
+            <CardDescription>Confirmed cat photos per season, by pet.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {catTimeline.points.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No confirmed cat photos yet. This chart appears once at least one cat photo has
+                been classified or reviewed with a known capture date.
+              </p>
+            ) : (
+              <SpeciesTimelineChart
+                title="Cats Over Time"
+                identities={catTimeline.identities}
+                points={catTimeline.points}
+              />
             )}
           </CardContent>
         </Card>
