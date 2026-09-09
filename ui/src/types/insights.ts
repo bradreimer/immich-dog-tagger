@@ -28,8 +28,6 @@ export interface InsightsSummary {
   first_seen: string | null;
   last_seen: string | null;
   photos_by_year: Record<string, number>;
-  top_place: PlaceCount | null;
-  top_person: PersonCount | null;
   favorite_photo_count: number;
 }
 

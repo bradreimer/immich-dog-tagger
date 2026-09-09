@@ -662,8 +662,6 @@ class InsightsSummaryResponse(BaseModel):
     first_seen: datetime | None
     last_seen: datetime | None
     photos_by_year: dict[int, int]
-    top_place: PlaceCountResponse | None
-    top_person: PersonCountResponse | None
     favorite_photo_count: int
 
     @classmethod
@@ -675,12 +673,6 @@ class InsightsSummaryResponse(BaseModel):
             first_seen=summary.first_seen,
             last_seen=summary.last_seen,
             photos_by_year=summary.photos_by_year,
-            top_place=PlaceCountResponse.from_place_count(summary.top_place)
-            if summary.top_place
-            else None,
-            top_person=PersonCountResponse.from_person_count(summary.top_person)
-            if summary.top_person
-            else None,
             favorite_photo_count=summary.favorite_photo_count,
         )
 

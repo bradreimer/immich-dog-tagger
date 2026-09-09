@@ -1,6 +1,6 @@
-# v1.12.0 — Insights Refinement: Dedup, New Cards, Honest Top Photos
+# Insights Refinement: Dedup, New Cards, Honest Top Photos
 
-Tracking issue: TBD (created alongside this spec).
+Tracking issue: [#269](https://github.com/bradreimer/immich-dog-tagger/issues/269).
 
 ## Purpose
 

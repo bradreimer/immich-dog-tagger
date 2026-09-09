@@ -763,6 +763,20 @@
   [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s corresponding addendum and
   [ADR-009](adr/ADR-009-manual-reclassification-contract.md)'s update.
 
+- [#269](https://github.com/bradreimer/immich-dog-tagger/issues/269) Insights refinement: resolved
+  v1.7.0's deferred "one home or two" question by removing the duplicate favourite-place/
+  favourite-human stat tiles (`InsightsSummary.top_place`/`top_person`) now that the same two facts
+  render as cards via `FavouritePlaceProvider`/`FavouriteHumanProvider`. Added four new
+  `InsightProvider`s: `MostActiveMonthProvider`, `LongestStreakProvider`, `YearOverYearProvider`,
+  and `BestFriendProvider` -- the first real use of the `InsightScope.LIBRARY` escape hatch
+  ADR-005 reserved for v1.6.0's deferred "Best Friends" pet-to-pet co-occurrence item. Also fixed
+  `InsightsService.top_photos()`, which previously ranked by raw confidence with no source filter:
+  since `ClassificationCorrectionService.correct()` always writes `confidence = 1.0` for a human
+  decision (`REVIEW`/`MANUAL`), "Top photos" was really just "photos a human tagged" rather than
+  the classifier's own best guesses. Now filters to `ClassificationSources.AUTO` before ranking, and
+  the UI's empty state distinguishes "no auto-classified photos yet" from "no confirmed photos yet."
+  See [docs/specs/insights-refinement.md](specs/insights-refinement.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
@@ -842,9 +856,10 @@ name+operation+cron builder with a fixed per-operation enable toggle + cron fiel
 sections (mirroring Immich's own Settings job-schedule pattern). Tracked as
 [#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
 
-Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day, Best Friends (pet-to-pet
-co-occurrence), and a Pet World Tour map -- each becomes a new provider under the architecture
-#110 landed, not a core change. Otherwise: improved reference-example selection, reference-set
+Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day and a Pet World
+Tour map -- Best Friends (pet-to-pet co-occurrence) shipped as `BestFriendProvider` in #269. Each
+remaining item becomes a new provider under the architecture #110 landed, not a core change.
+Otherwise: improved reference-example selection, reference-set
 curation workflows, and confidence analysis (see docs/roadmap.md "Active Learning Improvements"),
 v1.5's own open questions (owner-tunable decay scale/floor, reporting how many reclassified items
 changed identity specifically due to temporal weighting), or extending #111's cancel-while-running

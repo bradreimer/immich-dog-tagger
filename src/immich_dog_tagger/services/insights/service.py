@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from immich_dog_tagger.enums import ClassificationSources
 from immich_dog_tagger.models import Identity, PetOccurrence
 
 from .aggregations import PersonCount, PlaceCount, person_counts, place_counts
@@ -58,8 +59,6 @@ class InsightsSummary:
     first_seen: datetime | None
     last_seen: datetime | None
     photos_by_year: dict[int, int]
-    top_place: PlaceCount | None
-    top_person: PersonCount | None
     favorite_photo_count: int
 
 
@@ -84,9 +83,6 @@ class InsightsService:
             asset.captured_at.year for asset in assets if asset.captured_at is not None
         )
 
-        places = place_counts(assets)
-        people = person_counts(assets)
-
         return InsightsSummary(
             identity_id=identity.id,
             identity_name=identity.name,
@@ -94,8 +90,6 @@ class InsightsService:
             first_seen=captured_dates[0] if captured_dates else None,
             last_seen=captured_dates[-1] if captured_dates else None,
             photos_by_year=dict(sorted(years.items())),
-            top_place=places[0] if places else None,
-            top_person=people[0] if people else None,
             favorite_photo_count=sum(1 for asset in assets if asset.is_favorite),
         )
 
@@ -148,8 +142,18 @@ class InsightsService:
         self._require_identity(identity_id)
         occurrences = self._occurrences(identity_id, with_crop=True)
 
+        # REVIEW/MANUAL occurrences are always confidence == 1.0 by
+        # construction (ClassificationCorrectionService.correct()), so
+        # ranking by raw confidence would just surface manually tagged
+        # photos here instead of the classifier's own best guesses.
+        auto_occurrences = [
+            occurrence
+            for occurrence in occurrences
+            if occurrence.source == ClassificationSources.AUTO
+        ]
+
         ordered = sorted(
-            occurrences,
+            auto_occurrences,
             key=lambda occurrence: (-occurrence.confidence, occurrence.id),
         )
 
