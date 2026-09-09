@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { SpeciesTimelinePoint } from "../../../types/metrics";
-import { downsampleForDisplay } from "../utils/downsample";
 
 interface Props {
   title: string;
@@ -9,17 +8,16 @@ interface Props {
   points: SpeciesTimelinePoint[];
 }
 
-const WIDTH = 760;
+const DEFAULT_WIDTH = 760;
 const HEIGHT = 320;
 const PAD_LEFT = 52;
 const PAD_RIGHT = 16;
 const PAD_TOP = 16;
-const PAD_BOTTOM = 40;
+// Tall enough to fit a fully-rotated (vertical) season label like
+// "Winter 2025" without clipping, regardless of how many points are
+// plotted -- see the X-axis rotation below.
+const PAD_BOTTOM = 72;
 const GRID_STEPS = 4;
-// Same cap/rationale as ProgressOverTimeChart's MAX_DISPLAY_POINTS: keeps
-// the chart legible across a long season history without losing the first
-// or last recorded season.
-const MAX_DISPLAY_POINTS = 20;
 
 // Positional, not per-identity-name: identities[0..3] (the top-N pets) get
 // chart-1..4, and "Other" -- always last in `identities` when present --
@@ -41,21 +39,75 @@ function niceMax(value: number): number {
   return Math.max(1, value);
 }
 
+type Point = [number, number];
+
+// Catmull-Rom-to-cubic-Bezier conversion (uniform, tension 1/6): produces a
+// smooth curve that still passes exactly through every input point, so the
+// true stacked total at each plotted season is preserved -- only the curve
+// drawn *between* points changes.
+function smoothPathSegment(pts: Point[], startCommand: "M" | "L"): string {
+  if (pts.length === 0) {
+    return "";
+  }
+  if (pts.length === 1) {
+    return `${startCommand} ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  }
+
+  let d = `${startCommand} ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
 export function SpeciesTimelineChart({ title, identities, points }: Props) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [isolated, setIsolated] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
 
-  const plotWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
+  // Fill the card's actual available width instead of a fixed pixel width.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry && entry.contentRect.width > 0) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const plotWidth = width - PAD_LEFT - PAD_RIGHT;
   const plotHeight = HEIGHT - PAD_TOP - PAD_BOTTOM;
 
-  const displayPoints = downsampleForDisplay(points, MAX_DISPLAY_POINTS);
+  // No downsampling: every season the API returns is plotted. Legibility at
+  // high point counts comes from the rotated labels and full-width chart
+  // below, not from dropping data.
   // A single season has no width to form a filled area -- duplicate it
   // across the full plot so it still reads as a stacked column instead of
   // a zero-width sliver.
-  const plottedPoints = displayPoints.length === 1 ? [displayPoints[0], displayPoints[0]] : displayPoints;
+  const plottedPoints = points.length === 1 ? [points[0], points[0]] : points;
   const pointCount = plottedPoints.length;
 
+  // Only one identity can be isolated at a time; isolating rescales the Y
+  // axis and tooltip to that identity alone rather than the full stack.
+  const visibleIdentities = isolated ? identities.filter((name) => name === isolated) : identities;
+
   const totals = plottedPoints.map((point) =>
-    identities.reduce((sum, name) => sum + (point.counts[name] ?? 0), 0),
+    visibleIdentities.reduce((sum, name) => sum + (point.counts[name] ?? 0), 0),
   );
   const maxTotal = niceMax(Math.max(...totals));
 
@@ -63,24 +115,22 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
     pointCount > 1 ? PAD_LEFT + (index / (pointCount - 1)) * plotWidth : PAD_LEFT + plotWidth / 2;
   const yAt = (value: number) => PAD_TOP + plotHeight - (value / maxTotal) * plotHeight;
 
-  // Stack bottom-up in `identities` order: each band's bottom edge is the
-  // previous band's top edge, so the bands never overlap.
+  // Stack bottom-up in `visibleIdentities` order: each band's bottom edge is
+  // the previous band's top edge, so the bands never overlap. When isolated,
+  // this reduces to a single band starting at zero.
   let cumulative = new Array(pointCount).fill(0) as number[];
-  const bands = identities.map((name, index) => {
+  const bands = visibleIdentities.map((name) => {
     const bottoms = cumulative;
     const tops = plottedPoints.map((point, i) => cumulative[i] + (point.counts[name] ?? 0));
     cumulative = tops;
-    return { name, color: colorFor(index), bottoms, tops };
+    return { name, color: colorFor(identities.indexOf(name)), bottoms, tops };
   });
 
   const areaPath = (bottoms: number[], tops: number[]) => {
-    const top = tops
-      .map((v, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`)
-      .join(" ");
-    const bottom = bottoms
-      .map((v, i) => `L ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`)
-      .reverse()
-      .join(" ");
+    const topPts: Point[] = tops.map((v, i): Point => [xAt(i), yAt(v)]);
+    const bottomPts: Point[] = bottoms.map((v, i): Point => [xAt(i), yAt(v)]).reverse();
+    const top = smoothPathSegment(topPts, "M");
+    const bottom = smoothPathSegment(bottomPts, "L");
     return `${top} ${bottom} Z`;
   };
 
@@ -91,7 +141,7 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
 
   const handleMove = (event: React.MouseEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const relativeX = ((event.clientX - rect.left) / rect.width) * WIDTH;
+    const relativeX = ((event.clientX - rect.left) / rect.width) * width;
     if (pointCount <= 1) {
       setHoverIndex(0);
       return;
@@ -102,26 +152,40 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
 
   return (
     <div className="space-y-3">
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {identities.map((name, index) => (
-          <li key={name} className="flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-sm"
-              style={{ backgroundColor: colorFor(index) }}
-              aria-hidden="true"
-            />
-            {name}
-          </li>
-        ))}
+      <ul className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        {identities.map((name, index) => {
+          const active = isolated === name;
+          const dimmed = isolated !== null && !active;
+          return (
+            <li key={name}>
+              <button
+                type="button"
+                onClick={() => setIsolated((current) => (current === name ? null : name))}
+                aria-pressed={active}
+                title={active ? `Showing only ${name}. Click to show all.` : `Show only ${name}`}
+                className={`flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:bg-muted ${
+                  dimmed ? "opacity-40" : ""
+                }`}
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: colorFor(index) }}
+                  aria-hidden="true"
+                />
+                {name}
+              </button>
+            </li>
+          );
+        })}
       </ul>
 
-      <div className="relative">
+      <div ref={containerRef} className="relative">
         <svg
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          viewBox={`0 0 ${width} ${HEIGHT}`}
           width="100%"
           height={HEIGHT}
           role="img"
-          aria-label={`${title}: confirmed photo count per season, stacked by pet, across ${points.length} season(s)${pointCount < points.length ? `, sampled to ${pointCount} points` : ""}`}
+          aria-label={`${title}: confirmed photo count per season, stacked by pet, across ${points.length} season(s)${isolated ? `, isolated to ${isolated}` : ""}`}
           onMouseMove={handleMove}
           onMouseLeave={() => setHoverIndex(null)}
           className="overflow-visible"
@@ -130,7 +194,7 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
             <g key={row.y}>
               <line
                 x1={PAD_LEFT}
-                x2={WIDTH - PAD_RIGHT}
+                x2={width - PAD_RIGHT}
                 y1={row.y}
                 y2={row.y}
                 stroke="var(--border)"
@@ -165,31 +229,35 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
             />
           ))}
 
-          {plottedPoints.map((point, i) => (
-            <text
-              key={`${point.label}-${i}`}
-              x={xAt(i)}
-              y={HEIGHT - PAD_BOTTOM + 16}
-              textAnchor="middle"
-              className="fill-muted-foreground text-[10px]"
-            >
-              {point.label}
-            </text>
-          ))}
+          {plottedPoints.map((point, i) => {
+            const labelY = HEIGHT - PAD_BOTTOM + 10;
+            return (
+              <text
+                key={`${point.label}-${i}`}
+                x={xAt(i)}
+                y={labelY}
+                textAnchor="end"
+                transform={`rotate(-90 ${xAt(i).toFixed(1)} ${labelY})`}
+                className="fill-muted-foreground text-[10px]"
+              >
+                {point.label}
+              </text>
+            );
+          })}
         </svg>
 
         {hoverIndex !== null && (
           <div
             className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md"
-            style={{ left: `${(xAt(hoverIndex) / WIDTH) * 100}%` }}
+            style={{ left: `${(xAt(hoverIndex) / width) * 100}%` }}
           >
             <p className="mb-1.5 font-medium">{plottedPoints[hoverIndex].label}</p>
             <div className="space-y-0.5">
-              {identities.map((name, index) => (
+              {visibleIdentities.map((name) => (
                 <p key={name} className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                   <span
                     className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: colorFor(index) }}
+                    style={{ backgroundColor: colorFor(identities.indexOf(name)) }}
                     aria-hidden="true"
                   />
                   {name}:{" "}
