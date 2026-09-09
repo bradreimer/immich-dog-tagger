@@ -1,8 +1,11 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import (
     AssetStatus,
     ClassificationPassStatus,
+    ClassificationSources,
     ReviewActions,
     Species,
 )
@@ -18,6 +21,7 @@ from immich_dog_tagger.models import (
     ReviewAction,
 )
 from immich_dog_tagger.services.metrics import MetricsService
+from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 
 
 def _classification(session, *, identity, confidence, species=Species.DOG):
@@ -394,3 +398,226 @@ def test_detection_coverage_does_not_shift_the_crop_based_metrics(engine):
         assert metrics.detection_coverage.with_dog_rate == 0.0
         assert metrics.detection_coverage.with_cat_count == 0
         assert metrics.detection_coverage.with_cat_rate == 0.0
+
+
+def _confirmed_occurrence(
+    session,
+    service,
+    *,
+    identity_name: str,
+    immich_asset_id: str,
+    species: Species = Species.DOG,
+    captured_at: datetime | None = None,
+) -> None:
+    identity = (
+        session.query(Identity)
+        .filter_by(name=identity_name, species=species)
+        .one_or_none()
+    )
+    if identity is None:
+        identity = Identity(name=identity_name, species=species)
+        session.add(identity)
+        session.flush()
+
+    asset = Asset(
+        immich_asset_id=immich_asset_id, extension=".jpg", captured_at=captured_at
+    )
+    session.add(asset)
+    session.flush()
+
+    detection = Detection(
+        asset_id=asset.id, label=species.value, confidence=0.9, x1=0, y1=0, x2=1, y2=1
+    )
+    session.add(detection)
+    session.flush()
+
+    crop = Crop(
+        detection_id=detection.id, path=f"{immich_asset_id}.jpg", species=species
+    )
+    session.add(crop)
+    session.flush()
+
+    classification = CropClassification(
+        crop=crop,
+        identity=identity_name,
+        confidence=0.9,
+        source=ClassificationSources.AUTO,
+    )
+    session.add(classification)
+    session.commit()
+
+    service.sync_classification(classification)
+    session.commit()
+
+
+def test_species_timeline_empty_for_species_with_no_confirmed_photos(engine):
+    with Session(engine) as session:
+        timeline = MetricsService(session).species_timeline(Species.DOG)
+
+        assert timeline.species == "dog"
+        assert timeline.identities == []
+        assert timeline.points == []
+
+
+def test_species_timeline_merges_winter_across_the_year_boundary(engine):
+    with Session(engine) as session:
+        service = PetOccurrenceService(session)
+
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="dec",
+            captured_at=datetime(2025, 12, 15, tzinfo=UTC),
+        )
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="jan",
+            captured_at=datetime(2026, 1, 10, tzinfo=UTC),
+        )
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="feb",
+            captured_at=datetime(2026, 2, 20, tzinfo=UTC),
+        )
+
+        timeline = MetricsService(session).species_timeline(Species.DOG)
+
+        assert [p.label for p in timeline.points] == ["Winter 2025"]
+        assert timeline.points[0].counts == {"Hermann": 3}
+
+
+def test_species_timeline_zero_fills_gap_seasons(engine):
+    with Session(engine) as session:
+        service = PetOccurrenceService(session)
+
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="winter",
+            captured_at=datetime(2025, 1, 1, tzinfo=UTC),
+        )
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="summer",
+            captured_at=datetime(2025, 7, 1, tzinfo=UTC),
+        )
+
+        timeline = MetricsService(session).species_timeline(Species.DOG)
+
+        assert [p.label for p in timeline.points] == [
+            "Winter 2024",
+            "Spring 2025",
+            "Summer 2025",
+        ]
+        assert timeline.points[0].counts == {"Hermann": 1}
+        assert timeline.points[1].counts == {"Hermann": 0}
+        assert timeline.points[2].counts == {"Hermann": 1}
+
+
+def test_species_timeline_excludes_occurrences_with_no_captured_at(engine):
+    with Session(engine) as session:
+        service = PetOccurrenceService(session)
+
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="dated",
+            captured_at=datetime(2025, 7, 1, tzinfo=UTC),
+        )
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="undated",
+            captured_at=None,
+        )
+
+        timeline = MetricsService(session).species_timeline(Species.DOG)
+
+        assert len(timeline.points) == 1
+        assert timeline.points[0].counts == {"Hermann": 1}
+
+
+def test_species_timeline_groups_beyond_top_n_into_other(engine):
+    with Session(engine) as session:
+        service = PetOccurrenceService(session)
+
+        # 5 dogs, each with a distinct, strictly descending total, so the
+        # top-4 ranking and the "Other" grouping are both unambiguous.
+        names = ["A", "B", "C", "D", "E"]
+        for rank, name in enumerate(names):
+            occurrence_count = len(names) - rank
+            for i in range(occurrence_count):
+                _confirmed_occurrence(
+                    session,
+                    service,
+                    identity_name=name,
+                    immich_asset_id=f"{name}-{i}",
+                    captured_at=datetime(2025, 7, 1, tzinfo=UTC),
+                )
+
+        timeline = MetricsService(session).species_timeline(Species.DOG)
+
+        assert timeline.identities == ["A", "B", "C", "D", "Other"]
+        assert timeline.points[0].counts == {
+            "A": 5,
+            "B": 4,
+            "C": 3,
+            "D": 2,
+            "Other": 1,
+        }
+
+
+def test_species_timeline_no_other_band_when_within_top_n(engine):
+    with Session(engine) as session:
+        service = PetOccurrenceService(session)
+
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="a1",
+            captured_at=datetime(2025, 7, 1, tzinfo=UTC),
+        )
+
+        timeline = MetricsService(session).species_timeline(Species.DOG)
+
+        assert timeline.identities == ["Hermann"]
+        assert "Other" not in timeline.points[0].counts
+
+
+def test_species_timeline_is_scoped_to_its_species(engine):
+    with Session(engine) as session:
+        service = PetOccurrenceService(session)
+
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id="dog1",
+            species=Species.DOG,
+            captured_at=datetime(2025, 7, 1, tzinfo=UTC),
+        )
+        _confirmed_occurrence(
+            session,
+            service,
+            identity_name="Whiskers",
+            immich_asset_id="cat1",
+            species=Species.CAT,
+            captured_at=datetime(2025, 7, 1, tzinfo=UTC),
+        )
+
+        dog_timeline = MetricsService(session).species_timeline(Species.DOG)
+        cat_timeline = MetricsService(session).species_timeline(Species.CAT)
+
+        assert dog_timeline.identities == ["Hermann"]
+        assert cat_timeline.identities == ["Whiskers"]

@@ -7,7 +7,7 @@ import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
 import type { Diagnostics, StaleDetectionRepairResult } from "../types/diagnostics";
-import type { LearningMetrics } from "../types/metrics";
+import type { LearningMetrics, SpeciesTimeline } from "../types/metrics";
 import type { LibraryPage, LibrarySort } from "../types/library";
 import type {
   ClusterApprovalResult,
@@ -672,6 +672,14 @@ export async function getLearningMetrics(): Promise<LearningMetrics> {
   const response = await fetch("/api/metrics");
   if (!response.ok) {
     throw new Error("Failed to load learning metrics");
+  }
+  return response.json();
+}
+
+export async function getSpeciesTimeline(species: "dog" | "cat"): Promise<SpeciesTimeline> {
+  const response = await fetch(`/api/metrics/species-timeline/${species}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load ${species} timeline`);
   }
   return response.json();
 }

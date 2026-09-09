@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { MetricsPage } from "./MetricsPage";
+import { getSpeciesTimeline } from "../../lib/api";
 import type { LearningMetrics } from "../../types/metrics";
 
 const metrics: LearningMetrics = {
@@ -34,6 +35,7 @@ const metrics: LearningMetrics = {
 vi.mock("../../lib/api", () => ({
   getLearningMetrics: vi.fn(() => Promise.resolve(metrics)),
   getDogs: vi.fn(() => Promise.resolve([])),
+  getSpeciesTimeline: vi.fn(() => Promise.resolve({ species: "dog", identities: [], points: [] })),
 }));
 
 describe("MetricsPage library coverage", () => {
@@ -73,5 +75,36 @@ describe("MetricsPage library coverage", () => {
         /2 of 4 images require no manual review right now/,
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("MetricsPage species timeline charts", () => {
+  it("shows an empty state when a species has no confirmed photos yet", async () => {
+    render(<MetricsPage />);
+
+    expect(
+      await screen.findByText(/No confirmed dog photos yet/),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/No confirmed cat photos yet/)).toBeInTheDocument();
+  });
+
+  it("renders the chart instead of the empty state once a species has data", async () => {
+    vi.mocked(getSpeciesTimeline).mockImplementation((species) =>
+      Promise.resolve(
+        species === "dog"
+          ? {
+              species: "dog",
+              identities: ["Hermann"],
+              points: [{ label: "Fall 2026", counts: { Hermann: 3 } }],
+            }
+          : { species: "cat", identities: [], points: [] },
+      ),
+    );
+
+    render(<MetricsPage />);
+
+    expect(await screen.findByText("Dogs Over Time")).toBeInTheDocument();
+    expect(screen.queryByText(/No confirmed dog photos yet/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/No confirmed cat photos yet/)).toBeInTheDocument();
   });
 });

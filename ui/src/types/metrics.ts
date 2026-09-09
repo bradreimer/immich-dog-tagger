@@ -26,6 +26,18 @@ export interface DetectionCoverage {
   unprocessable_count: number;
 }
 
+export interface SpeciesTimelinePoint {
+  label: string;
+  counts: Record<string, number>;
+}
+
+export interface SpeciesTimeline {
+  species: string;
+  // Stacking order: top pets by total volume, "Other" last if present.
+  identities: string[];
+  points: SpeciesTimelinePoint[];
+}
+
 export interface LearningMetrics {
   eligible_count: number;
   reviewed_count: number;
