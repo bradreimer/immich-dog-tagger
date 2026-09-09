@@ -239,6 +239,47 @@ visibly updates or a clear error is shown.
   second one warn about the likely duplicate? Out of scope for the first cut; revisit if duplicate
   identity examples from the same animal turn out to measurably affect classifier quality.
 
+## Addendum: crop-less rows render pre-settled as "not a dog or cat" (issue #267)
+
+The #261 addendum above gave a crop-less row (`crop_id === null`) an inline species-picker +
+"Map to Dog/Cat" button, plus a separate "Not a dog or cat" confirm button, framed as "not mapped
+to a dog or cat yet". But a crop-less row's raw YOLO label is *never* `dog`/`cat` by construction
+(`CropWriter._DETECTABLE_LABELS` only creates a `Crop` for those two labels) -- so every crop-less
+row already carries the detector's own verdict that this box isn't a dog or cat. Presenting it as
+an open question requiring a confirm click added a step that wasn't deciding anything the detector
+hadn't already decided.
+
+A crop-less row now renders exactly like an explicitly-`not_animal`-marked row: index, a badge with
+the raw label (unchanged from #261 -- "Cow", "Bird", "Bowl", "Car", etc.), muted "Not a dog or cat"
+text, and one button. That button is relabeled "Reclassify" everywhere it appears (both this row
+and the pre-existing explicit-mark row's former "Undo") -- "Undo" implied only reverting a mark;
+"Reclassify" better describes what pressing it now always leads to: a row mapped to species Dog
+with identity Unknown, ready for the ordinary species-toggle/identity-`<select>` controls to adjust
+from there. This also means the tri-state contract from
+[ADR-009](../adr/ADR-009-manual-reclassification-contract.md) is unchanged in substance -- a
+crop-less row was always, semantically, in the "not-animal" state; it's now just rendered that way
+by default instead of after an extra confirmation click.
+
+Concretely:
+- A crop-less row's inline species-picker, "Map to Dog"/"Map to Cat" button, and separate
+  "Not a dog or cat" confirm button are removed. Nothing on this page still calls
+  `POST /photo-lookup/{id}/detections/{id}/not-animal` (`markDetectionNotAnimal` in `lib/api.ts`) --
+  the endpoint and `ManualDetectionAssignmentService.mark_not_animal()` are left in place as a
+  still-valid, still-tested backend operation, just no longer wired to a button here.
+- Pressing "Reclassify" on a crop-less row calls the existing
+  `POST /photo-lookup/{id}/detections/{id}/assign` (`assignDetection`) with `species: "dog"`,
+  `identity: null` -- the same endpoint #261 already added, just invoked with a fixed default
+  instead of whatever the picker had selected. The row becomes an ordinary classified row
+  (species Dog, identity Unknown, 100% confidence) after the page's existing re-fetch, and can be
+  switched to Cat or given an identity through the controls that already exist for any other row.
+- Pressing "Reclassify" on an already-cropped row previously marked `not_animal` calls the existing
+  `unmarkCropNotAnimal` (`DELETE /crops/{id}/not-animal`), unchanged from what "Undo" did -- this
+  row's crop already carries a real `dog`/`cat` species from before it was marked, so there's
+  nothing to default; unmarking alone is enough to reveal the same editing controls.
+- A row that is genuinely a classified, non-not-animal dog/cat (species toggle, identity `<select>`,
+  confidence shown) is unaffected -- this addendum only changes the two "not a dog or cat" states,
+  now unified into one presentation.
+
 ## Addendum: show classification type alongside identity (issue #263)
 
 The identity text shown for a detection -- the box label on the photo and the row text in the list

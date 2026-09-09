@@ -38,46 +38,37 @@ interface RowProps {
     species: "dog" | "cat",
     identity: string | null,
   ) => Promise<void>;
-  onMarkNotAnimal: (detectionId: number) => Promise<void>;
   onHoverChange: (detectionId: number | null) => void;
 }
 
+/**
+ * A crop-less detection (`crop_id === null`) is, by construction, already not
+ * a dog or cat -- `CropWriter` only ever creates a `Crop` for a raw YOLO label
+ * of `dog`/`cat` (issue #261), so a crop-less row's label is never one of
+ * those two. It renders pre-settled in the same "not a dog or cat" state as
+ * an explicit mark, rather than as an open question needing a separate
+ * confirm click (issue #267).
+ */
 function CropLessDetectionRow({
   index,
   detection,
-  identities,
   onAssign,
-  onMarkNotAnimal,
   onHoverChange,
-}: Omit<RowProps, "onCorrect" | "onCorrectSpecies" | "onToggleNotAnimal">) {
+}: Omit<
+  RowProps,
+  "identities" | "onCorrect" | "onCorrectSpecies" | "onToggleNotAnimal"
+>) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [species, setSpecies] = useState<"dog" | "cat">("dog");
-  const [identity, setIdentity] = useState("");
 
-  const speciesIdentities = identities.filter((dog) => dog.species === species);
-
-  const handleAssign = async () => {
+  const handleReclassify = async () => {
     setError(null);
     setSaving(true);
 
     try {
-      await onAssign(detection.detection_id, species, identity || null);
+      await onAssign(detection.detection_id, "dog", null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to map detection");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleMarkNotAnimal = async () => {
-    setError(null);
-    setSaving(true);
-
-    try {
-      await onMarkNotAnimal(detection.detection_id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update");
+      setError(err instanceof Error ? err.message : "Failed to reclassify detection");
     } finally {
       setSaving(false);
     }
@@ -95,71 +86,19 @@ function CropLessDetectionRow({
 
       <Badge variant="outline">{rawLabelText(detection.species)}</Badge>
 
-      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-        Not mapped to a dog or cat yet
+      <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">
+        Not a dog or cat
       </span>
-
-      <div
-        className="flex shrink-0 gap-1"
-        role="group"
-        aria-label={`Set species for detection ${index + 1}`}
-      >
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={cn(SPECIES_STYLES.dog)}
-          aria-pressed={species === "dog"}
-          aria-label={`Set species to Dog for detection ${index + 1}`}
-          disabled={saving}
-          onClick={() => setSpecies("dog")}
-        >
-          <IconDog className="h-4 w-4" aria-hidden="true" />
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={cn(SPECIES_STYLES.cat)}
-          aria-pressed={species === "cat"}
-          aria-label={`Set species to Cat for detection ${index + 1}`}
-          disabled={saving}
-          onClick={() => setSpecies("cat")}
-        >
-          <IconCat className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </div>
-
-      <select
-        value={identity}
-        onChange={(event) => setIdentity(event.target.value)}
-        disabled={saving}
-        aria-label={`Assign identity for detection ${index + 1}`}
-        className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        <option value="">Unknown</option>
-        {speciesIdentities.map((dog) => (
-          <option key={dog.id} value={dog.name}>
-            {dog.name}
-          </option>
-        ))}
-      </select>
-
-      <Button type="button" size="sm" onClick={handleAssign} disabled={saving}>
-        Map to {species === "cat" ? "Cat" : "Dog"}
-      </Button>
 
       <Button
         type="button"
         variant="outline"
         size="sm"
-        onClick={handleMarkNotAnimal}
+        onClick={handleReclassify}
         disabled={saving}
         className="shrink-0"
       >
-        <IconX className="h-4 w-4" aria-hidden="true" />
-        Not a dog or cat
+        Reclassify
       </Button>
 
       {error && <p className="w-full text-xs text-destructive">{error}</p>}
@@ -175,7 +114,7 @@ function DetectionRow({
   onCorrectSpecies,
   onToggleNotAnimal,
   onHoverChange,
-}: Omit<RowProps, "onAssign" | "onMarkNotAnimal">) {
+}: Omit<RowProps, "onAssign">) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -333,7 +272,7 @@ function DetectionRow({
           className="shrink-0"
         >
           {!detection.not_animal && <IconX className="h-4 w-4" aria-hidden="true" />}
-          {detection.not_animal ? "Undo" : "Not a dog or cat"}
+          {detection.not_animal ? "Reclassify" : "Not a dog or cat"}
         </Button>
       )}
 
@@ -353,7 +292,6 @@ export function DetectionList({
   onCorrectSpecies,
   onToggleNotAnimal,
   onAssign,
-  onMarkNotAnimal,
   onHoverChange,
 }: Omit<Props, "detection" | "index">) {
   if (detections.length === 0) {
@@ -375,9 +313,7 @@ export function DetectionList({
               key={detection.detection_id}
               index={index}
               detection={detection}
-              identities={identities}
               onAssign={onAssign}
-              onMarkNotAnimal={onMarkNotAnimal}
               onHoverChange={onHoverChange}
             />
           ) : (

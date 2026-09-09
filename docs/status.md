@@ -749,6 +749,19 @@
   closing no issue are unaffected. `CONTRIBUTING.md`/`docs/development-workflow.md` document the
   convention. This release is itself the first PR the check applies to. See
   [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md).
+- [#267](https://github.com/bradreimer/immich-dog-tagger/issues/267) Photo Lookup: a crop-less
+  detection (raw YOLO label outside `{dog, cat}` -- by construction, per #261, never actually a dog
+  or cat) now renders pre-settled as "Not a dog or cat", the same as an explicitly-marked row,
+  instead of an inline species-picker/"Map to Dog or Cat"/separate confirm button asking the owner
+  to decide something the detector already told them. Both rows' escape hatch is relabeled
+  "Reclassify" (was "Undo" on the explicit-mark row only) and, for a crop-less row, always maps to
+  species Dog with identity Unknown via the existing `assignDetection` (#261) endpoint, ready for the
+  ordinary species-toggle/identity `<select>` controls to adjust from there. The crop-less row's
+  separate "confirm not a dog or cat" action (`markDetectionNotAnimal`/`POST .../not-animal`) is no
+  longer wired to a Photo Lookup button -- its backend endpoint and service are left in place,
+  independently tested, just unreachable from this page now. See
+  [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s corresponding addendum and
+  [ADR-009](adr/ADR-009-manual-reclassification-contract.md)'s update.
 
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
