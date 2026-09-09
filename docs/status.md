@@ -741,9 +741,21 @@
   API key permissions Sync needs -- new [docs/immich-api-key-permissions.md](immich-api-key-permissions.md),
   linked by its `github.com/.../blob/main/...` URL rather than "see logs for details" -- instead
   of leaving the operator to guess why photos aren't showing up.
+- [#265](https://github.com/bradreimer/immich-dog-tagger/issues/265) v1.13.0 Feature PR Minor
+  Version Bump: `scripts/bump_minor_version.sh` bumps `pyproject.toml`'s minor version
+  (`X.Y.Z` -> `X.(Y+1).0`) and reruns `uv lock`; a new `feature-version-bump-check` CI job reads
+  the issue numbers a PR body closes and, if any is labeled `user-story`, fails unless
+  `pyproject.toml`'s minor version increased relative to the PR's base commit. Bug fixes and PRs
+  closing no issue are unaffected. `CONTRIBUTING.md`/`docs/development-workflow.md` document the
+  convention. This release is itself the first PR the check applies to. See
+  [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md).
 
 ## Current Milestone
-v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),
+v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
+[docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
+Completed entry above for detail.
+
+Previously: v1.12.0 Immich Tag Sync ([#230](https://github.com/bradreimer/immich-dog-tagger/issues/230),
 [docs/specs/immich-tag-sync.md](specs/immich-tag-sync.md)) is **complete**. Sync now also writes
 each classified identity to Immich as a tag alongside the existing album, on by default. See the
 Completed entry above for detail.
@@ -798,10 +810,11 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-No queued numbered milestone -- v1.12.0 (#230) shipped complete, no open questions. v1.11.0 (#196)
-also shipped complete, with one open question left in
-its spec: what becomes of the cluster-approval workspace UI removed from the Library page (a
-separate page, a second tab, or left unreachable until there's a concrete need). v1.10.0 (#183)
+No queued numbered milestone -- v1.13.0 (#265) shipped complete, no open questions. v1.12.0 (#230)
+also shipped complete, no open questions. v1.11.0 (#196) also shipped complete, with one open
+question left in its spec: what becomes of the cluster-approval workspace UI removed from the
+Library page (a separate page, a second tab, or left unreachable until there's a concrete need).
+v1.10.0 (#183)
 also shipped complete, including its own open question (FR-6-style "reject to no pet" from the
 confirmed view was considered and left out of scope; see that spec's Open questions).
 

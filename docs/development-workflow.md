@@ -40,6 +40,16 @@ npm run build
 npm run lint
 ```
 
+## Feature version bump
+
+A PR that closes a `user-story`-labeled issue must bump the project's minor version
+(`pyproject.toml`'s `[project].version`, `X.Y.Z` -> `X.(Y+1).0`) as part of that PR --
+run `./scripts/bump_minor_version.sh` and commit the result. The running app reads its version
+from `pyproject.toml` directly (`immich_dog_tagger.version.get_version()`), so no separate
+app-side edit is needed. CI enforces this for any PR closing a `user-story` issue; bug fixes and
+PRs with no closing issue reference are unaffected. See
+[docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md).
+
 ## Releases
 
 A release needs: its tickets completed, tests passing, documentation updated, and a release tag.

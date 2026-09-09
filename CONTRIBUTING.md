@@ -170,6 +170,11 @@ Images where the top candidates are very close are useful to review first.
 Keep pull requests focused. If you find an unrelated improvement while working, open a separate
 issue or PR for it.
 
+If your PR closes a `user-story`-labeled issue (a new feature), bump the project's minor version
+as part of the PR: run `./scripts/bump_minor_version.sh` and commit the result. A CI check fails
+the PR otherwise. This isn't needed for bug fixes or PRs that don't close an issue. See
+[docs/specs/feature-pr-version-bump.md](docs/specs/feature-pr-version-bump.md).
+
 ## Commit messages
 
 Short and descriptive, explaining intent:
