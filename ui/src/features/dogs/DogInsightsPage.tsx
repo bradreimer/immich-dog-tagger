@@ -135,7 +135,7 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
 
       {!loading && !error && summary && summary.total_photos > 0 && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             <StatTile
               icon={IconPhoto}
               tone="accent"
@@ -148,26 +148,6 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
               label="First seen"
               value={formatDate(summary.first_seen)}
               subtext={`Last seen ${formatDate(summary.last_seen)}`}
-            />
-            <StatTile
-              icon={IconMapPin}
-              tone="good"
-              label="Most photographed place"
-              value={summary.top_place ? summary.top_place.label : "—"}
-              subtext={
-                summary.top_place ? `${summary.top_place.count} photo(s)` : "No location data yet"
-              }
-            />
-            <StatTile
-              icon={IconUsers}
-              tone="warning"
-              label="Most often photographed with"
-              value={summary.top_person ? summary.top_person.label : "—"}
-              subtext={
-                summary.top_person
-                  ? `${summary.top_person.count} photo(s) together`
-                  : "No recognized people yet"
-              }
             />
           </div>
 
@@ -200,7 +180,7 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
             <CardContent>
               {topPhotos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No confirmed photos yet.
+                  No auto-classified photos yet — every confirmed photo here was manually tagged.
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

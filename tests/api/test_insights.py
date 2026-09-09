@@ -69,8 +69,8 @@ def test_insights_endpoints_return_derived_data(api_client, engine):
     body = summary.json()
     assert body["identity_name"] == "Hermann"
     assert body["total_photos"] == 1
-    assert body["top_place"]["city"] == "Seattle"
-    assert body["top_person"]["person_id"] == "p1"
+    assert "top_place" not in body
+    assert "top_person" not in body
 
     places = api_client.get(f"/dogs/{identity_id}/insights/places")
     assert places.status_code == 200
@@ -121,6 +121,7 @@ def test_insights_cards_return_provider_results(api_client, engine):
     cards = {card["slug"]: card for card in response.json()}
     assert cards["favourite-place"]["value"] == "Seattle, United States"
     assert cards["favourite-human"]["value"] == "Brad"
+    assert cards["most-active-month"]["value"] == "January 2023"
 
 
 def test_insights_cards_empty_for_dog_with_no_photos(api_client):
@@ -140,5 +141,5 @@ def test_insights_summary_zero_state_for_dog_with_no_photos(api_client):
     assert response.status_code == 200
     body = response.json()
     assert body["total_photos"] == 0
-    assert body["top_place"] is None
-    assert body["top_person"] is None
+    assert "top_place" not in body
+    assert "top_person" not in body

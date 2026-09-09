@@ -28,7 +28,9 @@ def _add_occurrence(
     country: str | None = None,
     is_favorite: bool = False,
     people: list[dict] | None = None,
-) -> None:
+    confidence: float = 0.9,
+    source: ClassificationSources = ClassificationSources.AUTO,
+) -> int:
     asset = Asset(
         immich_asset_id=immich_asset_id,
         extension=".jpg",
@@ -56,8 +58,46 @@ def _add_occurrence(
     classification = CropClassification(
         crop=crop,
         identity=identity_name,
-        confidence=0.9,
-        source=ClassificationSources.AUTO,
+        confidence=confidence,
+        source=source,
+    )
+    session.add(classification)
+    session.commit()
+
+    service.sync_classification(classification)
+    session.commit()
+
+    return asset.id
+
+
+def _add_occurrence_to_asset(
+    session: Session,
+    service: PetOccurrenceService,
+    *,
+    asset_id: int,
+    identity_name: str,
+    confidence: float = 0.9,
+    source: ClassificationSources = ClassificationSources.AUTO,
+) -> None:
+    detection = Detection(
+        asset_id=asset_id, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+    )
+    session.add(detection)
+    session.flush()
+
+    crop = Crop(
+        detection_id=detection.id,
+        path=f"{asset_id}-{identity_name}.jpg",
+        species=Species.DOG,
+    )
+    session.add(crop)
+    session.flush()
+
+    classification = CropClassification(
+        crop=crop,
+        identity=identity_name,
+        confidence=confidence,
+        source=source,
     )
     session.add(classification)
     session.commit()
@@ -81,12 +121,12 @@ def test_summary_with_no_occurrences_is_all_zero(session):
     assert summary.total_photos == 0
     assert summary.first_seen is None
     assert summary.last_seen is None
-    assert summary.top_place is None
-    assert summary.top_person is None
+    assert not hasattr(summary, "top_place")
+    assert not hasattr(summary, "top_person")
     assert summary.favorite_photo_count == 0
 
 
-def test_summary_computes_counts_and_top_place_and_person(session):
+def test_summary_computes_counts(session):
     identity = Identity(name="Hermann", species=Species.DOG)
     session.add(identity)
     session.commit()
@@ -132,12 +172,6 @@ def test_summary_computes_counts_and_top_place_and_person(session):
     assert summary.first_seen == datetime(2023, 1, 1, tzinfo=UTC).replace(tzinfo=None)
     assert summary.last_seen == datetime(2024, 3, 1, tzinfo=UTC).replace(tzinfo=None)
     assert summary.photos_by_year == {2023: 2, 2024: 1}
-    assert summary.top_place is not None
-    assert summary.top_place.city == "Seattle"
-    assert summary.top_place.count == 2
-    assert summary.top_person is not None
-    assert summary.top_person.person_id == "p1"
-    assert summary.top_person.count == 2
     assert summary.favorite_photo_count == 1
 
     places = insights.places(identity.id)
@@ -291,6 +325,61 @@ def test_top_photos_orders_by_confidence_descending(session):
     assert all(photo.crop_id is not None for photo in top_photos)
 
 
+def test_top_photos_excludes_review_and_manual_sources(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="auto-low",
+        confidence=0.4,
+    )
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="reviewed",
+        confidence=1.0,
+        source=ClassificationSources.REVIEW,
+    )
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="manual",
+        confidence=1.0,
+        source=ClassificationSources.MANUAL,
+    )
+
+    top_photos = InsightsService(session).top_photos(identity.id)
+
+    assert [photo.immich_asset_id for photo in top_photos] == ["auto-low"]
+
+
+def test_top_photos_empty_when_all_occurrences_are_reviewed(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="reviewed",
+        confidence=1.0,
+        source=ClassificationSources.REVIEW,
+    )
+
+    assert InsightsService(session).top_photos(identity.id) == []
+
+
 def test_top_photos_respects_limit(session):
     identity = Identity(name="Hermann", species=Species.DOG)
     session.add(identity)
@@ -323,3 +412,187 @@ def test_insights_only_include_this_identitys_occurrences(session):
 
     assert insights.summary(hermann.id).total_photos == 1
     assert insights.summary(biscuit.id).total_photos == 1
+
+
+def test_most_active_month_provider(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a1",
+        captured_at=datetime(2023, 3, 1, tzinfo=UTC),
+    )
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a2",
+        captured_at=datetime(2023, 3, 15, tzinfo=UTC),
+    )
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a3",
+        captured_at=datetime(2023, 6, 1, tzinfo=UTC),
+    )
+
+    cards = InsightsService(session).cards(identity.id)
+    card = next(c for c in cards if c.slug == "most-active-month")
+
+    assert card.value == "March 2023"
+    assert card.subtext == "2 photo(s)"
+
+
+def test_most_active_month_absent_without_captured_at(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+    _add_occurrence(session, service, identity_name="Hermann", immich_asset_id="a1")
+
+    cards = InsightsService(session).cards(identity.id)
+    assert "most-active-month" not in {c.slug for c in cards}
+
+
+def test_longest_streak_provider(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    for i in range(5):
+        _add_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id=f"streak-{i}",
+            captured_at=datetime(2023, 1, 1, tzinfo=UTC) + timedelta(days=i),
+        )
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="gap",
+        captured_at=datetime(2023, 2, 1, tzinfo=UTC),
+    )
+
+    cards = InsightsService(session).cards(identity.id)
+    card = next(c for c in cards if c.slug == "longest-streak")
+
+    assert card.value == "5 days"
+
+
+def test_longest_streak_absent_for_single_day(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a1",
+        captured_at=datetime(2023, 1, 1, tzinfo=UTC),
+    )
+
+    cards = InsightsService(session).cards(identity.id)
+    assert "longest-streak" not in {c.slug for c in cards}
+
+
+def test_best_friend_provider(session):
+    hermann = Identity(name="Hermann", species=Species.DOG)
+    biscuit = Identity(name="Biscuit", species=Species.DOG)
+    session.add_all([hermann, biscuit])
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    for i in range(3):
+        asset_id = _add_occurrence(
+            session, service, identity_name="Hermann", immich_asset_id=f"shared-{i}"
+        )
+        _add_occurrence_to_asset(
+            session, service, asset_id=asset_id, identity_name="Biscuit"
+        )
+
+    # A solo photo of Hermann alone shouldn't count toward any co-occurrence.
+    _add_occurrence(session, service, identity_name="Hermann", immich_asset_id="solo")
+
+    cards = InsightsService(session).cards(hermann.id)
+    card = next(c for c in cards if c.slug == "best-friend")
+
+    assert card.value == "Biscuit"
+    assert card.subtext == "3 photo(s) together"
+
+
+def test_best_friend_absent_without_co_occurrence(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+    _add_occurrence(session, service, identity_name="Hermann", immich_asset_id="solo")
+
+    cards = InsightsService(session).cards(identity.id)
+    assert "best-friend" not in {c.slug for c in cards}
+
+
+def test_year_over_year_provider(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+    current_year = datetime.now(UTC).year
+
+    for i in range(3):
+        _add_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id=f"last-{i}",
+            captured_at=datetime(current_year - 1, 5, 1, tzinfo=UTC),
+        )
+    for i in range(5):
+        _add_occurrence(
+            session,
+            service,
+            identity_name="Hermann",
+            immich_asset_id=f"this-{i}",
+            captured_at=datetime(current_year, 2, 1, tzinfo=UTC),
+        )
+
+    cards = InsightsService(session).cards(identity.id)
+    card = next(c for c in cards if c.slug == "year-over-year")
+
+    assert card.value == "+2 photo(s) vs. last year"
+    assert card.subtext == "5 this year, 3 last year"
+
+
+def test_year_over_year_absent_without_prior_year_data(session):
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+    current_year = datetime.now(UTC).year
+    _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="a1",
+        captured_at=datetime(current_year, 1, 1, tzinfo=UTC),
+    )
+
+    cards = InsightsService(session).cards(identity.id)
+    assert "year-over-year" not in {c.slug for c in cards}
