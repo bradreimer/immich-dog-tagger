@@ -418,6 +418,16 @@ class CropClassification(Base):
         cascade="all, delete-orphan",
     )
 
+    # back_populates + cascade give the ORM an actual relationship to follow
+    # on delete, not just the crop_classification_id FK column -- without
+    # this, deleting a CropClassification (e.g. Repair's
+    # `session.delete(detection)` cascade) left its PetOccurrence row
+    # dangling, pointing at an id that no longer resolves (issue #279).
+    pet_occurrence: Mapped[PetOccurrence | None] = relationship(
+        back_populates="classification",
+        cascade="all, delete-orphan",
+    )
+
 
 class PetOccurrence(Base):
     """
@@ -481,7 +491,9 @@ class PetOccurrence(Base):
         nullable=False,
     )
 
-    classification: Mapped[CropClassification] = relationship()
+    classification: Mapped[CropClassification] = relationship(
+        back_populates="pet_occurrence",
+    )
 
     asset: Mapped[Asset] = relationship(back_populates="pet_occurrences")
 
