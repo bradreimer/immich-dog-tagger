@@ -260,24 +260,25 @@ export function DogManagementCard({ onNavigate }: Props) {
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs text-muted-foreground">ID {dog.id}</p>
                       <Badge variant="outline">{speciesLabel(dog.species)}</Badge>
                       <Badge variant={dog.active ? "default" : "secondary"}>
                         {dog.active ? "Active" : "Inactive"}
                       </Badge>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0"
+                        onClick={() => onNavigate(`/dogs/${dog.id}/insights`)}
+                      >
+                        <IconChartBar className="h-4 w-4" aria-hidden="true" />
+                        Insights
+                      </Button>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => onNavigate(`/dogs/${dog.id}/insights`)}
-                    >
-                      <IconChartBar className="h-4 w-4" aria-hidden="true" />
-                      Insights
-                    </Button>
-
                     <Button
                       variant="outline"
                       onClick={() => handleRename(dog)}
