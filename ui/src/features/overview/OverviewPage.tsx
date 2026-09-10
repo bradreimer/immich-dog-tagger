@@ -17,6 +17,7 @@ import {
   IconRefresh,
   IconRefreshDot,
   IconRocket,
+  IconSchool,
   IconSparkles,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,15 @@ export function OverviewPage() {
         "Recompute predictions for existing photos using everything you've reviewed so far. It never rescans, redownloads, or redetects, and it never changes a label you've already confirmed.",
       icon: IconRefreshDot,
       ariaLabel: "Reclassify existing photos with reviewed examples",
+    },
+    {
+      operation: "learn",
+      headline: "Learn from reviewed examples",
+      actionLabel: "Learn",
+      description:
+        "Fold recent review corrections into the reference set the classifier uses for future predictions.",
+      icon: IconSchool,
+      ariaLabel: "Learn from reviewed examples",
     },
     {
       operation: "sync",
