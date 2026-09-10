@@ -26,8 +26,17 @@ export function StaleDetectionRepairAction({ status, onRepaired }: Props) {
   const [repairing, setRepairing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<StaleDetectionRepairResult | null>(null);
+  // Captured when the confirm dialog opens, so the result message can report
+  // "before -> after" rather than just attempt counts -- an attempt count
+  // alone can't distinguish a real repair from one that silently no-opped
+  // (see #282, #293).
+  const [beforeFlagged, setBeforeFlagged] = useState<number | null>(null);
 
-  if (status.healthy) {
+  // A fully successful repair flips `status.healthy` true, which would
+  // otherwise unmount this whole component (and the result it just posted)
+  // before the owner can read it -- so a still-fresh `result` keeps it
+  // mounted for at least the trailing summary line.
+  if (status.healthy && !result) {
     return null;
   }
 
@@ -46,6 +55,25 @@ export function StaleDetectionRepairAction({ status, onRepaired }: Props) {
       setRepairing(false);
     }
   };
+
+  const resultSummary = result && beforeFlagged !== null && (() => {
+    const actualDrop = beforeFlagged - status.flagged;
+    const short = result.repaired > 0 && actualDrop < result.repaired;
+
+    return (
+      <p
+        className={`w-full text-xs ${short ? "font-medium text-status-warning" : "text-muted-foreground"}`}
+      >
+        Repaired {result.repaired}, skipped {result.skipped_reviewed} reviewed, failed{" "}
+        {result.failed} — {beforeFlagged} → {status.flagged} still flagged
+        {short && " (fewer than expected -- may need investigation)"}.
+      </p>
+    );
+  })();
+
+  if (status.healthy) {
+    return <div className="rounded-md border p-3">{resultSummary}</div>;
+  }
 
   if (confirming) {
     return (
@@ -112,18 +140,14 @@ export function StaleDetectionRepairAction({ status, onRepaired }: Props) {
         size="sm"
         onClick={() => {
           setResult(null);
+          setBeforeFlagged(status.flagged);
           setConfirming(true);
         }}
       >
         <IconTool className="h-4 w-4" aria-hidden="true" />
         Repair
       </Button>
-      {result && (
-        <p className="w-full text-xs text-muted-foreground">
-          Repaired {result.repaired}, skipped {result.skipped_reviewed} reviewed, failed{" "}
-          {result.failed}.
-        </p>
-      )}
+      {resultSummary}
     </div>
   );
 }
