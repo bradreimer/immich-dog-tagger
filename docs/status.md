@@ -802,6 +802,18 @@
   of a fixed 760px SVG, filling the card. No backend/API change. See
   [docs/specs/species-timeline-chart-refinements.md](specs/species-timeline-chart-refinements.md).
 
+- [#275](https://github.com/bradreimer/immich-dog-tagger/issues/275) "Dogs Over Time" / "Cats Over
+  Time" grouped by calendar year instead of season, superseding #271's season grain (`_season_bucket`
+  and its helpers are removed -- a plain `captured_at.year` bucket key replaces them, no more
+  Winter-crosses-a-year-boundary special case). X-axis labels are back to horizontal (`"2025"`
+  instead of `"Winter 2025"`), reverting #273's vertical rotation now that there's one point per
+  year instead of four. Also raised `TOP_N_TIMELINE_IDENTITIES` from 4 to 6 and extended the
+  categorical chart palette with two more dataviz-skill-validated colors (`--chart-6` magenta,
+  `--chart-7` green), reordered as blue/aqua/violet/yellow/magenta/green/red -- validated with
+  `scripts/validate_palette.js` in both light and dark mode (`--chart-1..5` themselves are
+  unchanged, since `ProgressOverTimeChart` also depends on `--chart-3`). See
+  [docs/specs/species-timeline-yearly-grouping.md](specs/species-timeline-yearly-grouping.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

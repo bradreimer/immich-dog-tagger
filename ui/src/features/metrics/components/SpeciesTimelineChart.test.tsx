@@ -4,17 +4,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { SpeciesTimelineChart } from "./SpeciesTimelineChart";
 import type { SpeciesTimelinePoint } from "../../../types/metrics";
 
-function seasonPoints(count: number): SpeciesTimelinePoint[] {
-  const seasons = ["Winter", "Spring", "Summer", "Fall"];
+function yearPoints(count: number): SpeciesTimelinePoint[] {
   return Array.from({ length: count }, (_, i) => ({
-    label: `${seasons[i % 4]} ${2000 + Math.floor(i / 4)}`,
+    label: `${2000 + i}`,
     counts: { Fibs: i + 1, Fletch: (i % 3) + 1 },
   }));
 }
 
 describe("SpeciesTimelineChart", () => {
   it("renders one label per point with no downsampling for long histories", () => {
-    const points = seasonPoints(40);
+    const points = yearPoints(40);
 
     render(<SpeciesTimelineChart title="Dogs Over Time" identities={["Fibs", "Fletch"]} points={points} />);
 
@@ -23,19 +22,22 @@ describe("SpeciesTimelineChart", () => {
     }
   });
 
-  it("rotates each X-axis label so long histories stay legible", () => {
-    const points = seasonPoints(8);
+  it("renders X-axis labels horizontally, not rotated", () => {
+    const points = yearPoints(8);
 
     const { container } = render(
       <SpeciesTimelineChart title="Dogs Over Time" identities={["Fibs", "Fletch"]} points={points} />,
     );
 
-    const labels = container.querySelectorAll("svg text[transform^='rotate(-90']");
+    const labels = container.querySelectorAll("svg text[text-anchor='middle']");
     expect(labels).toHaveLength(points.length);
+    for (const label of labels) {
+      expect(label).not.toHaveAttribute("transform");
+    }
   });
 
   it("isolates one identity's data on legend click, then restores on a second click", () => {
-    const points = seasonPoints(4);
+    const points = yearPoints(4);
 
     render(<SpeciesTimelineChart title="Dogs Over Time" identities={["Fibs", "Fletch"]} points={points} />);
 
@@ -52,7 +54,7 @@ describe("SpeciesTimelineChart", () => {
   });
 
   it("switches isolation directly from one identity to another", () => {
-    const points = seasonPoints(4);
+    const points = yearPoints(4);
 
     render(<SpeciesTimelineChart title="Dogs Over Time" identities={["Fibs", "Fletch"]} points={points} />);
 
@@ -66,8 +68,8 @@ describe("SpeciesTimelineChart", () => {
     expect(fibsLegendButton).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("renders a single-season history as a duplicated full-width point without erroring", () => {
-    const points = seasonPoints(1);
+  it("renders a single-year history as a duplicated full-width point without erroring", () => {
+    const points = yearPoints(1);
 
     render(<SpeciesTimelineChart title="Dogs Over Time" identities={["Fibs", "Fletch"]} points={points} />);
 
