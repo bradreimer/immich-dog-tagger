@@ -5,7 +5,9 @@ import {
   IconArrowMerge,
   IconCat,
   IconChartBar,
+  IconCheck,
   IconDog,
+  IconDotsVertical,
   IconEdit,
   IconPlayerPause,
   IconPlayerPlay,
@@ -24,6 +26,12 @@ import type { Dog, Species } from "../../../types/dogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function speciesLabel(species: Species): string {
   return species === "cat" ? "Cat" : "Dog";
@@ -157,7 +165,18 @@ export function DogManagementCard({ onNavigate }: Props) {
     setMergeSourceId(dog.id);
     setMergeTargetId(null);
     setMergeConfirming(false);
+    setConfirmingDeactivateId(null);
   }, []);
+
+  const openDeactivateConfirm = useCallback(
+    (dog: Dog) => {
+      setError(null);
+      setMessage(null);
+      setConfirmingDeactivateId(dog.id);
+      closeMerge();
+    },
+    [closeMerge],
+  );
 
   const handleMerge = useCallback(async () => {
     if (mergeSourceId === null || mergeTargetId === null) {
@@ -255,15 +274,45 @@ export function DogManagementCard({ onNavigate }: Props) {
               );
               const mergeTarget = mergeCandidates.find((candidate) => candidate.id === mergeTargetId);
 
+              const draftName = drafts[dog.id] ?? dog.name;
+              const hasUnsavedName = draftName.trim() !== "" && draftName.trim() !== dog.name;
+
               return (
               <div key={dog.id} className="space-y-3 rounded-lg border p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex-1 space-y-2">
-                    <input
-                      value={drafts[dog.id] ?? dog.name}
-                      onChange={(event) => setDrafts((current) => ({ ...current, [dog.id]: event.target.value }))}
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={draftName}
+                        onChange={(event) => setDrafts((current) => ({ ...current, [dog.id]: event.target.value }))}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            handleRename(dog);
+                          }
+                        }}
+                        aria-label={`Name for ${dog.name}`}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+
+                      <Button
+                        variant={hasUnsavedName ? "default" : "outline"}
+                        size="icon"
+                        onClick={() => handleRename(dog)}
+                        disabled={savingId === dog.id || !hasUnsavedName}
+                        aria-label={`Save name for ${dog.name}`}
+                        title={
+                          hasUnsavedName
+                            ? "Save name (or press Enter)"
+                            : "No unsaved name changes"
+                        }
+                      >
+                        {hasUnsavedName ? (
+                          <IconCheck className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <IconEdit className="h-4 w-4" aria-hidden="true" />
+                        )}
+                      </Button>
+                    </div>
 
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs text-muted-foreground">ID {dog.id}</p>
@@ -271,6 +320,9 @@ export function DogManagementCard({ onNavigate }: Props) {
                       <Badge variant={dog.active ? "default" : "secondary"}>
                         {dog.active ? "Active" : "Inactive"}
                       </Badge>
+                      {hasUnsavedName && (
+                        <span className="text-xs text-muted-foreground">Unsaved changes</span>
+                      )}
                       <Button
                         variant="link"
                         size="sm"
@@ -283,63 +335,66 @@ export function DogManagementCard({ onNavigate }: Props) {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleRename(dog)}
-                      disabled={savingId === dog.id}
-                    >
-                      <IconEdit className="h-4 w-4" aria-hidden="true" />
-                      Rename
-                    </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger aria-label={`More actions for ${dog.name}`}>
+                      <IconDotsVertical className="h-4 w-4" aria-hidden="true" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem
+                        onClick={() => (mergeSourceId === dog.id ? closeMerge() : openMerge(dog))}
+                        disabled={savingId === dog.id || mergeCandidates.length === 0}
+                        title={
+                          mergeCandidates.length === 0
+                            ? `No other ${speciesLabel(dog.species).toLowerCase()} to merge into`
+                            : undefined
+                        }
+                      >
+                        <IconArrowMerge className="h-4 w-4" aria-hidden="true" />
+                        Merge
+                      </DropdownMenuItem>
 
-                    <Button
-                      variant="destructive"
-                      onClick={() => (mergeSourceId === dog.id ? closeMerge() : openMerge(dog))}
-                      disabled={savingId === dog.id || mergeCandidates.length === 0}
-                      title={
-                        mergeCandidates.length === 0
-                          ? `No other ${speciesLabel(dog.species).toLowerCase()} to merge into`
-                          : undefined
-                      }
-                    >
-                      <IconArrowMerge className="h-4 w-4" aria-hidden="true" />
-                      Merge
-                    </Button>
-
-                    {dog.active && confirmingDeactivateId === dog.id ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={() => toggleActive(dog)}
-                          disabled={savingId === dog.id}
-                        >
-                          <IconPlayerPause className="h-4 w-4" aria-hidden="true" />
-                          {savingId === dog.id ? "Deactivating…" : "Yes, deactivate"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setConfirmingDeactivateId(null)}
-                          disabled={savingId === dog.id}
-                        >
-                          <IconX className="h-4 w-4" aria-hidden="true" />
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant={dog.active ? "outline" : "default"}
+                      <DropdownMenuItem
                         onClick={() =>
-                          dog.active ? setConfirmingDeactivateId(dog.id) : toggleActive(dog)
+                          dog.active ? openDeactivateConfirm(dog) : toggleActive(dog)
                         }
                         disabled={savingId === dog.id}
                       >
-                        {dog.active ? <IconPlayerPause className="h-4 w-4" aria-hidden="true" /> : <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />}
+                        {dog.active ? (
+                          <IconPlayerPause className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />
+                        )}
                         {dog.active ? "Deactivate" : "Activate"}
-                      </Button>
-                    )}
-                  </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
+
+                {confirmingDeactivateId === dog.id && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+                    <span className="text-sm text-muted-foreground">
+                      Deactivate “{dog.name}”? You can reactivate it any time.
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleActive(dog)}
+                      disabled={savingId === dog.id}
+                    >
+                      <IconPlayerPause className="h-4 w-4" aria-hidden="true" />
+                      {savingId === dog.id ? "Deactivating…" : "Yes, deactivate"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmingDeactivateId(null)}
+                      disabled={savingId === dog.id}
+                    >
+                      <IconX className="h-4 w-4" aria-hidden="true" />
+                      Cancel
+                    </Button>
+                  </div>
+                )}
 
                 {mergeSourceId === dog.id && (
                   <div className="space-y-3 rounded-md border border-destructive/50 bg-destructive/5 p-3">

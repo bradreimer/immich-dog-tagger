@@ -24,13 +24,17 @@ function renderCard() {
   return render(<DogManagementCard onNavigate={() => {}} />);
 }
 
+async function openMenuFor(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `More actions for ${name}` }));
+}
+
 describe("DogManagementCard merge", () => {
   it("only offers same-species identities as merge targets", async () => {
     renderCard();
 
     await screen.findByDisplayValue("Fibsy");
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Merge" })[0]);
+    await openMenuFor("Fibsy");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Merge" }));
 
     const select = await screen.findByLabelText("Merge into");
     const options = Array.from(select.querySelectorAll("option")).map((option) => option.textContent);
@@ -44,9 +48,11 @@ describe("DogManagementCard merge", () => {
     renderCard();
 
     await screen.findByDisplayValue("Mittens");
+    await openMenuFor("Mittens");
 
-    // Mittens is the only cat, so its Merge button has nothing to merge into.
-    expect(screen.getAllByRole("button", { name: "Merge" })[2]).toBeDisabled();
+    // Mittens is the only cat, so clicking its Merge item does nothing.
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Merge" }));
+    expect(screen.queryByLabelText("Merge into")).not.toBeInTheDocument();
   });
 
   it("confirms before merging and reports what moved", async () => {
@@ -62,10 +68,10 @@ describe("DogManagementCard merge", () => {
     });
 
     await screen.findByDisplayValue("Fibsy");
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Merge" })[0]);
+    await openMenuFor("Fibsy");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Merge" }));
     fireEvent.change(await screen.findByLabelText("Merge into"), { target: { value: "2" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Merge" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Merge" }));
 
     // Nothing has been sent yet -- the confirmation step comes first.
     expect(api.mergeDogs).not.toHaveBeenCalled();
@@ -85,7 +91,7 @@ describe("DogManagementCard merge", () => {
 });
 
 describe("DogManagementCard row actions", () => {
-  it("navigates to Insights and keeps it visually separate from the management buttons", async () => {
+  it("navigates to Insights, reachable in one click with no overflow menu involved", async () => {
     const onNavigate = vi.fn();
     vi.mocked(api.getDogs).mockResolvedValue(dogs);
     render(<DogManagementCard onNavigate={onNavigate} />);
@@ -93,13 +99,32 @@ describe("DogManagementCard row actions", () => {
     await screen.findByDisplayValue("Fibsy");
 
     const insightsButton = screen.getAllByRole("button", { name: "Insights" })[0];
-    expect(insightsButton.className).toContain("border-transparent");
-
-    const mergeButton = screen.getAllByRole("button", { name: "Merge" })[0];
-    expect(mergeButton.className).not.toContain("border-transparent");
-
     fireEvent.click(insightsButton);
     expect(onNavigate).toHaveBeenCalledWith("/dogs/1/insights");
+
+    // Merge lives behind the overflow menu, not inline next to Insights.
+    expect(screen.queryByRole("menuitem", { name: "Merge" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Merge" })).not.toBeInTheDocument();
+  });
+
+  it("shows a visible unsaved-changes indicator and saves on Enter", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue(dogs);
+    vi.mocked(api.renameDog).mockResolvedValue({ ...dogs[0], name: "Fibsy II" });
+    render(<DogManagementCard onNavigate={() => {}} />);
+
+    const input = await screen.findByDisplayValue("Fibsy");
+
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save name for Fibsy" })).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "Fibsy II" } });
+
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save name for Fibsy" })).toBeEnabled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(api.renameDog).toHaveBeenCalledWith(1, "Fibsy II"));
   });
 });
 
@@ -113,9 +138,10 @@ describe("DogManagementCard deactivate", () => {
     render(<DogManagementCard onNavigate={() => {}} />);
 
     await screen.findByDisplayValue("Fibsy");
+    await openMenuFor("Fibsy");
 
-    const deactivateButton = screen.getAllByRole("button", { name: "Deactivate" })[0];
-    expect(deactivateButton.className).not.toContain("bg-destructive");
+    const deactivateItem = await screen.findByRole("menuitem", { name: "Deactivate" });
+    expect(deactivateItem.className).not.toContain("bg-destructive");
   });
 
   it("requires a confirm click before deactivating", async () => {
@@ -124,25 +150,27 @@ describe("DogManagementCard deactivate", () => {
     render(<DogManagementCard onNavigate={() => {}} />);
 
     await screen.findByDisplayValue("Fibsy");
+    await openMenuFor("Fibsy");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Deactivate" }));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Deactivate" })[0]);
     expect(api.deactivateDog).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Yes, deactivate" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, deactivate" }));
 
     await waitFor(() => expect(api.deactivateDog).toHaveBeenCalledWith(1));
   });
 
-  it("cancels back to the plain Deactivate button without deactivating", async () => {
+  it("cancels back without deactivating", async () => {
     vi.mocked(api.getDogs).mockResolvedValue(dogs);
     render(<DogManagementCard onNavigate={() => {}} />);
 
     await screen.findByDisplayValue("Fibsy");
+    await openMenuFor("Fibsy");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Deactivate" }));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Deactivate" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
 
-    expect(screen.getAllByRole("button", { name: "Deactivate" })[0]).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Yes, deactivate" })).not.toBeInTheDocument();
     expect(api.deactivateDog).not.toHaveBeenCalled();
   });
 
@@ -153,8 +181,8 @@ describe("DogManagementCard deactivate", () => {
     render(<DogManagementCard onNavigate={() => {}} />);
 
     await screen.findByDisplayValue("Fibsy");
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Activate" })[0]);
+    await openMenuFor("Fibsy");
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Activate" }));
 
     await waitFor(() => expect(api.activateDog).toHaveBeenCalledWith(1));
   });
