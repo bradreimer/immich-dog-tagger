@@ -50,6 +50,30 @@ function formatTime(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
+const URL_PATTERN = /(https?:\/\/\S+)/g;
+
+// Job error/progress messages are the only place this project currently
+// embeds URLs in user-facing text (e.g. a doc link appended to a
+// no_permission sync failure, per #260) -- scoped to just that, rather than
+// a global text-rendering change.
+function linkify(text: string) {
+  return text.split(URL_PATTERN).map((part, index) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={index}
+        href={part}
+        target="_blank"
+        rel="noreferrer"
+        className="underline underline-offset-2 hover:text-foreground"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 function progressLabel(job: PipelineJob): string {
   if (job.progress_total === null) {
     return `${job.progress_current}`;
@@ -112,7 +136,7 @@ function JobRow({
       <div className="mt-2 text-sm text-muted-foreground">{job.progress_message ?? "No progress details"}</div>
 
       {job.error_message && (
-        <div className="mt-2 text-sm text-destructive">Error: {job.error_message}</div>
+        <div className="mt-2 text-sm text-destructive">Error: {linkify(job.error_message)}</div>
       )}
 
       <div className="mt-2 text-xs text-muted-foreground">
@@ -264,7 +288,9 @@ export function JobQueuePage() {
             {diagnostics.jobs.recent_failures.map((f) => (
               <div key={f.id} className="rounded-md border border-status-critical/20 bg-status-critical/5 p-2 text-xs">
                 <span className="font-medium">#{f.id} {formatOperation(f.operation)}</span>
-                {f.error_message && <span className="ml-2 text-muted-foreground">{f.error_message}</span>}
+                {f.error_message && (
+                  <span className="ml-2 text-muted-foreground">{linkify(f.error_message)}</span>
+                )}
               </div>
             ))}
           </CardContent>
