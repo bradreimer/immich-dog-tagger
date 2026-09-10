@@ -14,6 +14,7 @@ import {
   skipClassification,
   unmarkCropNotAnimal,
 } from "../../lib/api";
+import type { ReviewQuery } from "../../lib/api";
 import type { AssetRepairResult } from "../../types/photoLookup";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,46 @@ function classificationIdFromUrl(): number | null {
   const id = Number(raw);
 
   return Number.isFinite(id) ? id : null;
+}
+
+/** A Library filter selection carried over via `/review?species=...&identity=
+ * ...&captured_after=...&captured_before=...` (issue #289). Read once on
+ * initial load, same as classificationIdFromUrl -- this page doesn't
+ * otherwise change these query params, so there's nothing to react to after
+ * mount. Combined with (not replacing) the reason-based filter buttons. */
+function bridgeFiltersFromUrl(): Pick<
+  ReviewQuery,
+  "species" | "identity" | "captured_after" | "captured_before"
+> {
+  const params = new URLSearchParams(window.location.search);
+
+  const filters: Pick<
+    ReviewQuery,
+    "species" | "identity" | "captured_after" | "captured_before"
+  > = {};
+
+  const species = params.get("species");
+  const identity = params.get("identity");
+  const capturedAfter = params.get("captured_after");
+  const capturedBefore = params.get("captured_before");
+
+  if (species) {
+    filters.species = species;
+  }
+
+  if (identity) {
+    filters.identity = identity;
+  }
+
+  if (capturedAfter) {
+    filters.captured_after = capturedAfter;
+  }
+
+  if (capturedBefore) {
+    filters.captured_before = capturedBefore;
+  }
+
+  return filters;
 }
 
 /**
@@ -248,6 +289,7 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
 }
 
 function ReviewQueuePage() {
+  const [bridgeFilters] = useState(bridgeFiltersFromUrl);
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
@@ -293,9 +335,10 @@ function ReviewQueuePage() {
 
     try {
       const [queue, queueStats, dogItems, settings] = await Promise.all([
-        getReview(
-          getReviewQuery(filter),
-        ),
+        getReview({
+          ...getReviewQuery(filter),
+          ...bridgeFilters,
+        }),
         getReviewStats(),
         getDogs({ includeInactive: false }).catch(() => []),
         // The Immich deep link is a convenience; failing to read the
@@ -317,7 +360,7 @@ function ReviewQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, bridgeFilters]);
 
   const correct = useCallback(
     async (identity: string) => {
@@ -495,6 +538,15 @@ function ReviewQueuePage() {
 
   const item = items[index];
 
+  const bridgeSummary = [
+    bridgeFilters.species,
+    bridgeFilters.identity,
+    bridgeFilters.captured_after && `after ${bridgeFilters.captured_after}`,
+    bridgeFilters.captured_before && `before ${bridgeFilters.captured_before}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   const speciesIdentities = item
     ? dogs.filter((dog) => dog.species === item.species).map((dog) => dog.name)
     : [];
@@ -569,6 +621,10 @@ function ReviewQueuePage() {
           ? `${index + 1} of ${items.length} in current queue`
           : "Queue empty"}
       </div>
+
+      {bridgeSummary && (
+        <p className="text-sm text-muted-foreground">Filtered from Library: {bridgeSummary}</p>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button

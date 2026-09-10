@@ -400,3 +400,86 @@ def test_review_correct_endpoint_removed(api_client):
     )
 
     assert response.status_code == 404
+
+
+def test_review_queue_filters_by_species(api_client, engine):
+    """#289: a Library filter selection (species/identity/date range)
+    combines with AND semantics on top of the existing reason filters."""
+    with Session(engine) as session:
+        dog_crop = Crop(detection_id=1, path="dog.jpg", species="dog")
+        cat_crop = Crop(detection_id=1, path="cat.jpg", species="cat")
+
+        session.add(CropClassification(crop=dog_crop, identity=None, confidence=0.5))
+        session.add(CropClassification(crop=cat_crop, identity=None, confidence=0.5))
+        session.commit()
+
+    response = api_client.get("/review", params={"species": "cat"})
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["species"] == "cat"
+
+
+def test_review_queue_filters_by_identity_and_confidence_below(api_client, engine):
+    with Session(engine) as session:
+        fibs_crop = Crop(detection_id=1, path="fibs.jpg")
+        rex_crop = Crop(detection_id=1, path="rex.jpg")
+
+        session.add(CropClassification(crop=fibs_crop, identity="Fibs", confidence=0.5))
+        session.add(CropClassification(crop=rex_crop, identity="Rex", confidence=0.5))
+        session.commit()
+
+    response = api_client.get(
+        "/review",
+        params={"identity": "Fibs", "confidence_below": 0.9},
+    )
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["prediction"]["identity"] == "Fibs"
+
+
+def test_review_queue_filters_by_captured_date_range(api_client, engine):
+    with Session(engine) as session:
+        old_asset = Asset(
+            immich_asset_id="old",
+            extension=".jpg",
+            captured_at=datetime(2018, 1, 1, tzinfo=UTC),
+        )
+        recent_asset = Asset(
+            immich_asset_id="recent",
+            extension=".jpg",
+            captured_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+
+        old_detection = Detection(
+            asset=old_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        recent_detection = Detection(
+            asset=recent_asset, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+
+        old_crop = Crop(detection=old_detection, path="old.jpg")
+        recent_crop = Crop(detection=recent_detection, path="recent.jpg")
+
+        session.add(CropClassification(crop=old_crop, identity=None, confidence=0.5))
+        session.add(CropClassification(crop=recent_crop, identity=None, confidence=0.5))
+        session.commit()
+
+    response = api_client.get(
+        "/review",
+        params={"captured_after": "2020-01-01T00:00:00"},
+    )
+
+    assert response.status_code == 200
+
+    items = response.json()
+
+    assert len(items) == 1
+    assert items[0]["captured_at"] == "2024-01-01T00:00:00"

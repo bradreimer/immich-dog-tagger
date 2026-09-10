@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,6 +32,10 @@ def review(
     unknown: bool = Query(False),
     confidence_below: float | None = Query(None),
     candidate_conflict: bool = Query(False),
+    species: str | None = Query(None),
+    identity: str | None = Query(None),
+    captured_after: datetime | None = Query(None),
+    captured_before: datetime | None = Query(None),
 ):
     service = get_review_query_service(session)
 
@@ -40,6 +45,10 @@ def review(
         unknown=unknown,
         confidence_below=confidence_below,
         candidate_conflict=candidate_conflict,
+        species=species,
+        identity=identity,
+        captured_after=captured_after,
+        captured_before=captured_before,
     )
 
     return [ReviewItemResponse.from_item(item) for item in items]

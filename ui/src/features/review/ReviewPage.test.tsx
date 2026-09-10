@@ -78,6 +78,43 @@ describe("ReviewPage", () => {
     expect(api.getClassification).not.toHaveBeenCalled();
   });
 
+  it("combines a Library filter bridge from the URL with the reason-based filter", async () => {
+    vi.mocked(api.getReview).mockResolvedValue([buildItem()]);
+    vi.mocked(api.getReviewStats).mockResolvedValue(STATS);
+    window.history.replaceState(
+      {},
+      "",
+      "/review?species=dog&identity=Hermann&captured_after=2026-01-01",
+    );
+
+    render(<ReviewPage />);
+
+    await waitFor(() =>
+      expect(api.getReview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          species: "dog",
+          identity: "Hermann",
+          captured_after: "2026-01-01",
+        }),
+      ),
+    );
+
+    expect(await screen.findByText(/Filtered from Library: dog, Hermann, after 2026-01-01/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Unknown" }));
+
+    await waitFor(() =>
+      expect(api.getReview).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          unknown: true,
+          species: "dog",
+          identity: "Hermann",
+          captured_after: "2026-01-01",
+        }),
+      ),
+    );
+  });
+
   it("loads one classification by id and hides queue chrome when classification_id is present", async () => {
     vi.mocked(api.getClassification).mockResolvedValue(buildItem());
     window.history.replaceState({}, "", "/review?classification_id=42");

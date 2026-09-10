@@ -33,6 +33,10 @@ export type ReviewQuery = {
   unknown?: boolean;
   confidence_below?: number;
   candidate_conflict?: boolean;
+  species?: string;
+  identity?: string;
+  captured_after?: string;
+  captured_before?: string;
 };
 
 export async function getReview(
@@ -57,6 +61,22 @@ export async function getReview(
       "candidate_conflict",
       "true",
     );
+  }
+
+  if (query.species) {
+    params.set("species", query.species);
+  }
+
+  if (query.identity) {
+    params.set("identity", query.identity);
+  }
+
+  if (query.captured_after) {
+    params.set("captured_after", query.captured_after);
+  }
+
+  if (query.captured_before) {
+    params.set("captured_before", query.captured_before);
   }
 
   const response = await fetch(

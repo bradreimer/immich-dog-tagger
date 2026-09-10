@@ -75,7 +75,7 @@ describe("LibraryPage", () => {
   });
 
   it("filters by species, pet, review status, and capture date -- combined", async () => {
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
 
@@ -117,7 +117,7 @@ describe("LibraryPage", () => {
   });
 
   it("clears a pet selection that no longer matches a changed species", async () => {
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     fireEvent.change(await screen.findByLabelText("Pet"), {
       target: { value: "Hermann" },
@@ -132,7 +132,7 @@ describe("LibraryPage", () => {
   });
 
   it("sends the selected sort order", async () => {
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(lastLibraryQuery().sort).toBe("captured_desc"));
 
@@ -144,7 +144,7 @@ describe("LibraryPage", () => {
   });
 
   it("sends the reviewed-date sort order (issue #225)", async () => {
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(lastLibraryQuery().sort).toBe("captured_desc"));
 
@@ -164,7 +164,7 @@ describe("LibraryPage", () => {
   it("resets pagination when a filter or the sort changes", async () => {
     mockLibrary(120);
 
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Next" }));
 
@@ -180,7 +180,7 @@ describe("LibraryPage", () => {
   });
 
   it("never renders a photos-with-no-detected-pet section", async () => {
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
 
@@ -192,7 +192,7 @@ describe("LibraryPage", () => {
   it("shows a details panel when a thumbnail is selected", async () => {
     mockLibrary(1);
 
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
 
@@ -201,7 +201,7 @@ describe("LibraryPage", () => {
   });
 
   it("reflects non-default filters in the URL", async () => {
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(api.getLibrary).toHaveBeenCalled());
     expect(window.location.search).toBe("");
@@ -224,7 +224,7 @@ describe("LibraryPage", () => {
   it("restores filters and sort from the URL on load", async () => {
     window.history.replaceState({}, "", "/library?species=dog&identity=Hermann&sort=reviewed_asc");
 
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() =>
       expect(lastLibraryQuery()).toMatchObject({
@@ -242,7 +242,7 @@ describe("LibraryPage", () => {
     mockLibrary(120);
     window.history.replaceState({}, "", "/library?offset=50");
 
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     await waitFor(() => expect(lastLibraryQuery().offset).toBe(50));
   });
@@ -250,7 +250,7 @@ describe("LibraryPage", () => {
   it("clears the selection when a filter changes", async () => {
     mockLibrary(1);
 
-    render(<LibraryPage />);
+    render(<LibraryPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
     expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();
@@ -262,5 +262,41 @@ describe("LibraryPage", () => {
     await waitFor(() =>
       expect(screen.queryByText("Portland, Oregon, USA")).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe("LibraryPage Review bridge", () => {
+  it("hides Review these when no species or pet is selected", async () => {
+    mockLibrary(1);
+
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    await screen.findByLabelText("Species");
+    expect(screen.queryByRole("button", { name: "Review these" })).not.toBeInTheDocument();
+  });
+
+  it("navigates to a scoped Review queue for the current species/pet/date selection", async () => {
+    mockLibrary(1);
+    const onNavigate = vi.fn();
+    window.history.replaceState({}, "", "/library");
+
+    render(<LibraryPage onNavigate={onNavigate} />);
+
+    fireEvent.change(await screen.findByLabelText("Species"), { target: { value: "dog" } });
+    fireEvent.change(screen.getByLabelText("Pet"), { target: { value: "Hermann" } });
+    fireEvent.change(screen.getByLabelText("Captured after"), {
+      target: { value: "2026-01-01" },
+    });
+
+    const reviewThese = await screen.findByRole("button", { name: "Review these" });
+    fireEvent.click(reviewThese);
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    const [path] = onNavigate.mock.calls[0];
+    expect(path).toMatch(/^\/review\?/);
+    const params = new URLSearchParams(path.split("?")[1]);
+    expect(params.get("species")).toBe("dog");
+    expect(params.get("identity")).toBe("Hermann");
+    expect(params.get("captured_after")).toBe("2026-01-01");
   });
 });
