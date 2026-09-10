@@ -30,6 +30,7 @@ def _add_occurrence(
     people: list[dict] | None = None,
     confidence: float = 0.9,
     source: ClassificationSources = ClassificationSources.AUTO,
+    detection_confidence: float = 0.9,
 ) -> int:
     asset = Asset(
         immich_asset_id=immich_asset_id,
@@ -44,7 +45,13 @@ def _add_occurrence(
     session.flush()
 
     detection = Detection(
-        asset_id=asset.id, label="dog", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        asset_id=asset.id,
+        label="dog",
+        confidence=detection_confidence,
+        x1=0,
+        y1=0,
+        x2=1,
+        y2=1,
     )
     session.add(detection)
     session.flush()
@@ -296,36 +303,34 @@ def test_top_photos_empty_for_identity_with_no_occurrences(session):
     assert InsightsService(session).top_photos(identity.id) == []
 
 
-def test_top_photos_orders_by_confidence_descending(session):
+def test_top_photos_orders_by_detection_confidence_descending(session):
     identity = Identity(name="Hermann", species=Species.DOG)
     session.add(identity)
     session.commit()
 
     service = PetOccurrenceService(session)
 
-    for immich_asset_id, confidence in [("low", 0.5), ("high", 0.95), ("mid", 0.7)]:
+    for immich_asset_id, detection_confidence in [
+        ("low", 0.5),
+        ("high", 0.95),
+        ("mid", 0.7),
+    ]:
         _add_occurrence(
             session,
             service,
             identity_name="Hermann",
             immich_asset_id=immich_asset_id,
+            detection_confidence=detection_confidence,
         )
-        occurrence = session.scalars(
-            select(PetOccurrence).where(
-                PetOccurrence.asset.has(immich_asset_id=immich_asset_id)
-            )
-        ).one()
-        occurrence.confidence = confidence
-        session.commit()
 
     top_photos = InsightsService(session).top_photos(identity.id)
 
     assert [photo.immich_asset_id for photo in top_photos] == ["high", "mid", "low"]
-    assert [photo.confidence for photo in top_photos] == [0.95, 0.7, 0.5]
+    assert [photo.clarity for photo in top_photos] == [0.95, 0.7, 0.5]
     assert all(photo.crop_id is not None for photo in top_photos)
 
 
-def test_top_photos_excludes_review_and_manual_sources(session):
+def test_top_photos_includes_review_and_manual_sources(session):
     identity = Identity(name="Hermann", species=Species.DOG)
     session.add(identity)
     session.commit()
@@ -336,32 +341,36 @@ def test_top_photos_excludes_review_and_manual_sources(session):
         session,
         service,
         identity_name="Hermann",
-        immich_asset_id="auto-low",
-        confidence=0.4,
+        immich_asset_id="auto-mid",
+        detection_confidence=0.7,
     )
     _add_occurrence(
         session,
         service,
         identity_name="Hermann",
-        immich_asset_id="reviewed",
-        confidence=1.0,
+        immich_asset_id="reviewed-high",
         source=ClassificationSources.REVIEW,
+        detection_confidence=0.9,
     )
     _add_occurrence(
         session,
         service,
         identity_name="Hermann",
-        immich_asset_id="manual",
-        confidence=1.0,
+        immich_asset_id="manual-low",
         source=ClassificationSources.MANUAL,
+        detection_confidence=0.4,
     )
 
     top_photos = InsightsService(session).top_photos(identity.id)
 
-    assert [photo.immich_asset_id for photo in top_photos] == ["auto-low"]
+    assert [photo.immich_asset_id for photo in top_photos] == [
+        "reviewed-high",
+        "auto-mid",
+        "manual-low",
+    ]
 
 
-def test_top_photos_empty_when_all_occurrences_are_reviewed(session):
+def test_top_photos_ranks_entirely_reviewed_occurrences(session):
     identity = Identity(name="Hermann", species=Species.DOG)
     session.add(identity)
     session.commit()
@@ -373,11 +382,13 @@ def test_top_photos_empty_when_all_occurrences_are_reviewed(session):
         service,
         identity_name="Hermann",
         immich_asset_id="reviewed",
-        confidence=1.0,
         source=ClassificationSources.REVIEW,
+        detection_confidence=0.8,
     )
 
-    assert InsightsService(session).top_photos(identity.id) == []
+    top_photos = InsightsService(session).top_photos(identity.id)
+
+    assert [photo.immich_asset_id for photo in top_photos] == ["reviewed"]
 
 
 def test_top_photos_respects_limit(session):

@@ -24,8 +24,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from immich_dog_tagger.enums import ClassificationSources
-from immich_dog_tagger.models import Identity, PetOccurrence
+from immich_dog_tagger.models import Crop, CropClassification, Identity, PetOccurrence
 
 from .aggregations import PersonCount, PlaceCount, person_counts, place_counts
 from .providers import INSIGHT_PROVIDERS, InsightCard, InsightContext
@@ -51,7 +50,7 @@ class TopPhoto:
     immich_asset_id: str
     crop_id: int
     captured_at: datetime | None
-    confidence: float
+    clarity: float
 
 
 @dataclass(frozen=True)
@@ -145,26 +144,30 @@ class InsightsService:
         self._require_identity(identity_id)
         occurrences = self._occurrences(identity_id, with_crop=True)
 
-        # REVIEW/MANUAL occurrences are always confidence == 1.0 by
-        # construction (ClassificationCorrectionService.correct()), so
-        # ranking by raw confidence would just surface manually tagged
-        # photos here instead of the classifier's own best guesses.
+        # Every source is eligible here -- a REVIEW/MANUAL occurrence's
+        # identity-match confidence is always 1.0 by construction
+        # (ClassificationCorrectionService.correct()), but that says
+        # nothing about how clear the photo itself is, and "Top photos" is
+        # a "nicest to look at" collection, not a classifier-confidence
+        # leaderboard (issue #285). Ranked instead by the underlying
+        # Detection's own confidence -- YOLO's certainty that the box is a
+        # clean, well-formed animal -- which is orthogonal to identity
+        # matching and untouched by review/correction: a blurry, distant,
+        # or partially-occluded dog produces a lower detection confidence
+        # regardless of who later confirmed its identity.
         #
         # A dangling occurrence (crop_classification_id pointing at a
         # deleted CropClassification, issue #279) loads with
         # classification=None via the LEFT OUTER JOIN in _occurrences() --
         # exclude it defensively rather than crash on
-        # occurrence.classification.crop_id below. The cascading delete on
-        # CropClassification.pet_occurrence and the startup backfill in
-        # database.py mean this shouldn't happen going forward, but a
-        # database from before that fix can still have one until its next
-        # startup migration runs.
-        auto_occurrences = []
+        # occurrence.classification.crop.detection below. The cascading
+        # delete on CropClassification.pet_occurrence and the startup
+        # backfill in database.py mean this shouldn't happen going
+        # forward, but a database from before that fix can still have one
+        # until its next startup migration runs.
+        eligible = []
 
         for occurrence in occurrences:
-            if occurrence.source != ClassificationSources.AUTO:
-                continue
-
             if occurrence.classification is None:
                 logger.warning(
                     "top_photos: skipping PetOccurrence %d with dangling "
@@ -174,11 +177,14 @@ class InsightsService:
                 )
                 continue
 
-            auto_occurrences.append(occurrence)
+            eligible.append(occurrence)
 
         ordered = sorted(
-            auto_occurrences,
-            key=lambda occurrence: (-occurrence.confidence, occurrence.id),
+            eligible,
+            key=lambda occurrence: (
+                -occurrence.classification.crop.detection.confidence,
+                occurrence.id,
+            ),
         )
 
         return [
@@ -187,7 +193,7 @@ class InsightsService:
                 immich_asset_id=occurrence.asset.immich_asset_id,
                 crop_id=occurrence.classification.crop_id,
                 captured_at=occurrence.asset.captured_at,
-                confidence=occurrence.confidence,
+                clarity=occurrence.classification.crop.detection.confidence,
             )
             for occurrence in ordered[:limit]
         ]
@@ -221,7 +227,11 @@ class InsightsService:
         options = [joinedload(PetOccurrence.asset)]
 
         if with_crop:
-            options.append(joinedload(PetOccurrence.classification))
+            options.append(
+                joinedload(PetOccurrence.classification)
+                .joinedload(CropClassification.crop)
+                .joinedload(Crop.detection)
+            )
 
         return list(
             self.session.scalars(

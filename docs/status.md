@@ -845,6 +845,19 @@
   first response byte is sent, verified to fail against the prior code) rather than relying on
   burst-timing races that an in-process `TestClient` can't reliably reproduce.
 
+- [#285](https://github.com/bradreimer/immich-dog-tagger/issues/285) reversed #269's Top Photos
+  filter: the section is now "the clearest photos of this pet," not a classifier-confidence
+  leaderboard, so every `ClassificationSources` value (`AUTO`, `REVIEW`, `MANUAL`) is eligible
+  again. Ranking moved off identity-classification confidence (always 1.0 for a human decision,
+  which is exactly the problem #269 fixed) onto `Detection.confidence` -- YOLO's own confidence
+  that the bounding box is a clean, well-formed animal, which is orthogonal to identity matching
+  and untouched by review/correction. `InsightsService.top_photos()`'s `TopPhoto.confidence` field
+  is renamed `clarity` to reflect the new meaning, same rename in `TopPhotoResponse`. UI drops the
+  per-thumbnail confidence percentage (no longer identity confidence, and a raw detection score
+  isn't itself meaningful to an owner) for the photo's captured date, and simplifies the section's
+  empty-state copy since "every photo was manually tagged" is no longer a real reason for it to be
+  empty. See [docs/specs/top-photos-by-clarity.md](specs/top-photos-by-clarity.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

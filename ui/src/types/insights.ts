@@ -18,7 +18,7 @@ export interface TopPhoto {
   immich_asset_id: string;
   crop_id: number;
   captured_at: string | null;
-  confidence: number;
+  clarity: number;
 }
 
 export interface InsightsSummary {
