@@ -918,13 +918,27 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
-New: a full navigation/intent UX pass across every tab filed 12 issues (#286-#297) -- sidebar/
-in-app navigation defects, Overview job-list/operations consolidation, Dogs & Cats row action
-layout, a Library-to-Review filter bridge, and small UX polish. #286 (trimmed Overview's
-duplicate job list, deferring to Job Queue) and #288 (moved Insights to distinct styling on Dogs
-& Cats rows) have shipped as v1.19.0; `pyproject.toml`/`uv.lock` had lagged behind those two
-`user-story` merges (the version-bump CI check caught it after the fact rather than before) --
-this catches them up. The remaining issues in the batch are being worked in ascending order.
+A full navigation/intent UX pass across every tab filed 12 issues (#286-#297) -- sidebar/in-app
+navigation defects, Overview job-list/operations consolidation, Dogs & Cats row action layout, a
+Library-to-Review filter bridge, and small UX polish. All 12 have shipped, through v1.26.0:
+#286 trimmed Overview's duplicate job list, deferring to Job Queue, in favor of a "View all jobs"
+link; #287 fixed the sidebar not highlighting Dogs & Cats on a pet's Insights sub-route; #288
+visually separated Insights from Dogs & Cats' management actions (superseded by #295's fuller
+overflow-menu redesign, per that issue's own noted overlap); #289 let a Library filter selection
+open a matching Review queue, extending `GET /review` with species/identity/captured-date params
+alongside the existing reason filters; #290 fixed Review's "Back to Library" links forcing a full
+page reload instead of SPA navigation; #291 added a manual "Learn" trigger to Overview's Manual
+Operations card, and #292 removed the now-redundant Reclassify/Run Pipeline header shortcuts once
+that card covered all four operations; #293 threads before/after stale-detection counts into the
+Repair result message (and fixed the result card unmounting itself once a full repair flipped
+diagnostics healthy); #294 restyled Deactivate off destructive-red with a lightweight confirm, and
+#295 moved Merge and Deactivate into an overflow menu (introducing a small `DropdownMenu` wrapper
+over `@base-ui/react`'s Menu primitive, already a project dependency) with a visible unsaved-name
+indicator on Rename; #296 linkified doc URLs embedded in job failure messages; #297 linked Metrics'
+species timeline legend entries to each pet's Insights page. `pyproject.toml`/`uv.lock` lagged
+behind the first two `user-story` merges (#286, #288) -- the version-bump CI check caught it after
+the fact rather than before -- and was caught up in a small chore commit; every subsequent
+`user-story` issue in the batch carried its own bump.
 
 No queued numbered milestone -- v1.13.0 (#265) shipped complete, no open questions. v1.12.0 (#230)
 also shipped complete, no open questions. v1.11.0 (#196) also shipped complete, with one open
