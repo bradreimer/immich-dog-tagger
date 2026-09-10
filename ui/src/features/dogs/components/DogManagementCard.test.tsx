@@ -83,3 +83,22 @@ describe("DogManagementCard merge", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("DogManagementCard row actions", () => {
+  it("navigates to Insights and keeps it visually separate from the management buttons", async () => {
+    const onNavigate = vi.fn();
+    vi.mocked(api.getDogs).mockResolvedValue(dogs);
+    render(<DogManagementCard onNavigate={onNavigate} />);
+
+    await screen.findByDisplayValue("Fibsy");
+
+    const insightsButton = screen.getAllByRole("button", { name: "Insights" })[0];
+    expect(insightsButton.className).toContain("border-transparent");
+
+    const mergeButton = screen.getAllByRole("button", { name: "Merge" })[0];
+    expect(mergeButton.className).not.toContain("border-transparent");
+
+    fireEvent.click(insightsButton);
+    expect(onNavigate).toHaveBeenCalledWith("/dogs/1/insights");
+  });
+});
