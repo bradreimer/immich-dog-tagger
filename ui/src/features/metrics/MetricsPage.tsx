@@ -412,7 +412,7 @@ export function MetricsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Dogs Over Time</CardTitle>
-            <CardDescription>Confirmed dog photos per season, by pet.</CardDescription>
+            <CardDescription>Confirmed dog photos per year, by pet.</CardDescription>
           </CardHeader>
           <CardContent>
             {dogTimeline.points.length === 0 ? (
@@ -435,7 +435,7 @@ export function MetricsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Cats Over Time</CardTitle>
-            <CardDescription>Confirmed cat photos per season, by pet.</CardDescription>
+            <CardDescription>Confirmed cat photos per year, by pet.</CardDescription>
           </CardHeader>
           <CardContent>
             {catTimeline.points.length === 0 ? (

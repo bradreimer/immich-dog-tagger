@@ -459,7 +459,7 @@ def test_species_timeline_empty_for_species_with_no_confirmed_photos(engine):
         assert timeline.points == []
 
 
-def test_species_timeline_merges_winter_across_the_year_boundary(engine):
+def test_species_timeline_buckets_by_calendar_year(engine):
     with Session(engine) as session:
         service = PetOccurrenceService(session)
 
@@ -487,11 +487,12 @@ def test_species_timeline_merges_winter_across_the_year_boundary(engine):
 
         timeline = MetricsService(session).species_timeline(Species.DOG)
 
-        assert [p.label for p in timeline.points] == ["Winter 2025"]
-        assert timeline.points[0].counts == {"Hermann": 3}
+        assert [p.label for p in timeline.points] == ["2025", "2026"]
+        assert timeline.points[0].counts == {"Hermann": 1}
+        assert timeline.points[1].counts == {"Hermann": 2}
 
 
-def test_species_timeline_zero_fills_gap_seasons(engine):
+def test_species_timeline_zero_fills_gap_years(engine):
     with Session(engine) as session:
         service = PetOccurrenceService(session)
 
@@ -499,24 +500,20 @@ def test_species_timeline_zero_fills_gap_seasons(engine):
             session,
             service,
             identity_name="Hermann",
-            immich_asset_id="winter",
-            captured_at=datetime(2025, 1, 1, tzinfo=UTC),
+            immich_asset_id="first",
+            captured_at=datetime(2023, 1, 1, tzinfo=UTC),
         )
         _confirmed_occurrence(
             session,
             service,
             identity_name="Hermann",
-            immich_asset_id="summer",
+            immich_asset_id="last",
             captured_at=datetime(2025, 7, 1, tzinfo=UTC),
         )
 
         timeline = MetricsService(session).species_timeline(Species.DOG)
 
-        assert [p.label for p in timeline.points] == [
-            "Winter 2024",
-            "Spring 2025",
-            "Summer 2025",
-        ]
+        assert [p.label for p in timeline.points] == ["2023", "2024", "2025"]
         assert timeline.points[0].counts == {"Hermann": 1}
         assert timeline.points[1].counts == {"Hermann": 0}
         assert timeline.points[2].counts == {"Hermann": 1}
@@ -551,9 +548,9 @@ def test_species_timeline_groups_beyond_top_n_into_other(engine):
     with Session(engine) as session:
         service = PetOccurrenceService(session)
 
-        # 5 dogs, each with a distinct, strictly descending total, so the
-        # top-4 ranking and the "Other" grouping are both unambiguous.
-        names = ["A", "B", "C", "D", "E"]
+        # 7 dogs, each with a distinct, strictly descending total, so the
+        # top-6 ranking and the "Other" grouping are both unambiguous.
+        names = ["A", "B", "C", "D", "E", "F", "G"]
         for rank, name in enumerate(names):
             occurrence_count = len(names) - rank
             for i in range(occurrence_count):
@@ -567,12 +564,14 @@ def test_species_timeline_groups_beyond_top_n_into_other(engine):
 
         timeline = MetricsService(session).species_timeline(Species.DOG)
 
-        assert timeline.identities == ["A", "B", "C", "D", "Other"]
+        assert timeline.identities == ["A", "B", "C", "D", "E", "F", "Other"]
         assert timeline.points[0].counts == {
-            "A": 5,
-            "B": 4,
-            "C": 3,
-            "D": 2,
+            "A": 7,
+            "B": 6,
+            "C": 5,
+            "D": 4,
+            "E": 3,
+            "F": 2,
             "Other": 1,
         }
 

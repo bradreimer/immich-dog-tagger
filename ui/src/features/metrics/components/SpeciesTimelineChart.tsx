@@ -13,21 +13,24 @@ const HEIGHT = 320;
 const PAD_LEFT = 52;
 const PAD_RIGHT = 16;
 const PAD_TOP = 16;
-// Tall enough to fit a fully-rotated (vertical) season label like
-// "Winter 2025" without clipping, regardless of how many points are
-// plotted -- see the X-axis rotation below.
-const PAD_BOTTOM = 72;
+const PAD_BOTTOM = 28;
 const GRID_STEPS = 4;
 
-// Positional, not per-identity-name: identities[0..3] (the top-N pets) get
-// chart-1..4, and "Other" -- always last in `identities` when present --
-// lands on chart-5. Reuses this app's validated categorical palette
-// (DT-1104) rather than inventing new colors.
+// Positional, not per-identity-name: identities[0..5] (the top-N pets) get
+// their own band, and "Other" -- always last in `identities` when present --
+// lands on the 7th. Order is blue/aqua/violet/yellow/magenta/green/red, the
+// dataviz skill's validated categorical order for this exact 7-hue set
+// (node scripts/validate_palette.js; see index.css's --chart-6/7 comment) --
+// not this app's original 5-color DT-1104 set (blue/aqua/violet/yellow/red)
+// in slot-number order, since inserting magenta/green there would put
+// yellow and a warm color adjacent in a way that failed validation.
 const BAND_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
   "var(--chart-4)",
+  "var(--chart-6)",
+  "var(--chart-7)",
   "var(--chart-5)",
 ];
 
@@ -43,7 +46,7 @@ type Point = [number, number];
 
 // Catmull-Rom-to-cubic-Bezier conversion (uniform, tension 1/6): produces a
 // smooth curve that still passes exactly through every input point, so the
-// true stacked total at each plotted season is preserved -- only the curve
+// true stacked total at each plotted point is preserved -- only the curve
 // drawn *between* points changes.
 function smoothPathSegment(pts: Point[], startCommand: "M" | "L"): string {
   if (pts.length === 0) {
@@ -93,10 +96,10 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
   const plotWidth = width - PAD_LEFT - PAD_RIGHT;
   const plotHeight = HEIGHT - PAD_TOP - PAD_BOTTOM;
 
-  // No downsampling: every season the API returns is plotted. Legibility at
-  // high point counts comes from the rotated labels and full-width chart
-  // below, not from dropping data.
-  // A single season has no width to form a filled area -- duplicate it
+  // No downsampling: every year the API returns is plotted. Legibility at
+  // high point counts comes from the full-width chart below, not from
+  // dropping data.
+  // A single year has no width to form a filled area -- duplicate it
   // across the full plot so it still reads as a stacked column instead of
   // a zero-width sliver.
   const plottedPoints = points.length === 1 ? [points[0], points[0]] : points;
@@ -185,7 +188,7 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
           width="100%"
           height={HEIGHT}
           role="img"
-          aria-label={`${title}: confirmed photo count per season, stacked by pet, across ${points.length} season(s)${isolated ? `, isolated to ${isolated}` : ""}`}
+          aria-label={`${title}: confirmed photo count per year, stacked by pet, across ${points.length} year(s)${isolated ? `, isolated to ${isolated}` : ""}`}
           onMouseMove={handleMove}
           onMouseLeave={() => setHoverIndex(null)}
           className="overflow-visible"
@@ -229,21 +232,17 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
             />
           ))}
 
-          {plottedPoints.map((point, i) => {
-            const labelY = HEIGHT - PAD_BOTTOM + 10;
-            return (
-              <text
-                key={`${point.label}-${i}`}
-                x={xAt(i)}
-                y={labelY}
-                textAnchor="end"
-                transform={`rotate(-90 ${xAt(i).toFixed(1)} ${labelY})`}
-                className="fill-muted-foreground text-[10px]"
-              >
-                {point.label}
-              </text>
-            );
-          })}
+          {plottedPoints.map((point, i) => (
+            <text
+              key={`${point.label}-${i}`}
+              x={xAt(i)}
+              y={HEIGHT - PAD_BOTTOM + 16}
+              textAnchor="middle"
+              className="fill-muted-foreground text-[10px]"
+            >
+              {point.label}
+            </text>
+          ))}
         </svg>
 
         {hoverIndex !== null && (

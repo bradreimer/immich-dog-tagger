@@ -160,61 +160,12 @@ class DetectionCoverage:
     unprocessable_count: int
 
 
-_SEASON_BY_MONTH: dict[int, str] = {
-    12: "Winter",
-    1: "Winter",
-    2: "Winter",
-    3: "Spring",
-    4: "Spring",
-    5: "Spring",
-    6: "Summer",
-    7: "Summer",
-    8: "Summer",
-    9: "Fall",
-    10: "Fall",
-    11: "Fall",
-}
-# Chronological order *starting from Spring*, not Winter -- Winter is
-# labeled by the December that starts it (see _season_bucket) but actually
-# spans into Jan/Feb of the following calendar year, so the season that
-# chronologically follows "Winter Y" is "Spring (Y+1)", not "Spring Y".
-# Starting the sequence at Spring makes each season's (year, index) sort key
-# increase monotonically with real time, which the wraparound in
-# _next_season_bucket and the ordering in _season_sort_key both depend on.
-_SEASON_SEQUENCE = ("Spring", "Summer", "Fall", "Winter")
-
 # How many pet identities get their own stacked band on a species timeline
 # chart before the rest are folded into a single "Other" band -- sized to
-# this app's validated 5-color categorical chart palette (--chart-1..5,
-# DT-1104: one band per top identity plus one for "Other"), not an
-# arbitrary cutoff (issue #271).
-TOP_N_TIMELINE_IDENTITIES = 4
-
-
-def _season_bucket(captured_at: datetime) -> tuple[int, str]:
-    """
-    (year, season) such that sorting by _season_sort_key() is chronological.
-    Winter spans a calendar-year boundary, so it's labeled by the December's
-    year -- Dec 2025 and Jan/Feb 2026 both bucket to (2025, "Winter"),
-    matching the "meteorological winter is named for the year it starts"
-    convention.
-    """
-    season = _SEASON_BY_MONTH[captured_at.month]
-    year = captured_at.year - 1 if captured_at.month in (1, 2) else captured_at.year
-    return (year, season)
-
-
-def _next_season_bucket(bucket: tuple[int, str]) -> tuple[int, str]:
-    year, season = bucket
-    index = _SEASON_SEQUENCE.index(season)
-    if index == len(_SEASON_SEQUENCE) - 1:
-        return (year + 1, _SEASON_SEQUENCE[0])
-    return (year, _SEASON_SEQUENCE[index + 1])
-
-
-def _season_sort_key(bucket: tuple[int, str]) -> tuple[int, int]:
-    year, season = bucket
-    return (year, _SEASON_SEQUENCE.index(season))
+# this app's validated 7-color categorical chart palette (--chart-1..7,
+# DT-1104 + issue #275's magenta/green addition: one band per top identity
+# plus one for "Other"), not an arbitrary cutoff (issue #271).
+TOP_N_TIMELINE_IDENTITIES = 6
 
 
 @dataclass(frozen=True)
@@ -498,19 +449,19 @@ class MetricsService:
 
     def species_timeline(self, species: Species) -> SpeciesTimeline:
         """
-        Confirmed-photo volume for one species, bucketed by season and
-        stacked by individual pet identity (issue #271) -- keyed off
-        `PetOccurrence`/`Asset.captured_at`, the same "when was this photo
-        taken" concept the Insights page's time-based facts already use
-        (`MostActiveMonthProvider` et al.), not `Asset.created_at` (pipeline
-        ingestion time, a different concept `_detection_coverage()` covers).
+        Confirmed-photo volume for one species, bucketed by calendar year and
+        stacked by individual pet identity (issue #271, year grain per #275)
+        -- keyed off `PetOccurrence`/`Asset.captured_at`, the same "when was
+        this photo taken" concept the Insights page's time-based facts
+        already use (`MostActiveMonthProvider` et al.), not `Asset.created_at`
+        (pipeline ingestion time, a different concept `_detection_coverage()`
+        covers).
 
-        One flat query, all bucketing/ranking done in Python: a per-season,
-        per-identity SQL GROUP BY would need season bucketing expressed in
-        SQL, awkward for Winter's year rollover, and the row count here is
-        bounded by "confirmed photos of this species" -- the same order of
-        magnitude an InsightProvider already loads fully into Python for one
-        identity, just for every identity of one species here instead.
+        One flat query, all bucketing/ranking done in Python: the row count
+        here is bounded by "confirmed photos of this species" -- the same
+        order of magnitude an InsightProvider already loads fully into Python
+        for one identity, just for every identity of one species here
+        instead.
         """
         rows = self.session.execute(
             select(Asset.captured_at, Identity.id, Identity.name)
@@ -524,13 +475,13 @@ class MetricsService:
             return SpeciesTimeline(species=species.value, identities=[], points=[])
 
         totals: Counter[tuple[int, str]] = Counter()
-        counts_by_bucket: dict[tuple[int, str], Counter[tuple[int, str]]] = {}
+        counts_by_bucket: dict[int, Counter[tuple[int, str]]] = {}
 
         for captured_at, identity_id, identity_name in rows:
-            bucket = _season_bucket(captured_at)
+            year = captured_at.year
             identity_key = (identity_id, identity_name)
             totals[identity_key] += 1
-            counts_by_bucket.setdefault(bucket, Counter())[identity_key] += 1
+            counts_by_bucket.setdefault(year, Counter())[identity_key] += 1
 
         # Ties break on the lower identity_id, matching BestFriendProvider's
         # deterministic tiebreak for the same kind of "top by count" ranking.
@@ -542,29 +493,21 @@ class MetricsService:
         if len(ranked) > len(top_identities):
             identities.append("Other")
 
-        sorted_buckets = sorted(counts_by_bucket, key=_season_sort_key)
-        first_bucket, last_bucket = sorted_buckets[0], sorted_buckets[-1]
-
-        all_buckets = []
-        bucket = first_bucket
-        while _season_sort_key(bucket) <= _season_sort_key(last_bucket):
-            all_buckets.append(bucket)
-            bucket = _next_season_bucket(bucket)
+        first_year, last_year = min(counts_by_bucket), max(counts_by_bucket)
+        all_years = range(first_year, last_year + 1)
 
         points = []
 
-        for bucket in all_buckets:
+        for year in all_years:
             counts = dict.fromkeys(identities, 0)
 
             for (identity_id, identity_name), count in counts_by_bucket.get(
-                bucket, {}
+                year, {}
             ).items():
                 key = identity_name if identity_id in top_ids else "Other"
                 counts[key] += count
 
-            points.append(
-                SpeciesTimelinePoint(label=f"{bucket[1]} {bucket[0]}", counts=counts)
-            )
+            points.append(SpeciesTimelinePoint(label=str(year), counts=counts))
 
         return SpeciesTimeline(
             species=species.value, identities=identities, points=points
