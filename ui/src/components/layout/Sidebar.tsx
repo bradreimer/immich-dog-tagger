@@ -89,7 +89,10 @@ export function Sidebar({ currentPath, onNavigate }: Props) {
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
         {links.map((link) => {
-          const isActive = currentPath === link.path;
+          // "/" (Overview) must stay an exact match only, or a prefix check would match every route.
+          const isActive =
+            currentPath === link.path ||
+            (link.path !== "/" && currentPath.startsWith(`${link.path}/`));
           const Icon = link.icon;
           return (
             <button
