@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createJob, getDiagnostics, getJobs, getReviewStats } from "../../lib/api";
-import { jobBadgeClassName, jobCardClassName, jobTextClassName } from "../../lib/statusColors";
 import { formatDuration, formatRelativeTime } from "../../lib/utils";
 import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
@@ -20,7 +19,6 @@ import {
   IconRocket,
   IconSparkles,
 } from "@tabler/icons-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,14 +35,6 @@ function formatOperation(operation: string): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function formatTimestamp(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleString();
 }
 
 export function OverviewPage() {
@@ -387,11 +377,24 @@ export function OverviewPage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Manual Operations</CardTitle>
-          <CardDescription>
-            Choose the job that matches what you are trying to accomplish.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle>Manual Operations</CardTitle>
+            <CardDescription>
+              Choose the job that matches what you are trying to accomplish.
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              window.history.pushState({}, "", "/jobs");
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }}
+          >
+            <IconListDetails className="h-4 w-4" aria-hidden="true" />
+            View all jobs
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -422,67 +425,6 @@ export function OverviewPage() {
 
           {actionMessage && <p className="text-sm text-status-good">{actionMessage}</p>}
           {actionError && <p className="text-sm text-destructive">{actionError}</p>}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Current State</CardTitle>
-          <CardDescription>
-            Pending: {jobSummary.pending} | Running: {jobSummary.running} | Total tracked: {jobSummary.total}
-          </CardDescription>
-          {hasActiveJobs && (
-            <p className="text-xs text-muted-foreground">Live updates every 3 seconds while jobs are active.</p>
-          )}
-        </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Recent Jobs</CardTitle>
-            <CardDescription>Most recent pipeline operations.</CardDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              window.history.pushState({}, "", "/jobs");
-              window.dispatchEvent(new PopStateEvent("popstate"));
-            }}
-          >
-            <IconListDetails className="h-4 w-4" aria-hidden="true" />
-            View all
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {jobs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No jobs have been created yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className={`rounded-md border p-3 ${jobCardClassName(job.status)}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-medium">
-                      #{job.id} {formatOperation(job.operation)}
-                    </div>
-                    <Badge className={jobBadgeClassName(job.status)}>{job.status}</Badge>
-                  </div>
-
-                  <div className={`mt-2 text-sm ${job.status === "failed" ? jobTextClassName(job.status) : "text-muted-foreground"}`}>
-                    {job.progress_message ?? "No progress message"}
-                  </div>
-
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Created: {formatTimestamp(job.created_at)} | Started: {formatTimestamp(job.started_at)} | Completed: {formatTimestamp(job.completed_at)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </section>

@@ -1,0 +1,75 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { OverviewPage } from "./OverviewPage";
+import * as api from "../../lib/api";
+import type { PipelineJob } from "../../types/jobs";
+import type { ReviewQueueStats } from "../../types/review";
+
+vi.mock("../../lib/api", () => ({
+  createJob: vi.fn(),
+  getDiagnostics: vi.fn(),
+  getJobs: vi.fn(),
+  getReviewStats: vi.fn(),
+}));
+
+function buildJob(overrides: Partial<PipelineJob> = {}): PipelineJob {
+  return {
+    id: 1,
+    operation: "scan",
+    status: "completed",
+    progress_current: 10,
+    progress_total: 10,
+    progress_message: null,
+    error_message: null,
+    cancel_requested: false,
+    created_at: "2026-01-01T00:00:00Z",
+    started_at: "2026-01-01T00:00:00Z",
+    completed_at: "2026-01-01T00:01:00Z",
+    ...overrides,
+  };
+}
+
+const stats: ReviewQueueStats = {
+  total: 10,
+  reviewed: 8,
+  remaining: 2,
+};
+
+describe("OverviewPage", () => {
+  beforeEach(() => {
+    vi.mocked(api.getJobs).mockResolvedValue([buildJob()]);
+    vi.mocked(api.getReviewStats).mockResolvedValue(stats);
+    vi.mocked(api.getDiagnostics).mockRejectedValue(new Error("unavailable"));
+  });
+
+  it("does not render a per-job list", async () => {
+    render(<OverviewPage />);
+
+    await waitFor(() => expect(api.getJobs).toHaveBeenCalled());
+
+    expect(screen.queryByText("Recent Jobs")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^#1 Scan$/)).not.toBeInTheDocument();
+  });
+
+  it("navigates to Job Queue when View all jobs is clicked", async () => {
+    render(<OverviewPage />);
+
+    const link = await screen.findByRole("button", { name: "View all jobs" });
+
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    fireEvent.click(link);
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/jobs");
+    pushStateSpy.mockRestore();
+  });
+
+  it("still shows the summary stat tiles", async () => {
+    render(<OverviewPage />);
+
+    expect(await screen.findByText("Active Jobs")).toBeInTheDocument();
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Review Remaining")).toBeInTheDocument();
+  });
+});
