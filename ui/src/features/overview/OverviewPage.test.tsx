@@ -72,4 +72,21 @@ describe("OverviewPage", () => {
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByText("Review Remaining")).toBeInTheDocument();
   });
+
+  it("launches a learn job from Manual Operations, matching Settings' wording", async () => {
+    vi.mocked(api.createJob).mockResolvedValue(buildJob({ id: 7, operation: "learn" }));
+
+    render(<OverviewPage />);
+
+    expect(await screen.findByText("Learn from reviewed examples")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Fold recent review corrections into the reference set the classifier uses for future predictions.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Learn from reviewed examples" }));
+
+    await waitFor(() => expect(api.createJob).toHaveBeenCalledWith("learn"));
+  });
 });
