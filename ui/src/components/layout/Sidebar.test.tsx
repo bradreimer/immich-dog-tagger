@@ -28,4 +28,21 @@ describe("Sidebar", () => {
     await waitFor(() => expect(api.getHealth).toHaveBeenCalled());
     expect(screen.queryByText(/^v\d/)).not.toBeInTheDocument();
   });
+
+  it("highlights Dogs & Cats while on a pet's Insights sub-route", async () => {
+    render(<Sidebar currentPath="/dogs/3/insights" onNavigate={vi.fn()} />);
+
+    const link = await screen.findByRole("button", { name: "Dogs & Cats" });
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("only highlights Overview on the exact root path", async () => {
+    render(<Sidebar currentPath="/photo-lookup" onNavigate={vi.fn()} />);
+
+    const overviewLink = await screen.findByRole("button", { name: "Overview" });
+    expect(overviewLink).not.toHaveAttribute("aria-current", "page");
+
+    const photoLookupLink = screen.getByRole("button", { name: "Photo Lookup" });
+    expect(photoLookupLink).toHaveAttribute("aria-current", "page");
+  });
 });
