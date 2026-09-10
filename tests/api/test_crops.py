@@ -1,5 +1,8 @@
+import time
 from concurrent.futures import ThreadPoolExecutor
 
+from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus
@@ -172,3 +175,79 @@ def test_get_crop_image_survives_a_burst_of_concurrent_requests(
 
     assert [response.status_code for response in responses] == [200] * len(crop_ids)
     assert all(response.content == b"fake-jpeg-data" for response in responses)
+
+
+class _RecordFirstResponseBody:
+    """
+    Wraps an ASGI app to record when it sends the first `http.response.body`
+    message -- i.e. when the client actually starts receiving file bytes,
+    as opposed to when the endpoint function returns. Used below to check
+    that a DB connection is released *before* streaming starts, not after
+    it finishes.
+    """
+
+    def __init__(self, asgi_app, events):
+        self.asgi_app = asgi_app
+        self.events = events
+
+    async def __call__(self, scope, receive, send):
+        seen = False
+
+        async def wrapped_send(message):
+            nonlocal seen
+            if not seen and message.get("type") == "http.response.body":
+                seen = True
+                self.events.append(("body", time.perf_counter()))
+            await send(message)
+
+        await self.asgi_app(scope, receive, wrapped_send)
+
+
+def test_get_crop_image_releases_its_db_connection_before_streaming_the_file(
+    api_client, engine, tmp_path
+):
+    # Issue #277: a recurrence of #164 at the larger (40-connection) pool
+    # size. Root cause: FastAPI only runs a `Depends(yield)` dependency's
+    # cleanup *after* the full response has been sent, so a session tied to
+    # the request via that mechanism stayed checked out of the pool for as
+    # long as the image took to stream back to the client -- not just for
+    # the quick DB lookup that finds it. Under a burst of concurrent
+    # thumbnail requests, that turns network-bound transfer time into pool
+    # pressure and can exhaust the pool even though every individual query
+    # is trivial, independent of burst size or how many pages lack
+    # lazy-loading. Pin the fix directly: the connection used for the
+    # lookup must already be back in the pool by the time the first byte of
+    # the image is sent, regardless of how long the transfer itself takes.
+    image = tmp_path / "crop.jpg"
+    image.write_bytes(b"x" * (1024 * 1024))
+
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path=str(image))
+        session.add(crop)
+        session.commit()
+        crop_id = crop.id
+
+    events = []
+
+    def on_checkin(dbapi_connection, connection_record):
+        events.append(("checkin", time.perf_counter()))
+
+    event.listen(engine, "checkin", on_checkin)
+    try:
+        wrapped_client = TestClient(_RecordFirstResponseBody(api_client.app, events))
+        response = wrapped_client.get(f"/crops/{crop_id}")
+    finally:
+        event.remove(engine, "checkin", on_checkin)
+
+    assert response.status_code == 200
+
+    checkin_times = [t for name, t in events if name == "checkin"]
+    body_times = [t for name, t in events if name == "body"]
+
+    assert checkin_times, "expected the crop lookup to check its connection back in"
+    assert body_times, "expected the response body to be sent"
+    assert checkin_times[-1] <= body_times[0], (
+        "the DB connection used to look up the crop must be released "
+        "before the file starts streaming to the client, not held open "
+        "for the whole transfer"
+    )

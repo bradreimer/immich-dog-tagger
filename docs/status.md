@@ -827,6 +827,24 @@
   defensively skips an occurrence whose `classification` fails to resolve, so a database from
   before this fix can't 500 the endpoint even before its next startup migration runs.
 
+- [#277](https://github.com/bradreimer/immich-dog-tagger/issues/277) fixed a production bug: a
+  recurrence of #164's `GET /crops/{id}` connection-pool exhaustion at the larger (40-connection)
+  pool #164 introduced. Root cause confirmed as a third mechanism beyond #164's own burst-size/
+  lazy-loading story: FastAPI only runs a `Depends(yield)` dependency's cleanup *after* the full
+  response has been sent, so the session used to look up a crop's file path stayed checked out of
+  the pool for as long as the image took to stream back to the client, not just for the quick
+  lookup itself -- turning network-bound transfer time into pool pressure regardless of burst size.
+  `GET /crops/{id}` (`crops.py`'s `crop` route, via `false_positives.py`'s new
+  `get_viewable_crop_path()`) and `GET /embedding-examples/{id}/image` (same pattern,
+  `embedding_examples.py`) now open and close their own short-lived session synchronously inside
+  the endpoint, returning a plain path before `FileResponse` starts streaming, so each connection
+  is held only for the millisecond-scale query rather than the whole transfer. `POST`/`DELETE
+  /crops/{id}/not-animal` are unaffected (small JSON responses, still via `FalsePositiveService`/
+  `Depends(get_session)`). Regression tests in `tests/api/test_crops.py` and
+  `tests/test_embedding_examples.py` pin the fix directly (DB connection checked back in before the
+  first response byte is sent, verified to fail against the prior code) rather than relying on
+  burst-timing races that an in-process `TestClient` can't reliably reproduce.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
