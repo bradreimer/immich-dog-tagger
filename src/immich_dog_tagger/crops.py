@@ -25,6 +25,7 @@ class CropWriter:
         image_path: Path,
         asset_id: str,
         detections,
+        expected_size: tuple[int, int] | None = None,
     ) -> list[tuple[int, Path]]:
 
         self.crop_dir.mkdir(
@@ -32,7 +33,7 @@ class CropWriter:
             exist_ok=True,
         )
 
-        image = open_upright(image_path).convert("RGB")
+        image = open_upright(image_path, expected_size).convert("RGB")
 
         crops = []
 

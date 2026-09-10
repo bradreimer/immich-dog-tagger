@@ -141,9 +141,27 @@ def test_report_as_dict_keys():
 
 
 class FakeDetector:
-    def detect(self, image_path):
+    """
+    Stands in for a real detector without decoding `image_path` -- these
+    tests exercise DetectionService's plumbing, not pixel decoding (see
+    test_images.py / test_yolo_detector.py for that). Returns an in-bounds
+    box when given the asset's correct upright `expected_size`, and the
+    same out-of-upright-bounds box `_make_detection`'s default fixtures use
+    otherwise -- standing in for issue #282's actual bug, where a detector
+    fed a double-rotated image reproduces the identical stale (raw-space)
+    box no matter how many times Repair re-runs it.
+    """
+
+    def detect(self, image_path, expected_size=None):
+        if expected_size is not None:
+            return [
+                DetectionResult(
+                    label="dog", confidence=0.99, x1=10, y1=20, x2=100, y2=200
+                )
+            ]
+
         return [
-            DetectionResult(label="dog", confidence=0.99, x1=10, y1=20, x2=100, y2=200)
+            DetectionResult(label="dog", confidence=0.99, x1=0, y1=0, x2=3500, y2=100)
         ]
 
 
@@ -151,7 +169,7 @@ class FakeCropWriter:
     def __init__(self, tmp_path):
         self.tmp_path = tmp_path
 
-    def write(self, image_path, asset_id, detections):
+    def write(self, image_path, asset_id, detections, expected_size=None):
         results = []
         for index, _ in enumerate(detections):
             crop_path = self.tmp_path / f"{asset_id}_{index}.jpg"
@@ -273,6 +291,36 @@ def test_repair_isolates_a_failure_on_one_asset(session, tmp_path):
 
     assert summary.repaired == 1
     assert summary.failed == 1
+
+
+def test_repair_actually_clears_the_stale_flag(session, tmp_path):
+    """
+    Acceptance criterion for issue #282: a clean, error-free Repair run was
+    not proof it fixed anything -- `open_upright()` double-rotating a HEIC
+    file back into the same wrong (raw) coordinate space made Repair
+    reproduce the identical "stale" detection every time, so `check()` kept
+    flagging the asset no matter how many times Repair ran. This asserts
+    the actual, previously-broken outcome: after Repair, the asset is no
+    longer flagged.
+    """
+    asset = _make_asset(session)
+    _make_detection(session, asset, x2=3500, y2=100)
+    session.commit()
+
+    assert StaleDetectionService(session).check().flagged_immich_asset_ids == [
+        "asset-1"
+    ]
+
+    asset_repair_service = _build_repair_service(session, tmp_path)
+
+    summary = StaleDetectionService(session).repair(asset_repair_service)
+
+    assert summary.repaired == 1
+
+    report = StaleDetectionService(session).check()
+
+    assert report.flagged_immich_asset_ids == []
+    assert report.healthy
 
 
 def test_repair_raises_nothing_when_nothing_flagged(session, tmp_path):

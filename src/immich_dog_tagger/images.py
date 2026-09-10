@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 # EXIF tag 274 is Orientation.
 _ORIENTATION_TAG = 274
 
+# Orientation values that rotate the image a quarter turn, swapping width
+# and height between the raw (pre-rotation) and upright (display)
+# dimensions -- see `upright_size`.
+ROTATED_EXIF_ORIENTATIONS = frozenset({5, 6, 7, 8})
+
 _heif_registered = False
 
 
@@ -46,8 +51,30 @@ def _register_heif() -> None:
     _heif_registered = True
 
 
+def upright_size(
+    raw_width: int | None,
+    raw_height: int | None,
+    orientation: int | None,
+) -> tuple[int, int] | None:
+    """
+    The expected display (post-rotation) size for an asset, given Immich's
+    raw (pre-rotation) exifImageWidth/exifImageHeight and orientation tag --
+    `None` if either dimension is unknown. Matches the convention
+    `open_upright`'s `expected_size` takes, so a caller holding an `Asset`
+    row can pass this straight through.
+    """
+    if raw_width is None or raw_height is None:
+        return None
+
+    if orientation in ROTATED_EXIF_ORIENTATIONS:
+        return raw_height, raw_width
+
+    return raw_width, raw_height
+
+
 def open_upright(
     image_path: Path | str | IO[bytes],
+    expected_size: tuple[int, int] | None = None,
 ) -> Image.Image:
     """
     Decode an image with its EXIF orientation applied.
@@ -74,7 +101,17 @@ def open_upright(
     orientation-tagged HEIC (most iPhone photos not shot in landscape) skips
     correction entirely and comes out rotated exactly like the pre-#137 bug,
     just via a different mechanism. Copying it back into the Exif tag
-    `exif_transpose` reads makes HEIC agree with every other format again.
+    `exif_transpose` reads makes HEIC agree with every other format again --
+    *unless* pi_heif/libheif already rotated the pixel data itself (a
+    container-level "irot" transform, independent of the redundant Exif
+    Orientation tag pi_heif also stashes): for those files the decode is
+    already upright, and forcing the stashed orientation onto the Exif tag
+    would rotate an already-correct image a second time, landing back in the
+    wrong orientation every time detection re-runs (issue #282). There's no
+    signal in pi_heif's own API for which case a given file is, so the only
+    way to tell is by comparing the decoded size against a size already
+    known to be correct -- `expected_size`, when the caller has one (e.g.
+    Immich's own exifImageWidth/exifImageHeight, via `upright_size`).
     """
     _register_heif()
 
@@ -85,7 +122,11 @@ def open_upright(
     with Image.open(image_path) as image:
         original_orientation = image.info.get("original_orientation")
 
-        if original_orientation and original_orientation != 1:
+        already_upright = expected_size is not None and tuple(image.size) == tuple(
+            expected_size
+        )
+
+        if original_orientation and original_orientation != 1 and not already_upright:
             image.getexif()[_ORIENTATION_TAG] = original_orientation
 
         return ImageOps.exif_transpose(image)

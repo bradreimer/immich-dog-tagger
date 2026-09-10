@@ -106,3 +106,35 @@ def test_detector_and_crop_writer_agree_on_the_image_frame(
 
     assert cropped_from == [detector_size]
     assert detector_size == (100, 200)
+
+
+_HEIC_FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+def test_detect_forwards_expected_size_to_avoid_double_rotating_heic(
+    fake_yolo,
+    tmp_path: Path,
+):
+    """
+    Regression test for issue #282: a HEIC file whose pixel data pi_heif/
+    libheif already rotated decodes to the correct upright size on its own,
+    but `open_upright()` can only tell that from an `expected_size` it
+    trusts. This checks `YOLODetector.detect()` actually forwards its own
+    `expected_size` argument through to `open_upright()`, landing the
+    detector's frame in the given (already-upright) coordinate space
+    instead of double-rotating it back to raw.
+    """
+    image_path = _HEIC_FIXTURES_DIR / "heic_o6.heic"
+
+    raw_size = Image.open(image_path).size
+
+    detector = YOLODetector(tmp_path / "model.pt")
+
+    # Simulates a file whose pixels pi_heif already rotated to `raw_size`:
+    # told that's already the correct upright size, detection must not
+    # double-rotate it back via the stashed orientation tag.
+    detector.detect(str(image_path), expected_size=raw_size)
+
+    (source,) = fake_yolo[0].sources
+
+    assert source.size == raw_size

@@ -38,7 +38,7 @@ from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import ClassificationSources, Species
-from immich_dog_tagger.images import open_upright
+from immich_dog_tagger.images import open_upright, upright_size
 from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.models import Crop, CropClassification, Detection
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
@@ -146,7 +146,10 @@ class ManualDetectionAssignmentService:
         asset = detection.asset
 
         content = self.client.download_asset(asset.immich_asset_id)
-        image = open_upright(io.BytesIO(content)).convert("RGB")
+        expected_size = upright_size(
+            asset.exif_width, asset.exif_height, asset.exif_orientation
+        )
+        image = open_upright(io.BytesIO(content), expected_size).convert("RGB")
 
         cropped = self.crop_writer.crop_one(
             image,

@@ -15,5 +15,6 @@ class ObjectDetector:
     def detect(
         self,
         image_path: str,
+        expected_size: tuple[int, int] | None = None,
     ) -> list[DetectionResult]:
         raise NotImplementedError
