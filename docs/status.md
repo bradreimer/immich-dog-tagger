@@ -918,6 +918,14 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
+New: a full navigation/intent UX pass across every tab filed 12 issues (#286-#297) -- sidebar/
+in-app navigation defects, Overview job-list/operations consolidation, Dogs & Cats row action
+layout, a Library-to-Review filter bridge, and small UX polish. #286 (trimmed Overview's
+duplicate job list, deferring to Job Queue) and #288 (moved Insights to distinct styling on Dogs
+& Cats rows) have shipped as v1.19.0; `pyproject.toml`/`uv.lock` had lagged behind those two
+`user-story` merges (the version-bump CI check caught it after the fact rather than before) --
+this catches them up. The remaining issues in the batch are being worked in ascending order.
+
 No queued numbered milestone -- v1.13.0 (#265) shipped complete, no open questions. v1.12.0 (#230)
 also shipped complete, no open questions. v1.11.0 (#196) also shipped complete, with one open
 question left in its spec: what becomes of the cluster-approval workspace UI removed from the
