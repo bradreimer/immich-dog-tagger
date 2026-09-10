@@ -41,7 +41,7 @@ function App() {
 
   const page = (() => {
     if (pathname === "/review") {
-      return <ReviewPage />;
+      return <ReviewPage onNavigate={navigate} />;
     }
 
     const dogInsightsMatch = pathname.match(/^\/dogs\/(\d+)\/insights$/);

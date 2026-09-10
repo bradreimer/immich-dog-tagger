@@ -70,7 +70,7 @@ describe("ReviewPage", () => {
     vi.mocked(api.getReview).mockResolvedValue([buildItem()]);
     vi.mocked(api.getReviewStats).mockResolvedValue(STATS);
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     expect(await screen.findByRole("button", { name: "All" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /skip/i })).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("ReviewPage", () => {
       "/review?species=dog&identity=Hermann&captured_after=2026-01-01",
     );
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     await waitFor(() =>
       expect(api.getReview).toHaveBeenCalledWith(
@@ -119,7 +119,7 @@ describe("ReviewPage", () => {
     vi.mocked(api.getClassification).mockResolvedValue(buildItem());
     window.history.replaceState({}, "", "/review?classification_id=42");
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Editing photo")).toBeInTheDocument();
     expect(api.getClassification).toHaveBeenCalledWith(42);
@@ -127,10 +127,7 @@ describe("ReviewPage", () => {
 
     expect(screen.queryByRole("button", { name: /skip/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /back to library/i })).toHaveAttribute(
-      "href",
-      "/library",
-    );
+    expect(screen.getByRole("button", { name: /back to library/i })).toBeInTheDocument();
   });
 
   it("corrects identity for the deep-linked photo and re-loads it", async () => {
@@ -138,7 +135,7 @@ describe("ReviewPage", () => {
     vi.mocked(api.correctClassification).mockResolvedValue(undefined);
     window.history.replaceState({}, "", "/review?classification_id=42");
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
 
@@ -153,7 +150,7 @@ describe("ReviewPage", () => {
     vi.mocked(api.markCropNotAnimal).mockResolvedValue(undefined);
     window.history.replaceState({}, "", "/review?classification_id=42");
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Not a dog or cat" }));
 
@@ -167,9 +164,58 @@ describe("ReviewPage", () => {
     );
     window.history.replaceState({}, "", "/review?classification_id=999");
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Photo not found")).toBeInTheDocument();
+  });
+
+  it("navigates via onNavigate, not a real anchor, for all three Back to Library affordances", async () => {
+    window.history.replaceState({}, "", "/review?classification_id=42");
+
+    // Normal editing view.
+    vi.mocked(api.getClassification).mockResolvedValue(buildItem());
+    const onNavigateNormal = vi.fn();
+    const { unmount: unmountNormal } = render(<ReviewPage onNavigate={onNavigateNormal} />);
+    const normalBackLink = await screen.findByRole("button", { name: /back to library/i });
+    expect(normalBackLink.tagName).toBe("BUTTON");
+    fireEvent.click(normalBackLink);
+    expect(onNavigateNormal).toHaveBeenCalledWith("/library");
+    unmountNormal();
+
+    // "Photo not found" state.
+    vi.mocked(api.getClassification).mockRejectedValue(
+      new api.ClassificationNotFoundError("Classification 42 not found"),
+    );
+    const onNavigateNotFound = vi.fn();
+    const { unmount: unmountNotFound } = render(<ReviewPage onNavigate={onNavigateNotFound} />);
+    const notFoundBackLink = await screen.findByRole("button", { name: /back to library/i });
+    expect(notFoundBackLink.tagName).toBe("BUTTON");
+    fireEvent.click(notFoundBackLink);
+    expect(onNavigateNotFound).toHaveBeenCalledWith("/library");
+    unmountNotFound();
+
+    // "Photo repaired" state, reached by confirming Repair on the normal view.
+    vi.mocked(api.getClassification).mockResolvedValue(buildItem());
+    vi.mocked(api.repairAsset).mockResolvedValue({
+      asset_id: 1,
+      immich_asset_id: "asset-42",
+      status: "ok",
+      detections: 1,
+      dogs: 1,
+      cats: 0,
+      classified: 1,
+      message: "Repaired.",
+    });
+    const onNavigateRepaired = vi.fn();
+    render(<ReviewPage onNavigate={onNavigateRepaired} />);
+    await screen.findByRole("button", { name: /back to library/i });
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, repair" }));
+    await screen.findByText("Photo repaired");
+    const repairedBackLink = screen.getByRole("button", { name: /back to library/i });
+    expect(repairedBackLink.tagName).toBe("BUTTON");
+    fireEvent.click(repairedBackLink);
+    expect(onNavigateRepaired).toHaveBeenCalledWith("/library");
   });
 
   it("celebrates when a review action crosses a multiple of 10 reviewed", async () => {
@@ -179,7 +225,7 @@ describe("ReviewPage", () => {
       .mockResolvedValueOnce({ total: 20, reviewed: 10, remaining: 10 });
     vi.mocked(api.correctClassification).mockResolvedValue(undefined);
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
 
@@ -194,7 +240,7 @@ describe("ReviewPage", () => {
       remaining: 10,
     });
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     await screen.findByRole("button", { name: /hermann/i });
 
@@ -208,7 +254,7 @@ describe("ReviewPage", () => {
       .mockResolvedValueOnce({ total: 20, reviewed: 11, remaining: 9 });
     vi.mocked(api.correctClassification).mockResolvedValue(undefined);
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
 
@@ -221,7 +267,7 @@ describe("ReviewPage", () => {
     vi.mocked(api.correctClassification).mockResolvedValue(undefined);
     window.history.replaceState({}, "", "/review?classification_id=42");
 
-    render(<ReviewPage />);
+    render(<ReviewPage onNavigate={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /hermann/i }));
 

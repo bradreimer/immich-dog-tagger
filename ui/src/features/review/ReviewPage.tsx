@@ -94,7 +94,13 @@ function bridgeFiltersFromUrl(): Pick<
  * no queue chrome: no Skip (there's nothing to skip past), no
  * Previous/Next-through-queue, no filter buttons, no progress bar.
  */
-function ReviewSingleItemPage({ classificationId }: { classificationId: number }) {
+function ReviewSingleItemPage({
+  classificationId,
+  onNavigate,
+}: {
+  classificationId: number;
+  onNavigate: (path: string) => void;
+}) {
   const [item, setItem] = useState<ReviewItem | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [immichUrl, setImmichUrl] = useState<string | null>(null);
@@ -214,12 +220,13 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
         <p className="text-muted-foreground">
           That classification doesn&apos;t exist.
         </p>
-        <a
-          href="/library"
+        <button
+          type="button"
+          onClick={() => onNavigate("/library")}
           className="text-sm text-primary underline-offset-4 hover:underline"
         >
           Back to Library
-        </a>
+        </button>
       </div>
     );
   }
@@ -231,12 +238,13 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
         <p className="text-muted-foreground">
           This photo was reprocessed, so this link no longer points at a valid edit.
         </p>
-        <a
-          href="/library"
+        <button
+          type="button"
+          onClick={() => onNavigate("/library")}
           className="text-sm text-primary underline-offset-4 hover:underline"
         >
           Back to Library
-        </a>
+        </button>
       </div>
     );
   }
@@ -263,13 +271,14 @@ function ReviewSingleItemPage({ classificationId }: { classificationId: number }
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Editing photo</h1>
-        <a
-          href="/library"
+        <button
+          type="button"
+          onClick={() => onNavigate("/library")}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           <IconArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Library
-        </a>
+        </button>
       </header>
 
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
@@ -730,11 +739,17 @@ function ReviewQueuePage() {
 }
 
 
-export function ReviewPage() {
+interface ReviewPageProps {
+  onNavigate: (path: string) => void;
+}
+
+export function ReviewPage({ onNavigate }: ReviewPageProps) {
   const classificationId = useMemo(classificationIdFromUrl, []);
 
   if (classificationId !== null) {
-    return <ReviewSingleItemPage classificationId={classificationId} />;
+    return (
+      <ReviewSingleItemPage classificationId={classificationId} onNavigate={onNavigate} />
+    );
   }
 
   return <ReviewQueuePage />;
