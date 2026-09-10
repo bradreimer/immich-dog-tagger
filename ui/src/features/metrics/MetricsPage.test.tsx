@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MetricsPage } from "./MetricsPage";
-import { getSpeciesTimeline } from "../../lib/api";
+import { getDogs, getSpeciesTimeline } from "../../lib/api";
 import type { LearningMetrics } from "../../types/metrics";
 
 const metrics: LearningMetrics = {
@@ -40,7 +40,7 @@ vi.mock("../../lib/api", () => ({
 
 describe("MetricsPage library coverage", () => {
   it("states the denominator next to the dog coverage figure", async () => {
-    render(<MetricsPage />);
+    render(<MetricsPage onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Photos with a dog")).toBeInTheDocument();
     expect(screen.getByText("30%")).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe("MetricsPage library coverage", () => {
   });
 
   it("states the denominator next to the cat coverage figure", async () => {
-    render(<MetricsPage />);
+    render(<MetricsPage onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Photos with a cat")).toBeInTheDocument();
     expect(screen.getByText("12%")).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("MetricsPage library coverage", () => {
   });
 
   it("does not describe coverage as accuracy or recall", async () => {
-    render(<MetricsPage />);
+    render(<MetricsPage onNavigate={vi.fn()} />);
 
     const description = await screen.findByText(/This is coverage, not accuracy or recall/);
 
@@ -68,7 +68,7 @@ describe("MetricsPage library coverage", () => {
   });
 
   it("keeps the automation rate measured over classified crops", async () => {
-    render(<MetricsPage />);
+    render(<MetricsPage onNavigate={vi.fn()} />);
 
     expect(
       await screen.findByText(
@@ -80,7 +80,7 @@ describe("MetricsPage library coverage", () => {
 
 describe("MetricsPage species timeline charts", () => {
   it("shows an empty state when a species has no confirmed photos yet", async () => {
-    render(<MetricsPage />);
+    render(<MetricsPage onNavigate={vi.fn()} />);
 
     expect(
       await screen.findByText(/No confirmed dog photos yet/),
@@ -101,10 +101,37 @@ describe("MetricsPage species timeline charts", () => {
       ),
     );
 
-    render(<MetricsPage />);
+    render(<MetricsPage onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Dogs Over Time")).toBeInTheDocument();
     expect(screen.queryByText(/No confirmed dog photos yet/)).not.toBeInTheDocument();
     expect(await screen.findByText(/No confirmed cat photos yet/)).toBeInTheDocument();
+  });
+
+  it("navigates to a pet's Insights page from the timeline legend", async () => {
+    vi.mocked(getDogs).mockResolvedValueOnce([
+      { id: 9, name: "Hermann", species: "dog", active: true },
+    ]);
+    vi.mocked(getSpeciesTimeline).mockImplementation((species) =>
+      Promise.resolve(
+        species === "dog"
+          ? {
+              species: "dog",
+              identities: ["Hermann"],
+              points: [{ label: "Fall 2026", counts: { Hermann: 3 } }],
+            }
+          : { species: "cat", identities: [], points: [] },
+      ),
+    );
+    const onNavigate = vi.fn();
+
+    render(<MetricsPage onNavigate={onNavigate} />);
+
+    const navButton = await screen.findByRole("button", {
+      name: "Open Hermann's Insights page",
+    });
+    fireEvent.click(navButton);
+
+    expect(onNavigate).toHaveBeenCalledWith("/dogs/9/insights");
   });
 });

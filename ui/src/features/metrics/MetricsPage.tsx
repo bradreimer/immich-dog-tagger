@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getDogs, getLearningMetrics, getSpeciesTimeline } from "../../lib/api";
+import type { Dog } from "../../types/dogs";
 import type { LearningMetrics, SpeciesTimeline } from "../../types/metrics";
 import {
   IconBolt,
@@ -108,9 +109,14 @@ function ProgressFooterStats({
   );
 }
 
-export function MetricsPage() {
+interface Props {
+  onNavigate: (path: string) => void;
+}
+
+export function MetricsPage({ onNavigate }: Props) {
   const [metrics, setMetrics] = useState<LearningMetrics | null>(null);
   const [activeDogCount, setActiveDogCount] = useState<number | null>(null);
+  const [dogs, setDogs] = useState<Dog[]>([]);
   const [dogTimeline, setDogTimeline] = useState<SpeciesTimeline | null>(null);
   const [catTimeline, setCatTimeline] = useState<SpeciesTimeline | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,14 +127,15 @@ export function MetricsPage() {
     setError(null);
 
     try {
-      const [learningMetrics, dogs, dogTimelineData, catTimelineData] = await Promise.all([
+      const [learningMetrics, dogItems, dogTimelineData, catTimelineData] = await Promise.all([
         getLearningMetrics(),
         getDogs({ includeInactive: false }).catch(() => null),
         getSpeciesTimeline("dog").catch(() => null),
         getSpeciesTimeline("cat").catch(() => null),
       ]);
       setMetrics(learningMetrics);
-      setActiveDogCount(dogs ? dogs.length : null);
+      setActiveDogCount(dogItems ? dogItems.length : null);
+      setDogs(dogItems ?? []);
       setDogTimeline(dogTimelineData);
       setCatTimeline(catTimelineData);
     } catch (err) {
@@ -141,6 +148,17 @@ export function MetricsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Chart legend name -> dog id (issue #297), species-scoped since a dog and
+  // a cat can share a name -- they're different animals (see
+  // DogManagementCard's merge-candidates comment for the same rule).
+  const dogIdByNameFor = useCallback(
+    (species: "dog" | "cat") =>
+      new Map(dogs.filter((dog) => dog.species === species).map((dog) => [dog.name, dog.id])),
+    [dogs],
+  );
+  const dogIdByName = useMemo(() => dogIdByNameFor("dog"), [dogIdByNameFor]);
+  const catIdByName = useMemo(() => dogIdByNameFor("cat"), [dogIdByNameFor]);
 
   const passHistory = metrics?.pass_history ?? [];
   // review_queue_size/labeled_example_count are nullable on passes recorded before DT-1101
@@ -425,6 +443,8 @@ export function MetricsPage() {
                 title="Dogs Over Time"
                 identities={dogTimeline.identities}
                 points={dogTimeline.points}
+                dogIdByName={dogIdByName}
+                onNavigate={onNavigate}
               />
             )}
           </CardContent>
@@ -448,6 +468,8 @@ export function MetricsPage() {
                 title="Cats Over Time"
                 identities={catTimeline.identities}
                 points={catTimeline.points}
+                dogIdByName={catIdByName}
+                onNavigate={onNavigate}
               />
             )}
           </CardContent>
