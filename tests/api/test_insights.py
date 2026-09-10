@@ -87,7 +87,7 @@ def test_insights_endpoints_return_derived_data(api_client, engine):
     top_photos = api_client.get(f"/dogs/{identity_id}/insights/top-photos")
     assert top_photos.status_code == 200
     assert top_photos.json()[0]["immich_asset_id"] == "a1"
-    assert top_photos.json()[0]["confidence"] == 0.9
+    assert top_photos.json()[0]["clarity"] == 0.9
     assert "crop_id" in top_photos.json()[0]
 
 

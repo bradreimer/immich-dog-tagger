@@ -179,20 +179,18 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
             </CardHeader>
             <CardContent>
               {topPhotos.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No auto-classified photos yet — every confirmed photo here was manually tagged.
-                </p>
+                <p className="text-sm text-muted-foreground">No photos available yet.</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                   {topPhotos.map((photo) => (
                     <div key={photo.asset_id} className="space-y-1">
                       <img
                         src={`/api/crops/${photo.crop_id}`}
-                        alt={`${summary.identity_name}, ${(photo.confidence * 100).toFixed(1)}% confidence`}
+                        alt={`${summary.identity_name}`}
                         className="aspect-square w-full rounded-md object-cover"
                       />
                       <p className="text-xs text-muted-foreground">
-                        {(photo.confidence * 100).toFixed(1)}% confidence
+                        {formatDate(photo.captured_at)}
                       </p>
                     </div>
                   ))}

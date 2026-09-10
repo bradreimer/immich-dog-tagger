@@ -650,7 +650,7 @@ class TopPhotoResponse(BaseModel):
     immich_asset_id: str
     crop_id: int
     captured_at: datetime | None
-    confidence: float
+    clarity: float
 
     @classmethod
     def from_top_photo(cls, photo):
@@ -659,7 +659,7 @@ class TopPhotoResponse(BaseModel):
             immich_asset_id=photo.immich_asset_id,
             crop_id=photo.crop_id,
             captured_at=photo.captured_at,
-            confidence=photo.confidence,
+            clarity=photo.clarity,
         )
 
 
