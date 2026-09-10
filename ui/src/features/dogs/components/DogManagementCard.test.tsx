@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { DogManagementCard } from "./DogManagementCard";
@@ -100,5 +100,62 @@ describe("DogManagementCard row actions", () => {
 
     fireEvent.click(insightsButton);
     expect(onNavigate).toHaveBeenCalledWith("/dogs/1/insights");
+  });
+});
+
+describe("DogManagementCard deactivate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does not use destructive styling for Deactivate", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue(dogs);
+    render(<DogManagementCard onNavigate={() => {}} />);
+
+    await screen.findByDisplayValue("Fibsy");
+
+    const deactivateButton = screen.getAllByRole("button", { name: "Deactivate" })[0];
+    expect(deactivateButton.className).not.toContain("bg-destructive");
+  });
+
+  it("requires a confirm click before deactivating", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue(dogs);
+    vi.mocked(api.deactivateDog).mockResolvedValue({ ...dogs[0], active: false });
+    render(<DogManagementCard onNavigate={() => {}} />);
+
+    await screen.findByDisplayValue("Fibsy");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Deactivate" })[0]);
+    expect(api.deactivateDog).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Yes, deactivate" }));
+
+    await waitFor(() => expect(api.deactivateDog).toHaveBeenCalledWith(1));
+  });
+
+  it("cancels back to the plain Deactivate button without deactivating", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue(dogs);
+    render(<DogManagementCard onNavigate={() => {}} />);
+
+    await screen.findByDisplayValue("Fibsy");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Deactivate" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getAllByRole("button", { name: "Deactivate" })[0]).toBeInTheDocument();
+    expect(api.deactivateDog).not.toHaveBeenCalled();
+  });
+
+  it("activates in a single click, with no confirm step", async () => {
+    const inactiveDogs = [{ ...dogs[0], active: false }, dogs[1], dogs[2]];
+    vi.mocked(api.getDogs).mockResolvedValue(inactiveDogs);
+    vi.mocked(api.activateDog).mockResolvedValue({ ...dogs[0], active: true });
+    render(<DogManagementCard onNavigate={() => {}} />);
+
+    await screen.findByDisplayValue("Fibsy");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Activate" })[0]);
+
+    await waitFor(() => expect(api.activateDog).toHaveBeenCalledWith(1));
   });
 });

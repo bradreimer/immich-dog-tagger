@@ -47,6 +47,10 @@ export function DogManagementCard({ onNavigate }: Props) {
   const [mergeSourceId, setMergeSourceId] = useState<number | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
   const [mergeConfirming, setMergeConfirming] = useState(false);
+  // Deactivate is reversible (Activate undoes it) but not a trivial action,
+  // so it gets a lightweight one-click confirm -- unlike Merge's fuller
+  // warning chrome, since the stakes here are low (issue #294).
+  const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<number | null>(null);
 
   const loadDogs = useCallback(async (silent = false) => {
     if (!silent) {
@@ -133,6 +137,7 @@ export function DogManagementCard({ onNavigate }: Props) {
 
       setDogs((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setMessage(updated.active ? `Activated “${updated.name}”.` : `Deactivated “${updated.name}”.`);
+      setConfirmingDeactivateId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update dog");
     } finally {
@@ -302,14 +307,37 @@ export function DogManagementCard({ onNavigate }: Props) {
                       Merge
                     </Button>
 
-                    <Button
-                      variant={dog.active ? "destructive" : "default"}
-                      onClick={() => toggleActive(dog)}
-                      disabled={savingId === dog.id}
-                    >
-                      {dog.active ? <IconPlayerPause className="h-4 w-4" aria-hidden="true" /> : <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />}
-                      {dog.active ? "Deactivate" : "Activate"}
-                    </Button>
+                    {dog.active && confirmingDeactivateId === dog.id ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => toggleActive(dog)}
+                          disabled={savingId === dog.id}
+                        >
+                          <IconPlayerPause className="h-4 w-4" aria-hidden="true" />
+                          {savingId === dog.id ? "Deactivating…" : "Yes, deactivate"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setConfirmingDeactivateId(null)}
+                          disabled={savingId === dog.id}
+                        >
+                          <IconX className="h-4 w-4" aria-hidden="true" />
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant={dog.active ? "outline" : "default"}
+                        onClick={() =>
+                          dog.active ? setConfirmingDeactivateId(dog.id) : toggleActive(dog)
+                        }
+                        disabled={savingId === dog.id}
+                      >
+                        {dog.active ? <IconPlayerPause className="h-4 w-4" aria-hidden="true" /> : <IconPlayerPlay className="h-4 w-4" aria-hidden="true" />}
+                        {dog.active ? "Deactivate" : "Activate"}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
