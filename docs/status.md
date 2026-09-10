@@ -814,6 +814,19 @@
   unchanged, since `ProgressOverTimeChart` also depends on `--chart-3`). See
   [docs/specs/species-timeline-yearly-grouping.md](specs/species-timeline-yearly-grouping.md).
 
+- [#279](https://github.com/bradreimer/immich-dog-tagger/issues/279) fixed `GET
+  /dogs/{id}/insights/top-photos` 500ing for identities with a `PetOccurrence` orphaned by a
+  deleted `CropClassification` (32% of one live library's identities were affected). Root cause:
+  `PetOccurrence.classification` was a plain `relationship()` with no `back_populates`/cascade
+  from `CropClassification`, so deleting a `CropClassification` (most commonly Repair's
+  `session.delete(detection)` cascade, #226) had no way to also remove the `PetOccurrence` row
+  referencing it. `CropClassification` now has a `pet_occurrence` relationship with
+  `cascade="all, delete-orphan"`, so the ORM cleans this up automatically on every current and
+  future deletion path. A startup migration in `database.py` (`_cleanup_dangling_pet_occurrences`)
+  deletes any already-dangling rows on existing databases, and `InsightsService.top_photos()`
+  defensively skips an occurrence whose `classification` fails to resolve, so a database from
+  before this fix can't 500 the endpoint even before its next startup migration runs.
+
 - [#277](https://github.com/bradreimer/immich-dog-tagger/issues/277) fixed a production bug: a
   recurrence of #164's `GET /crops/{id}` connection-pool exhaustion at the larger (40-connection)
   pool #164 introduced. Root cause confirmed as a third mechanism beyond #164's own burst-size/

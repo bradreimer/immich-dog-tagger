@@ -23,15 +23,18 @@ def _batched(ids: list[str], size: int) -> list[list[str]]:
     return [ids[i : i + size] for i in range(0, len(ids), size)]
 
 
-def _bulk_failures(results: list[dict]) -> list[dict]:
+def _bulk_failures(results: list[dict], *, benign: set[str]) -> list[dict]:
     """Immich's bulk album/tag membership endpoints return HTTP 200 with a per-asset
     ``[{id, success, error}]`` body (``BulkIdResponseDto``) even when every asset was rejected --
     e.g. ``no_permission`` when the asset isn't owned by the API key's Immich user (issue #259).
-    ``duplicate`` just means the asset was already a member, not a failure."""
+    ``benign`` names the error code(s) that mean "already in the desired state, nothing to do"
+    for this call -- ``duplicate`` (already a member) for the add-side calls, ``not_found``
+    (already not a member) for the remove-side calls (issue #278); anything else is a real
+    failure."""
     return [
         item
         for item in results
-        if not item.get("success", True) and item.get("error") != "duplicate"
+        if not item.get("success", True) and item.get("error") not in benign
     ]
 
 
@@ -351,7 +354,7 @@ class ImmichClient:
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
-            failures = _bulk_failures(response.json())
+            failures = _bulk_failures(response.json(), benign={"duplicate"})
 
             if failures:
                 raise ImmichAddAssetsToAlbumError(
@@ -384,7 +387,7 @@ class ImmichClient:
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
-            failures = _bulk_failures(response.json())
+            failures = _bulk_failures(response.json(), benign={"not_found"})
 
             if failures:
                 raise ImmichRemoveAssetsFromAlbumError(
@@ -447,7 +450,7 @@ class ImmichClient:
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
-            failures = _bulk_failures(response.json())
+            failures = _bulk_failures(response.json(), benign={"duplicate"})
 
             if failures:
                 raise ImmichTagAssetsError(
@@ -479,7 +482,7 @@ class ImmichClient:
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
-            failures = _bulk_failures(response.json())
+            failures = _bulk_failures(response.json(), benign={"not_found"})
 
             if failures:
                 raise ImmichUntagAssetsError(

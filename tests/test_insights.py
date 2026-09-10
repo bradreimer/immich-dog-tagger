@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import ClassificationSources, Species
@@ -395,6 +395,50 @@ def test_top_photos_respects_limit(session):
     top_photos = InsightsService(session).top_photos(identity.id, limit=10)
 
     assert len(top_photos) == 10
+
+
+def test_top_photos_skips_dangling_occurrence_instead_of_crashing(session):
+    # Regression coverage for issue #279: a PetOccurrence whose
+    # crop_classification_id no longer resolves (e.g. a database that
+    # predates the cascading delete fix) must not 500 the endpoint --
+    # occurrence.classification loads as None via the LEFT OUTER JOIN in
+    # _occurrences(), and top_photos() should skip it rather than crash on
+    # occurrence.classification.crop_id.
+    identity = Identity(name="Hermann", species=Species.DOG)
+    session.add(identity)
+    session.commit()
+
+    service = PetOccurrenceService(session)
+
+    _add_occurrence(
+        session, service, identity_name="Hermann", immich_asset_id="ok", confidence=0.5
+    )
+    dangling_asset_id = _add_occurrence(
+        session,
+        service,
+        identity_name="Hermann",
+        immich_asset_id="dangling",
+        confidence=0.99,
+    )
+
+    dangling_occurrence = session.scalars(
+        select(PetOccurrence).where(PetOccurrence.asset_id == dangling_asset_id)
+    ).one()
+    dangling_classification_id = dangling_occurrence.crop_classification_id
+
+    # Raw SQL, not session.delete(), deliberately bypasses the ORM
+    # relationship (and its delete-orphan cascade) to reproduce the
+    # dangling row a pre-fix database could accumulate.
+    session.execute(
+        text("DELETE FROM crop_classifications WHERE id = :id"),
+        {"id": dangling_classification_id},
+    )
+    session.commit()
+    session.expire_all()
+
+    top_photos = InsightsService(session).top_photos(identity.id)
+
+    assert [photo.immich_asset_id for photo in top_photos] == ["ok"]
 
 
 def test_insights_only_include_this_identitys_occurrences(session):

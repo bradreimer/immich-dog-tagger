@@ -772,3 +772,56 @@ def test_database_adds_identity_merges_table_to_an_existing_database(tmp_path: P
         count = session.execute(text("SELECT COUNT(*) FROM identity_merges")).scalar()
 
     assert count == 0
+
+
+def test_database_removes_dangling_pet_occurrences_from_an_existing_database(
+    tmp_path: Path,
+):
+    """
+    Issue #279: a PetOccurrence whose crop_classification_id points at a
+    CropClassification that no longer exists -- accumulated on databases
+    that predate CropClassification.pet_occurrence's cascading delete --
+    crashed GET /dogs/{id}/insights/top-photos. Inserted with raw SQL,
+    bypassing the ORM relationship entirely, to reproduce a row that
+    predates the fix rather than one the (now cascade-safe) ORM could ever
+    produce itself.
+    """
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="a1", checksum="x", extension=".jpg")
+        identity = Identity(name="Hermann")
+        session.add_all([asset, identity])
+        session.commit()
+
+        session.execute(
+            text(
+                "INSERT INTO pet_occurrences "
+                "(crop_classification_id, asset_id, identity_id, confidence, source) "
+                "VALUES (:cid, :aid, :iid, :conf, :source)"
+            ),
+            {
+                "cid": 999999,
+                "aid": asset.id,
+                "iid": identity.id,
+                "conf": 0.9,
+                "source": "AUTO",
+            },
+        )
+        session.commit()
+
+        count_before = session.execute(
+            text("SELECT COUNT(*) FROM pet_occurrences")
+        ).scalar()
+        assert count_before == 1
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        count_after = session.execute(
+            text("SELECT COUNT(*) FROM pet_occurrences")
+        ).scalar()
+
+    assert count_after == 0

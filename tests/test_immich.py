@@ -418,6 +418,24 @@ def test_remove_assets_from_album_raises_on_partial_failure():
         client.remove_assets_from_album("album1", ["asset1"])
 
 
+def test_remove_assets_from_album_ignores_not_found_results():
+    """Issue #278: a `not_found` result on a remove means the asset was already not a member
+    (e.g. removed by a previous sync attempt) -- not a failure."""
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json=[{"id": "asset1", "success": False, "error": "not_found"}],
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    client.remove_assets_from_album("album1", ["asset1"])
+
+
 def test_remove_assets_from_album_raises_on_error():
     def handler(request):
         return httpx.Response(500, text="boom")
@@ -631,11 +649,14 @@ def test_untag_assets_raises_on_partial_failure():
         client.untag_assets("tag1", ["asset1"])
 
 
-def test_untag_assets_ignores_duplicate_results():
+def test_untag_assets_ignores_not_found_results():
+    """Issue #278: a `not_found` result on an untag means the asset was already not tagged --
+    not a failure. (`duplicate`, the add-side benign code, doesn't apply here and still raises.)"""
+
     def handler(request):
         return httpx.Response(
             200,
-            json=[{"id": "asset1", "success": False, "error": "duplicate"}],
+            json=[{"id": "asset1", "success": False, "error": "not_found"}],
         )
 
     transport = httpx.MockTransport(handler)
