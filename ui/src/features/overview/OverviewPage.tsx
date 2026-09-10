@@ -195,18 +195,6 @@ export function OverviewPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            disabled={launching !== null}
-            onClick={() => launchOperation("reclassify")}
-          >
-            <IconRefreshDot className="h-4 w-4" aria-hidden="true" />
-            Reclassify
-          </Button>
-          <Button disabled={launching !== null} onClick={() => launchOperation("full_pipeline")}>
-            <IconRocket className="h-4 w-4" aria-hidden="true" />
-            Run Pipeline
-          </Button>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span title={lastUpdated?.toLocaleTimeString()}>
               {lastUpdated ? `Last updated: ${formatRelativeTime(lastUpdated)}` : "Loading…"}

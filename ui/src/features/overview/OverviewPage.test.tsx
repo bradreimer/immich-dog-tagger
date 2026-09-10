@@ -89,4 +89,22 @@ describe("OverviewPage", () => {
 
     await waitFor(() => expect(api.createJob).toHaveBeenCalledWith("learn"));
   });
+
+  it("has no header job-launch shortcuts, only the refresh control", async () => {
+    render(<OverviewPage />);
+
+    await screen.findByRole("button", { name: "Refresh dashboard" });
+
+    expect(screen.queryByRole("button", { name: "Run Pipeline" })).not.toBeInTheDocument();
+    // "Reclassify" (bare, no aria-label) was the header shortcut's accessible
+    // name; the Manual Operations card's equivalent has a longer aria-label
+    // ("Reclassify existing photos with reviewed examples"), so this exact
+    // name match is unambiguous.
+    expect(screen.queryByRole("button", { name: "Reclassify" })).not.toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", { name: "Reclassify existing photos with reviewed examples" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run the full pipeline" })).toBeInTheDocument();
+  });
 });
