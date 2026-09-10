@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 
+import { IconExternalLink } from "@tabler/icons-react";
+
 import type { SpeciesTimelinePoint } from "../../../types/metrics";
 
 interface Props {
   title: string;
   identities: string[];
   points: SpeciesTimelinePoint[];
+  /** Legend name -> dog id, for the ones that resolve to a real pet (issue
+   * #297) -- "Other" (always last when present) never has an entry, since
+   * it represents multiple pets bucketed together with no single Insights
+   * page to link to. */
+  dogIdByName?: Map<string, number>;
+  onNavigate?: (path: string) => void;
 }
 
 const DEFAULT_WIDTH = 760;
@@ -71,7 +79,13 @@ function smoothPathSegment(pts: Point[], startCommand: "M" | "L"): string {
   return d;
 }
 
-export function SpeciesTimelineChart({ title, identities, points }: Props) {
+export function SpeciesTimelineChart({
+  title,
+  identities,
+  points,
+  dogIdByName,
+  onNavigate,
+}: Props) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isolated, setIsolated] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,8 +173,10 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
         {identities.map((name, index) => {
           const active = isolated === name;
           const dimmed = isolated !== null && !active;
+          const dogId = dogIdByName?.get(name);
+
           return (
-            <li key={name}>
+            <li key={name} className="flex items-center">
               <button
                 type="button"
                 onClick={() => setIsolated((current) => (current === name ? null : name))}
@@ -177,6 +193,20 @@ export function SpeciesTimelineChart({ title, identities, points }: Props) {
                 />
                 {name}
               </button>
+
+              {dogId !== undefined && onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate(`/dogs/${dogId}/insights`)}
+                  aria-label={`Open ${name}'s Insights page`}
+                  title={`Open ${name}'s Insights page`}
+                  className={`rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${
+                    dimmed ? "opacity-40" : ""
+                  }`}
+                >
+                  <IconExternalLink className="h-3 w-3" aria-hidden="true" />
+                </button>
+              )}
             </li>
           );
         })}

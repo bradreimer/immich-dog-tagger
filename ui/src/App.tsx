@@ -71,7 +71,7 @@ function App() {
     }
 
     if (pathname === "/metrics") {
-      return <MetricsPage />;
+      return <MetricsPage onNavigate={navigate} />;
     }
 
     if (pathname === "/settings") {

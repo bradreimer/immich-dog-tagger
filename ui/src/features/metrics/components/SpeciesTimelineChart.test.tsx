@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { SpeciesTimelineChart } from "./SpeciesTimelineChart";
@@ -74,5 +74,56 @@ describe("SpeciesTimelineChart", () => {
     render(<SpeciesTimelineChart title="Dogs Over Time" identities={["Fibs", "Fletch"]} points={points} />);
 
     expect(screen.getAllByText(points[0].label).length).toBeGreaterThan(0);
+  });
+
+  it("navigates to a pet's Insights page when its legend nav affordance is clicked", () => {
+    const points = yearPoints(4);
+    const onNavigate = vi.fn();
+    const dogIdByName = new Map([
+      ["Fibs", 1],
+      ["Fletch", 2],
+    ]);
+
+    render(
+      <SpeciesTimelineChart
+        title="Dogs Over Time"
+        identities={["Fibs", "Fletch"]}
+        points={points}
+        dogIdByName={dogIdByName}
+        onNavigate={onNavigate}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Fibs's Insights page" }));
+
+    expect(onNavigate).toHaveBeenCalledWith("/dogs/1/insights");
+    // Isolate-on-click of the name itself is unaffected by the nav affordance.
+    expect(screen.getByRole("button", { name: "Fibs" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("gives Other no navigation affordance, only isolate", () => {
+    const points = [
+      { label: "2020", counts: { Fibs: 3, Other: 5 } },
+      { label: "2021", counts: { Fibs: 4, Other: 6 } },
+    ];
+    const onNavigate = vi.fn();
+    const dogIdByName = new Map([["Fibs", 1]]);
+
+    render(
+      <SpeciesTimelineChart
+        title="Dogs Over Time"
+        identities={["Fibs", "Other"]}
+        points={points}
+        dogIdByName={dogIdByName}
+        onNavigate={onNavigate}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Open Other's Insights page" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Other" })).toHaveAttribute("aria-pressed", "true");
   });
 });
