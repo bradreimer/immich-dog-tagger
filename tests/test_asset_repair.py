@@ -7,17 +7,20 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.downloader import Downloader
-from immich_dog_tagger.enums import AssetStatus, ReviewActions
+from immich_dog_tagger.enums import AssetStatus, ReviewActions, Species
 from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
     Detection,
+    Identity,
+    PetOccurrence,
     ReviewAction,
 )
 from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.detection import DetectionService
+from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 
 
 class FakeDetector:
@@ -214,6 +217,74 @@ def test_repair_does_not_touch_other_assets(engine, tmp_path):
 
         assert session.get(Detection, other_detection_id) is not None
         assert session.get(CropClassification, other_classification_id) is not None
+
+
+def test_repair_cleans_up_pet_occurrence_for_deleted_classification(engine, tmp_path):
+    # Regression coverage for issue #279: Repair's `session.delete(detection)`
+    # cascades through Crop -> CropClassification, but before
+    # CropClassification.pet_occurrence had its own cascade, a
+    # PetOccurrence row referencing the deleted classification was left
+    # dangling -- crashing GET /dogs/{id}/insights/top-photos later.
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="target",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DETECTED,
+        )
+        session.add(asset)
+
+        identity = Identity(name="Rex", species=Species.DOG)
+        session.add(identity)
+        session.commit()
+
+        old_detection = Detection(
+            asset=asset,
+            label="dog",
+            confidence=0.5,
+            x1=0,
+            y1=0,
+            x2=10,
+            y2=10,
+        )
+        old_crop = Crop(
+            detection=old_detection,
+            path=str(tmp_path / "old.jpg"),
+        )
+        session.add(old_crop)
+        session.flush()
+
+        old_classification = CropClassification(
+            crop=old_crop,
+            identity="Rex",
+            confidence=0.8,
+        )
+        session.add(old_classification)
+        session.commit()
+
+        PetOccurrenceService(session).sync_classification(old_classification)
+        session.commit()
+
+        old_classification_id = old_classification.id
+
+        assert (
+            session.query(PetOccurrence)
+            .filter_by(crop_classification_id=old_classification_id)
+            .count()
+            == 1
+        )
+
+        service, _ = _build_service(session, tmp_path)
+
+        service.repair("target")
+
+        assert session.get(CropClassification, old_classification_id) is None
+        assert (
+            session.query(PetOccurrence)
+            .filter_by(crop_classification_id=old_classification_id)
+            .count()
+            == 0
+        )
 
 
 def test_repair_raises_for_unknown_asset(engine, tmp_path):

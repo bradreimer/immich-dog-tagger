@@ -16,6 +16,7 @@ helpers so there is one computation behind each fact either way, and
 orchestrates the provider registry for the generic cards() surface.
 """
 
+import logging
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -28,6 +29,8 @@ from immich_dog_tagger.models import Identity, PetOccurrence
 
 from .aggregations import PersonCount, PlaceCount, person_counts, place_counts
 from .providers import INSIGHT_PROVIDERS, InsightCard, InsightContext
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -146,11 +149,32 @@ class InsightsService:
         # construction (ClassificationCorrectionService.correct()), so
         # ranking by raw confidence would just surface manually tagged
         # photos here instead of the classifier's own best guesses.
-        auto_occurrences = [
-            occurrence
-            for occurrence in occurrences
-            if occurrence.source == ClassificationSources.AUTO
-        ]
+        #
+        # A dangling occurrence (crop_classification_id pointing at a
+        # deleted CropClassification, issue #279) loads with
+        # classification=None via the LEFT OUTER JOIN in _occurrences() --
+        # exclude it defensively rather than crash on
+        # occurrence.classification.crop_id below. The cascading delete on
+        # CropClassification.pet_occurrence and the startup backfill in
+        # database.py mean this shouldn't happen going forward, but a
+        # database from before that fix can still have one until its next
+        # startup migration runs.
+        auto_occurrences = []
+
+        for occurrence in occurrences:
+            if occurrence.source != ClassificationSources.AUTO:
+                continue
+
+            if occurrence.classification is None:
+                logger.warning(
+                    "top_photos: skipping PetOccurrence %d with dangling "
+                    "crop_classification_id %d",
+                    occurrence.id,
+                    occurrence.crop_classification_id,
+                )
+                continue
+
+            auto_occurrences.append(occurrence)
 
         ordered = sorted(
             auto_occurrences,

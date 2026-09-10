@@ -73,6 +73,7 @@ def create_database(state_dir: Path):
     _ensure_embedding_example_location_columns(engine)
     _ensure_crop_not_animal_column(engine)
     _ensure_asset_exif_dimension_columns(engine)
+    _cleanup_dangling_pet_occurrences(engine)
 
     return engine
 
@@ -385,3 +386,24 @@ def _ensure_embedding_example_location_columns(engine) -> None:
     with engine.begin() as connection:
         for statement in statements:
             connection.exec_driver_sql(statement)
+
+
+def _cleanup_dangling_pet_occurrences(engine) -> None:
+    """
+    Issue #279: before CropClassification gained a cascading relationship to
+    PetOccurrence, deleting a CropClassification (most commonly via the
+    Repair action's `session.delete(detection)`) left its PetOccurrence row
+    behind, pointing at a crop_classification_id that no longer resolves --
+    which crashed GET /dogs/{id}/insights/top-photos with an AttributeError
+    on `occurrence.classification.crop_id`. The relationship now cleans
+    these up going forward; this removes any that already accumulated on a
+    database created before that fix. Runs on every startup rather than
+    being gated on a schema check -- it's a cheap, idempotent no-op once
+    none remain.
+    """
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "DELETE FROM pet_occurrences "
+            "WHERE crop_classification_id NOT IN "
+            "(SELECT id FROM crop_classifications)"
+        )
