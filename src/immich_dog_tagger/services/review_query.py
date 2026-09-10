@@ -311,6 +311,10 @@ class ReviewQueryService:
         unknown: bool = False,
         confidence_below: float | None = None,
         candidate_conflict: bool = False,
+        species: str | None = None,
+        identity: str | None = None,
+        captured_after: datetime | None = None,
+        captured_before: datetime | None = None,
     ) -> list[ReviewItem]:
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold
@@ -366,6 +370,33 @@ class ReviewQueryService:
 
         if candidate_conflict:
             query = query.where(CropClassification.candidates != [])
+
+        # Bridge facets carried over from a Library filter selection (issue
+        # #289): combined with AND semantics on top of the reason-based
+        # filters above, matching how Library's own filters combine.
+        if species is not None:
+            query = query.where(CropClassification.crop.has(Crop.species == species))
+
+        if identity is not None:
+            query = query.where(CropClassification.identity == identity)
+
+        if captured_after is not None:
+            query = query.where(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.captured_at >= captured_after)
+                    )
+                )
+            )
+
+        if captured_before is not None:
+            query = query.where(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.captured_at <= captured_before)
+                    )
+                )
+            )
 
         classifications = self.session.scalars(query).all()
 

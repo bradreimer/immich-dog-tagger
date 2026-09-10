@@ -17,7 +17,11 @@ import { parseLibraryUrlState, writeLibraryUrlState } from "./libraryUrlState";
 
 const PAGE_SIZE = 50;
 
-export function LibraryPage() {
+interface Props {
+  onNavigate: (path: string) => void;
+}
+
+export function LibraryPage({ onNavigate }: Props) {
   const [initialUrlState] = useState(() => parseLibraryUrlState(window.location.search));
 
   const [species, setSpecies] = useState<LibrarySpeciesFilter>(initialUrlState.species);
@@ -54,6 +58,36 @@ export function LibraryPage() {
     () => (species === "all" ? dogs : dogs.filter((dog) => dog.species === species)),
     [dogs, species],
   );
+
+  // #289: only species/identity/date-range carry over to Review -- reviewed
+  // status and sort have no Review-side equivalent. Carrying nothing over
+  // (no species, no pet) isn't a meaningful bridge, so the action is hidden
+  // rather than opening an unscoped Review queue.
+  const reviewThese = useMemo(() => {
+    if (species === "all" && !identity) {
+      return null;
+    }
+
+    const params = new URLSearchParams();
+
+    if (species !== "all") {
+      params.set("species", species);
+    }
+
+    if (identity) {
+      params.set("identity", identity);
+    }
+
+    if (capturedAfter) {
+      params.set("captured_after", capturedAfter);
+    }
+
+    if (capturedBefore) {
+      params.set("captured_before", capturedBefore);
+    }
+
+    return `/review?${params.toString()}`;
+  }, [species, identity, capturedAfter, capturedBefore]);
 
   // A pet selected under one species no longer applies once the species
   // changes to something that doesn't include it. Skipped while dogs
@@ -187,6 +221,7 @@ export function LibraryPage() {
         onCapturedBeforeChange={setCapturedBefore}
         sort={sort}
         onSortChange={setSort}
+        onReviewThese={reviewThese ? () => onNavigate(reviewThese) : undefined}
       />
 
       {error && (

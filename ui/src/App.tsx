@@ -26,12 +26,17 @@ function App() {
   }, []);
 
   const navigate = (path: string) => {
+    // `path` may carry a query string (e.g. Library's "Review these" bridge,
+    // issue #289) -- `pathname` state tracks only window.location.pathname,
+    // so route matching below must compare against that same bare form.
+    const nextPathname = path.split("?")[0];
+
     if (path === pathname) {
       return;
     }
 
     window.history.pushState({}, "", path);
-    setPathname(path);
+    setPathname(nextPathname);
   };
 
   const page = (() => {
@@ -54,7 +59,7 @@ function App() {
     }
 
     if (pathname === "/library") {
-      return <LibraryPage />;
+      return <LibraryPage onNavigate={navigate} />;
     }
 
     if (pathname === "/photo-lookup") {

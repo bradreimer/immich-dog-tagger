@@ -1,3 +1,5 @@
+import { IconChecklist } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Dog } from "@/types/dogs";
 import type { LibrarySort } from "@/types/library";
@@ -22,6 +24,10 @@ interface Props {
   onCapturedBeforeChange: (value: string) => void;
   sort: LibrarySort;
   onSortChange: (sort: LibrarySort) => void;
+  /** Opens Review's queue scoped to the current species/pet/date-range
+   * selection (issue #289) -- omitted entirely when the bridge is a no-op
+   * (nothing to carry over). */
+  onReviewThese?: () => void;
 }
 
 export function LibraryFilters({
@@ -38,6 +44,7 @@ export function LibraryFilters({
   onCapturedBeforeChange,
   sort,
   onSortChange,
+  onReviewThese,
 }: Props) {
   return (
     <Card>
@@ -126,6 +133,13 @@ export function LibraryFilters({
             <option value="reviewed_asc">Least recently classified first</option>
           </select>
         </label>
+
+        {onReviewThese && (
+          <Button type="button" variant="outline" onClick={onReviewThese}>
+            <IconChecklist className="h-4 w-4" aria-hidden="true" />
+            Review these
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
