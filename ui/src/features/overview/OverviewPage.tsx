@@ -362,12 +362,10 @@ export function OverviewPage() {
               </div>
             </div>
 
-            {!diagnostics.stale_detections.healthy && (
-              <StaleDetectionRepairAction
-                status={diagnostics.stale_detections}
-                onRepaired={() => void load({ silent: true })}
-              />
-            )}
+            <StaleDetectionRepairAction
+              status={diagnostics.stale_detections}
+              onRepaired={() => void load({ silent: true })}
+            />
 
             {diagnostics.jobs.stuck.length > 0 && (
               <div className="rounded-md border border-status-warning/40 bg-status-warning/5 p-3">

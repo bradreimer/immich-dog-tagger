@@ -103,6 +103,79 @@ describe("StaleDetectionRepairAction", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
+  it("shows the before/after flagged count when a repair actually reduces it", async () => {
+    vi.mocked(api.repairStaleDetections).mockResolvedValue(
+      buildResult({ repaired: 2, skipped_reviewed: 1, failed: 0 }),
+    );
+
+    const { rerender } = render(
+      <StaleDetectionRepairAction status={buildStatus({ flagged: 3 })} onRepaired={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, repair/i }));
+
+    await waitFor(() => expect(api.repairStaleDetections).toHaveBeenCalled());
+
+    // Simulate the parent's diagnostics reload landing with a lower count.
+    rerender(
+      <StaleDetectionRepairAction status={buildStatus({ flagged: 1 })} onRepaired={vi.fn()} />,
+    );
+
+    const summary = await screen.findByText(/3 → 1 still flagged/);
+    expect(summary).toHaveTextContent(
+      "Repaired 2, skipped 1 reviewed, failed 0 — 3 → 1 still flagged.",
+    );
+    expect(summary.className).not.toContain("text-status-warning");
+  });
+
+  it("flags a warning when the flagged count doesn't drop as expected", async () => {
+    vi.mocked(api.repairStaleDetections).mockResolvedValue(
+      buildResult({ repaired: 2, skipped_reviewed: 0, failed: 0 }),
+    );
+
+    const { rerender } = render(
+      <StaleDetectionRepairAction status={buildStatus({ flagged: 3 })} onRepaired={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, repair/i }));
+
+    await waitFor(() => expect(api.repairStaleDetections).toHaveBeenCalled());
+
+    // The count didn't move even though 2 were reported repaired.
+    rerender(
+      <StaleDetectionRepairAction status={buildStatus({ flagged: 3 })} onRepaired={vi.fn()} />,
+    );
+
+    const summary = await screen.findByText(/3 → 3 still flagged/);
+    expect(summary.className).toContain("text-status-warning");
+  });
+
+  it("keeps showing the result summary even after a full repair flips status healthy", async () => {
+    vi.mocked(api.repairStaleDetections).mockResolvedValue(
+      buildResult({ repaired: 3, skipped_reviewed: 0, failed: 0 }),
+    );
+
+    const { rerender } = render(
+      <StaleDetectionRepairAction status={buildStatus({ flagged: 3 })} onRepaired={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, repair/i }));
+
+    await waitFor(() => expect(api.repairStaleDetections).toHaveBeenCalled());
+
+    rerender(
+      <StaleDetectionRepairAction
+        status={buildStatus({ healthy: true, flagged: 0 })}
+        onRepaired={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/3 → 0 still flagged/)).toBeInTheDocument();
+  });
+
   it("shows an error and stays in the confirm state when repair fails", async () => {
     vi.mocked(api.repairStaleDetections).mockRejectedValue(
       new Error("Failed to repair stale detections"),
