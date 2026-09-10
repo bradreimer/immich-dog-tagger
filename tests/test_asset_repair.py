@@ -278,13 +278,18 @@ def test_repair_cleans_up_pet_occurrence_for_deleted_classification(engine, tmp_
 
         service.repair("target")
 
-        assert session.get(CropClassification, old_classification_id) is None
-        assert (
-            session.query(PetOccurrence)
-            .filter_by(crop_classification_id=old_classification_id)
-            .count()
-            == 0
-        )
+        # Not asserted via session.get(CropClassification, old_classification_id)
+        # is None -- as test_repair_replaces_detection_crop_and_classification's
+        # comment notes, SQLite can reuse a deleted row's rowid for the
+        # replacement, so the old id can resolve to the *new* row. Assert on
+        # the old row's own identity/content instead.
+        assert session.query(CropClassification).filter_by(identity="Rex").count() == 0
+
+        # If the cascade fix regressed, the old PetOccurrence row would still
+        # be sitting in the table with a crop_classification_id that no
+        # longer resolves to any CropClassification -- it wouldn't disappear
+        # just because the id got reused elsewhere.
+        assert session.query(PetOccurrence).count() == 0
 
 
 def test_repair_raises_for_unknown_asset(engine, tmp_path):
