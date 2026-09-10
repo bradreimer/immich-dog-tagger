@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.api.app import create_app
 from immich_dog_tagger.api.dependencies import (
     get_embedder,
+    get_engine,
     get_job_dispatcher,
     get_session,
 )
@@ -72,6 +73,13 @@ def api_client(engine):
             yield session
 
     app.dependency_overrides[get_session] = override_get_session
+    # get_engine() is process-cached (functools.cache), so routes that take
+    # the engine directly (crops.py's crop route, embedding_examples.py --
+    # both open their own short-lived session rather than a
+    # request-scoped one, issue #277) must be pointed at this test's
+    # isolated engine too, not whatever get_engine() resolved to first in
+    # this test process.
+    app.dependency_overrides[get_engine] = lambda: engine
     app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
     app.dependency_overrides[get_job_dispatcher] = lambda: dispatcher
 

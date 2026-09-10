@@ -32,11 +32,54 @@ right identity (or leaves it Unknown) through the same identity control
 Photo Lookup, Review and Library already share.
 """
 
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import Crop
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
+
+
+def _viewable_crop(session: Session, crop_id: int) -> Crop:
+    """
+    A crop fit to serve as an image: exists, and its source photo wasn't
+    deleted in Immich and reconciled out (issue #194/FR-3). A removed
+    asset's crop file may already be cleaned up, so treating it as
+    not-found here keeps callers from serving a stale image or hitting an
+    unhandled FileNotFoundError.
+    """
+    crop = session.get(Crop, crop_id)
+
+    if crop is None:
+        raise ValueError(f"Crop {crop_id} not found")
+
+    detection = crop.detection
+    asset = detection.asset if detection is not None else None
+
+    if asset is not None and asset.status == AssetStatus.REMOVED:
+        raise ValueError(f"Crop {crop_id} not found")
+
+    return crop
+
+
+def get_viewable_crop_path(engine: Engine, crop_id: int) -> str:
+    """
+    Same lookup as `FalsePositiveService.get_viewable`, for `GET
+    /crops/{id}` -- but opens and closes its own short-lived session
+    instead of taking one FastAPI keeps alive via `Depends(yield)` for the
+    whole request/response cycle (issue #277). FastAPI only runs a `yield`
+    dependency's cleanup after the full response has been sent, so a
+    session threaded through the endpoint as a normal dependency would stay
+    checked out of the pool for as long as the image takes to stream to
+    the client -- not just for this lookup. Under a burst of concurrent
+    thumbnail requests, that turns network-bound transfer time into pool
+    pressure and can exhaust the pool even though every individual query is
+    trivial. Returning a plain path once the lookup is done -- before
+    `FileResponse` starts streaming -- keeps each connection checked out
+    for only the query itself.
+    """
+    with Session(engine) as session:
+        return _viewable_crop(session, crop_id).path
 
 
 class FalsePositiveService:
@@ -49,22 +92,7 @@ class FalsePositiveService:
         self.correction_service = correction_service
 
     def get_viewable(self, crop_id: int) -> Crop:
-        """
-        A crop fit to serve as an image: exists, and its source photo
-        wasn't deleted in Immich and reconciled out (issue #194/FR-3). A
-        removed asset's crop file may already be cleaned up, so treating it
-        as not-found here keeps callers from serving a stale image or
-        hitting an unhandled FileNotFoundError.
-        """
-        crop = self._get(crop_id)
-
-        detection = crop.detection
-        asset = detection.asset if detection is not None else None
-
-        if asset is not None and asset.status == AssetStatus.REMOVED:
-            raise ValueError(f"Crop {crop_id} not found")
-
-        return crop
+        return _viewable_crop(self.session, crop_id)
 
     def mark(self, crop_id: int) -> Crop:
         crop = self._get(crop_id)
