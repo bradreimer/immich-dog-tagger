@@ -15,7 +15,7 @@ from immich_dog_tagger.api.schemas import (
     DetectionAssignResponse,
     PhotoLookupResponse,
 )
-from immich_dog_tagger.images import open_upright, to_jpeg_bytes
+from immich_dog_tagger.images import open_upright, to_jpeg_bytes, upright_size
 from immich_dog_tagger.immich import ImmichClient, ImmichDownloadError
 from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.manual_detection_assignment import (
@@ -121,7 +121,10 @@ def photo_lookup_image(
         # agreeing on orientation (it doesn't always -- see immich-app/
         # immich#24807 -- which is what broke the boxes when #206 switched
         # to it).
-        image = open_upright(io.BytesIO(content))
+        expected_size = upright_size(
+            lookup.exif_width, lookup.exif_height, lookup.exif_orientation
+        )
+        image = open_upright(io.BytesIO(content), expected_size)
     except Exception as e:
         raise HTTPException(
             status_code=502,

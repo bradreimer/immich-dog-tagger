@@ -22,6 +22,7 @@ class YOLODetector(ObjectDetector):
     def detect(
         self,
         image_path: str,
+        expected_size: tuple[int, int] | None = None,
     ) -> list[DetectionResult]:
 
         # Decoded here rather than handed to ultralytics as a path, so the
@@ -31,7 +32,7 @@ class YOLODetector(ObjectDetector):
         # which doesn't -- so which space its boxes came back in depended on
         # the file's format (issue #137). open_upright() is one defined
         # answer for every format.
-        image = open_upright(image_path).convert("RGB")
+        image = open_upright(image_path, expected_size).convert("RGB")
 
         results = self.model.predict(
             source=image,

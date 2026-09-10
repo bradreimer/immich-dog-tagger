@@ -112,7 +112,7 @@ def _seed_crop_less_detection(session: Session, *, label="sheep") -> int:
 def _open_upright_stub(monkeypatch):
     monkeypatch.setattr(
         "immich_dog_tagger.services.manual_detection_assignment.open_upright",
-        lambda source: FakeImage(),
+        lambda source, expected_size=None: FakeImage(),
     )
 
 

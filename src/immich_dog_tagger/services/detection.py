@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.detector import ObjectDetector
 from immich_dog_tagger.enums import AssetStatus, Species
+from immich_dog_tagger.images import upright_size
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import Asset, Crop, Detection
 
@@ -172,7 +173,20 @@ class DetectionService:
                 continue
 
             try:
-                detections = self.detector.detect(str(image_path))
+                # `None` when Immich's exif dimensions haven't been cached
+                # for this asset (scanned before the stale-detection spec
+                # added them) -- open_upright() falls back to its old,
+                # always-correct-for-non-HEIC behavior in that case.
+                expected_size = upright_size(
+                    asset.exif_width, asset.exif_height, asset.exif_orientation
+                )
+                size_kwargs = (
+                    {"expected_size": expected_size}
+                    if expected_size is not None
+                    else {}
+                )
+
+                detections = self.detector.detect(str(image_path), **size_kwargs)
 
                 crop_map: dict[int, Path] = {}
 
@@ -181,6 +195,7 @@ class DetectionService:
                         image_path,
                         asset.immich_asset_id,
                         detections,
+                        **size_kwargs,
                     )
 
                     crop_map = dict(crop_results)

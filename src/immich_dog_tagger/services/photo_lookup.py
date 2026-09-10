@@ -37,6 +37,12 @@ class PhotoLookup:
     extension: str
     captured_at: datetime | None
     detections: list[PhotoLookupDetection]
+    # Immich's raw (pre-rotation) exifImageWidth/exifImageHeight/orientation,
+    # for callers that need to decode the original upright (issue #282) --
+    # `None` on an asset scanned before these were cached.
+    exif_width: int | None
+    exif_height: int | None
+    exif_orientation: int | None
 
 
 class PhotoLookupService:
@@ -65,6 +71,9 @@ class PhotoLookupService:
             extension=asset.extension,
             captured_at=asset.captured_at,
             detections=detections,
+            exif_width=asset.exif_width,
+            exif_height=asset.exif_height,
+            exif_orientation=asset.exif_orientation,
         )
 
     def _to_detection(self, detection: Detection) -> PhotoLookupDetection:

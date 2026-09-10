@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from immich_dog_tagger.images import open_upright
+from immich_dog_tagger.images import open_upright, upright_size
 
 # EXIF tag 274 is Orientation.
 _ORIENTATION_TAG = 274
@@ -173,6 +173,19 @@ def test_open_upright_registers_the_heif_opener(tmp_path: Path):
     assert ".heic" in Image.registered_extensions()
 
 
+def test_upright_size_swaps_for_a_rotated_orientation():
+    assert upright_size(4032, 3024, 6) == (3024, 4032)
+
+
+def test_upright_size_leaves_a_non_rotated_orientation_unswapped():
+    assert upright_size(4032, 3024, 3) == (4032, 3024)
+
+
+def test_upright_size_is_none_without_both_dimensions():
+    assert upright_size(None, 3024, 6) is None
+    assert upright_size(4032, None, 6) is None
+
+
 _HEIC_FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 # Real device-shaped HEIC files, one per orientation plus one with no
@@ -242,3 +255,51 @@ def test_open_upright_applies_the_full_transform_for_heic(
             f"{fixture_name}: corner {name} "
             f"{'should' if name == expected_red_corner else 'should not'} be red"
         )
+
+
+@pytest.mark.parametrize("fixture_name", ["o5", "o6", "o7", "o8"])
+def test_open_upright_skips_the_override_when_already_upright(fixture_name: str):
+    """
+    Regression test for issue #282: some HEIC files decode with pi_heif/
+    libheif having already applied the container's own rotation to the
+    pixel data (independent of the redundant Exif Orientation tag pi_heif
+    also stashes in `original_orientation`), so the decoded size already
+    matches the known-correct upright size. There's no signal in pi_heif's
+    own API for this -- the only way to tell is by comparing the decode
+    against an `expected_size` the caller already trusts (e.g. Immich's own
+    exifImageWidth/Height via `upright_size`). Forcing the stashed
+    orientation onto an already-correct image in that case rotates it a
+    second time, landing back on the wrong (raw) dimensions -- exactly the
+    bug that made stale-detection Repair a no-op no matter how many times
+    it ran.
+    """
+    path = _HEIC_FIXTURES_DIR / f"heic_{fixture_name}.heic"
+
+    raw_size = Image.open(path).size
+
+    # Simulates a file whose pixels pi_heif already rotated to this size:
+    # told that the decoded size is *already* the correct upright size, so
+    # the stashed orientation must not be reapplied.
+    image = open_upright(path, expected_size=raw_size)
+
+    assert image.size == raw_size
+
+
+@pytest.mark.parametrize("fixture_name", ["o5", "o6", "o7", "o8"])
+def test_open_upright_still_corrects_when_expected_size_does_not_match(
+    fixture_name: str,
+):
+    """
+    An `expected_size` that doesn't match the decoded size means the pixels
+    are still in the raw (pre-rotation) space -- the original #137 case --
+    so the stashed orientation must still be applied, exactly as when no
+    `expected_size` is given at all.
+    """
+    path = _HEIC_FIXTURES_DIR / f"heic_{fixture_name}.heic"
+
+    raw_width, raw_height = Image.open(path).size
+    upright = (raw_height, raw_width)
+
+    image = open_upright(path, expected_size=upright)
+
+    assert image.size == upright
