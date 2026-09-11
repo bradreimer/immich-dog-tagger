@@ -15,7 +15,6 @@ import {
   IconPlayerPlay,
   IconRefreshDot,
   IconRocket,
-  IconSchool,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,14 +57,6 @@ const AUTOMATION_OPERATIONS: AutomationOperation[] = [
       "Recompute predictions for existing photos using everything you've reviewed so far. It never rescans, redownloads, or redetects, and it never changes a label you've already confirmed.",
     toggleLabel: "Enable automatic reclassification",
     icon: IconRefreshDot,
-  },
-  {
-    operation: "learn",
-    title: "Learn from reviewed examples",
-    description:
-      "Fold recent review corrections into the reference set the classifier uses for future predictions.",
-    toggleLabel: "Enable automatic learning",
-    icon: IconSchool,
   },
   {
     operation: "sync",

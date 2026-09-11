@@ -55,8 +55,8 @@ def test_schedule_state_survives_database_reopen(tmp_path: Path):
     with Session(engine) as session:
         service = PipelineScheduleService(session)
         schedule = service.create_schedule(
-            name="Nightly learn",
-            operation=PipelineOperation.LEARN,
+            name="Nightly reclassify",
+            operation=PipelineOperation.RECLASSIFY,
             expression="30 2 * * *",
             timezone_name="UTC",
         )
@@ -69,5 +69,76 @@ def test_schedule_state_survives_database_reopen(tmp_path: Path):
         persisted = repository.get(schedule_id)
 
         assert persisted is not None
-        assert persisted.name == "Nightly learn"
+        assert persisted.name == "Nightly reclassify"
         assert persisted.enabled is True
+
+
+def test_schedule_rejects_learn_operation_on_create(engine):
+    with Session(engine) as session:
+        service = PipelineScheduleService(session)
+
+        with pytest.raises(ValueError, match="Learn cannot be scheduled"):
+            service.create_schedule(
+                name="Nightly learn",
+                operation=PipelineOperation.LEARN,
+                expression="30 2 * * *",
+                timezone_name="UTC",
+            )
+
+
+def test_schedule_rejects_learn_operation_on_update(engine):
+    with Session(engine) as session:
+        service = PipelineScheduleService(session)
+        schedule = service.create_schedule(
+            name="Nightly reclassify",
+            operation=PipelineOperation.RECLASSIFY,
+            expression="30 2 * * *",
+            timezone_name="UTC",
+        )
+
+        with pytest.raises(ValueError, match="Learn cannot be scheduled"):
+            service.update_schedule(schedule, operation=PipelineOperation.LEARN)
+
+
+def test_schedule_rejects_enabling_a_learn_schedule(engine):
+    with Session(engine) as session:
+        service = PipelineScheduleService(session)
+        repository = PipelineScheduleRepository(session)
+        # A LEARN schedule can only exist here by bypassing the service (e.g.
+        # a row left over from before scheduling LEARN was rejected).
+        schedule = repository.create(
+            name="Nightly learn",
+            operation=PipelineOperation.LEARN,
+            expression="30 2 * * *",
+            timezone_name="UTC",
+            enabled=False,
+        )
+        session.commit()
+
+        with pytest.raises(ValueError, match="Learn cannot be scheduled"):
+            service.enable(schedule)
+
+
+def test_database_startup_disables_existing_learn_schedules(tmp_path: Path):
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        repository = PipelineScheduleRepository(session)
+        schedule = repository.create(
+            name="Nightly learn",
+            operation=PipelineOperation.LEARN,
+            expression="30 2 * * *",
+            timezone_name="UTC",
+            enabled=True,
+        )
+        schedule_id = schedule.id
+        session.commit()
+
+    reopened_engine = create_database(tmp_path)
+
+    with Session(reopened_engine) as session:
+        repository = PipelineScheduleRepository(session)
+        persisted = repository.get(schedule_id)
+
+        assert persisted is not None
+        assert persisted.enabled is False

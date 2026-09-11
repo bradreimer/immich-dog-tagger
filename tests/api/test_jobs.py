@@ -76,6 +76,21 @@ def test_jobs_create_validation_error_for_invalid_operation(api_client):
     assert response.status_code == 422
 
 
+def test_jobs_create_rejects_learn(api_client):
+    # Issue #313: Learn needs an identity and reference directory that this
+    # API has no field for, so creating one here would always fail once it
+    # ran -- reject it up front instead.
+    response = api_client.post(
+        "/jobs",
+        json={
+            "operation": "learn",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "dog-tagger learn" in response.json()["detail"]
+
+
 def test_jobs_create_with_default_start_triggers_dispatch(api_client):
     response = api_client.post(
         "/jobs",

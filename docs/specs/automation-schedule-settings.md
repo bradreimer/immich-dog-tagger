@@ -33,10 +33,15 @@ through a list of ad hoc named schedules on the operational dashboard.
 Tracked as [#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
 - Pre-configure exactly one schedule per supported operation (no user-chosen name, no operation
   picker) for: `full_pipeline` ("Process new photos"), `reclassify` ("Reclassify with reviewed
-  examples"), `learn` ("Learn from reviewed examples"), and `sync` ("Publish labels back to
-  Immich") — the same four whole-workflow operations already surfaced as Overview's manual-run
-  actions plus `learn`. Raw pipeline stages (`scan`, `detect`, `embed`, `classify`) are not
-  independently schedulable; `full_pipeline` already chains them.
+  examples"), and `sync` ("Publish labels back to Immich") — the same whole-workflow operations
+  already surfaced as Overview's manual-run actions. Raw pipeline stages (`scan`, `detect`,
+  `embed`, `classify`) are not independently schedulable; `full_pipeline` already chains them.
+  `learn` was included here originally (see the now-resolved Open Question below) but was removed
+  by [#313](https://github.com/bradreimer/immich-dog-tagger/issues/313): it has no way to receive
+  the identity/directory a Learn job needs, so every scheduled or manually-launched `learn` job
+  failed immediately with "reference directory not found," and review corrections are already
+  learned synchronously at review time (`ClassificationCorrectionService` ->
+  `Learner.learn_image()`), so there was nothing left for a schedule to do.
 - Preserve "Run Now" as a per-operation action within its section, since it remains useful for
   triggering an out-of-band run without waiting for the next scheduled occurrence.
 - Preserve existing schedule status (next run, last run, last result) as read-only detail within
@@ -97,10 +102,10 @@ Tracked as [#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
 
 - Given the Overview page, when it loads, then no Automation Schedules card, schedule creation
   form, or schedule list is present.
-- Given the Settings page, when it loads, then an "Automation" section is present with four
+- Given the Settings page, when it loads, then an "Automation" section is present with three
   collapsible sub-sections: Process new photos (`full_pipeline`), Reclassify with reviewed
-  examples (`reclassify`), Learn from reviewed examples (`learn`), and Publish labels back to
-  Immich (`sync`).
+  examples (`reclassify`), and Publish labels back to Immich (`sync`). (`learn` was removed by
+  [#313](https://github.com/bradreimer/immich-dog-tagger/issues/313); see Goals above.)
 - Given a collapsed operation sub-section, when the user expands it, then it shows an enable
   toggle, a cron expression field with helper text, next/last run detail, and a Run Now button.
 - Given an operation's enable toggle is off, when the user turns it on, then the corresponding
@@ -128,11 +133,13 @@ Tracked as [#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
 
 ## Open questions
 
-- Should `learn` be included as a fourth pre-configured, independently schedulable operation, or
-  is it better run only as part of `full_pipeline`/on demand? It has no manual-run button on
-  Overview today, unlike the other three. Decide during implementation; default assumption in
-  this spec is to include it, since it was already schedulable via the old free-form dropdown and
-  dropping it would be a capability regression.
+- ~~Should `learn` be included as a fourth pre-configured, independently schedulable operation, or
+  is it better run only as part of `full_pipeline`/on demand?~~ Resolved by
+  [#313](https://github.com/bradreimer/immich-dog-tagger/issues/313): `learn` requires a specific
+  identity and reference directory that neither a schedule nor the manual-run action had any way
+  to supply, so it was removed from both rather than kept as a guaranteed-failing option. Review
+  corrections are already learned synchronously at review time, so there is no scheduled work for
+  it to do.
 - Seed-on-startup vs. lazy-create-on-first-edit for the one-row-per-operation invariant
   (Requirement 4) — pick whichever is less code, but must not silently create duplicate rows if
   both a startup seed and a lazy-create path exist.
