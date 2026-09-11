@@ -74,6 +74,7 @@ def create_database(state_dir: Path):
     _ensure_crop_not_animal_column(engine)
     _ensure_asset_exif_dimension_columns(engine)
     _cleanup_dangling_pet_occurrences(engine)
+    _disable_learn_schedules(engine)
 
     return engine
 
@@ -406,4 +407,24 @@ def _cleanup_dangling_pet_occurrences(engine) -> None:
             "DELETE FROM pet_occurrences "
             "WHERE crop_classification_id NOT IN "
             "(SELECT id FROM crop_classifications)"
+        )
+
+
+def _disable_learn_schedules(engine) -> None:
+    """
+    Issue #313: a scheduled Learn job has no way to supply the identity and
+    reference directory Learn needs, so it always failed with "reference
+    directory not found" the moment it fired -- review corrections are
+    already learned immediately at review time
+    (ClassificationCorrectionService -> Learner.learn_image()), so there was
+    never anything for a scheduled Learn job to do. Disables any Learn
+    schedule left enabled from before that option was removed, rather than
+    leaving it to keep failing on its next tick. Runs on every startup
+    rather than being gated on a schema check -- it's a cheap, idempotent
+    no-op once none remain.
+    """
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE pipeline_schedules SET enabled = 0 "
+            "WHERE operation = 'LEARN' AND enabled = 1"
         )

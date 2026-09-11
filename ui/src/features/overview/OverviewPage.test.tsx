@@ -73,21 +73,12 @@ describe("OverviewPage", () => {
     expect(screen.getByText("Review Remaining")).toBeInTheDocument();
   });
 
-  it("launches a learn job from Manual Operations, matching Settings' wording", async () => {
-    vi.mocked(api.createJob).mockResolvedValue(buildJob({ id: 7, operation: "learn" }));
-
+  it("does not offer Learn from Manual Operations", async () => {
     render(<OverviewPage />);
 
-    expect(await screen.findByText("Learn from reviewed examples")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Fold recent review corrections into the reference set the classifier uses for future predictions.",
-      ),
-    ).toBeInTheDocument();
+    await screen.findByText("Process new photos");
 
-    fireEvent.click(screen.getByRole("button", { name: "Learn from reviewed examples" }));
-
-    await waitFor(() => expect(api.createJob).toHaveBeenCalledWith("learn"));
+    expect(screen.queryByText("Learn from reviewed examples")).not.toBeInTheDocument();
   });
 
   it("has no header job-launch shortcuts, only the refresh control", async () => {

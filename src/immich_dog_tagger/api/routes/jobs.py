@@ -8,6 +8,7 @@ from immich_dog_tagger.api.dependencies import (
     get_job_service,
 )
 from immich_dog_tagger.api.schemas import JobCreateRequest, JobResponse
+from immich_dog_tagger.enums import PipelineOperation
 from immich_dog_tagger.services.job_dispatcher import PipelineJobDispatcher
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 
@@ -57,6 +58,15 @@ def create_job(
     service: Annotated[PipelineJobService, Depends(get_job_service)],
     dispatcher: Annotated[PipelineJobDispatcher, Depends(get_job_dispatcher)],
 ):
+    if request.operation == PipelineOperation.LEARN:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Learn requires a specific identity and reference directory, which this API "
+                "has no way to accept. Run `dog-tagger learn <identity> <directory>` instead."
+            ),
+        )
+
     job = service.create_job(operation=request.operation)
 
     if request.start:

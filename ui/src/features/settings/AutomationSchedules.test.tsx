@@ -57,8 +57,8 @@ describe("AutomationSchedules", () => {
 
     expect(await screen.findByText("Process new photos")).toBeInTheDocument();
     expect(screen.getByText("Reclassify with reviewed examples")).toBeInTheDocument();
-    expect(screen.getByText("Learn from reviewed examples")).toBeInTheDocument();
     expect(screen.getByText("Publish labels back to Immich")).toBeInTheDocument();
+    expect(screen.queryByText("Learn from reviewed examples")).not.toBeInTheDocument();
   });
 
   it("hides the cron field and toggle until a section is expanded", async () => {

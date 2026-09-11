@@ -51,6 +51,7 @@ class PipelineScheduleService:
         timezone_name: str,
         enabled: bool = True,
     ) -> PipelineSchedule:
+        self._validate_operation(operation)
         self._validate_expression(expression)
         schedule = PipelineScheduleRepository(self.session).create(
             name=name,
@@ -76,6 +77,7 @@ class PipelineScheduleService:
         if name is not None:
             schedule.name = name
         if operation is not None:
+            self._validate_operation(operation)
             schedule.operation = operation
         if expression is not None:
             self._validate_expression(expression)
@@ -89,6 +91,7 @@ class PipelineScheduleService:
         return schedule
 
     def enable(self, schedule: PipelineSchedule) -> PipelineSchedule:
+        self._validate_operation(schedule.operation)
         schedule.enabled = True
         self.session.commit()
         self.session.refresh(schedule)
@@ -99,6 +102,16 @@ class PipelineScheduleService:
         self.session.commit()
         self.session.refresh(schedule)
         return schedule
+
+    @staticmethod
+    def _validate_operation(operation: PipelineOperation) -> None:
+        if operation == PipelineOperation.LEARN:
+            raise ValueError(
+                "Learn cannot be scheduled: it requires a specific identity and reference "
+                "directory that a schedule has no way to supply. Review corrections are "
+                "already learned immediately when reviewed -- there is nothing left for a "
+                "scheduled Learn job to do."
+            )
 
     @staticmethod
     def _validate_expression(expression: str) -> None:
