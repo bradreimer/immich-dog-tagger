@@ -684,6 +684,7 @@ class InsightCardResponse(BaseModel):
 class InsightsSummaryResponse(BaseModel):
     identity_id: int
     identity_name: str
+    identity_species: Species
     total_photos: int
     first_seen: datetime | None
     last_seen: datetime | None
@@ -695,6 +696,7 @@ class InsightsSummaryResponse(BaseModel):
         return cls(
             identity_id=summary.identity_id,
             identity_name=summary.identity_name,
+            identity_species=summary.identity_species,
             total_photos=summary.total_photos,
             first_seen=summary.first_seen,
             last_seen=summary.last_seen,

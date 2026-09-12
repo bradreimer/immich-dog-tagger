@@ -24,6 +24,7 @@ export interface TopPhoto {
 export interface InsightsSummary {
   identity_id: number;
   identity_name: string;
+  identity_species: "dog" | "cat";
   total_photos: number;
   first_seen: string | null;
   last_seen: string | null;

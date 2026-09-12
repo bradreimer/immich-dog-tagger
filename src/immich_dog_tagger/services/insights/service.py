@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from immich_dog_tagger.enums import Species
 from immich_dog_tagger.models import Crop, CropClassification, Identity, PetOccurrence
 
 from .aggregations import PersonCount, PlaceCount, person_counts, place_counts
@@ -57,6 +58,7 @@ class TopPhoto:
 class InsightsSummary:
     identity_id: int
     identity_name: str
+    identity_species: Species
     total_photos: int
     first_seen: datetime | None
     last_seen: datetime | None
@@ -88,6 +90,7 @@ class InsightsService:
         return InsightsSummary(
             identity_id=identity.id,
             identity_name=identity.name,
+            identity_species=identity.species,
             total_photos=len(assets),
             first_seen=captured_dates[0] if captured_dates else None,
             last_seen=captured_dates[-1] if captured_dates else None,
