@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createJob, getDiagnostics, getJobs, getReviewStats } from "../../lib/api";
 import { formatDuration, formatRelativeTime } from "../../lib/utils";
+import { usePolling } from "../../lib/usePolling";
 import type { JobOperation } from "../../types/jobs";
 import type { PipelineJob } from "../../types/jobs";
 import type { ReviewQueueStats } from "../../types/review";
@@ -154,17 +155,7 @@ export function OverviewPage() {
 
   const hasActiveJobs = jobSummary.pending + jobSummary.running > 0;
 
-  useEffect(() => {
-    if (!hasActiveJobs) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      void load({ silent: true });
-    }, 3000);
-
-    return () => window.clearInterval(timer);
-  }, [hasActiveJobs, load]);
+  usePolling(() => load({ silent: true }), 3000, hasActiveJobs);
 
   // Forces a re-render every 30s so the relative "last updated" text stays accurate
   // even when nothing else on the page is refreshing.

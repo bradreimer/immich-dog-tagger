@@ -949,6 +949,17 @@ behind the first two `user-story` merges (#286, #288) -- the version-bump CI che
 the fact rather than before -- and was caught up in a small chore commit; every subsequent
 `user-story` issue in the batch carried its own bump.
 
+#319 fixed intermittent `QueuePool limit ... connection timed out` 500s on `/diagnostics` and
+`/jobs` (recurrence of the class of bug fixed in #164/#277/#317, which had already sized the pool
+to 20+20 and given `/diagnostics`' filesystem scan its own short-lived session). Root cause was in
+the UI, not the pool: Overview and Job Queue each poll `GET /jobs` + `GET /diagnostics` every 3s
+while jobs are active via `setInterval`, which fires on a fixed clock regardless of whether the
+previous poll is still in flight -- a single slow response (e.g. a running pipeline job competing
+for CPU/DB) let the next tick's requests stack on top of it, and every tick after that added more
+overlapping requests until the pool was exhausted. Both pages now use a new shared `usePolling`
+hook (`ui/src/lib/usePolling.ts`) that waits for each poll to settle before scheduling the next,
+capping in-flight polls per mounted page at one regardless of backend latency.
+
 No queued numbered milestone -- v1.13.0 (#265) shipped complete, no open questions. v1.12.0 (#230)
 also shipped complete, no open questions. v1.11.0 (#196) also shipped complete, with one open
 question left in its spec: what becomes of the cluster-approval workspace UI removed from the
