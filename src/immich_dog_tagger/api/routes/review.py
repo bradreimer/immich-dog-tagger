@@ -13,7 +13,6 @@ from immich_dog_tagger.api.schemas import (
     ReviewItemResponse,
     ReviewQueueStatsResponse,
 )
-from immich_dog_tagger.policy import DEFAULT_POLICY
 from immich_dog_tagger.services.review_actions import ReviewActionService
 
 router = APIRouter(
@@ -27,7 +26,12 @@ router = APIRouter(
 )
 def review(
     session: Annotated[Session, Depends(get_session)],
-    threshold: float = Query(DEFAULT_POLICY.confident_threshold),
+    # None (not a hardcoded default) so an explicit ?threshold= still
+    # overrides, but leaving it off -- as every real caller does -- falls
+    # through to active_review()'s own default: the owner's actual
+    # tagging_sensitivity policy, not a threshold baked in at import time
+    # (#321/#322).
+    threshold: float | None = Query(None),
     limit: int = Query(50),
     unknown: bool = Query(False),
     confidence_below: float | None = Query(None),

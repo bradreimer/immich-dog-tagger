@@ -111,7 +111,7 @@ def get_job_dispatcher() -> PipelineJobDispatcher:
 def get_review_query_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> ReviewQueryService:
-    return ReviewQueryService(session)
+    return ReviewQueryService(session, policy=AppSettingsService(session).policy())
 
 
 def get_dog_service(

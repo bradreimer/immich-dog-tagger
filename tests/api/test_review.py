@@ -445,6 +445,29 @@ def test_review_queue_filters_by_identity_and_confidence_below(api_client, engin
     assert items[0]["prediction"]["identity"] == "Fibs"
 
 
+def test_review_queue_uses_owners_tagging_sensitivity(api_client, engine):
+    """#321 regression: GET /review must honor the owner's saved
+    tagging_sensitivity, not the hardcoded balanced (0.80) default. At
+    "eager" (threshold 0.74), a classified item at 0.798 confidence clears
+    the owner's threshold and must not appear in the queue."""
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="fibs.jpg")
+
+        session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.798))
+        session.commit()
+
+    set_response = api_client.put(
+        "/settings/tagging-sensitivity",
+        json={"tagging_sensitivity": "eager"},
+    )
+    assert set_response.status_code == 200
+
+    response = api_client.get("/review")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_review_queue_filters_by_captured_date_range(api_client, engine):
     with Session(engine) as session:
         old_asset = Asset(
