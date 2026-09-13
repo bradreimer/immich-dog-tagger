@@ -867,6 +867,18 @@
   `identity_species`, needed to build the species-scoped link since the Insights page didn't
   previously know a pet's species.
 
+- [#323](https://github.com/bradreimer/immich-dog-tagger/issues/323) exposed
+  `DerivedDataService.repair()`'s existing missing-crops/missing-downloads fix as a one-click
+  Overview action, mirroring the Stale Detections tile's check-then-batch-repair pattern (see
+  [docs/specs/broken-crop-auto-repair.md](specs/broken-crop-auto-repair.md)). New
+  `POST /diagnostics/derived-data/repair` endpoint; `GET /diagnostics`'s `derived_data` section
+  gains `reviewed_at_risk` (how many of the missing-crop-affected assets have recorded review
+  history that repairing would discard); the Derived Data tile gets a "Repair" action with a
+  confirmation step stating that count, matching `StaleDetectionRepairAction`'s pattern. Also
+  fixed `DerivedDataService.repair()` itself to commit (or roll back) each asset individually
+  instead of one final commit at the end, so one asset's failure can't abort the rest of the
+  batch or leave an earlier asset's already-repaired state uncommitted.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

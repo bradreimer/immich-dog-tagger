@@ -25,6 +25,7 @@ from immich_dog_tagger.services.clusters import (
     RecommendationClusterService,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
+from immich_dog_tagger.services.derived_data import DerivedDataService
 from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.dogs import DogService
 from immich_dog_tagger.services.false_positives import FalsePositiveService
@@ -283,3 +284,10 @@ def get_stale_detection_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> StaleDetectionService:
     return StaleDetectionService(session)
+
+
+def get_derived_data_service(
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+) -> DerivedDataService:
+    return DerivedDataService(session, config.cache_dir)

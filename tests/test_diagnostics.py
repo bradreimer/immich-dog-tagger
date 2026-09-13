@@ -5,9 +5,14 @@ from __future__ import annotations
 from datetime import timedelta
 from unittest.mock import Mock
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.api.dependencies import get_asset_repair_service, get_config
+from immich_dog_tagger.api.dependencies import (
+    get_asset_repair_service,
+    get_config,
+    get_derived_data_service,
+)
 from immich_dog_tagger.enums import (
     AssetStatus,
     PipelineJobStatus,
@@ -244,3 +249,109 @@ def test_repair_stale_detections_endpoint_include_reviewed_opt_in(api_client, en
     data = response.json()
     assert data == {"repaired": 1, "skipped_reviewed": 0, "failed": 0}
     mock_repair_service.repair.assert_called_once_with("asset-1")
+
+
+def _add_missing_crop_with_review(engine) -> str:
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="crop-asset-1",
+            checksum="abc",
+            extension=".jpg",
+            status=AssetStatus.DETECTED,
+        )
+        session.add(asset)
+        session.flush()
+
+        detection = Detection(
+            asset_id=asset.id, label="dog", confidence=0.9, x1=0, y1=0, x2=10, y2=10
+        )
+        session.add(detection)
+        session.flush()
+
+        crop = Crop(detection_id=detection.id, path="/nonexistent/missing-crop.jpg")
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop_id=crop.id, identity="Rex", confidence=0.8
+        )
+        session.add(classification)
+        session.flush()
+
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.CORRECT,
+                identity="Rex",
+            )
+        )
+        session.commit()
+
+        return asset.immich_asset_id
+
+
+def test_diagnostics_reports_reviewed_at_risk_for_derived_data(api_client, engine):
+    _add_missing_crop_with_review(engine)
+
+    data = api_client.get("/diagnostics").json()
+
+    assert data["derived_data"]["missing_crops"] == 1
+    assert data["derived_data"]["reviewed_at_risk"] == 1
+
+
+def test_diagnostics_reviewed_at_risk_is_zero_when_nothing_missing(api_client, engine):
+    data = api_client.get("/diagnostics").json()
+
+    assert data["derived_data"]["reviewed_at_risk"] == 0
+
+
+def test_repair_derived_data_endpoint_returns_service_summary(api_client, engine):
+    from immich_dog_tagger.services.derived_data import DerivedDataRepairSummary
+
+    mock_service = Mock()
+    mock_service.repair.return_value = DerivedDataRepairSummary(
+        downloads_repaired=2, crops_repaired=3, failed=1
+    )
+    api_client.app.dependency_overrides[get_derived_data_service] = lambda: mock_service
+
+    response = api_client.post("/diagnostics/derived-data/repair")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data == {
+        "downloads_repaired": 2,
+        "crops_repaired": 3,
+        "failed": 1,
+        "total_repaired": 5,
+    }
+    mock_service.repair.assert_called_once_with()
+
+
+def test_repair_derived_data_endpoint_repairs_missing_crop_end_to_end(
+    api_client, engine, tmp_path
+):
+    api_client.app.dependency_overrides[get_config] = lambda: _fake_config(tmp_path)
+
+    immich_asset_id = _add_missing_crop_with_review(engine)
+
+    response = api_client.post("/diagnostics/derived-data/repair")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data == {
+        "downloads_repaired": 0,
+        "crops_repaired": 1,
+        "failed": 0,
+        "total_repaired": 1,
+    }
+
+    with Session(engine) as session:
+        asset = session.scalar(
+            select(Asset).where(Asset.immich_asset_id == immich_asset_id)
+        )
+        assert asset.status == AssetStatus.DOWNLOADED
+        assert session.query(Detection).filter_by(asset_id=asset.id).count() == 0
+
+    follow_up = api_client.get("/diagnostics").json()
+    assert follow_up["derived_data"]["missing_crops"] == 0
+    assert follow_up["derived_data"]["reviewed_at_risk"] == 0

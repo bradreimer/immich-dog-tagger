@@ -29,6 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
+import { DerivedDataRepairAction } from "./components/DerivedDataRepairAction";
 import { StaleDetectionRepairAction } from "./components/StaleDetectionRepairAction";
 
 function formatOperation(operation: string): string {
@@ -330,6 +331,11 @@ export function OverviewPage() {
                 </p>
               </div>
             </div>
+
+            <DerivedDataRepairAction
+              status={diagnostics.derived_data}
+              onRepaired={() => void load({ silent: true })}
+            />
 
             <StaleDetectionRepairAction
               status={diagnostics.stale_detections}

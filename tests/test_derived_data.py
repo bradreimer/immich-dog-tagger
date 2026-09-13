@@ -6,13 +6,16 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.enums import ReviewActions
 from immich_dog_tagger.models import (
     Asset,
     AssetStatus,
     Crop,
+    CropClassification,
     Detection,
     EmbeddingExample,
     Identity,
+    ReviewAction,
 )
 from immich_dog_tagger.services.derived_data import (
     DerivedDataReport,
@@ -168,6 +171,7 @@ def test_report_as_dict_keys():
         "missing_crops",
         "missing_embedding_sources",
         "total_missing",
+        "reviewed_at_risk",
     } <= d.keys()
 
 
@@ -275,6 +279,120 @@ def test_check_derived_data_releases_session_before_scanning_disk(
         "a DB connection was still checked out of the pool during the disk scan"
     )
     assert report.missing_downloads == ["asset-1"]
+
+
+def test_check_reports_reviewed_at_risk_for_missing_crop(session, tmp_path):
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+    det = _make_detection(session, asset)
+    crop = _make_crop(session, det, str(tmp_path / "missing_crop.jpg"))
+
+    classification = CropClassification(crop_id=crop.id, identity="Rex", confidence=0.8)
+    session.add(classification)
+    session.flush()
+    session.add(
+        ReviewAction(
+            classification_id=classification.id,
+            action=ReviewActions.CORRECT,
+            identity="Rex",
+        )
+    )
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    report = svc.check()
+
+    assert report.missing_crops == [crop.path]
+    assert report.reviewed_at_risk == 1
+
+
+def test_check_reports_zero_reviewed_at_risk_when_missing_crop_never_reviewed(
+    session, tmp_path
+):
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+    det = _make_detection(session, asset)
+    _make_crop(session, det, str(tmp_path / "missing_crop.jpg"))
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+    report = svc.check()
+
+    assert report.reviewed_at_risk == 0
+
+
+def test_repair_isolates_a_failure_on_one_asset(session, tmp_path, monkeypatch):
+    # Issue #323/FR-6: DerivedDataService.repair() must not let one asset's
+    # failure abort the batch or leave an earlier, already-repaired asset's
+    # changes uncommitted.
+    cache_dir = tmp_path / "cache"
+    good_asset = _make_asset(session, immich_id="good", status=AssetStatus.DETECTED)
+    good_det = _make_detection(session, good_asset)
+    _make_crop(session, good_det, str(tmp_path / "good_missing.jpg"))
+
+    bad_asset = _make_asset(session, immich_id="bad", status=AssetStatus.DETECTED)
+    bad_det = _make_detection(session, bad_asset)
+    _make_crop(session, bad_det, str(tmp_path / "bad_missing.jpg"))
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+
+    original_get = session.get
+
+    def flaky_get(model, ident, *args, **kwargs):
+        obj = original_get(model, ident, *args, **kwargs)
+        if model is Asset and obj is not None and obj.immich_asset_id == "bad":
+            raise RuntimeError("boom")
+        return obj
+
+    monkeypatch.setattr(session, "get", flaky_get)
+
+    summary = svc.repair()
+
+    assert summary.crops_repaired == 1
+    assert summary.failed == 1
+
+    monkeypatch.setattr(session, "get", original_get)
+    session.refresh(good_asset)
+    session.refresh(bad_asset)
+
+    assert good_asset.status is AssetStatus.DOWNLOADED
+    assert session.query(Detection).filter_by(asset_id=good_asset.id).count() == 0
+
+    # The failing asset is untouched -- its stale detection/crop are still there.
+    assert bad_asset.status is AssetStatus.DETECTED
+    assert session.query(Detection).filter_by(asset_id=bad_asset.id).count() == 1
+
+
+def test_repair_isolates_a_failed_download_repair(session, tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    good_asset = _make_asset(session, immich_id="good")
+    bad_asset = _make_asset(session, immich_id="bad")
+    session.commit()
+
+    svc = DerivedDataService(session, cache_dir)
+
+    original_scalar = session.scalar
+
+    def flaky_scalar(statement, *args, **kwargs):
+        result = original_scalar(statement, *args, **kwargs)
+        if isinstance(result, Asset) and result.immich_asset_id == "bad":
+            raise RuntimeError("boom")
+        return result
+
+    monkeypatch.setattr(session, "scalar", flaky_scalar)
+
+    summary = svc.repair()
+
+    assert summary.downloads_repaired == 1
+    assert summary.failed == 1
+
+    monkeypatch.setattr(session, "scalar", original_scalar)
+    session.refresh(good_asset)
+    session.refresh(bad_asset)
+
+    assert good_asset.status is AssetStatus.DOWNLOAD_FAILED
+    assert bad_asset.status is AssetStatus.DOWNLOADED
 
 
 def test_repair_prioritizes_download_when_both_original_and_crop_missing(
