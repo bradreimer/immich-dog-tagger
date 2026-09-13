@@ -20,6 +20,14 @@ export interface DerivedDataStatus {
   missing_crops: number;
   missing_embedding_sources: number;
   total_missing: number;
+  reviewed_at_risk: number;
+}
+
+export interface DerivedDataRepairResult {
+  downloads_repaired: number;
+  crops_repaired: number;
+  failed: number;
+  total_repaired: number;
 }
 
 export interface StuckJob {

@@ -6,7 +6,11 @@ import type { Dog, DogMergeResult, Species } from "../types/dogs";
 import type { PipelineJob } from "../types/jobs";
 import type { JobOperation } from "../types/jobs";
 import type { PipelineSchedule } from "../types/schedules";
-import type { Diagnostics, StaleDetectionRepairResult } from "../types/diagnostics";
+import type {
+  Diagnostics,
+  DerivedDataRepairResult,
+  StaleDetectionRepairResult,
+} from "../types/diagnostics";
 import type { LearningMetrics, SpeciesTimeline } from "../types/metrics";
 import type { LibraryPage, LibrarySort } from "../types/library";
 import type {
@@ -683,6 +687,25 @@ export async function repairStaleDetections(
 
   if (!response.ok) {
     throw new Error("Failed to repair stale detections");
+  }
+
+  return response.json();
+}
+
+/**
+ * Batch-repairs every currently missing derived file (downloads, crops)
+ * flagged by GET /diagnostics.derived_data (docs/specs/broken-crop-auto-repair.md).
+ * Repairing a missing crop discards any review history recorded against it
+ * -- callers must show `derived_data.reviewed_at_risk` and confirm before
+ * calling this.
+ */
+export async function repairDerivedData(): Promise<DerivedDataRepairResult> {
+  const response = await fetch("/api/diagnostics/derived-data/repair", {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to repair derived data");
   }
 
   return response.json();

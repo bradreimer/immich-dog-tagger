@@ -789,6 +789,22 @@ class StaleDetectionRepairResponse(BaseModel):
         )
 
 
+class DerivedDataRepairResponse(BaseModel):
+    downloads_repaired: int
+    crops_repaired: int
+    failed: int
+    total_repaired: int
+
+    @classmethod
+    def from_summary(cls, summary):
+        return cls(
+            downloads_repaired=summary.downloads_repaired,
+            crops_repaired=summary.crops_repaired,
+            failed=summary.failed,
+            total_repaired=summary.total_repaired,
+        )
+
+
 class AssetRepairResponse(BaseModel):
     asset_id: int
     immich_asset_id: str

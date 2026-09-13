@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -12,9 +13,13 @@ from immich_dog_tagger.models import (
     Asset,
     AssetStatus,
     Crop,
+    CropClassification,
     Detection,
     EmbeddingExample,
+    ReviewAction,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,6 +27,11 @@ class DerivedDataReport:
     missing_downloads: list[str] = field(default_factory=list)  # immich_asset_ids
     missing_crops: list[str] = field(default_factory=list)  # crop paths
     missing_embedding_sources: list[str] = field(default_factory=list)  # example paths
+    # How many of the assets affected by missing_crops have recorded review
+    # history that repair() would discard (issue #323/FR-2) -- repair()
+    # deletes all of an affected asset's Detection rows, which cascades to
+    # any CropClassification/ReviewAction tied to them.
+    reviewed_at_risk: int = 0
 
     @property
     def healthy(self) -> bool:
@@ -46,6 +56,7 @@ class DerivedDataReport:
             "missing_crops": len(self.missing_crops),
             "missing_embedding_sources": len(self.missing_embedding_sources),
             "total_missing": self.total_missing,
+            "reviewed_at_risk": self.reviewed_at_risk,
         }
 
 
@@ -53,6 +64,7 @@ class DerivedDataReport:
 class DerivedDataRepairSummary:
     downloads_repaired: int = 0
     crops_repaired: int = 0
+    failed: int = 0
 
     @property
     def total_repaired(self) -> int:
@@ -61,7 +73,7 @@ class DerivedDataRepairSummary:
 
 def _load_check_candidates(
     session: Session, cache_dir: Path
-) -> tuple[list[tuple[str, Path]], list[str], list[str]]:
+) -> tuple[list[tuple[str, Path]], list[str], list[str], dict[str, int]]:
     """
     Query the (asset id, path) / path lists `check()` verifies against disk. Split out
     from the scan itself so a caller can release the session before doing that scan
@@ -84,11 +96,19 @@ def _load_check_candidates(
         .where(Asset.status != AssetStatus.REMOVED)
     ).all()
     crop_paths = [crop.path for crop in crops]
+    # Maps a crop's path back to its asset id, so a caller that only learns
+    # which paths are missing after the disk scan (see _scan_check_candidates)
+    # can still tell which assets those missing crops belong to (issue #323).
+    crop_path_to_asset_id = {
+        crop.path: crop.detection.asset_id
+        for crop in crops
+        if crop.detection is not None
+    }
 
     examples = session.scalars(select(EmbeddingExample)).all()
     example_paths = [example.crop_path for example in examples]
 
-    return asset_paths, crop_paths, example_paths
+    return asset_paths, crop_paths, example_paths, crop_path_to_asset_id
 
 
 def _scan_check_candidates(
@@ -113,6 +133,27 @@ def _scan_check_candidates(
     return report
 
 
+def _count_assets_with_review_history(session: Session, asset_ids: set[int]) -> int:
+    """
+    How many of `asset_ids` have at least one recorded ReviewAction --
+    the review history repairing a missing crop would discard (issue #323/
+    FR-2), mirroring StaleDetectionService._has_review_history's join shape.
+    """
+    if not asset_ids:
+        return 0
+
+    affected = session.scalars(
+        select(Detection.asset_id)
+        .join(Crop, Crop.detection_id == Detection.id)
+        .join(CropClassification, CropClassification.crop_id == Crop.id)
+        .join(ReviewAction, ReviewAction.classification_id == CropClassification.id)
+        .where(Detection.asset_id.in_(asset_ids))
+        .distinct()
+    ).all()
+
+    return len(affected)
+
+
 def check_derived_data(engine: Engine, cache_dir: Path) -> DerivedDataReport:
     """
     Same check as `DerivedDataService.check()`, for a caller that must not hold its
@@ -123,9 +164,28 @@ def check_derived_data(engine: Engine, cache_dir: Path) -> DerivedDataReport:
     pattern as `get_viewable_crop_path` (issue #277).
     """
     with Session(engine) as session:
-        candidates = _load_check_candidates(session, cache_dir)
+        asset_paths, crop_paths, example_paths, crop_path_to_asset_id = (
+            _load_check_candidates(session, cache_dir)
+        )
 
-    return _scan_check_candidates(*candidates)
+    report = _scan_check_candidates(asset_paths, crop_paths, example_paths)
+
+    affected_asset_ids = {
+        crop_path_to_asset_id[path]
+        for path in report.missing_crops
+        if path in crop_path_to_asset_id
+    }
+
+    if affected_asset_ids:
+        # A second short-lived session (issue #317) -- this is a DB-only
+        # lookup, not the slow per-file disk scan above, so it's fine to
+        # check a session back out of the pool briefly for it.
+        with Session(engine) as session:
+            report.reviewed_at_risk = _count_assets_with_review_history(
+                session, affected_asset_ids
+            )
+
+    return report
 
 
 class DerivedDataService:
@@ -134,8 +194,21 @@ class DerivedDataService:
         self.cache_dir = cache_dir
 
     def check(self) -> DerivedDataReport:
-        candidates = _load_check_candidates(self.session, self.cache_dir)
-        return _scan_check_candidates(*candidates)
+        asset_paths, crop_paths, example_paths, crop_path_to_asset_id = (
+            _load_check_candidates(self.session, self.cache_dir)
+        )
+        report = _scan_check_candidates(asset_paths, crop_paths, example_paths)
+
+        affected_asset_ids = {
+            crop_path_to_asset_id[path]
+            for path in report.missing_crops
+            if path in crop_path_to_asset_id
+        }
+        report.reviewed_at_risk = _count_assets_with_review_history(
+            self.session, affected_asset_ids
+        )
+
+        return report
 
     def repair(self) -> DerivedDataRepairSummary:
         """
@@ -144,6 +217,10 @@ class DerivedDataService:
         through the pipeline. Missing embedding sources are left alone --
         there is nothing to regenerate them from; that still needs a human
         (re-run learn/import-review).
+
+        Each asset is committed (or rolled back) individually so one asset's
+        failure can't abort the rest of the batch or leave an earlier,
+        already-repaired asset's changes uncommitted (issue #323/FR-6).
         """
         report = self.check()
         summary = DerivedDataRepairSummary()
@@ -151,20 +228,29 @@ class DerivedDataService:
         redownloading: set[str] = set()
 
         for immich_asset_id in report.missing_downloads:
-            asset = self.session.scalar(
-                select(Asset).where(Asset.immich_asset_id == immich_asset_id)
-            )
+            try:
+                asset = self.session.scalar(
+                    select(Asset).where(Asset.immich_asset_id == immich_asset_id)
+                )
 
-            if asset is None or asset.status != AssetStatus.DOWNLOADED:
-                continue
+                if asset is None or asset.status != AssetStatus.DOWNLOADED:
+                    continue
 
-            # Same routing DetectionService applies when it hits this itself
-            # mid-run (FR-8): DOWNLOAD_FAILED is included in
-            # Downloader.download_pending()'s default query, so the next
-            # plain `download` re-fetches it.
-            asset.status = AssetStatus.DOWNLOAD_FAILED
-            redownloading.add(immich_asset_id)
-            summary.downloads_repaired += 1
+                # Same routing DetectionService applies when it hits this itself
+                # mid-run (FR-8): DOWNLOAD_FAILED is included in
+                # Downloader.download_pending()'s default query, so the next
+                # plain `download` re-fetches it.
+                asset.status = AssetStatus.DOWNLOAD_FAILED
+                self.session.commit()
+                redownloading.add(immich_asset_id)
+                summary.downloads_repaired += 1
+            except Exception:
+                self.session.rollback()
+                logger.exception(
+                    "Derived-data download repair failed for asset %s",
+                    immich_asset_id,
+                )
+                summary.failed += 1
 
         if report.missing_crops:
             missing_paths = set(report.missing_crops)
@@ -177,41 +263,47 @@ class DerivedDataService:
             }
 
             for asset_id in affected_asset_ids:
-                asset = self.session.get(Asset, asset_id)
+                try:
+                    asset = self.session.get(Asset, asset_id)
 
-                if asset is None:
-                    continue
+                    if asset is None:
+                        continue
 
-                # Stale Detection/Crop rows have to go regardless of
-                # whether the original is also missing -- detect's own
-                # query only reprocesses an asset with *no* Detection rows
-                # (mirrors what `detect --force` already does for a live
-                # re-detect).
-                detections = self.session.scalars(
-                    select(Detection).where(Detection.asset_id == asset.id)
-                ).all()
+                    # Stale Detection/Crop rows have to go regardless of
+                    # whether the original is also missing -- detect's own
+                    # query only reprocesses an asset with *no* Detection rows
+                    # (mirrors what `detect --force` already does for a live
+                    # re-detect).
+                    detections = self.session.scalars(
+                        select(Detection).where(Detection.asset_id == asset.id)
+                    ).all()
 
-                for detection in detections:
-                    if detection.crop is not None:
-                        crop_path = Path(detection.crop.path)
+                    for detection in detections:
+                        if detection.crop is not None:
+                            crop_path = Path(detection.crop.path)
 
-                        if crop_path.exists():
-                            crop_path.unlink()
+                            if crop_path.exists():
+                                crop_path.unlink()
 
-                    self.session.delete(detection)
+                        self.session.delete(detection)
 
-                if asset.immich_asset_id not in redownloading:
-                    # Original is fine -- send it straight back to
-                    # DOWNLOADED so the next `detect` regenerates crops
-                    # from scratch. If the original is also missing, it's
-                    # already routed to DOWNLOAD_FAILED above; download
-                    # runs before detect in the pipeline, so it'll reach
-                    # detect again once that completes.
-                    asset.status = AssetStatus.DOWNLOADED
+                    if asset.immich_asset_id not in redownloading:
+                        # Original is fine -- send it straight back to
+                        # DOWNLOADED so the next `detect` regenerates crops
+                        # from scratch. If the original is also missing, it's
+                        # already routed to DOWNLOAD_FAILED above; download
+                        # runs before detect in the pipeline, so it'll reach
+                        # detect again once that completes.
+                        asset.status = AssetStatus.DOWNLOADED
 
-                summary.crops_repaired += 1
-
-        self.session.commit()
+                    self.session.commit()
+                    summary.crops_repaired += 1
+                except Exception:
+                    self.session.rollback()
+                    logger.exception(
+                        "Derived-data crop repair failed for asset id %s", asset_id
+                    )
+                    summary.failed += 1
 
         return summary
 

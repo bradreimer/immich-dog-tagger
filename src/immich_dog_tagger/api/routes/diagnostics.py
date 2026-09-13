@@ -9,16 +9,23 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.api.dependencies import (
     get_asset_repair_service,
     get_config,
+    get_derived_data_service,
     get_engine,
     get_job_service,
     get_session,
     get_stale_detection_service,
 )
-from immich_dog_tagger.api.schemas import StaleDetectionRepairResponse
+from immich_dog_tagger.api.schemas import (
+    DerivedDataRepairResponse,
+    StaleDetectionRepairResponse,
+)
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.backup import BackupService
-from immich_dog_tagger.services.derived_data import check_derived_data
+from immich_dog_tagger.services.derived_data import (
+    DerivedDataService,
+    check_derived_data,
+)
 from immich_dog_tagger.services.job_recovery import (
     STUCK_JOB_IDLE_THRESHOLD,
     find_stuck_jobs,
@@ -133,3 +140,20 @@ def repair_stale_detections(
     summary = service.repair(asset_repair_service, include_reviewed=include_reviewed)
 
     return StaleDetectionRepairResponse.from_summary(summary)
+
+
+@router.post(
+    "/diagnostics/derived-data/repair",
+    response_model=DerivedDataRepairResponse,
+)
+def repair_derived_data(
+    service: Annotated[DerivedDataService, Depends(get_derived_data_service)],
+):
+    # Batch-runs DerivedDataService.repair() (issue #194/#323) over every
+    # currently-missing download/crop: no per-asset opt-in like Stale
+    # Detections, since a missing derived file isn't reviewer-authored
+    # content -- the confirmation the UI shows beforehand (FR-4) states the
+    # review-history-at-risk count from GET /diagnostics instead.
+    summary = service.repair()
+
+    return DerivedDataRepairResponse.from_summary(summary)
