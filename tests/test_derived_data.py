@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
@@ -15,6 +17,7 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.derived_data import (
     DerivedDataReport,
     DerivedDataService,
+    check_derived_data,
 )
 
 
@@ -240,6 +243,38 @@ def test_repair_leaves_missing_embedding_sources_alone(session, tmp_path):
 
     report = svc.check()
     assert len(report.missing_embedding_sources) == 1
+
+
+def test_check_derived_data_releases_session_before_scanning_disk(
+    engine, tmp_path, monkeypatch
+):
+    """
+    Issue #317: GET /diagnostics held its pooled session checked out for the whole
+    derived-data filesystem scan, which under concurrent requests could exhaust the
+    connection pool. check_derived_data() must query and release its own session
+    before running the (potentially slow) per-file exists() checks.
+    """
+    cache_dir = tmp_path / "cache"
+    with Session(engine) as session:
+        _make_asset(session)
+        session.commit()
+
+    checked_out_during_scan: list[int] = []
+    real_exists = Path.exists
+
+    def spying_exists(self):
+        checked_out_during_scan.append(engine.pool.checkedout())
+        return real_exists(self)
+
+    monkeypatch.setattr(Path, "exists", spying_exists)
+
+    report = check_derived_data(engine, cache_dir)
+
+    assert checked_out_during_scan, "the disk scan never ran"
+    assert all(count == 0 for count in checked_out_during_scan), (
+        "a DB connection was still checked out of the pool during the disk scan"
+    )
+    assert report.missing_downloads == ["asset-1"]
 
 
 def test_repair_prioritizes_download_when_both_original_and_crop_missing(

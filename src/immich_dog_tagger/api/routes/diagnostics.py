@@ -3,11 +3,13 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import (
     get_asset_repair_service,
     get_config,
+    get_engine,
     get_job_service,
     get_session,
     get_stale_detection_service,
@@ -16,7 +18,7 @@ from immich_dog_tagger.api.schemas import StaleDetectionRepairResponse
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.backup import BackupService
-from immich_dog_tagger.services.derived_data import DerivedDataService
+from immich_dog_tagger.services.derived_data import check_derived_data
 from immich_dog_tagger.services.job_recovery import (
     STUCK_JOB_IDLE_THRESHOLD,
     find_stuck_jobs,
@@ -32,6 +34,7 @@ router = APIRouter()
 def diagnostics(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
+    engine: Annotated[Engine, Depends(get_engine)],
     config: Annotated[Config, Depends(get_config)],
     job_service: Annotated[PipelineJobService, Depends(get_job_service)],
 ):
@@ -55,9 +58,10 @@ def diagnostics(
     backups = backup_svc.list_backups()
     last_backup = backups[-1] if backups else None
 
-    # Derived data
-    derived_svc = DerivedDataService(session, config.cache_dir)
-    derived_report = derived_svc.check()
+    # Derived data. Uses its own short-lived session (issue #317) -- the per-file disk
+    # scan this does must not hold `session` above checked out of the pool for its
+    # duration.
+    derived_report = check_derived_data(engine, config.cache_dir)
 
     # Stale (EXIF-orientation) detections
     stale_report = StaleDetectionService(session).check()

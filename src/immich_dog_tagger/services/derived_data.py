@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.models import (
@@ -59,43 +59,83 @@ class DerivedDataRepairSummary:
         return self.downloads_repaired + self.crops_repaired
 
 
+def _load_check_candidates(
+    session: Session, cache_dir: Path
+) -> tuple[list[tuple[str, Path]], list[str], list[str]]:
+    """
+    Query the (asset id, path) / path lists `check()` verifies against disk. Split out
+    from the scan itself so a caller can release the session before doing that scan
+    (issue #317) -- see `check_derived_data` below.
+    """
+    assets = session.scalars(
+        select(Asset).where(Asset.status == AssetStatus.DOWNLOADED)
+    ).all()
+    asset_paths = [
+        (asset.immich_asset_id, asset.cache_path(cache_dir)) for asset in assets
+    ]
+
+    # Crops belonging to a reconciled-removed asset (issue #194) were
+    # deliberately deleted, not lost -- excluded here so they don't show up
+    # as something to repair forever.
+    crops = session.scalars(
+        select(Crop)
+        .join(Detection, Crop.detection_id == Detection.id)
+        .join(Asset, Detection.asset_id == Asset.id)
+        .where(Asset.status != AssetStatus.REMOVED)
+    ).all()
+    crop_paths = [crop.path for crop in crops]
+
+    examples = session.scalars(select(EmbeddingExample)).all()
+    example_paths = [example.crop_path for example in examples]
+
+    return asset_paths, crop_paths, example_paths
+
+
+def _scan_check_candidates(
+    asset_paths: list[tuple[str, Path]],
+    crop_paths: list[str],
+    example_paths: list[str],
+) -> DerivedDataReport:
+    report = DerivedDataReport()
+
+    for immich_asset_id, path in asset_paths:
+        if not path.exists():
+            report.missing_downloads.append(immich_asset_id)
+
+    for path in crop_paths:
+        if not Path(path).exists():
+            report.missing_crops.append(path)
+
+    for path in example_paths:
+        if not Path(path).exists():
+            report.missing_embedding_sources.append(path)
+
+    return report
+
+
+def check_derived_data(engine: Engine, cache_dir: Path) -> DerivedDataReport:
+    """
+    Same check as `DerivedDataService.check()`, for a caller that must not hold its
+    pooled DB session across the filesystem scan below. A large library can make that
+    scan take seconds; holding a session checked out for the duration let concurrent
+    requests (e.g. GET /diagnostics under UI polling) exhaust the connection pool
+    (issue #317). Opens and closes its own short-lived session for the query only, same
+    pattern as `get_viewable_crop_path` (issue #277).
+    """
+    with Session(engine) as session:
+        candidates = _load_check_candidates(session, cache_dir)
+
+    return _scan_check_candidates(*candidates)
+
+
 class DerivedDataService:
     def __init__(self, session: Session, cache_dir: Path) -> None:
         self.session = session
         self.cache_dir = cache_dir
 
     def check(self) -> DerivedDataReport:
-        report = DerivedDataReport()
-
-        # Check downloaded asset files
-        assets = self.session.scalars(
-            select(Asset).where(Asset.status == AssetStatus.DOWNLOADED)
-        ).all()
-        for asset in assets:
-            path = asset.cache_path(self.cache_dir)
-            if not path.exists():
-                report.missing_downloads.append(asset.immich_asset_id)
-
-        # Check crop files. Crops belonging to a reconciled-removed asset
-        # (issue #194) were deliberately deleted, not lost -- excluded here
-        # so they don't show up as something to repair forever.
-        crops = self.session.scalars(
-            select(Crop)
-            .join(Detection, Crop.detection_id == Detection.id)
-            .join(Asset, Detection.asset_id == Asset.id)
-            .where(Asset.status != AssetStatus.REMOVED)
-        ).all()
-        for crop in crops:
-            if not Path(crop.path).exists():
-                report.missing_crops.append(crop.path)
-
-        # Check embedding example source files
-        examples = self.session.scalars(select(EmbeddingExample)).all()
-        for example in examples:
-            if not Path(example.crop_path).exists():
-                report.missing_embedding_sources.append(example.crop_path)
-
-        return report
+        candidates = _load_check_candidates(self.session, self.cache_dir)
+        return _scan_check_candidates(*candidates)
 
     def repair(self) -> DerivedDataRepairSummary:
         """
