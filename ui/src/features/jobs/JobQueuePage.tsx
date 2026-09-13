@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { cancelJob, clearJobHistory, getDiagnostics, getJobs } from "../../lib/api";
 import { jobBadgeClassName, jobCardClassName } from "../../lib/statusColors";
+import { usePolling } from "../../lib/usePolling";
 import type { JobOperation, PipelineJob } from "../../types/jobs";
 import type { Diagnostics } from "../../types/diagnostics";
 import { IconAlertTriangle, IconLoader2, IconPlayerStop, IconRefresh, IconTrash, IconX } from "@tabler/icons-react";
@@ -237,17 +238,7 @@ export function JobQueuePage() {
 
   const hasActiveJobs = groups.running.length + groups.pending.length > 0;
 
-  useEffect(() => {
-    if (!hasActiveJobs) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      void load({ silent: true });
-    }, 3000);
-
-    return () => window.clearInterval(timer);
-  }, [hasActiveJobs, load]);
+  usePolling(() => load({ silent: true }), 3000, hasActiveJobs);
 
   return (
     <section className="space-y-6">
