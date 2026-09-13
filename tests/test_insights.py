@@ -125,6 +125,7 @@ def test_summary_with_no_occurrences_is_all_zero(session):
 
     summary = InsightsService(session).summary(identity.id)
 
+    assert summary.identity_species == Species.DOG
     assert summary.total_photos == 0
     assert summary.first_seen is None
     assert summary.last_seen is None

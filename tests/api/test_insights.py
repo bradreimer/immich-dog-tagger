@@ -68,6 +68,7 @@ def test_insights_endpoints_return_derived_data(api_client, engine):
     assert summary.status_code == 200
     body = summary.json()
     assert body["identity_name"] == "Hermann"
+    assert body["identity_species"] == "dog"
     assert body["total_photos"] == 1
     assert "top_place" not in body
     assert "top_person" not in body

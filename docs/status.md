@@ -858,6 +858,15 @@
   empty-state copy since "every photo was manually tagged" is no longer a real reason for it to be
   empty. See [docs/specs/top-photos-by-clarity.md](specs/top-photos-by-clarity.md).
 
+- [#315](https://github.com/bradreimer/immich-dog-tagger/issues/315) added a "Continue browsing in
+  Library" link at the bottom-right of the Insights Top photos panel, so a pet's highest-clarity
+  photos aren't a dead end -- it opens the Library tab pre-filtered to that same species/pet via
+  the query params `libraryUrlState.ts` already parses (`?species=&identity=`), the same bridge
+  pattern issue #289 established in the other direction (Library -> Review). Only rendered when at
+  least one top photo exists. `InsightsSummary`/`GET /dogs/{id}/insights/summary` gained
+  `identity_species`, needed to build the species-scoped link since the Insights page didn't
+  previously know a pet's species.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

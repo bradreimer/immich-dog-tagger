@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   IconArrowLeft,
+  IconArrowRight,
   IconCalendarStats,
   IconClock,
   IconHeart,
@@ -177,24 +178,40 @@ export function DogInsightsPage({ dogId, onNavigate }: Props) {
             <CardHeader>
               <CardTitle>Top photos</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               {topPhotos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No photos available yet.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {topPhotos.map((photo) => (
-                    <div key={photo.asset_id} className="space-y-1">
-                      <img
-                        src={`/api/crops/${photo.crop_id}`}
-                        alt={`${summary.identity_name}`}
-                        className="aspect-square w-full rounded-md object-cover"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(photo.captured_at)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    {topPhotos.map((photo) => (
+                      <div key={photo.asset_id} className="space-y-1">
+                        <img
+                          src={`/api/crops/${photo.crop_id}`}
+                          alt={`${summary.identity_name}`}
+                          className="aspect-square w-full rounded-md object-cover"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(photo.captured_at)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        onNavigate(
+                          `/library?species=${summary.identity_species}&identity=${encodeURIComponent(summary.identity_name)}`,
+                        )
+                      }
+                    >
+                      Continue browsing in Library
+                      <IconArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
