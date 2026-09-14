@@ -43,6 +43,15 @@ class PhotoLookup:
     exif_width: int | None
     exif_height: int | None
     exif_orientation: int | None
+    # Cached from Immich's own exifInfo (issue #94), surfaced here so a
+    # Repair-driven refresh of these fields (issue #326) is visible on this
+    # page -- `None` when Immich genuinely has no GPS data for the asset,
+    # same meaning as on Asset itself.
+    latitude: float | None
+    longitude: float | None
+    country: str | None
+    state: str | None
+    city: str | None
 
 
 class PhotoLookupService:
@@ -74,6 +83,11 @@ class PhotoLookupService:
             exif_width=asset.exif_width,
             exif_height=asset.exif_height,
             exif_orientation=asset.exif_orientation,
+            latitude=asset.latitude,
+            longitude=asset.longitude,
+            country=asset.country,
+            state=asset.state,
+            city=asset.city,
         )
 
     def _to_detection(self, detection: Detection) -> PhotoLookupDetection:

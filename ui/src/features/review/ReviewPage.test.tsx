@@ -205,6 +205,12 @@ describe("ReviewPage", () => {
       cats: 0,
       classified: 1,
       message: "Repaired.",
+      captured_at: null,
+      latitude: null,
+      longitude: null,
+      country: null,
+      state: null,
+      city: null,
     });
     const onNavigateRepaired = vi.fn();
     render(<ReviewPage onNavigate={onNavigateRepaired} />);

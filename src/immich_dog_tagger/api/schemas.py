@@ -723,6 +723,11 @@ class PhotoLookupResponse(BaseModel):
     asset_id: int
     immich_asset_id: str
     captured_at: datetime | None
+    latitude: float | None
+    longitude: float | None
+    country: str | None
+    state: str | None
+    city: str | None
     detections: list[PhotoLookupDetectionResponse]
 
     @classmethod
@@ -731,6 +736,11 @@ class PhotoLookupResponse(BaseModel):
             asset_id=lookup.asset_id,
             immich_asset_id=lookup.immich_asset_id,
             captured_at=lookup.captured_at,
+            latitude=lookup.latitude,
+            longitude=lookup.longitude,
+            country=lookup.country,
+            state=lookup.state,
+            city=lookup.city,
             detections=[
                 PhotoLookupDetectionResponse(
                     detection_id=detection.detection_id,
@@ -814,6 +824,12 @@ class AssetRepairResponse(BaseModel):
     cats: int
     classified: int
     message: str
+    captured_at: datetime | None
+    latitude: float | None
+    longitude: float | None
+    country: str | None
+    state: str | None
+    city: str | None
 
     @classmethod
     def from_result(cls, result):
@@ -826,4 +842,10 @@ class AssetRepairResponse(BaseModel):
             cats=result.cats,
             classified=result.classified,
             message=result.message,
+            captured_at=result.captured_at,
+            latitude=result.latitude,
+            longitude=result.longitude,
+            country=result.country,
+            state=result.state,
+            city=result.city,
         )

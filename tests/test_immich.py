@@ -6,6 +6,7 @@ import pytest
 from immich_dog_tagger.immich import (
     ImmichAddAssetsToAlbumError,
     ImmichClient,
+    ImmichGetAssetError,
     ImmichRemoveAssetsFromAlbumError,
     ImmichTagAssetsError,
     ImmichUntagAssetsError,
@@ -676,3 +677,64 @@ def test_client_creation():
     )
 
     assert client.client is not None
+
+
+def test_get_asset_fetches_single_asset_by_id():
+    # Issue #326: AssetRepairService refreshes one asset's metadata without
+    # paging the whole library through list_assets().
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+
+        return httpx.Response(
+            200,
+            json={
+                "id": "abc123",
+                "originalFileName": "dog.jpg",
+                "checksum": "xyz",
+                "fileCreatedAt": "2024-05-01T12:00:00.000Z",
+                "isFavorite": True,
+                "exifInfo": {
+                    "latitude": 47.6,
+                    "longitude": -122.3,
+                    "city": "Seattle",
+                    "state": "Washington",
+                    "country": "United States",
+                    "exifImageWidth": 4000,
+                    "exifImageHeight": 3000,
+                    "orientation": "1",
+                },
+                "people": [{"id": "p1", "name": "Brad"}],
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    asset = client.get_asset("abc123")
+
+    assert len(requests) == 1
+    assert requests[0].url.path == "/api/assets/abc123"
+    assert asset.id == "abc123"
+    assert asset.filename == "dog.jpg"
+    assert asset.is_favorite is True
+    assert asset.latitude == 47.6
+    assert asset.city == "Seattle"
+    assert asset.exif_width == 4000
+    assert [person.id for person in asset.people] == ["p1"]
+
+
+def test_get_asset_raises_on_http_error():
+    def handler(request):
+        return httpx.Response(404, text="not found")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichGetAssetError):
+        client.get_asset("does-not-exist")

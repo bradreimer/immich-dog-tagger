@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import numpy as np
@@ -8,6 +9,7 @@ from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.enums import AssetStatus, ReviewActions, Species
+from immich_dog_tagger.immich import ImmichAsset, ImmichGetAssetError
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -21,6 +23,18 @@ from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
+
+_REFRESHED_METADATA = ImmichAsset(
+    id="target",
+    filename="target.jpg",
+    checksum="xyz",
+    captured_at=datetime(2024, 5, 1, 12, 0, tzinfo=UTC),
+    latitude=47.6,
+    longitude=-122.3,
+    country="United States",
+    state="Washington",
+    city="Seattle",
+)
 
 
 class FakeDetector:
@@ -63,6 +77,7 @@ class FakeBatchEmbedder:
 def _build_service(session, tmp_path):
     client = Mock()
     client.download_asset.return_value = b"image data"
+    client.get_asset.return_value = _REFRESHED_METADATA
 
     classifier = Mock()
     classifier.classify.return_value = ClassificationResult(
@@ -298,3 +313,63 @@ def test_repair_raises_for_unknown_asset(engine, tmp_path):
 
         with pytest.raises(ValueError):
             service.repair("does-not-exist")
+
+
+def test_repair_refreshes_captured_at_and_location_from_immich(engine, tmp_path):
+    # Issue #326: Repair now also pulls the asset's current timestamp/
+    # location/other Immich-cached metadata, not just re-detection -- a
+    # correction made in Immich after the photo was first scanned (a fixed
+    # date, a corrected GPS location) previously had no way into state.db
+    # short of a full library rescan, and captured_at wasn't even refreshed
+    # by that.
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="target",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DETECTED,
+            captured_at=datetime(2019, 1, 1, tzinfo=UTC),
+        )
+        session.add(asset)
+        session.commit()
+
+        service, client = _build_service(session, tmp_path)
+
+        result = service.repair("target")
+
+        client.get_asset.assert_called_once_with("target")
+        assert result.captured_at == _REFRESHED_METADATA.captured_at
+        assert result.latitude == _REFRESHED_METADATA.latitude
+        assert result.longitude == _REFRESHED_METADATA.longitude
+        assert result.country == _REFRESHED_METADATA.country
+        assert result.state == _REFRESHED_METADATA.state
+        assert result.city == _REFRESHED_METADATA.city
+
+        session.refresh(asset)
+        assert asset.captured_at == _REFRESHED_METADATA.captured_at
+        assert asset.city == "Seattle"
+
+
+def test_repair_short_circuits_when_metadata_fetch_fails(engine, tmp_path):
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="target",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DETECTED,
+            captured_at=datetime(2019, 1, 1, tzinfo=UTC),
+        )
+        session.add(asset)
+        session.commit()
+        original_captured_at = asset.captured_at
+
+        service, client = _build_service(session, tmp_path)
+        client.get_asset.side_effect = ImmichGetAssetError("boom")
+
+        result = service.repair("target")
+
+        assert "could not refresh photo metadata" in result.message
+        client.download_asset.assert_not_called()
+
+        session.refresh(asset)
+        assert asset.captured_at == original_captured_at

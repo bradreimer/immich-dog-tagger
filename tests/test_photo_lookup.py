@@ -35,6 +35,33 @@ def test_get_returns_asset_with_no_detections(engine):
         assert lookup.detections == []
 
 
+def test_get_includes_location(engine):
+    # Issue #326: location is surfaced here so a Repair-driven metadata
+    # refresh is actually visible on the Photo Lookup page.
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="asset-location",
+            extension=".jpg",
+            latitude=47.6,
+            longitude=-122.3,
+            country="United States",
+            state="Washington",
+            city="Seattle",
+        )
+
+        session.add(asset)
+        session.commit()
+
+        lookup = PhotoLookupService(session).get("asset-location")
+
+        assert lookup is not None
+        assert lookup.latitude == 47.6
+        assert lookup.longitude == -122.3
+        assert lookup.country == "United States"
+        assert lookup.state == "Washington"
+        assert lookup.city == "Seattle"
+
+
 def test_get_includes_detection_box_and_classification(engine):
     with Session(engine) as session:
         asset = Asset(

@@ -16,6 +16,11 @@ export interface PhotoLookupResult {
   asset_id: number;
   immich_asset_id: string;
   captured_at: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  country: string | null;
+  state: string | null;
+  city: string | null;
   detections: PhotoLookupDetection[];
 }
 
@@ -25,7 +30,10 @@ export interface DetectionAssignResult {
   classification_id: number | null;
 }
 
-/** Result of forcing one asset back through download/detect/classify (issue #226). */
+/**
+ * Result of forcing one asset back through download/detect/classify and
+ * refreshing its Immich-cached metadata (issues #226, #326).
+ */
 export interface AssetRepairResult {
   asset_id: number;
   immich_asset_id: string;
@@ -35,4 +43,10 @@ export interface AssetRepairResult {
   cats: number;
   classified: number;
   message: string;
+  captured_at: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  country: string | null;
+  state: string | null;
+  city: string | null;
 }

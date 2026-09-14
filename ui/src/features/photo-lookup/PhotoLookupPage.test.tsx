@@ -27,6 +27,11 @@ function buildResult(): PhotoLookupResult {
     asset_id: 1,
     immich_asset_id: "asset-42",
     captured_at: "2026-01-05T12:00:00Z",
+    latitude: null,
+    longitude: null,
+    country: null,
+    state: null,
+    city: null,
     detections: [
       {
         detection_id: 1,
@@ -294,6 +299,36 @@ describe("PhotoLookupPage", () => {
 
     expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
     expect(await screen.findAllByText("Unknown (dog)")).not.toHaveLength(0);
+  });
+
+  it("shows the photo's location next to its taken date when Immich has one (issue #326)", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue({
+      ...buildResult(),
+      city: "Seattle",
+      state: "Washington",
+      country: "United States",
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    expect(
+      await screen.findByText(/Seattle, Washington, United States/),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the location text when Immich has no location for the photo", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue(buildResult());
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    await screen.findAllByText("Hermann (dog)");
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
   });
 
   it("shows a distinct message when no dogs or cats were detected", async () => {

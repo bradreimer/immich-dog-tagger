@@ -205,7 +205,7 @@ class Scanner:
             # photo file itself changing, and this is already the same
             # response the scan just fetched (issue #94), not an extra
             # request.
-            _apply_immich_metadata(existing, immich_asset)
+            apply_immich_metadata(existing, immich_asset)
 
             return changed
 
@@ -215,14 +215,21 @@ class Scanner:
             extension=immich_asset.extension,
             captured_at=immich_asset.captured_at,
         )
-        _apply_immich_metadata(asset, immich_asset)
+        apply_immich_metadata(asset, immich_asset)
 
         self.session.add(asset)
 
         return 1
 
 
-def _apply_immich_metadata(asset: Asset, immich_asset: ImmichAsset) -> None:
+def apply_immich_metadata(asset: Asset, immich_asset: ImmichAsset) -> None:
+    """
+    Public (not scan-only) so AssetRepairService.repair() can reuse the same
+    field mapping for its per-asset metadata refresh (issue #326) instead of
+    duplicating it. Does not touch captured_at -- see repair()'s own
+    docstring for why that stays a separate assignment there rather than
+    folding into this shared helper.
+    """
     asset.latitude = immich_asset.latitude
     asset.longitude = immich_asset.longitude
     asset.country = immich_asset.country
