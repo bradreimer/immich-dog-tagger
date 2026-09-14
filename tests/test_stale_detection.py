@@ -11,6 +11,7 @@ from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.enums import AssetStatus, ReviewActions
+from immich_dog_tagger.immich import ImmichAsset
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -186,6 +187,15 @@ class FakeBatchEmbedder:
 def _build_repair_service(session, tmp_path):
     client = Mock()
     client.download_asset.return_value = b"image data"
+    # AssetRepairService.repair() also refreshes Immich-cached metadata
+    # (issue #326) via client.get_asset() before it touches detect/classify
+    # -- an unconfigured Mock() return value isn't a real ImmichAsset, so
+    # apply_immich_metadata() blows up iterating its .people.
+    client.get_asset.return_value = ImmichAsset(
+        id="asset-1",
+        filename="asset-1.jpg",
+        checksum="xyz",
+    )
 
     classifier = Mock()
     classifier.classify.return_value = ClassificationResult(

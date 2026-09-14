@@ -14,7 +14,9 @@ interface Props {
 /**
  * Forces one photo back through download/detect/classify (issue #226), for
  * when its detections look stale (predate the EXIF-orientation fix, #137)
- * rather than simply un-reviewed. Renders nothing without an asset id.
+ * rather than simply un-reviewed. Also refreshes this photo's Immich-cached
+ * timestamp/location/other metadata (issue #326). Renders nothing without an
+ * asset id.
  *
  * Discards this photo's current Detection/Crop/CropClassification rows --
  * and, with them, any review already recorded against them -- so this asks
@@ -51,7 +53,8 @@ export function RepairButton({ immichAssetId, onRepaired }: Props) {
         <IconAlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
 
         <span className="text-sm text-muted-foreground">
-          Re-detects this photo and discards any review recorded for it. Continue?
+          Re-detects this photo and discards any review recorded for it, and refreshes its
+          timestamp/location from Immich. Continue?
         </span>
 
         <Button variant="destructive" size="sm" onClick={repair} disabled={repairing}>

@@ -23,6 +23,18 @@ import type { AssetRepairResult, PhotoLookupResult } from "@/types/photoLookup";
 import { DetectionList } from "./components/DetectionList";
 import { PhotoLookupImage } from "./components/PhotoLookupImage";
 
+// Immich's exifInfo location fields (city/state/country), joined for
+// display -- `null` when Immich genuinely has no GPS data for the photo,
+// same meaning as on the Asset row itself. Surfaced here so a Repair-driven
+// refresh of these fields (issue #326) is actually visible on this page.
+function formatLocation(result: PhotoLookupResult): string | null {
+  const parts = [result.city, result.state, result.country].filter(
+    (part): part is string => Boolean(part),
+  );
+
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export function PhotoLookupPage() {
   const [urlInput, setUrlInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,6 +170,8 @@ export function PhotoLookupPage() {
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
   };
 
+  const locationText = result ? formatLocation(result) : null;
+
   return (
     <section className="space-y-6">
       <Card>
@@ -189,6 +203,7 @@ export function PhotoLookupPage() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <p className="text-sm text-muted-foreground">
               Taken {formatDate(result.captured_at)}
+              {locationText && ` · ${locationText}`}
             </p>
 
             <RepairButton

@@ -18,7 +18,13 @@ function buildResult(overrides: Partial<AssetRepairResult> = {}): AssetRepairRes
     dogs: 1,
     cats: 0,
     classified: 1,
-    message: "Repaired: 1 detection(s) found, 1 classified.",
+    message: "Repaired: 1 detection(s) found, 1 classified. Metadata refreshed from Immich.",
+    captured_at: "2024-05-01T12:00:00Z",
+    latitude: 47.6,
+    longitude: -122.3,
+    country: "United States",
+    state: "Washington",
+    city: "Seattle",
     ...overrides,
   };
 }

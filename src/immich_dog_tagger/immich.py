@@ -46,6 +46,10 @@ class ImmichListAssetsError(Exception):
     pass
 
 
+class ImmichGetAssetError(Exception):
+    pass
+
+
 class ImmichListAlbumsError(Exception):
     pass
 
@@ -278,6 +282,32 @@ class ImmichClient:
                 break
 
         return assets
+
+    def get_asset(
+        self,
+        asset_id: str,
+    ) -> ImmichAsset:
+        """
+        Fetch current metadata for a single asset -- for a per-asset refresh
+        (issue #326's Repair addendum) where paging the whole library through
+        list_assets() just to pick up one row would be wasteful. Immich's
+        AssetResponseDto carries the same originalFileName/checksum/
+        fileCreatedAt/exifInfo/people/isFavorite fields list_assets() already
+        parses via _parse_immich_asset(), so the same parser is reused here.
+        """
+
+        response = self.client.get(
+            f"{self.url}/api/assets/{asset_id}",
+        )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichGetAssetError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
+
+        return _parse_immich_asset(response.json())
 
     def download_asset(
         self,

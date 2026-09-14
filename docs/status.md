@@ -879,6 +879,18 @@
   instead of one final commit at the end, so one asset's failure can't abort the rest of the
   batch or leave an earlier asset's already-repaired state uncommitted.
 
+- [#326](https://github.com/bradreimer/immich-dog-tagger/issues/326) extended the per-photo Repair
+  action (`AssetRepairService.repair()`, issue #226) to also refresh the asset's Immich-cached
+  timestamp/location/other metadata (`captured_at`, latitude/longitude/country/state/city,
+  `is_favorite`, `people`, `exif_*`), fetched via a new `ImmichClient.get_asset()` single-asset
+  call rather than paging the whole library. Refreshed and committed before the destructive
+  download/detect/classify steps, so a later pipeline failure doesn't discard it, and a metadata-
+  fetch failure short-circuits Repair with a clear message instead of proceeding. Location is now
+  also surfaced on Photo Lookup (`PhotoLookupService`/`PhotoLookupResponse` gain latitude/
+  longitude/country/state/city) next to the existing "Taken {date}" line, which already reflected
+  the timestamp refresh via the page's existing post-repair re-fetch. See
+  [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s new addendum.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

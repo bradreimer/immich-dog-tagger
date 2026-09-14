@@ -293,5 +293,41 @@ endpoint already returns (the real crop species, or the raw YOLO label for a cro
 the #261 addendum above) rather than adding a new field. A "not a dog or cat" detection is unchanged;
 it keeps showing "Not a dog or cat" with no species suffix.
 
+## Addendum: Repair also refreshes Immich-cached timestamp/location metadata (issue #326)
+
+`AssetRepairService.repair()` (issue #226) already forces one asset back through
+download -> detect -> classify against Immich, but it never touched `Asset.captured_at` or the
+location columns (`latitude`/`longitude`/`country`/`state`/`city`) -- those were only ever
+refreshed by a full library `scan()` (`Scanner._process_asset()` -> `_apply_immich_metadata()`),
+and even there `captured_at` was never reassigned for an existing row, only set once at creation.
+A self-hoster who corrects a photo's date or GPS in Immich after it was already scanned had no way
+to get that correction into `state.db` short of a full rescan, and `captured_at` wasn't fixed by
+that either.
+
+Repair now also refreshes this asset's Immich-cached metadata, since it already means "get this
+one asset's local state back in sync with Immich" -- the same category of operation as the
+detect/classify re-run it already does, not a separate concern.
+
+- `ImmichClient.get_asset(asset_id)` fetches a single asset (`GET /api/assets/{id}`), reusing the
+  existing `_parse_immich_asset()` item parser rather than paging the whole library through
+  `list_assets()` just to refresh one row.
+- `repair()` fetches and applies this metadata (`captured_at`, latitude/longitude/country/state/
+  city, `is_favorite`, `people`, `exif_*`, reusing `scanner.py`'s field mapping) and commits it
+  before the download/detect/classify steps, so a later pipeline failure doesn't also discard the
+  metadata refresh. A metadata-fetch failure itself short-circuits Repair with the same
+  clear-failure-message pattern the download/detection failure branches already use, without
+  attempting the rest of the pipeline.
+- Refreshing `captured_at` during an ordinary full-library `scan()` is a separate, pre-existing
+  gap and stays out of scope here -- only the per-asset Repair path gains it.
+- The Photo Lookup page's existing "Taken {date}" line already reflects the refresh automatically
+  (it re-fetches the lookup after a repair). Location is now also surfaced there -- `latitude`/
+  `longitude`/`country`/`state`/`city` are added to `PhotoLookupService`/`PhotoLookupResponse`, and
+  a simple location line renders next to the date -- otherwise a successful location refresh would
+  be invisible in the UI. `is_favorite`/`people`/exif dimensions stay `state.db`-only for now, same
+  as before this addendum.
+- This is still the one Repair action, not a second control: the confirm copy is updated to
+  mention the metadata refresh, but the existing destructive behavior (re-detect/re-classify,
+  discarding prior review history for the asset) is unchanged.
+
 ## Open questions
 - None, other than the addenda above.
