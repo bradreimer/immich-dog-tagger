@@ -337,8 +337,14 @@ def test_repair_refreshes_captured_at_and_location_from_immich(engine, tmp_path)
 
         result = service.repair("target")
 
+        # SQLite's DateTime column round-trips naive (no tzinfo) even though
+        # ImmichAsset.captured_at is tz-aware -- the comparison here drops
+        # tzinfo on the expected side to match, same as Asset.captured_at
+        # does everywhere else in this codebase.
+        expected_captured_at = _REFRESHED_METADATA.captured_at.replace(tzinfo=None)
+
         client.get_asset.assert_called_once_with("target")
-        assert result.captured_at == _REFRESHED_METADATA.captured_at
+        assert result.captured_at == expected_captured_at
         assert result.latitude == _REFRESHED_METADATA.latitude
         assert result.longitude == _REFRESHED_METADATA.longitude
         assert result.country == _REFRESHED_METADATA.country
@@ -346,7 +352,7 @@ def test_repair_refreshes_captured_at_and_location_from_immich(engine, tmp_path)
         assert result.city == _REFRESHED_METADATA.city
 
         session.refresh(asset)
-        assert asset.captured_at == _REFRESHED_METADATA.captured_at
+        assert asset.captured_at == expected_captured_at
         assert asset.city == "Seattle"
 
 
