@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { JobQueueSkeleton } from "./components/JobQueueSkeleton";
 
 // Mirrors CANCELABLE_WHILE_RUNNING in services/jobs.py -- these are the
 // only operations with an incremental commit checkpoint to roll back to
@@ -252,10 +253,14 @@ export function JobQueuePage() {
         </div>
 
         <Button variant="outline" onClick={() => load()} disabled={loading}>
-          <IconRefresh className="h-4 w-4" aria-hidden="true" />
-          Refresh
+          <IconRefresh className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+          {loading ? "Refreshing…" : "Refresh"}
         </Button>
       </header>
+
+      <span role="status" className="sr-only">
+        {loading ? "Loading job queue…" : "Job queue loaded"}
+      </span>
 
       {error && (
         <Card>
@@ -288,106 +293,112 @@ export function JobQueuePage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Running
-            {groups.running.length > 0 && (
-              <IconLoader2
-                className="h-4 w-4 animate-spin text-muted-foreground"
-                aria-hidden="true"
-              />
-            )}
-          </CardTitle>
-          <CardDescription>{groups.running.length} active jobs</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {groups.running.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No running jobs.</p>
-          ) : (
-            groups.running.map((job) => (
-              <JobRow
-                key={job.id}
-                job={job}
-                canceling={cancelingIds.has(job.id)}
-                onCancel={handleCancel}
-              />
-            ))
-          )}
-        </CardContent>
-      </Card>
+      {loading && jobs.length === 0 && !error ? (
+        <JobQueueSkeleton />
+      ) : (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Running
+                {groups.running.length > 0 && (
+                  <IconLoader2
+                    className="h-4 w-4 animate-spin text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                )}
+              </CardTitle>
+              <CardDescription>{groups.running.length} active jobs</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {groups.running.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No running jobs.</p>
+              ) : (
+                groups.running.map((job) => (
+                  <JobRow
+                    key={job.id}
+                    job={job}
+                    canceling={cancelingIds.has(job.id)}
+                    onCancel={handleCancel}
+                  />
+                ))
+              )}
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending</CardTitle>
-          <CardDescription>{groups.pending.length} queued jobs</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {groups.pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending jobs.</p>
-          ) : (
-            groups.pending.map((job) => (
-              <JobRow
-                key={job.id}
-                job={job}
-                canceling={cancelingIds.has(job.id)}
-                onCancel={handleCancel}
-              />
-            ))
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending</CardTitle>
+              <CardDescription>{groups.pending.length} queued jobs</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {groups.pending.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pending jobs.</p>
+              ) : (
+                groups.pending.map((job) => (
+                  <JobRow
+                    key={job.id}
+                    job={job}
+                    canceling={cancelingIds.has(job.id)}
+                    onCancel={handleCancel}
+                  />
+                ))
+              )}
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <div>
-            <CardTitle>History</CardTitle>
-            <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <div>
+                <CardTitle>History</CardTitle>
+                <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
+              </div>
 
-          {clearConfirming ? (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={clearVisibleHistory}
-                disabled={clearing}
-              >
-                <IconTrash className="h-4 w-4" aria-hidden="true" />
-                {clearing ? "Clearing…" : "Yes, clear list"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setClearConfirming(false)}
-                disabled={clearing}
-              >
-                <IconX className="h-4 w-4" aria-hidden="true" />
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setClearConfirming(true)}
-              disabled={groups.history.length === 0 || clearing}
-            >
-              <IconTrash className="h-4 w-4" aria-hidden="true" />
-              Clear list
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {groups.history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No job history yet.</p>
-          ) : (
-            groups.history.map((job) => (
-              <JobRow key={job.id} job={job} canceling={false} onCancel={handleCancel} />
-            ))
-          )}
-        </CardContent>
-      </Card>
+              {clearConfirming ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={clearVisibleHistory}
+                    disabled={clearing}
+                  >
+                    <IconTrash className="h-4 w-4" aria-hidden="true" />
+                    {clearing ? "Clearing…" : "Yes, clear list"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setClearConfirming(false)}
+                    disabled={clearing}
+                  >
+                    <IconX className="h-4 w-4" aria-hidden="true" />
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setClearConfirming(true)}
+                  disabled={groups.history.length === 0 || clearing}
+                >
+                  <IconTrash className="h-4 w-4" aria-hidden="true" />
+                  Clear list
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {groups.history.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No job history yet.</p>
+              ) : (
+                groups.history.map((job) => (
+                  <JobRow key={job.id} job={job} canceling={false} onCancel={handleCancel} />
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </section>
   );
 }

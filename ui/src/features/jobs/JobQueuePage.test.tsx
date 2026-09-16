@@ -59,6 +59,26 @@ describe("JobQueuePage", () => {
     vi.mocked(api.getDiagnostics).mockRejectedValue(new Error("unavailable"));
   });
 
+  it("shows a loading indicator during the initial load and hides it once jobs arrive", async () => {
+    let resolveJobs: (jobs: PipelineJob[]) => void = () => {};
+    vi.mocked(api.getJobs).mockReturnValue(
+      new Promise<PipelineJob[]>((resolve) => {
+        resolveJobs = resolve;
+      }),
+    );
+
+    render(<JobQueuePage />);
+
+    expect(screen.getByText("Loading job queue…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeInTheDocument();
+    expect(screen.queryByText("No running jobs.")).not.toBeInTheDocument();
+
+    resolveJobs([buildJob()]);
+
+    await waitFor(() => expect(screen.getByText("Job queue loaded")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+  });
+
   it("asks for confirmation before clearing job history", async () => {
     vi.mocked(api.getJobs).mockResolvedValue([buildJob()]);
 
