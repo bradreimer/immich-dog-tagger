@@ -59,13 +59,32 @@ class DogService:
         self.session.refresh(dog)
         return dog
 
-    def rename_dog(self, dog_id: int, name: str) -> Identity:
+    def rename_dog(
+        self,
+        dog_id: int,
+        name: str,
+        *,
+        batch_size: int = MERGE_BATCH_SIZE,
+    ) -> Identity:
         dog = self._require_dog(dog_id)
         name = self._normalize_name(name)
         self._ensure_name_available(name, dog.species, exclude_id=dog_id)
 
+        old_name = dog.name
         dog.name = name
         self.session.commit()
+
+        # CropClassification.identity is a denormalized bare name, not a
+        # foreign key (see _merge_classifications) -- it has to be rewritten
+        # here too, or the Library tab (which filters by that name) goes
+        # empty for every photo classified before the rename (issue #330).
+        self._merge_classifications(
+            old_name,
+            name,
+            dog.species,
+            batch_size=batch_size,
+        )
+
         self.session.refresh(dog)
         return dog
 

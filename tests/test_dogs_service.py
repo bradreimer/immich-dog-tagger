@@ -1,8 +1,11 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.database import create_database
-from immich_dog_tagger.models import Identity
+from immich_dog_tagger.models import CropClassification, Identity
 from immich_dog_tagger.services.dogs import DogService
+
+from .test_dog_merge import _add_classification
 
 
 def test_fresh_install_starts_without_dogs(tmp_path):
@@ -36,6 +39,30 @@ def test_dog_service_creates_renames_and_deactivates(engine):
     assert persisted is not None
     assert persisted.name == "Fibs Prime"
     assert persisted.is_active is True
+
+
+def test_rename_dog_updates_existing_classification_identity_strings(engine):
+    """
+    CropClassification.identity is a denormalized bare name (issue #330):
+    a rename has to rewrite it or the Library tab, which filters by that
+    name, goes empty for every photo classified before the rename.
+    """
+    with Session(engine) as session:
+        service = DogService(session)
+
+        dog = service.create_dog("Walter")
+        _add_classification(session, identity="Walter", path="walter-a.jpg")
+        _add_classification(session, identity="Walter", path="walter-b.jpg")
+
+        service.rename_dog(dog.id, "George")
+
+    with Session(engine) as session:
+        identities = {
+            classification.identity
+            for classification in session.scalars(select(CropClassification)).all()
+        }
+
+    assert identities == {"George"}
 
 
 def test_dog_service_rejects_reserved_and_blank_names(engine):
