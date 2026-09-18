@@ -907,6 +907,24 @@
   mode is unchanged and stays the default. See
   [docs/specs/review-tab-batch-approval.md](specs/review-tab-batch-approval.md).
 
+- [#334](https://github.com/bradreimer/immich-dog-tagger/issues/334) fixed a real-world
+  performance bug in #333's Grouped mode: `ReviewGroupingService.groups()` clustered every
+  identity with pending work by calling `RecommendationClusterService.clusters()` once per
+  identity, and each call re-ran `_candidate_ids()`'s own full-species scan of the pending pool --
+  on a library with a few thousand pending candidates across a dozen-plus identities, loading or
+  refreshing Grouped mode took 30+ seconds. New `RecommendationClusterService.pending_pool()`/
+  `clusters_in_pool()` let `groups()` fetch each species' candidate pool once and slice it per
+  identity, instead of every identity re-scanning it; `clusters()` itself (the single-identity
+  Library cluster view, which interleaves reads with writes on the same service instance) is
+  untouched and still re-queries fresh every call.
+
+- [#335](https://github.com/bradreimer/immich-dog-tagger/issues/335) added FR-10 to the same spec:
+  a group card now offers "Approve N as `<candidate>`" for each of the representative photo's
+  other top-predicted identities (not just the one the group is clustered under), writing through
+  the existing `reassignCluster`/`POST /library/clusters/reassign` path #166 built for the Library
+  view, so a visually-correct group proposed under the wrong dog settles in one click instead of a
+  fallback to one-at-a-time review.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

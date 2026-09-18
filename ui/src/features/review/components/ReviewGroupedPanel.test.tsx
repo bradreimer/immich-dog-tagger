@@ -10,6 +10,7 @@ import type { Dog } from "../../../types/dogs";
 vi.mock("../../../lib/api", () => ({
   getReviewGroups: vi.fn(),
   approveCluster: vi.fn(),
+  reassignCluster: vi.fn(),
   rejectCluster: vi.fn(),
   correctClassification: vi.fn(),
   correctSpecies: vi.fn(),
@@ -129,6 +130,72 @@ describe("ReviewGroupedPanel", () => {
 
     expect(onReviewed).toHaveBeenCalled();
     expect(await screen.findByText(/approved 2 as rex/i)).toBeInTheDocument();
+  });
+
+  it("approves the group as an alternate top-predicted identity", async () => {
+    const group = buildGroup({
+      cluster: {
+        ...buildGroup().cluster,
+        representative: buildItem({
+          classification_id: 1,
+          crop_id: 1,
+          prediction: {
+            identity: "Rex",
+            similarity: 0.8,
+            candidates: [
+              { identity: "Rex", similarity: 0.8, matched_example_id: 1 },
+              { identity: "Fido", similarity: 0.62, matched_example_id: 2 },
+            ],
+          },
+        }),
+      },
+    });
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [group],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+    vi.mocked(api.reassignCluster).mockResolvedValue({
+      identity: "Fido",
+      applied: 2,
+      skipped: 0,
+      skips: [],
+    });
+
+    const onReviewed = vi.fn();
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={onReviewed} />);
+
+    const alternateButton = await screen.findByRole("button", {
+      name: /approve 2 as fido \(62%\)/i,
+    });
+    fireEvent.click(alternateButton);
+
+    await waitFor(() => {
+      expect(api.reassignCluster).toHaveBeenCalledWith("Fido", "dog", [1, 2]);
+    });
+
+    expect(onReviewed).toHaveBeenCalled();
+    expect(await screen.findByText(/approved 2 as fido/i)).toBeInTheDocument();
+  });
+
+  it("shows no alternate-identity buttons when the representative has none", async () => {
+    const group = buildGroup();
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [group],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    await screen.findByRole("button", { name: /approve 2 as rex/i });
+
+    expect(
+      screen.queryByRole("button", { name: /approve 2 as (?!rex)/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("rejects the selected members without touching the reviewed stat", async () => {

@@ -22,6 +22,7 @@ from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
+    CropIdentityRejection,
     Detection,
     EmbeddingExample,
     Identity,
@@ -479,6 +480,110 @@ def test_pool_excludes_reviewed_other_species_and_unrelated_crops(engine):
         }
 
         assert members == {"pending.jpg"}
+
+
+def test_pool_excludes_a_crop_rejected_for_this_identity_but_not_others(engine):
+    """
+    Issue #144's exclusion still has to be identity-specific after the
+    per-species pool cache (issue #334): a crop rejected as Fibs must stay
+    out of Fibs's pool but still show up in Hermann's.
+    """
+    with Session(engine) as session:
+        _identity(session)
+        _identity(session, name="Hermann")
+
+        rejected = _classification(
+            session,
+            path="rejected.jpg",
+            identity="Fibs",
+            candidates=[
+                {"identity": "Fibs", "similarity": 0.75},
+                {"identity": "Hermann", "similarity": 0.60},
+            ],
+        )
+        session.add(CropIdentityRejection(crop_id=rejected.crop_id, identity="Fibs"))
+        session.commit()
+
+        service = RecommendationClusterService(session)
+
+        fibs = service.clusters(identity="Fibs", species=Species.DOG)
+        hermann = service.clusters(identity="Hermann", species=Species.DOG)
+
+        assert fibs.candidate_count == 0
+        assert hermann.candidate_count == 1
+
+
+def test_clusters_in_pool_matches_clusters_for_the_same_identity(engine):
+    """
+    `clusters_in_pool()` (issue #334) has to agree with `clusters()` on
+    membership for the identity it slices out of a `PendingPool` -- it is a
+    faster route to the same answer, not a different rule.
+    """
+    with Session(engine) as session:
+        _identity(session, name="Fibs")
+        _identity(session, name="Hermann")
+
+        _classification(
+            session,
+            path="a.jpg",
+            identity="Fibs",
+            candidates=[{"identity": "Hermann", "similarity": 0.6}],
+        )
+        _classification(session, path="b.jpg", identity="Fibs")
+        _classification(session, path="c.jpg", identity="Hermann")
+
+        service = RecommendationClusterService(session)
+
+        for identity in ("Fibs", "Hermann"):
+            direct = service.clusters(identity=identity, species=Species.DOG)
+            pool = service.pending_pool(Species.DOG)
+            pooled = service.clusters_in_pool(
+                identity=identity, species=Species.DOG, pool=pool
+            )
+
+            assert pooled.candidate_count == direct.candidate_count
+            assert {
+                member.classification_id
+                for cluster in pooled.clusters
+                for member in cluster.members
+            } == {
+                member.classification_id
+                for cluster in direct.clusters
+                for member in cluster.members
+            }
+
+
+def test_clusters_in_pool_excludes_a_crop_rejected_for_this_identity_but_not_others(
+    engine,
+):
+    """The pooled path re-derives issue #144's rejection exclusion in
+    Python instead of SQL -- has to keep it identity-specific too."""
+    with Session(engine) as session:
+        _identity(session)
+        _identity(session, name="Hermann")
+
+        rejected = _classification(
+            session,
+            path="rejected.jpg",
+            identity="Fibs",
+            candidates=[
+                {"identity": "Fibs", "similarity": 0.75},
+                {"identity": "Hermann", "similarity": 0.60},
+            ],
+        )
+        session.add(CropIdentityRejection(crop_id=rejected.crop_id, identity="Fibs"))
+        session.commit()
+
+        service = RecommendationClusterService(session)
+        pool = service.pending_pool(Species.DOG)
+
+        fibs = service.clusters_in_pool(identity="Fibs", species=Species.DOG, pool=pool)
+        hermann = service.clusters_in_pool(
+            identity="Hermann", species=Species.DOG, pool=pool
+        )
+
+        assert fibs.candidate_count == 0
+        assert hermann.candidate_count == 1
 
 
 def test_clustering_writes_nothing(engine):
