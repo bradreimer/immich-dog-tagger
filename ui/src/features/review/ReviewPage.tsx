@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { KeyboardHints } from "./components/KeyboardHints";
 import { ReviewCard } from "./ReviewCard";
 import { ReviewEmptyState } from "./components/ReviewEmptyState";
+import { ReviewGroupedPanel } from "./components/ReviewGroupedPanel";
 import { ReviewMilestoneCelebration } from "./components/ReviewMilestoneCelebration";
 import { ReviewProgress } from "./components/ReviewProgress";
 import { ReviewSkeleton } from "./components/ReviewSkeleton";
@@ -33,6 +34,12 @@ import type {
   ReviewQueueStats,
 } from "../../types/review";
 import type { Dog } from "../../types/dogs";
+
+/** Queue mode (one photo at a time, unchanged) or Grouped mode (approve/
+ * reject a batch of visually similar photos in one action) -- see
+ * docs/specs/review-tab-batch-approval.md. An additive toggle: Queue stays
+ * the default and every existing Queue-mode behavior is untouched. */
+type ReviewMode = "queue" | "grouped";
 
 /** Reads `?classification_id=` on initial load only -- this page doesn't
  * otherwise change the URL, so there's nothing to react to after mount. */
@@ -311,6 +318,7 @@ function ReviewQueuePage() {
   const [filter, setFilter] = useState<ReviewFilter>("all");
   const [saving, setSaving] = useState(false);
   const [milestone, setMilestone] = useState<number | null>(null);
+  const [mode, setMode] = useState<ReviewMode>("queue");
 
   const dismissMilestone = useCallback(() => setMilestone(null), []);
 
@@ -335,6 +343,20 @@ function ReviewQueuePage() {
       return newStats;
     });
   }, []);
+
+  /** Grouped mode's own settling actions (approve/reject a batch, or a
+   * split-view correction) call this after each write, so the lifetime
+   * `reviewed` stat and its milestone celebration advance identically no
+   * matter which mode produced the correction (FR-7). */
+  const refreshGroupedStats = useCallback(async () => {
+    try {
+      applyReviewStats(await getReviewStats());
+    } catch {
+      // Best-effort: a failed refresh just leaves the sidebar/progress
+      // numbers stale until the next successful one, same as any other
+      // transient stats fetch failure already tolerated elsewhere.
+    }
+  }, [applyReviewStats]);
 
   const loadReview = useCallback(async () => {
     setLoading(true);
@@ -575,6 +597,26 @@ function ReviewQueuePage() {
     <ReviewMilestoneCelebration milestone={milestone} onDismiss={dismissMilestone} />
   );
 
+  // Queue mode (default, unchanged) vs. Grouped mode (batch approve/reject
+  // visually similar photos) -- see docs/specs/review-tab-batch-approval.md.
+  const modeToggle = (
+    <div className="flex gap-2">
+      <Button
+        variant={mode === "queue" ? "default" : "outline"}
+        onClick={() => setMode("queue")}
+      >
+        Queue
+      </Button>
+
+      <Button
+        variant={mode === "grouped" ? "default" : "outline"}
+        onClick={() => setMode("grouped")}
+      >
+        Grouped
+      </Button>
+    </div>
+  );
+
   if (loading) {
     return (
       <>
@@ -603,11 +645,36 @@ function ReviewQueuePage() {
     );
   }
 
+  if (mode === "grouped") {
+    return (
+      <>
+        {milestoneOverlay}
+        <div className="mx-auto max-w-5xl space-y-6">
+          <header className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">Grouped Review</h1>
+            <p className="text-muted-foreground">
+              Batches of visually similar photos the classifier already proposed the same
+              identity for -- approve or reject a whole batch in one action.
+            </p>
+            {modeToggle}
+          </header>
+
+          <ReviewGroupedPanel
+            dogs={dogs}
+            immichUrl={immichUrl}
+            onReviewed={refreshGroupedStats}
+          />
+        </div>
+      </>
+    );
+  }
+
   if (!item) {
     return (
       <>
         {milestoneOverlay}
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-5xl space-y-2">
+          {modeToggle}
           <ReviewEmptyState
             onRefresh={() => loadReview()}
           />
@@ -634,6 +701,8 @@ function ReviewQueuePage() {
       {bridgeSummary && (
         <p className="text-sm text-muted-foreground">Filtered from Library: {bridgeSummary}</p>
       )}
+
+      {modeToggle}
 
       <div className="flex flex-wrap gap-2">
         <Button

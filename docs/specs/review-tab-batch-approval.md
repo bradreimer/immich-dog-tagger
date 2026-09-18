@@ -1,6 +1,6 @@
 # Review Tab Batch Approval
 
-Tracking issue: TBD.
+Tracking issue: [#333](https://github.com/bradreimer/immich-dog-tagger/issues/333).
 
 ## Purpose
 
@@ -42,6 +42,10 @@ groups are in the queue rather than with how many photos are in it.
   whether it came from Queue or Grouped mode.
 - Preserve per-member control (deselect the odd photo out) exactly as v1.8 FR-4 already built it,
   so an impure cluster doesn't force an all-or-nothing choice.
+- Give the reviewer an explicit way out when a group is *wrong* -- not just impure, but actually
+  spanning more than one individual (two similar-looking dogs the clustering couldn't tell
+  apart) -- by dropping straight into reviewing that group's members one at a time, rather than
+  forcing either a bad bulk approval or an all-or-nothing reject.
 - Keep Queue mode as the default and completely unchanged: Grouped mode is additive, and a
   reviewer who never touches the toggle sees no behavior change.
 
@@ -63,14 +67,17 @@ groups are in the queue rather than with how many photos are in it.
 
 ## Requirements
 
-- **FR-1 -- Queue-wide grouping.** A new read builds clusters over the *entire active review
-  queue*, not one pet at a time: for every identity that appears as the accepted prediction or a
-  candidate on at least one active review-queue item, run the existing per-identity clustering
-  (`RecommendationClusterService.clusters()`, unmodified) and concatenate the results into one
-  list, sorted by group size (largest first) so the biggest throughput win surfaces first.
-  Bounded the same way v1.8 already bounds a single identity's pool (`MAX_CANDIDATE_POOL`), plus
-  a cap on the number of identities scanned per request; a request that hits the cap says so
-  rather than silently truncating.
+- **FR-1 -- Queue-wide grouping.** A new read (`ReviewGroupingService`) builds clusters over the
+  *entire active review queue*, not one pet at a time: for every identity that appears as the
+  accepted prediction or a candidate on at least one active review-queue item, run the existing
+  per-identity clustering (`RecommendationClusterService.clusters()`, unmodified) and concatenate
+  the results into one list, sorted by group size (largest first) so the biggest throughput win
+  surfaces first. A cluster of exactly one photo is excluded -- it has no batching benefit over
+  correcting it from Queue mode, so Grouped mode only ever shows a group that actually saves the
+  reviewer decisions. Bounded the same way v1.8 already bounds a single identity's pool
+  (`MAX_CANDIDATE_POOL`), plus a cap on the number of identities scanned per request
+  (`MAX_GROUP_IDENTITIES`); a request that hits either cap says so rather than silently
+  truncating.
 - **FR-2 -- Mode toggle on `/review`.** A "Queue" / "Grouped" toggle sits beside the existing
   filter buttons (`all` / `unknown` / `low-confidence` / `candidate-conflict`). Switching modes
   does not navigate away from `/review`. Queue mode is the default on load; the last-chosen mode
@@ -81,12 +88,25 @@ groups are in the queue rather than with how many photos are in it.
   `ClusterApprovalService.approve()` -- N ordinary corrections, same provenance as N single
   corrections from Queue mode.
 - **FR-4 -- Per-member selection.** Members start selected; any member can be deselected before
-  approving, matching v1.8 FR-4 exactly (select-all/select-none, "Approve N photos" naming the
-  count, empty selection disables approve). No new selection UI is invented -- reuse the existing
-  cluster-card selection component.
+  approving, matching v1.8 FR-4's convention (select-all/select-none, "Approve N photos" naming
+  the count, empty selection disables approve). Grouped mode's cluster card is a new, self-
+  contained component (`ReviewGroupCard`) rather than a shared one -- no Library cluster-card
+  component exists to reuse today (ADR-008 retired that UI along with its components, keeping
+  only the backend) -- but the interaction it presents is the same one v1.8 established.
 - **FR-5 -- Reject a group.** "Not `<identity>`" rejects the group's members the same way
   `ClusterApprovalService.reject()` already does for the Library workspace, so a wrong grouping
   doesn't force a slow one-by-one skip.
+- **FR-9 -- Split a mixed group into individual review.** Every group carries a "Multiple
+  `<dogs/cats>` here? Review individually" action, independent of the selection checkboxes.
+  Choosing it drops the group's members into a mini one-at-a-time queue, reusing `ReviewCard` and
+  `useReviewKeyboard` exactly as Queue mode does -- same identity chooser (every identity of that
+  species, not just the one the group was clustered under), same correct/skip/species-correction/
+  not-animal actions, same keyboard bindings. This is the answer to a cluster that isn't just
+  impure (FR-4 handles that) but wrong at the grouping level: two individuals the embeddings
+  couldn't tell apart. No new write path -- every action here is the identical
+  `POST /classifications/{id}/correct`-family call Queue mode already makes. Finishing or backing
+  out of the split view returns to the group list, which is refetched so a partially-settled
+  group reflects what was just done.
 - **FR-6 -- Queue accounting stays correct.** Approving or rejecting a group updates the review
   queue count and the Grouped-mode list the same way a Queue-mode correction updates the
   one-at-a-time queue -- a settled item disappears from both modes' view of the backlog, and the
@@ -97,10 +117,13 @@ groups are in the queue rather than with how many photos are in it.
   lifetime `reviewed` stat. A group approval of N members must advance that stat by N, the same
   as N individual corrections would, so the milestone and every count derived from `reviewed`
   stay accurate regardless of which mode produced them.
-- **FR-8 -- Keyboard support.** Grouped mode is keyboard-navigable: move focus between groups and
-  members without a mouse, and trigger approve/reject on the focused group, consistent with
-  ux-principles.md's keyboard-interaction expectations. This does not replace or alter
-  `useReviewKeyboard.ts`'s existing Queue-mode bindings.
+- **FR-8 -- No new keyboard vocabulary.** Grouped mode's own list (approve/reject/select a group)
+  is a normal tabbable button list -- standard browser tab/click/space/enter semantics, no bespoke
+  keymap. `useReviewKeyboard.ts`'s existing bindings (arrows, `S`, number keys) are unchanged and
+  are not wired into the group list, so Queue mode's muscle memory is never at risk of firing an
+  unexpected group action. The one place Grouped mode *does* get full keyboard support is FR-9's
+  split view, which is Queue mode's own component and keymap reused as-is. A dedicated keyboard
+  scheme for navigating the group list itself is left as an open question rather than built here.
 
 ## Acceptance criteria
 
@@ -118,10 +141,16 @@ groups are in the queue rather than with how many photos are in it.
   remains reachable only through Queue mode.
 - The lifetime `reviewed` count and its milestone celebration advance identically whether N items
   were corrected one at a time in Queue mode or in a single N-member group approval in Grouped
-  mode.
+  mode; rejecting a group does not change the `reviewed` count, since a rejection settles no
+  identity (same rule as the Library workspace's reject).
+- Choosing "Review individually" on a group steps through its members one at a time with the
+  full Queue-mode correction surface and keyboard bindings; correcting a member there is an
+  ordinary correction indistinguishable in provenance from one made through Queue mode or a group
+  approval; finishing or leaving the split view returns to an up-to-date group list.
 - Existing Queue-mode tests, keyboard behavior, and `/review` API contracts are unchanged; new
-  tests cover the queue-wide grouping query, per-member selection in Grouped mode, and the
-  `reviewed`-count parity between the two modes.
+  tests cover the queue-wide grouping query (including singleton-cluster exclusion and the
+  identity cap), per-member selection and approve/reject in Grouped mode, the split-into-
+  individual-review flow, and the `reviewed`-count parity between the two modes.
 
 ## Open questions
 
@@ -136,3 +165,12 @@ groups are in the queue rather than with how many photos are in it.
 - Gamification beyond the existing milestone celebration is tracked separately in
   [review-tab-engagement-and-layout.md](review-tab-engagement-and-layout.md)'s open questions, not
   here.
+- A dedicated keyboard scheme for moving between groups/members in the group list itself (FR-8)
+  is left for a follow-up if reviewers want it -- today the list is mouse/tab driven, and only the
+  FR-9 split view carries the full keyboard vocabulary.
+
+## Status
+
+- FR-1 through FR-9 -- implemented. `services/review_groups.py` (`ReviewGroupingService`),
+  `GET /review/groups`, `ui/src/features/review/components/ReviewGroupedPanel.tsx`,
+  `ReviewGroupCard.tsx`, and `ReviewGroupSplitView.tsx`.

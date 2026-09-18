@@ -6,14 +6,18 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import (
     get_review_action_service,
+    get_review_grouping_service,
     get_review_query_service,
     get_session,
 )
 from immich_dog_tagger.api.schemas import (
+    ReviewGroupsProposalResponse,
     ReviewItemResponse,
     ReviewQueueStatsResponse,
 )
+from immich_dog_tagger.enums import ClusterSort
 from immich_dog_tagger.services.review_actions import ReviewActionService
+from immich_dog_tagger.services.review_groups import ReviewGroupingService
 
 router = APIRouter(
     prefix="/review",
@@ -74,6 +78,28 @@ def review_stats(
         reviewed=stats.reviewed,
         remaining=stats.remaining,
     )
+
+
+@router.get(
+    "/groups",
+    response_model=ReviewGroupsProposalResponse,
+)
+def review_groups(
+    service: Annotated[
+        ReviewGroupingService,
+        Depends(get_review_grouping_service),
+    ],
+    sort: ClusterSort = Query(ClusterSort.CONFIDENCE_DESC),
+):
+    """
+    Grouped mode (see docs/specs/review-tab-batch-approval.md): the active
+    review queue's pending items, clustered into visually-similar batches
+    across every identity with pending work -- not one pet selected up
+    front. A read: it writes nothing, and proposes groupings only.
+    """
+    proposal = service.groups(sort=sort)
+
+    return ReviewGroupsProposalResponse.from_proposal(proposal)
 
 
 @router.post("/{classification_id}/skip")
