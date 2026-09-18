@@ -9,6 +9,9 @@ import type { ReviewItem, ReviewQueueStats } from "@/types/review";
 vi.mock("@/lib/api", () => ({
   getReview: vi.fn(),
   getReviewStats: vi.fn(),
+  getReviewGroups: vi.fn(),
+  approveCluster: vi.fn(),
+  rejectCluster: vi.fn(),
   getDogs: vi.fn(),
   getSettings: vi.fn(),
   correctClassification: vi.fn(),
@@ -282,5 +285,32 @@ describe("ReviewPage", () => {
     );
     expect(api.getReviewStats).not.toHaveBeenCalled();
     expect(screen.queryByText(/reviewed — nice streak/i)).not.toBeInTheDocument();
+  });
+
+  it("switches to Grouped mode without disturbing Queue mode's own state", async () => {
+    vi.mocked(api.getReview).mockResolvedValue([buildItem()]);
+    vi.mocked(api.getReviewStats).mockResolvedValue(STATS);
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [],
+      identity_count: 0,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+
+    render(<ReviewPage onNavigate={vi.fn()} />);
+
+    expect(await screen.findByRole("button", { name: "All" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Grouped" }));
+
+    expect(await screen.findByText(/no batches of similar photos/i)).toBeInTheDocument();
+    expect(api.getReviewGroups).toHaveBeenCalled();
+    // Queue-mode-only chrome is gone while in Grouped mode.
+    expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+
+    expect(await screen.findByRole("button", { name: "All" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /skip/i })).toBeInTheDocument();
   });
 });

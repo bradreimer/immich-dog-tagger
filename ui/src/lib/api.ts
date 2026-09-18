@@ -17,6 +17,7 @@ import type {
   ClusterApprovalResult,
   ClusterProposal,
   ClusterSort,
+  ReviewGroupsProposal,
 } from "../types/clusters";
 import type { Settings, TaggingSensitivity } from "../types/settings";
 import type { Health } from "../types/health";
@@ -177,6 +178,28 @@ export async function getReviewStats(): Promise<ReviewQueueStats> {
 
   if (!response.ok) {
     throw new Error("Failed to load review stats");
+  }
+
+  return response.json();
+}
+
+/**
+ * Grouped mode (Review tab): the active review queue clustered into
+ * visually-similar batches across every identity with pending work, not
+ * one pet selected up front -- the queue-wide counterpart of
+ * `getPetClusters`. A read: nothing is assigned until a group is approved.
+ */
+export async function getReviewGroups(sort?: ClusterSort): Promise<ReviewGroupsProposal> {
+  const params = new URLSearchParams();
+
+  if (sort) {
+    params.set("sort", sort);
+  }
+
+  const response = await fetch(`/api/review/groups?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load review groups");
   }
 
   return response.json();

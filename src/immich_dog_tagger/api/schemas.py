@@ -311,6 +311,41 @@ class ClusterProposalResponse(BaseModel):
         )
 
 
+class ReviewGroupResponse(BaseModel):
+    """One identity's cluster, carrying the identity/species it belongs to
+    so the client can approve/reject it without inferring which pet it's
+    for -- unlike `/library/clusters`, which is already scoped to one pet
+    by the request, `/review/groups` spans every pet with pending work."""
+
+    identity: str
+    species: Species
+    cluster: RecommendationClusterResponse
+
+    @classmethod
+    def from_group(cls, group):
+        return cls(
+            identity=group.identity,
+            species=group.species,
+            cluster=RecommendationClusterResponse.from_cluster(group.cluster),
+        )
+
+
+class ReviewGroupsProposalResponse(BaseModel):
+    groups: list[ReviewGroupResponse]
+    identity_count: int
+    truncated_identities: bool
+    sort: ClusterSort
+
+    @classmethod
+    def from_proposal(cls, proposal):
+        return cls(
+            groups=[ReviewGroupResponse.from_group(group) for group in proposal.groups],
+            identity_count=proposal.identity_count,
+            truncated_identities=proposal.truncated_identities,
+            sort=proposal.sort,
+        )
+
+
 class ClusterApprovalRequest(BaseModel):
     identity: str
     species: Species

@@ -891,6 +891,22 @@
   the timestamp refresh via the page's existing post-repair re-fetch. See
   [docs/specs/photo-lookup.md](specs/photo-lookup.md)'s new addendum.
 
+- [#333](https://github.com/bradreimer/immich-dog-tagger/issues/333) Review tab Grouped mode: a
+  new **Grouped** / **Queue** toggle on `/review`, reusing the v1.8 clustering/bulk-approval
+  backend (`RecommendationClusterService`, `ClusterApprovalService`) ADR-008 left in place but
+  unreachable from any UI. New `ReviewGroupingService` (`services/review_groups.py`) clusters the
+  *entire active review queue* -- every identity with at least one pending item, not one pet
+  selected up front -- by running the existing per-identity clustering for each and merging the
+  results, largest group first; a cluster of exactly one photo is excluded, since it has no
+  batching benefit over Queue mode. New read-only `GET /review/groups`. Approving or rejecting a
+  group reuses `/library/clusters/approve` and `/library/clusters/reject` unchanged -- same
+  provenance, same accounting. Also ships the escape hatch a mixed grouping needs: "Multiple dogs/
+  cats here? Review individually" drops a group's members into a mini one-at-a-time queue reusing
+  `ReviewCard`/`useReviewKeyboard` exactly as Queue mode does, so a grouping that turns out to
+  span more than one animal never forces a bad bulk approval or an all-or-nothing reject. Queue
+  mode is unchanged and stays the default. See
+  [docs/specs/review-tab-batch-approval.md](specs/review-tab-batch-approval.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

@@ -40,6 +40,7 @@ from immich_dog_tagger.services.manual_detection_assignment import (
 from immich_dog_tagger.services.photo_lookup import PhotoLookupService
 from immich_dog_tagger.services.rejections import RejectionService
 from immich_dog_tagger.services.review_actions import ReviewActionService
+from immich_dog_tagger.services.review_groups import ReviewGroupingService
 from immich_dog_tagger.services.review_query import ReviewQueryService
 from immich_dog_tagger.services.schedules import (
     PipelineScheduleRepository,
@@ -159,6 +160,12 @@ def get_confirmed_cluster_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> ConfirmedClusterService:
     return ConfirmedClusterService(session)
+
+
+def get_review_grouping_service(
+    session: Annotated[Session, Depends(get_session)],
+) -> ReviewGroupingService:
+    return ReviewGroupingService(session)
 
 
 def get_rejection_service(

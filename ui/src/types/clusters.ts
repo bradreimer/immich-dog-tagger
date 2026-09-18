@@ -51,3 +51,22 @@ export interface ClusterApprovalResult {
   skipped: number;
   skips: ApprovalSkip[];
 }
+
+/**
+ * One identity's cluster, carrying the identity/species it belongs to
+ * (Review tab Grouped mode) -- unlike a Library `ClusterProposal`, which is
+ * already scoped to one pet by the request, a `ReviewGroup` can be for any
+ * pet with pending queue work, so it names its own identity/species.
+ */
+export interface ReviewGroup {
+  identity: string;
+  species: string;
+  cluster: RecommendationCluster;
+}
+
+export interface ReviewGroupsProposal {
+  groups: ReviewGroup[];
+  identity_count: number;
+  truncated_identities: boolean;
+  sort: ClusterSort;
+}
