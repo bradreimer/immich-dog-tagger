@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import { IconRefresh } from "@tabler/icons-react";
 
-import { approveCluster, getReviewGroups, rejectCluster } from "../../../lib/api";
+import {
+  approveCluster,
+  getReviewGroups,
+  reassignCluster,
+  rejectCluster,
+} from "../../../lib/api";
 import type { ReviewGroup } from "../../../types/clusters";
 import type { Dog } from "../../../types/dogs";
 
@@ -70,6 +75,39 @@ export function ReviewGroupedPanel({ dogs, immichUrl, onReviewed }: Props) {
         result.skipped > 0
           ? `Approved ${result.applied} as ${group.identity}, skipped ${result.skipped} (already settled elsewhere).`
           : `Approved ${result.applied} as ${group.identity}.`,
+      );
+
+      onReviewed();
+      await load();
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : "Failed to approve group");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Settle the selection as a candidate *other* than the one the group is
+   * clustered under (issue #335) -- `reassignCluster`, not `approveCluster`,
+   * since not every member's own candidate list is guaranteed to include
+   * the alternate identity, and reassignment is exactly the write path
+   * that doesn't require it (issue #166).
+   */
+  const approveAs = async (
+    group: ReviewGroup,
+    identity: string,
+    classificationIds: number[],
+  ) => {
+    setBusy(true);
+    setActionMessage(null);
+
+    try {
+      const result = await reassignCluster(identity, group.species, classificationIds);
+
+      setActionMessage(
+        result.skipped > 0
+          ? `Approved ${result.applied} as ${identity}, skipped ${result.skipped} (already settled elsewhere).`
+          : `Approved ${result.applied} as ${identity}.`,
       );
 
       onReviewed();
@@ -155,6 +193,7 @@ export function ReviewGroupedPanel({ dogs, immichUrl, onReviewed }: Props) {
           group={group}
           disabled={busy}
           onApprove={(ids) => approve(group, ids)}
+          onApproveAs={(identity, ids) => approveAs(group, identity, ids)}
           onReject={(ids) => reject(group, ids)}
           onSplit={() => setSplitGroup(group)}
         />

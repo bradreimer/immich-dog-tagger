@@ -11,6 +11,11 @@ import type { ReviewGroup } from "../../../types/clusters";
 interface Props {
   group: ReviewGroup;
   onApprove: (classificationIds: number[]) => void;
+  /** Settle the selection as a *different* identity than the one the group
+   * is clustered under (issue #335) -- one of the representative photo's
+   * other top-predicted candidates, for a visually-correct group proposed
+   * under the wrong dog. */
+  onApproveAs: (identity: string, classificationIds: number[]) => void;
   onReject: (classificationIds: number[]) => void;
   /** "Multiple dogs in this group?" escape hatch (see spec): review every
    * member one at a time instead of trusting the grouping. */
@@ -25,8 +30,28 @@ interface Props {
  * deselecting the odd photo out is the exception path, matching v1.8 FR-4's
  * convention for the Library's cluster cards.
  */
-export function ReviewGroupCard({ group, onApprove, onReject, onSplit, disabled }: Props) {
+export function ReviewGroupCard({
+  group,
+  onApprove,
+  onApproveAs,
+  onReject,
+  onSplit,
+  disabled,
+}: Props) {
   const { identity, species, cluster } = group;
+
+  // The classifier's other top-predicted identities for this visual
+  // cluster (issue #335), read off the representative photo -- the same
+  // top-N candidate list `PredictionCard` already shows per photo in Queue
+  // mode, minus whichever entry is this group's own identity and any
+  // duplicate names.
+  const alternates = Array.from(
+    new Map(
+      cluster.representative.prediction.candidates
+        .filter((candidate) => candidate.identity !== identity)
+        .map((candidate) => [candidate.identity, candidate]),
+    ).values(),
+  );
 
   const [selected, setSelected] = useState<Set<number>>(
     () => new Set(cluster.members.map((member) => member.classification_id)),
@@ -124,6 +149,18 @@ export function ReviewGroupCard({ group, onApprove, onReject, onSplit, disabled 
           >
             Approve {selectedIds.length} as {identity}
           </Button>
+
+          {alternates.map((candidate) => (
+            <Button
+              key={candidate.identity}
+              variant="outline"
+              onClick={() => onApproveAs(candidate.identity, selectedIds)}
+              disabled={disabled || selectedIds.length === 0}
+            >
+              Approve {selectedIds.length} as {candidate.identity} (
+              {Math.round(candidate.similarity * 100)}%)
+            </Button>
+          ))}
 
           <Button
             variant="outline"

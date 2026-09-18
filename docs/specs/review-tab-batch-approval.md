@@ -70,10 +70,15 @@ groups are in the queue rather than with how many photos are in it.
 - **FR-1 -- Queue-wide grouping.** A new read (`ReviewGroupingService`) builds clusters over the
   *entire active review queue*, not one pet at a time: for every identity that appears as the
   accepted prediction or a candidate on at least one active review-queue item, run the existing
-  per-identity clustering (`RecommendationClusterService.clusters()`, unmodified) and concatenate
-  the results into one list, sorted by group size (largest first) so the biggest throughput win
-  surfaces first. A cluster of exactly one photo is excluded -- it has no batching benefit over
-  correcting it from Queue mode, so Grouped mode only ever shows a group that actually saves the
+  per-identity clustering (`RecommendationClusterService.clusters()`/`clusters_in_pool()`) and
+  concatenate the results into one list, sorted by group size (largest first) so the biggest
+  throughput win surfaces first. Every identity of the same species shares one candidate-pool
+  scan (`pending_pool()`), fetched once and sliced per identity, rather than each identity
+  re-running its own full-species scan -- on a library with a few thousand pending candidates
+  across many identities, the per-identity re-scan was what made loading or refreshing Grouped
+  mode take 30+ seconds (issue #334). A cluster of exactly one photo is excluded -- it has no
+  batching benefit over correcting it from Queue mode, so Grouped mode only ever shows a group
+  that actually saves the
   reviewer decisions. Bounded the same way v1.8 already bounds a single identity's pool
   (`MAX_CANDIDATE_POOL`), plus a cap on the number of identities scanned per request
   (`MAX_GROUP_IDENTITIES`); a request that hits either cap says so rather than silently
@@ -124,6 +129,17 @@ groups are in the queue rather than with how many photos are in it.
   unexpected group action. The one place Grouped mode *does* get full keyboard support is FR-9's
   split view, which is Queue mode's own component and keymap reused as-is. A dedicated keyboard
   scheme for navigating the group list itself is left as an open question rather than built here.
+- **FR-10 -- Approve a group as an alternate top-predicted identity (issue #335).** A group is
+  visually correct far more often than its clustered-under identity is right -- the classifier's
+  top pick for the cluster is sometimes the wrong dog even though a runner-up candidate on the
+  representative photo is correct. Alongside "Approve N as `<identity>`", the group card shows one
+  "Approve N as `<candidate>`" action per other identity in the representative member's stored
+  top-`policy.candidate_limit` candidates (deduplicated, excluding the group's own identity).
+  Choosing one reassigns exactly the selected members to that identity via
+  `ClusterApprovalService.reassign()`/`POST /library/clusters/reassign` -- the same write path
+  issue #166 already built for the Library's single-pet cluster view, which does not require the
+  classifier to have proposed that identity for every member, unlike plain `approve()`. A group
+  whose representative has no alternate candidates shows no extra buttons.
 
 ## Acceptance criteria
 
@@ -147,6 +163,12 @@ groups are in the queue rather than with how many photos are in it.
   full Queue-mode correction surface and keyboard bindings; correcting a member there is an
   ordinary correction indistinguishable in provenance from one made through Queue mode or a group
   approval; finishing or leaving the split view returns to an up-to-date group list.
+- Approving a group as an alternate candidate identity (FR-10) applies exactly that identity to
+  every selected member, updates the reviewed stat by that many, and never duplicates the group's
+  own identity among the offered alternates; a group whose representative has no alternates shows
+  no extra approve buttons.
+- Loading Grouped mode, and refreshing it after an approve/reject action, stays interactive on a
+  library with several thousand pending candidates spread across many identities (issue #334).
 - Existing Queue-mode tests, keyboard behavior, and `/review` API contracts are unchanged; new
   tests cover the queue-wide grouping query (including singleton-cluster exclusion and the
   identity cap), per-member selection and approve/reject in Grouped mode, the split-into-
@@ -171,6 +193,7 @@ groups are in the queue rather than with how many photos are in it.
 
 ## Status
 
-- FR-1 through FR-9 -- implemented. `services/review_groups.py` (`ReviewGroupingService`),
+- FR-1 through FR-10 -- implemented. `services/review_groups.py` (`ReviewGroupingService`),
+  `services/clusters.py` (`pending_pool()`/`clusters_in_pool()`, issue #334),
   `GET /review/groups`, `ui/src/features/review/components/ReviewGroupedPanel.tsx`,
   `ReviewGroupCard.tsx`, and `ReviewGroupSplitView.tsx`.
