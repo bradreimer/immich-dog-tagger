@@ -26,6 +26,7 @@ from immich_dog_tagger.models import Crop, CropClassification, ReviewAction
 from immich_dog_tagger.services.clusters import (
     DEFAULT_CLUSTER_SORT,
     MAX_CANDIDATE_POOL,
+    PendingPool,
     RecommendationCluster,
     RecommendationClusterService,
 )
@@ -114,10 +115,20 @@ class ReviewGroupingService:
         pairs = pairs[: self.max_identities]
 
         groups: list[ReviewGroup] = []
+        # Every pair for the same species shares one candidate pool
+        # (issue #334): fetched once per species here and sliced per
+        # identity by `clusters_in_pool()`, instead of each identity
+        # re-running the same full-species scan `clusters()` itself would
+        # do. Safe because this loop, like `clusters()`, never writes
+        # between identities -- see `clusters_in_pool()`'s docstring.
+        pools: dict[Species, PendingPool] = {}
 
         for identity, species in pairs:
-            proposal = self.cluster_service.clusters(
-                identity=identity, species=species, sort=sort
+            if species not in pools:
+                pools[species] = self.cluster_service.pending_pool(species)
+
+            proposal = self.cluster_service.clusters_in_pool(
+                identity=identity, species=species, pool=pools[species], sort=sort
             )
 
             groups.extend(

@@ -51,7 +51,10 @@ from immich_dog_tagger.models import (
     ReviewAction,
 )
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
-from immich_dog_tagger.services.rejections import RejectionService
+from immich_dog_tagger.services.rejections import (
+    RejectionService,
+    rejected_identities_for,
+)
 from immich_dog_tagger.services.review_query import (
     REVIEW_ITEM_RELATIONSHIPS,
     ReviewItem,
@@ -226,6 +229,20 @@ class ClusterProposal:
 
 
 @dataclass(frozen=True)
+class PendingPool:
+    """
+    One species' whole pending-classification pool, as returned by
+    `RecommendationClusterService.pending_pool()` -- every row that
+    proposes some identity, plus the crop-identity rejections for that same
+    set of crops. `clusters_in_pool()` slices this per identity; see both
+    docstrings for why this exists alongside `clusters()`'s own query.
+    """
+
+    rows: list
+    rejections: dict[int, set[str]]
+
+
+@dataclass(frozen=True)
 class ApprovalSkip:
     classification_id: int
     reason: str
@@ -277,11 +294,126 @@ class RecommendationClusterService:
         (issue #143). It never affects which candidates are pooled or how
         they group into clusters -- only the order the result is presented
         in.
+
+        Always re-queries the candidate pool, so two calls on the same
+        instance with a write (an approval, a rejection) between them see
+        the write. `clusters_in_pool()` is the one exception to that, for a
+        caller with a narrower, documented promise -- see its docstring.
         """
         self._require_identity(identity, species)
 
         classification_ids, truncated = self._candidate_ids(identity, species)
 
+        return self._proposal_from_ids(
+            identity, species, classification_ids, truncated, sort
+        )
+
+    def clusters_in_pool(
+        self,
+        *,
+        identity: str,
+        species: Species,
+        pool: PendingPool,
+        sort: ClusterSort = DEFAULT_CLUSTER_SORT,
+    ) -> ClusterProposal:
+        """
+        `clusters()`, but sliced from an already-fetched `PendingPool`
+        instead of running `_candidate_ids()`'s own query.
+
+        For `ReviewGroupingService`, which clusters every identity with
+        pending work in one read: each identity's candidate pool is a slice
+        of the same "every pending classification of this species" query, so
+        fetching that once via `pending_pool()` and reusing it here turns an
+        O(identities) number of full-species scans into one (issue #334) --
+        for a library with a few thousand pending candidates, that was most
+        of what made the Review tab's grouped view take tens of seconds to
+        load.
+
+        This is safe only because `ReviewGroupingService` is a read that
+        clusters every identity in one pass with no write in between (its
+        own docstring promises the same thing `clusters()` does). A caller
+        that interleaves `clusters_in_pool()` with writes would see the
+        `pool` it was handed go stale -- use `clusters()` there instead.
+        """
+        self._require_identity(identity, species)
+
+        matched = [
+            row.id
+            for row in pool.rows
+            if proposes_identity(
+                identity,
+                accepted=row.identity,
+                candidates=row.candidates,
+            )
+            and identity not in pool.rejections.get(row.crop_id, set())
+        ]
+
+        truncated = len(matched) > self.max_pool
+
+        if truncated:
+            logger.info(
+                "Cluster pool for %r capped at %d of %d pending candidates",
+                identity,
+                self.max_pool,
+                len(matched),
+            )
+
+        return self._proposal_from_ids(
+            identity, species, matched[: self.max_pool], truncated, sort
+        )
+
+    def pending_pool(self, species: Species) -> PendingPool:
+        """
+        Every unreviewed classification of `species` that proposes *some*
+        identity (as the accepted prediction or a stored candidate), plus
+        the crop-identity rejections for that pool -- everything
+        `clusters_in_pool()` needs to slice out any one identity's share
+        without a query of its own. See `clusters_in_pool()` for why this
+        is split out rather than folded into `_candidate_ids()`.
+        """
+        rows = self.session.execute(
+            select(
+                CropClassification.id,
+                CropClassification.crop_id,
+                CropClassification.identity,
+                CropClassification.candidates,
+                CropClassification.confidence,
+            )
+            .where(CropClassification.crop.has(Crop.species == species))
+            .where(
+                ~exists(
+                    select(ReviewAction.id).where(
+                        ReviewAction.classification_id == CropClassification.id,
+                    )
+                )
+            )
+            .where(
+                (CropClassification.identity.is_not(None))
+                | (CropClassification.candidates != [])
+            )
+            # Strongest case first, so a capped pool keeps the candidates
+            # most worth approving. The id tie-break makes the ordering
+            # total, which is what keeps clustering deterministic.
+            .order_by(
+                CropClassification.confidence.desc(),
+                CropClassification.id.asc(),
+            )
+        ).all()
+
+        rejections = rejected_identities_for(
+            self.session, (row.crop_id for row in rows)
+        )
+
+        return PendingPool(rows=rows, rejections=rejections)
+
+    def _proposal_from_ids(
+        self,
+        identity: str,
+        species: Species,
+        classification_ids: list[int],
+        truncated: bool,
+        sort: ClusterSort,
+    ) -> ClusterProposal:
         classifications = self._load(classification_ids)
 
         embeddings: list[np.ndarray] = []

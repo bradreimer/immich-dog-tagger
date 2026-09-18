@@ -17,6 +17,7 @@ from immich_dog_tagger.models import (
     Identity,
     ReviewAction,
 )
+from immich_dog_tagger.services.clusters import RecommendationClusterService
 from immich_dog_tagger.services.review_groups import (
     MIN_GROUP_SIZE,
     ReviewGroupingService,
@@ -222,6 +223,48 @@ def test_max_identities_caps_the_scan(engine):
         assert proposal.identity_count == 2
         assert proposal.truncated_identities is True
         assert len({group.identity for group in proposal.groups}) <= 2
+
+
+def test_pending_pool_is_scanned_once_per_species_not_per_identity(engine, monkeypatch):
+    """
+    Issue #333: before this, `groups()` called `clusters()` once per
+    identity with pending work, and each of those calls re-ran its own
+    full-species scan of the pending pool -- for a library with a few
+    thousand pending candidates, that turned "load the grouped Review tab"
+    into a query cost that grew with the number of identities rather than
+    staying flat. `groups()` now fetches the pool once per distinct species
+    via `pending_pool()` and slices it per identity with `clusters_in_pool()`
+    -- pinned here by spying on `pending_pool()` itself rather than a raw
+    SQL query count, so the assertion survives unrelated query-shape changes
+    elsewhere in the read path.
+    """
+    calls = []
+    original = RecommendationClusterService.pending_pool
+
+    def spy(self, species):
+        calls.append(species)
+        return original(self, species)
+
+    monkeypatch.setattr(RecommendationClusterService, "pending_pool", spy)
+
+    with Session(engine) as session:
+        for index in range(4):
+            name = f"Pet{index}"
+            _identity(session, name)
+            _classification(
+                session, path=f"{name}-a.jpg", identity=name, embedding=[1.0, 0.0, 0.0]
+            )
+            _classification(
+                session,
+                path=f"{name}-b.jpg",
+                identity=name,
+                embedding=[0.99, 0.05, 0.0],
+            )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        assert proposal.identity_count == 4
+        assert calls == [Species.DOG]
 
 
 def test_sort_is_echoed_back(engine):
