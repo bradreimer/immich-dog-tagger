@@ -165,7 +165,10 @@ def get_confirmed_cluster_service(
 def get_review_grouping_service(
     session: Annotated[Session, Depends(get_session)],
 ) -> ReviewGroupingService:
-    return ReviewGroupingService(session)
+    # Same effective policy Queue mode's active_review() uses (issue #341),
+    # so Grouped mode pools exactly the items Queue mode would also
+    # consider "needs review" -- not every unreviewed classification.
+    return ReviewGroupingService(session, policy=AppSettingsService(session).policy())
 
 
 def get_rejection_service(

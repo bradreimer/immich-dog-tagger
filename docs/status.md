@@ -949,6 +949,21 @@
   checkpoint on first use the same way it did for nano, so no provisioning step changed. No change
   to the identity-classification (OpenCLIP) stage.
 
+- [#341](https://github.com/bradreimer/immich-dog-tagger/issues/341) fixed a real bug in Grouped
+  mode (#333): its pending pool (`RecommendationClusterService.pending_pool()`,
+  `ReviewGroupingService._pending_identity_species_pairs()`) only checked "no `ReviewAction` yet",
+  never the confidence-vs-threshold condition Queue mode's `active_review()`/`review_queue_count()`
+  already apply -- so a photo the classifier was already confident about, but that had never been
+  individually approved, was pooled and clustered right alongside items that actually needed a
+  human decision, and kept resurfacing group after group since nothing ever wrote a `ReviewAction`
+  for it. Same class of bug as DT-1115, in the Grouped-mode pooling path instead of the stats path.
+  Both queries now apply the same `identity IS NULL OR confidence < threshold` condition
+  `active_review()` uses, with the effective `ClassifierPolicy` (tagging-sensitivity-aware, from
+  `AppSettingsService.policy()`) threaded through `RecommendationClusterService`/
+  `ReviewGroupingService` the same way `get_review_query_service` already threads it. `/library/
+  clusters`'s per-pet view (`clusters()`/`_candidate_ids()`) is intentionally unchanged -- that is
+  a different, broader "everything pending for this pet" audit, not the review queue.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
