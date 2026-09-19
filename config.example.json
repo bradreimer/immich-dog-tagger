@@ -1,0 +1,13 @@
+{
+  "immich": {
+    "url": "https://immich.example.com",
+    "external_url": "",
+    "timeout_seconds": 60,
+    "accounts": [
+      {
+        "name": "default",
+        "api_key": "replace-me"
+      }
+    ]
+  }
+}

@@ -977,6 +977,24 @@
   clusters`'s per-pet view (`clusters()`/`_candidate_ids()`) is intentionally unchanged -- that is
   a different, broader "everything pending for this pet" audit, not the review queue.
 
+- [#348](https://github.com/bradreimer/immich-dog-tagger/issues/348)
+  ([docs/specs/json-config-file.md](specs/json-config-file.md)) added a JSON configuration file as
+  a new, opt-in source for Immich configuration, mounted into the container the same way
+  `state`/`cache`/`models` already are (`config.example.json`, `CONFIG_FILE` env var,
+  `HOST_CONFIG_FILE` in `.env`/`docker-compose.yml`). `load_config()` now exposes
+  `Config.accounts` (a tuple of `ImmichAccount(name, api_key)`), giving
+  [#346](https://github.com/bradreimer/immich-dog-tagger/issues/346) somewhere to declare more
+  than one Immich account; `Config.immich_api_key` is unchanged and reads the first account's key,
+  so every existing caller keeps working untouched. No `CONFIG_FILE`/no mounted file falls back
+  to the legacy `IMMICH_URL`/`IMMICH_API_KEY`/`IMMICH_EXTERNAL_URL`/`IMMICH_TIMEOUT_SECONDS`
+  environment variables with no error -- including when Docker auto-creates a directory at the
+  mount point because the host file doesn't exist yet, which is treated the same as "no file". A
+  present-but-invalid file (malformed JSON, missing `immich.url`, zero accounts, or a duplicate
+  account name) raises `ConfigError` naming the file and the problem, caught at both process entry
+  points (CLI `main()`, the API's startup `lifespan()`) as a clean one-line error instead of a
+  stack trace. Both sources present at once: the file wins and a startup log line names the
+  ignored environment variables.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

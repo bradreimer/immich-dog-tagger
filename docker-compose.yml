@@ -6,9 +6,14 @@ services:
     restart: unless-stopped
 
     environment:
-      - IMMICH_URL=${IMMICH_URL}
+      # Legacy single-account configuration. Superseded by the mounted CONFIG_FILE below when
+      # that file exists -- see config.example.json and docs/deployment.md. Left in place so an
+      # existing deployment that hasn't created a config.json keeps working unchanged.
+      - IMMICH_URL=${IMMICH_URL:-}
       - IMMICH_EXTERNAL_URL=${IMMICH_EXTERNAL_URL:-}
-      - IMMICH_API_KEY=${IMMICH_API_KEY}
+      - IMMICH_API_KEY=${IMMICH_API_KEY:-}
+      - IMMICH_TIMEOUT_SECONDS=${IMMICH_TIMEOUT_SECONDS:-60}
+      - CONFIG_FILE=/app/config/config.json
       - STATE_DIR=/app/state
       - CACHE_DIR=/app/cache
       - YOLO_MODEL=/app/models/yolo11m.pt
@@ -18,6 +23,11 @@ services:
       - ${HOST_STATE_DIR:-./data/state}:/app/state
       - ${HOST_CACHE_DIR:-./data/cache}:/app/cache
       - ${HOST_MODEL_DIR:-./data/models}:/app/models
+      # Optional: copy config.example.json to this host path and mount it here to configure
+      # Immich (URL, accounts) as structured JSON instead of the IMMICH_* variables above. If
+      # the host file doesn't exist, this mounts an empty directory and the app falls back to
+      # the IMMICH_* variables with no error -- see docs/deployment.md.
+      - ${HOST_CONFIG_FILE:-./data/config.json}:/app/config/config.json:ro
 
     ports:
       - "8000:8000"

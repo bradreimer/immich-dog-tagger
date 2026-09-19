@@ -46,7 +46,7 @@ curl http://dog-tagger:8000/health
 to the backend. nginx listens internally on port 80; it doesn't need to expose ports directly
 since Traefik handles external routing.
 
-## Immich URLs
+## Immich configuration
 
 Two environment variables describe Immich, because two different clients talk to it:
 
@@ -67,6 +67,45 @@ The UI reads this value at runtime from `GET /api/settings`, so changing it need
 request. Bulk sync writes (tagging or albuming many assets in one identity) can legitimately take
 Immich longer to process than a typical read; raise this if `sync` jobs fail with a timeout on a
 large library.
+
+### JSON config file (alternative to the `IMMICH_*` variables)
+
+Instead of the environment variables above, Immich configuration can live in a JSON file mounted
+into the container — the same bind-mount pattern already used for `state`/`cache`/`models`. This
+is the only way to declare more than one Immich account, and is generally the preferred format
+going forward (see [docs/specs/json-config-file.md](specs/json-config-file.md)).
+
+To adopt it:
+
+1. Copy [`config.example.json`](../config.example.json) to a host path of your choice, e.g.
+   `./data/config.json`, and fill in `immich.url` and at least one `immich.accounts` entry
+   (`name`/`api_key`).
+2. Set `HOST_CONFIG_FILE` in `.env` to that path.
+3. Restart the backend: `docker compose up -d dog-tagger`.
+
+```json
+{
+  "immich": {
+    "url": "https://immich.example.com",
+    "external_url": "",
+    "timeout_seconds": 60,
+    "accounts": [{ "name": "default", "api_key": "..." }]
+  }
+}
+```
+
+`docker-compose.yml` always sets `CONFIG_FILE=/app/config/config.json` inside the container and
+mounts `${HOST_CONFIG_FILE:-./data/config.json}` there. If that host path doesn't exist, the mount
+is an empty directory and the backend falls back to the `IMMICH_*` variables with no error — this
+is the expected state for a deployment that hasn't migrated, not a misconfiguration. If both the
+config file and `IMMICH_*` variables are present, the file wins outright and the backend logs a
+warning naming the environment variables it ignored, so a mid-migration deployment is never left
+guessing which source is live. A config file that exists but is invalid (malformed JSON, a missing
+`immich.url`, zero accounts, or two accounts sharing a name) fails startup immediately, naming the
+file and the specific problem, rather than falling back silently.
+
+Running from source instead of Docker: set `CONFIG_FILE` directly in `.env` (e.g. `./config.json`)
+rather than `HOST_CONFIG_FILE`, which only matters to `docker-compose.yml`'s volume mount.
 
 ## Docker network
 
