@@ -32,7 +32,7 @@ from immich_dog_tagger.api.routes import (
     schedules,
     settings,
 )
-from immich_dog_tagger.config import load_config
+from immich_dog_tagger.config import ConfigError, load_config
 from immich_dog_tagger.services.job_recovery import recover_interrupted_jobs
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth, run_scheduler
 from immich_dog_tagger.version import get_version
@@ -42,7 +42,12 @@ from immich_dog_tagger.version import get_version
 async def lifespan(app: FastAPI):
     from immich_dog_tagger.api.dependencies import get_engine
 
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError as e:
+        logging.getLogger(__name__).critical("Configuration error: %s", e)
+        raise SystemExit(1) from None
+
     engine = get_engine()
 
     with Session(engine) as session:

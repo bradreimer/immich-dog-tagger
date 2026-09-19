@@ -4,10 +4,12 @@ Command line interface for Immich Dog Tagger.
 
 import argparse
 import logging
+import os
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from .config import load_config
+from .config import ConfigError, load_config
 from .database import create_database
 from .downloader import Downloader
 from .enums import ClassificationMode, PipelineOperation
@@ -149,13 +151,22 @@ def backfill_occurrences_command(args) -> None:
 def config_check_command(args) -> None:
     config = load_config()
 
+    config_file = os.environ.get("CONFIG_FILE", "")
+    source = (
+        "config file"
+        if config_file and Path(config_file).is_file()
+        else "environment variables"
+    )
+
     print("Immich:")
+    print(f"  Configuration source: {source}")
     print(f"  URL: {config.immich_url}")
 
-    if config.immich_api_key:
-        print("  API key: configured")
+    if config.accounts:
+        names = ", ".join(account.name for account in config.accounts)
+        print(f"  Accounts: {len(config.accounts)} ({names})")
     else:
-        print("  API key: missing")
+        print("  Accounts: none configured")
 
     print()
     print("Storage:")
@@ -916,6 +927,14 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
+    try:
+        dispatch_command(parser, args)
+    except ConfigError as e:
+        print(f"Configuration error: {e}")
+        raise SystemExit(1) from None
+
+
+def dispatch_command(parser: argparse.ArgumentParser, args) -> None:
     if args.command == "config-check":
         config_check_command(args)
 
