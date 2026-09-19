@@ -147,6 +147,8 @@ def test_learner_commits_before_each_embed_call(engine, tmp_path):
         with Session(engine) as session:
 
             class RecordingEmbedder:
+                MODEL_ID = "fake:test"
+
                 def __init__(self):
                     self.lock_held_on_embed: list[bool] = []
 
@@ -208,6 +210,7 @@ def test_learn_image_creates_embedding_example(engine, tmp_path):
     image.write_bytes(b"fake")
 
     embedder = Mock()
+    embedder.MODEL_ID = "fake:test"
     embedder.embed.return_value = np.array(
         [1, 0, 0],
         dtype=np.float32,

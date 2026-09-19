@@ -748,6 +748,8 @@ def test_correction_does_not_hold_write_lock_during_embedding_inference(
     import threading
 
     class SlowEmbedder:
+        MODEL_ID = "fake:test"
+
         def __init__(self):
             self.embed_started = threading.Event()
             self.release = threading.Event()

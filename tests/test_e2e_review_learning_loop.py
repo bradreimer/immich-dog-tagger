@@ -241,6 +241,8 @@ def test_failed_reclassify_job_can_be_retried_without_corruption(engine):
                 raise RuntimeError("simulated embedder crash")
 
         class WorkingEmbedder:
+            MODEL_ID = "fake:test"
+
             def embed_batch(self, paths):
                 return np.array([[1, 0, 0] for _ in paths], dtype=np.float32)
 
