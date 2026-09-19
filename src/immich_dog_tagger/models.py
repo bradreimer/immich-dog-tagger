@@ -37,6 +37,34 @@ class Base(DeclarativeBase):
     pass
 
 
+class ImmichAccount(Base):
+    """
+    One configured Immich account/library (issue #346).
+
+    Holds no credential -- only a name, kept in sync with `Config.accounts`
+    (see `services/accounts.py`) by exact string match at startup. The
+    actual API key lives only in configuration (env var or the JSON
+    `CONFIG_FILE`, per #348), never in `state.db`, matching this project's
+    existing security posture for Immich credentials.
+    """
+
+    __tablename__ = "immich_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    name: Mapped[str] = mapped_column(
+        String(128),
+        unique=True,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class Identity(Base):
     __tablename__ = "identities"
     __table_args__ = (
@@ -244,6 +272,24 @@ class Asset(Base):
     extension: Mapped[str] = mapped_column(
         String(16),
     )
+
+    # Which configured Immich account/library this photo came from (issue #346).
+    # Nullable, and immich_asset_id's uniqueness stays global rather than
+    # (account_id, immich_asset_id) -- a deliberate scope decision: the
+    # composite-unique case only matters for an asset visible to more than one
+    # account (e.g. Immich partner sharing), which is already out of scope
+    # (see docs/specs/multi-immich-account-sync.md's Non-goals: no
+    # cross-account dedup). Nullable rather than required so this migrates
+    # additively -- existing rows are backfilled to the "default" account by
+    # database.py, but a plain ADD COLUMN needs no table rebuild to get there,
+    # unlike changing an existing UNIQUE constraint would.
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("immich_accounts.id"),
+        nullable=True,
+        index=True,
+    )
+
+    account: Mapped[ImmichAccount | None] = relationship()
 
     status: Mapped[AssetStatus] = mapped_column(
         Enum(
@@ -860,6 +906,23 @@ class PipelineSchedule(Base):
         nullable=False,
     )
 
+    # Which configured account an account-scoped operation (scan/sync/
+    # full_pipeline) runs against (issue #346). NULL for a local-only
+    # operation (detect/classify/.../reembed), where it never applies, and
+    # also NULL for an account-scoped schedule that predates this column --
+    # the scheduler resolves that case to the default account (see
+    # services/accounts.py) rather than fanning out to every configured
+    # account, so an existing single-account install's schedules keep
+    # running unchanged with no migration step of their own. A multi-account
+    # owner wanting a second library scanned/synced on a schedule creates a
+    # second schedule with this set explicitly.
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("immich_accounts.id"),
+        nullable=True,
+    )
+
+    account: Mapped[ImmichAccount | None] = relationship()
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
@@ -936,6 +999,20 @@ class PipelineJob(Base):
         String(2048),
         nullable=True,
     )
+
+    # Which configured account this job ran against, for an account-scoped
+    # operation (scan/sync/full_pipeline) -- issue #346. NULL for a
+    # local-only operation, where it never applies, and also NULL for a job
+    # dispatched before this column existed or created without an explicit
+    # account; job_execution.py's handlers resolve that case to the default
+    # account the same way an account_id-less PipelineSchedule does.
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("immich_accounts.id"),
+        nullable=True,
+        index=True,
+    )
+
+    account: Mapped[ImmichAccount | None] = relationship()
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -1083,6 +1160,21 @@ class SyncedAsset(Base):
     immich_asset_id: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
+    )
+
+    # Which account this membership was synced under (issue #346). Nullable,
+    # and deliberately left out of the uniqueness constraint below, same
+    # scope decision as Asset.account_id: immich_asset_id values are already
+    # effectively disjoint per account in the normal (non-shared-library)
+    # case, so this only matters for the already-out-of-scope shared-asset
+    # edge case. SyncService.sync() always writes it going forward; the
+    # whole table is truncated and rewritten on every sync
+    # (_save_synced_state), so there is nothing to backfill for existing
+    # rows -- they are replaced by the very next sync.
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("immich_accounts.id"),
+        nullable=True,
+        index=True,
     )
 
     __table_args__ = (

@@ -75,6 +75,7 @@ def create_database(state_dir: Path):
     _ensure_crop_not_animal_column(engine)
     _ensure_asset_exif_dimension_columns(engine)
     _ensure_embedding_model_columns(engine)
+    _ensure_account_columns(engine)
     _cleanup_dangling_pet_occurrences(engine)
     _disable_learn_schedules(engine)
 
@@ -442,6 +443,42 @@ def _ensure_embedding_example_location_columns(engine) -> None:
     with engine.begin() as connection:
         for statement in statements:
             connection.exec_driver_sql(statement)
+
+
+def _ensure_account_columns(engine) -> None:
+    """
+    Issue #346: assets, synced_assets, pipeline_jobs, and pipeline_schedules
+    each gain a nullable account_id referencing the new immich_accounts
+    table. Plain ADD COLUMNs -- no existing uniqueness constraint changes
+    (a deliberate scope decision, see Asset.account_id's docstring), so no
+    SQLite table rebuild is needed for any of the four.
+
+    This only adds the columns; it does not create the "default" account row
+    or backfill existing Asset rows onto it -- that needs `Config.accounts`,
+    which this function (called from create_database(), which only ever
+    sees a state_dir) has no access to. See
+    `services.accounts.AccountService.sync_from_config()`, called once at
+    application/CLI startup once a `Config` is available.
+    """
+    inspector = inspect(engine)
+
+    tables_and_column_types = (
+        ("assets", "INTEGER REFERENCES immich_accounts(id)"),
+        ("synced_assets", "INTEGER REFERENCES immich_accounts(id)"),
+        ("pipeline_jobs", "INTEGER REFERENCES immich_accounts(id)"),
+        ("pipeline_schedules", "INTEGER REFERENCES immich_accounts(id)"),
+    )
+
+    with engine.begin() as connection:
+        for table, column_type in tables_and_column_types:
+            columns = {column["name"] for column in inspector.get_columns(table)}
+
+            if "account_id" in columns:
+                continue
+
+            connection.exec_driver_sql(
+                f"ALTER TABLE {table} ADD COLUMN account_id {column_type}"
+            )
 
 
 def _cleanup_dangling_pet_occurrences(engine) -> None:
