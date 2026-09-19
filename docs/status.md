@@ -941,6 +941,19 @@
   a mismatch. See
   [docs/specs/review-groups-temporal-spatial-refinement.md](specs/review-groups-temporal-spatial-refinement.md).
 
+- [#208](https://github.com/bradreimer/immich-dog-tagger/issues/208) consolidated the review
+  panel beside the image and added a review-milestone celebration, per
+  [docs/specs/review-tab-engagement-and-layout.md](specs/review-tab-engagement-and-layout.md):
+  `ReviewCard.tsx` moved to a two-column grid at the `lg` breakpoint (image left, a consolidated
+  prediction/species/identity/not-animal panel right) so the most-used controls are reachable
+  without scrolling; "Similar memory" (`SimilarExample.tsx`) became collapsed by default with its
+  reference image mounted only once expanded, so flipping through a queue no longer fetches an
+  image nobody looked at; and a small, non-blocking, `aria-live="polite"`,
+  `prefers-reduced-motion`-respecting celebration (`ReviewMilestoneCelebration.tsx`) fires when the
+  lifetime `reviewed` count crosses a multiple of 10, in the queue view only. Shipped and merged
+  in the same change that added the spec, but never recorded here or in the roadmap at the time --
+  documented retroactively during a docs/specs cleanup pass that found it undocumented.
+
 - [#339](https://github.com/bradreimer/immich-dog-tagger/issues/339) shipped default detection
   checkpoint changed from `yolo11n.pt` (nano) to `yolo11m.pt` (medium) -- `config.py`'s
   `YOLO_MODEL` fallback, `docker-compose.yml`, and `.env.example` -- for better dog detection
@@ -1076,6 +1089,13 @@ name+operation+cron builder with a fixed per-operation enable toggle + cron fiel
 sections (mirroring Immich's own Settings job-schedule pattern). Tracked as
 [#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
 
+New: [docs/specs/category-correction-consistency.md](specs/category-correction-consistency.md)
+scopes an explicit "Unknown" correction option (Review's identity chooser and Photo Lookup's
+per-detection controls) and keeping Photo Lookup's species/identity controls visible regardless of
+a detection's current category -- written but never linked to a tracking issue until this cleanup
+pass found it. Tracked as
+[#344](https://github.com/bradreimer/immich-dog-tagger/issues/344).
+
 Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day and a Pet World
 Tour map -- Best Friends (pet-to-pet co-occurrence) shipped as `BestFriendProvider` in #269. Each
 remaining item becomes a new provider under the architecture #110 landed, not a core change.
@@ -1087,7 +1107,20 @@ support to `reclassify` (already batches the same way; deliberately left out of 
 change smaller).
 
 ## Workflow Notes
-- New features should begin with a spec in docs/specs/.
+- New features should begin with a spec in docs/specs/ -- but only once there's a concrete
+  capability to scope; an idea that isn't scoped yet belongs in a GitHub Issue ("Feature Request"
+  template), not a new spec file.
+- Every spec must be linked from the GitHub Issue that tracks its implementation (see the "User
+  Story" or "Bug Report" issue templates' "Related spec" field). A 2026-09-19 cleanup pass
+  (docs/specs/, docs/tickets/, docs/validation/) removed seven specs that were never linked to an
+  issue and duplicated already-shipped work (active-learning-workflow-refinements,
+  browser-review-ux-improvements, deployment-release-automation,
+  immich-synchronization-enhancements, learning-system, reference-example-management,
+  review-workflow), and found two more that had shipped or were still open with no issue --
+  retroactively documented as #208 above and filed as #344, respectively. docs/tickets/ and
+  docs/validation/ needed no changes: ticket tracking already lives entirely in GitHub Issues (see
+  docs/tickets/README.md), and the validation reports under docs/validation/ are historical release
+  evidence, not tickets.
 - Implementation-sized work should be captured as a GitHub Issue (see the "User Story" or "Bug
   Report" issue templates; use "Feature Request" for an unscoped idea first).
 - Documentation should be updated alongside code changes.
