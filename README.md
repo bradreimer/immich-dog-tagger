@@ -83,6 +83,7 @@ curl -O https://raw.githubusercontent.com/bradreimer/immich-dog-tagger/main/.env
 mv .env.example .env
 # edit .env: set IMMICH_URL and IMMICH_API_KEY
 # (also set IMMICH_EXTERNAL_URL if your browser reaches Immich at a different address)
+# (multiple Immich accounts, or prefer JSON? see docs/deployment.md "JSON config file")
 
 # 2. Pull the latest published images and start both containers
 docker compose up -d

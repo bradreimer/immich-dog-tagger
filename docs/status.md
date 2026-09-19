@@ -941,6 +941,19 @@
   a mismatch. See
   [docs/specs/review-groups-temporal-spatial-refinement.md](specs/review-groups-temporal-spatial-refinement.md).
 
+- [#208](https://github.com/bradreimer/immich-dog-tagger/issues/208) consolidated the review
+  panel beside the image and added a review-milestone celebration, per
+  [docs/specs/review-tab-engagement-and-layout.md](specs/review-tab-engagement-and-layout.md):
+  `ReviewCard.tsx` moved to a two-column grid at the `lg` breakpoint (image left, a consolidated
+  prediction/species/identity/not-animal panel right) so the most-used controls are reachable
+  without scrolling; "Similar memory" (`SimilarExample.tsx`) became collapsed by default with its
+  reference image mounted only once expanded, so flipping through a queue no longer fetches an
+  image nobody looked at; and a small, non-blocking, `aria-live="polite"`,
+  `prefers-reduced-motion`-respecting celebration (`ReviewMilestoneCelebration.tsx`) fires when the
+  lifetime `reviewed` count crosses a multiple of 10, in the queue view only. Shipped and merged
+  in the same change that added the spec, but never recorded here or in the roadmap at the time --
+  documented retroactively during a docs/specs cleanup pass that found it undocumented.
+
 - [#339](https://github.com/bradreimer/immich-dog-tagger/issues/339) shipped default detection
   checkpoint changed from `yolo11n.pt` (nano) to `yolo11m.pt` (medium) -- `config.py`'s
   `YOLO_MODEL` fallback, `docker-compose.yml`, and `.env.example` -- for better dog detection
@@ -948,6 +961,39 @@
   `YOLO_MODEL` remains fully operator-overridable; `ultralytics.YOLO(...)` auto-downloads the new
   checkpoint on first use the same way it did for nano, so no provisioning step changed. No change
   to the identity-classification (OpenCLIP) stage.
+
+- [#341](https://github.com/bradreimer/immich-dog-tagger/issues/341) fixed a real bug in Grouped
+  mode (#333): its pending pool (`RecommendationClusterService.pending_pool()`,
+  `ReviewGroupingService._pending_identity_species_pairs()`) only checked "no `ReviewAction` yet",
+  never the confidence-vs-threshold condition Queue mode's `active_review()`/`review_queue_count()`
+  already apply -- so a photo the classifier was already confident about, but that had never been
+  individually approved, was pooled and clustered right alongside items that actually needed a
+  human decision, and kept resurfacing group after group since nothing ever wrote a `ReviewAction`
+  for it. Same class of bug as DT-1115, in the Grouped-mode pooling path instead of the stats path.
+  Both queries now apply the same `identity IS NULL OR confidence < threshold` condition
+  `active_review()` uses, with the effective `ClassifierPolicy` (tagging-sensitivity-aware, from
+  `AppSettingsService.policy()`) threaded through `RecommendationClusterService`/
+  `ReviewGroupingService` the same way `get_review_query_service` already threads it. `/library/
+  clusters`'s per-pet view (`clusters()`/`_candidate_ids()`) is intentionally unchanged -- that is
+  a different, broader "everything pending for this pet" audit, not the review queue.
+
+- [#348](https://github.com/bradreimer/immich-dog-tagger/issues/348)
+  ([docs/specs/json-config-file.md](specs/json-config-file.md)) added a JSON configuration file as
+  a new, opt-in source for Immich configuration, mounted into the container the same way
+  `state`/`cache`/`models` already are (`config.example.json`, `CONFIG_FILE` env var,
+  `HOST_CONFIG_FILE` in `.env`/`docker-compose.yml`). `load_config()` now exposes
+  `Config.accounts` (a tuple of `ImmichAccount(name, api_key)`), giving
+  [#346](https://github.com/bradreimer/immich-dog-tagger/issues/346) somewhere to declare more
+  than one Immich account; `Config.immich_api_key` is unchanged and reads the first account's key,
+  so every existing caller keeps working untouched. No `CONFIG_FILE`/no mounted file falls back
+  to the legacy `IMMICH_URL`/`IMMICH_API_KEY`/`IMMICH_EXTERNAL_URL`/`IMMICH_TIMEOUT_SECONDS`
+  environment variables with no error -- including when Docker auto-creates a directory at the
+  mount point because the host file doesn't exist yet, which is treated the same as "no file". A
+  present-but-invalid file (malformed JSON, missing `immich.url`, zero accounts, or a duplicate
+  account name) raises `ConfigError` naming the file and the problem, caught at both process entry
+  points (CLI `main()`, the API's startup `lifespan()`) as a clean one-line error instead of a
+  stack trace. Both sources present at once: the file wins and a startup log line names the
+  ignored environment variables.
 
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
@@ -1009,6 +1055,19 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
+[#342](https://github.com/bradreimer/immich-dog-tagger/issues/342) replaced `OpenClipEmbedder`
+with `DogReIDEmbedder` (MegaDescriptor-L-384, a model trained via metric learning specifically for
+individual animal re-identification rather than CLIP's general image-text alignment -- see
+[ADR-010](adr/ADR-010-dog-reid-embedding-model.md) and
+[docs/specs/dog-reid-embeddings.md](specs/dog-reid-embeddings.md)) behind the existing `Embedder`
+protocol, with no change to `IdentityClassifier`/`ClassifierPolicy`/the review workflow. Added an
+`embedding_model` column on `EmbeddingExample`/`CropClassification` (additive migration,
+backfilled with a sentinel identifying the prior OpenCLIP model) and a new `reembed` pipeline
+operation (`services/reembed.py`, wired into the job system, Overview's Manual Operations card,
+and Job Queue) that recomputes every stored vector under the current model -- never touching
+identity/confidence/source -- followed by a normal Reclassify pass; existing installs run it once
+after upgrading.
+
 A full navigation/intent UX pass across every tab filed 12 issues (#286-#297) -- sidebar/in-app
 navigation defects, Overview job-list/operations consolidation, Dogs & Cats row action layout, a
 Library-to-Review filter bridge, and small UX polish. All 12 have shipped, through v1.26.0:
@@ -1061,6 +1120,13 @@ name+operation+cron builder with a fixed per-operation enable toggle + cron fiel
 sections (mirroring Immich's own Settings job-schedule pattern). Tracked as
 [#188](https://github.com/bradreimer/immich-dog-tagger/issues/188).
 
+New: [docs/specs/category-correction-consistency.md](specs/category-correction-consistency.md)
+scopes an explicit "Unknown" correction option (Review's identity chooser and Photo Lookup's
+per-detection controls) and keeping Photo Lookup's species/identity controls visible regardless of
+a detection's current category -- written but never linked to a tracking issue until this cleanup
+pass found it. Tracked as
+[#344](https://github.com/bradreimer/immich-dog-tagger/issues/344).
+
 Otherwise, v1.7.0's own explicitly-deferred items (see spec Non-goals): On This Day and a Pet World
 Tour map -- Best Friends (pet-to-pet co-occurrence) shipped as `BestFriendProvider` in #269. Each
 remaining item becomes a new provider under the architecture #110 landed, not a core change.
@@ -1072,7 +1138,20 @@ support to `reclassify` (already batches the same way; deliberately left out of 
 change smaller).
 
 ## Workflow Notes
-- New features should begin with a spec in docs/specs/.
+- New features should begin with a spec in docs/specs/ -- but only once there's a concrete
+  capability to scope; an idea that isn't scoped yet belongs in a GitHub Issue ("Feature Request"
+  template), not a new spec file.
+- Every spec must be linked from the GitHub Issue that tracks its implementation (see the "User
+  Story" or "Bug Report" issue templates' "Related spec" field). A 2026-09-19 cleanup pass
+  (docs/specs/, docs/tickets/, docs/validation/) removed seven specs that were never linked to an
+  issue and duplicated already-shipped work (active-learning-workflow-refinements,
+  browser-review-ux-improvements, deployment-release-automation,
+  immich-synchronization-enhancements, learning-system, reference-example-management,
+  review-workflow), and found two more that had shipped or were still open with no issue --
+  retroactively documented as #208 above and filed as #344, respectively. docs/tickets/ and
+  docs/validation/ needed no changes: ticket tracking already lives entirely in GitHub Issues (see
+  docs/tickets/README.md), and the validation reports under docs/validation/ are historical release
+  evidence, not tickets.
 - Implementation-sized work should be captured as a GitHub Issue (see the "User Story" or "Bug
   Report" issue templates; use "Feature Request" for an unscoped idea first).
 - Documentation should be updated alongside code changes.

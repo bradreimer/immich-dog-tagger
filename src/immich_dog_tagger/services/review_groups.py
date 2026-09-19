@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import ClusterSort, Species
 from immich_dog_tagger.models import Crop, CropClassification, ReviewAction
+from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
 from immich_dog_tagger.services.clusters import (
     DEFAULT_CLUSTER_SORT,
     MAX_CANDIDATE_POOL,
@@ -183,13 +184,15 @@ class ReviewGroupingService:
         *,
         max_pool: int = MAX_CANDIDATE_POOL,
         max_identities: int = MAX_GROUP_IDENTITIES,
+        policy: ClassifierPolicy = DEFAULT_POLICY,
     ):
         self.session = session
         self.max_identities = max_identities
-        self.review_query = ReviewQueryService(session)
+        self.review_query = ReviewQueryService(session, policy=policy)
         self.cluster_service = RecommendationClusterService(
             session,
             max_pool=max_pool,
+            policy=policy,
         )
 
     def groups(
@@ -261,15 +264,23 @@ class ReviewGroupingService:
         """
         Every (identity, species) pair the classifier put forward -- as the
         accepted identity or a stored candidate -- for at least one active
-        review-queue item (no review action yet). Mirrors
-        `RecommendationClusterService._candidate_ids()`'s pool membership
-        rule, just scanning every identity at once instead of testing one.
+        review-queue item: no review action yet, and either no predicted
+        identity or confidence below the effective
+        `ClassifierPolicy.confident_threshold` -- the same "needs review"
+        condition `ReviewQueryService.active_review()` applies (issue #341;
+        without it, an identity whose only pending items were already
+        confidently classified would still be scanned and clustered here).
+        Otherwise mirrors `RecommendationClusterService._candidate_ids()`'s
+        pool membership rule, just scanning every identity at once instead
+        of testing one.
 
         A single query, since SQLite has no portable "JSON array contains"
         predicate: candidate matching happens in Python the same way
         `_candidate_ids()` already does it, over the pending pool only (not
         the whole library), which is what keeps this bounded.
         """
+        threshold = self.review_query.policy.confident_threshold
+
         rows = self.session.execute(
             select(
                 CropClassification.identity,
@@ -283,6 +294,10 @@ class ReviewGroupingService:
                         ReviewAction.classification_id == CropClassification.id,
                     )
                 )
+            )
+            .where(
+                (CropClassification.identity.is_(None))
+                | (CropClassification.confidence < threshold)
             )
             .where(
                 (CropClassification.identity.is_not(None))

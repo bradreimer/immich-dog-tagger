@@ -174,6 +174,75 @@ def test_reviewed_classifications_are_excluded(engine):
         assert proposal.identity_count == 0
 
 
+def test_confidently_classified_unreviewed_items_are_excluded(engine):
+    """
+    Issue #341: a classification with confidence at or above the policy's
+    `confident_threshold` but no `ReviewAction` yet doesn't need a human
+    decision -- Queue mode's `active_review()` already excludes it, so
+    Grouped mode must not pool or cluster it either, or the reviewer sees
+    the same "confident" photos resurface group after group with no way to
+    clear them short of an explicit approval they were never asked for.
+    """
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+
+        _classification(
+            session,
+            path="confident-a.jpg",
+            identity="Fibs",
+            confidence=0.95,
+            embedding=[1.0, 0.0, 0.0],
+        )
+        _classification(
+            session,
+            path="confident-b.jpg",
+            identity="Fibs",
+            confidence=0.9,
+            embedding=[0.99, 0.05, 0.0],
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        assert proposal.groups == []
+        assert proposal.identity_count == 0
+
+
+def test_mixed_confidence_group_keeps_only_items_needing_review(engine):
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+
+        confident = _classification(
+            session,
+            path="confident.jpg",
+            identity="Fibs",
+            confidence=0.95,
+            embedding=[1.0, 0.0, 0.0],
+        )
+        needs_review_a = _classification(
+            session,
+            path="needs-review-a.jpg",
+            identity="Fibs",
+            confidence=0.5,
+            embedding=[0.99, 0.05, 0.0],
+        )
+        needs_review_b = _classification(
+            session,
+            path="needs-review-b.jpg",
+            identity="Fibs",
+            confidence=0.6,
+            embedding=[0.98, 0.06, 0.0],
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        assert len(proposal.groups) == 1
+        member_ids = {
+            member.classification_id for member in proposal.groups[0].cluster.members
+        }
+        assert member_ids == {needs_review_a.id, needs_review_b.id}
+        assert confident.id not in member_ids
+
+
 def test_groups_sorted_by_size_descending(engine):
     with Session(engine) as session:
         _identity(session, "Fibs")

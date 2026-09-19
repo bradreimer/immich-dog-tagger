@@ -29,6 +29,7 @@ from immich_dog_tagger.models import (
     PetOccurrence,
     ReviewAction,
 )
+from immich_dog_tagger.policy import ClassifierPolicy
 from immich_dog_tagger.services.clusters import (
     ClusterApprovalService,
     ConfirmedClusterService,
@@ -40,6 +41,8 @@ from immich_dog_tagger.services.learner import Learner
 
 class FakeEmbedder:
     """Every crop path embeds to a fixed vector, so learning is deterministic."""
+
+    MODEL_ID = "fake:test"
 
     def __init__(self, vector=(1.0, 0.0, 0.0)):
         self.vector = np.array(vector, dtype=np.float32)
@@ -584,6 +587,56 @@ def test_clusters_in_pool_excludes_a_crop_rejected_for_this_identity_but_not_oth
 
         assert fibs.candidate_count == 0
         assert hermann.candidate_count == 1
+
+
+def test_pending_pool_excludes_confidently_classified_unreviewed_rows(engine):
+    """
+    Issue #341: a classification with no `ReviewAction` yet but confidence
+    at or above the policy's `confident_threshold` doesn't need a human
+    decision -- `ReviewQueryService.active_review()` already excludes it
+    from Queue mode, so `pending_pool()` (Grouped mode's pool) must exclude
+    it too, or it would keep reappearing in a group with no way to settle
+    it short of an explicit approval.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        confident = _classification(
+            session, path="confident.jpg", confidence=0.95, embedding=[1.0, 0.0, 0.0]
+        )
+        needs_review = _classification(
+            session,
+            path="needs-review.jpg",
+            confidence=0.5,
+            embedding=[0.99, 0.05, 0.0],
+        )
+
+        service = RecommendationClusterService(session)
+        pool = service.pending_pool(Species.DOG)
+
+        ids = {row.id for row in pool.rows}
+        assert needs_review.id in ids
+        assert confident.id not in ids
+
+
+def test_pending_pool_confidence_filter_uses_the_configured_policy(engine):
+    """The threshold above is the *policy's*, not a hardcoded literal --
+    passing a stricter policy pools more, a looser one pools less."""
+    with Session(engine) as session:
+        _identity(session)
+
+        classification = _classification(
+            session, path="a.jpg", confidence=0.85, embedding=[1.0, 0.0, 0.0]
+        )
+
+        default_pool = RecommendationClusterService(session).pending_pool(Species.DOG)
+        assert classification.id not in {row.id for row in default_pool.rows}
+
+        lenient_policy = ClassifierPolicy(confident_threshold=0.9)
+        lenient_pool = RecommendationClusterService(
+            session, policy=lenient_policy
+        ).pending_pool(Species.DOG)
+        assert classification.id in {row.id for row in lenient_pool.rows}
 
 
 def test_clustering_writes_nothing(engine):

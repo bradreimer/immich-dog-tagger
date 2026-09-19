@@ -50,52 +50,62 @@ configuration stays easy to read, edit, and keep under version control.
   config file -- exists. They stay in `.env`/the shell environment that runs `docker compose up`.
 - **A web UI for editing this file.** Consistent with today's design (Immich credentials and
   deployment config are never editable from the app's own UI, only environment-configured).
-- **Encrypting secrets at rest.** The file will contain one or more Immich API keys in plaintext,
-  the same exposure `.env` already has today; host-level file permissions remain the operator's
+- **Encrypting secrets at rest.** The file contains one or more Immich API keys in plaintext, the
+  same exposure `.env` already has today; host-level file permissions remain the operator's
   responsibility, unchanged from the current model.
 - **A generalized settings/plugin system.** This is a fixed, documented schema for this app's own
   configuration, not an extensible or user-defined config format.
+- **Moving `CROP_PADDING`.** It's a pipeline tuning knob, not deployment topology or an
+  Immich-connection detail -- less obviously in-scope than the `immich.*` settings, and low-stakes
+  either way. Stays an environment variable; revisit only if more pipeline knobs accumulate and a
+  `pipeline` object earns its keep.
+- **One-shot migration tooling.** No `immich-dog-tagger migrate-config` command that writes a
+  `config.json` from the current environment. Hand-authoring the (short) JSON file from
+  `config.example.json` is enough for FR-2's backward compatibility to hold without it; revisit if
+  migration friction turns out to matter in practice.
 
 ## Reviewing the existing environment variables
 
-| Variable | Today | Proposal | Why |
+| Variable | Today | Decision | Why |
 | --- | --- | --- | --- |
 | `IMMICH_URL` | required env var | moves to JSON (`immich.url`) | Structural Immich config; naturally sits alongside the new accounts array. |
 | `IMMICH_EXTERNAL_URL` | optional env var | moves to JSON (`immich.external_url`) | Same category as `IMMICH_URL`; the two are already documented together. |
 | `IMMICH_API_KEY` | required env var (single account) | superseded by JSON (`immich.accounts: [{name, api_key}, ...]`) | The reason this spec exists -- see [multi-Immich-account-sync.md](multi-immich-account-sync.md). Legacy `IMMICH_API_KEY` keeps working as a fallback (see Requirements) so nothing breaks for an install that never adopts the file. |
 | `IMMICH_TIMEOUT_SECONDS` | optional env var, default `60` | moves to JSON (`immich.timeout_seconds`) | Same "how this app talks to Immich" category as the URL/accounts. |
-| `CROP_PADDING` | optional env var, default `0.15` | **undecided -- see Open Questions** | A pipeline tuning knob, not deployment topology or an Immich-connection detail; less obviously in-scope for this file than the `immich.*` settings. |
+| `CROP_PADDING` | optional env var, default `0.15` | stays an environment variable | See Non-goals. |
 | `STATE_DIR` | env var (fixed by `docker-compose.yml` to `/app/state` in the packaged deployment; user-set when running from source) | stays an env var | Tied to how/where the process is launched (container vs. source checkout), not "application configuration" -- and something has to name *this* file's own location without depending on it, which an env var already does today for other paths. |
 | `CACHE_DIR` | same as `STATE_DIR` | stays an env var | Same reasoning. |
 | `YOLO_MODEL` | same as `STATE_DIR` | stays an env var | Same reasoning. |
 | `HOST_STATE_DIR` / `HOST_CACHE_DIR` / `HOST_MODEL_DIR` | docker-compose-only vars (never read by the Python app) | stays in `.env` | Consumed by `docker compose` itself for `volumes:` substitution before the container exists; see Non-goals. |
-| `GIT_COMMIT` | env var baked in at image build time | stays an env var | Build/CI metadata, not operator configuration. |
+| `GIT_COMMIT` | env var baked in at image build time | stays an environment variable | Build/CI metadata, not operator configuration. |
 
-The practical effect: a new `CONFIG_FILE` environment variable (default path documented for both
-the Docker image and running from source) tells the app where to find the JSON file. Everything
-under `immich.*` moves there; filesystem/runtime-launch paths and docker-compose's own
-host-mount variables do not.
+The practical effect: a new `CONFIG_FILE` environment variable (see Resolved decisions for its
+default paths) tells the app where to find the JSON file. Everything under `immich.*` moves there;
+filesystem/runtime-launch paths and docker-compose's own host-mount variables do not.
 
 ## Requirements
 
 - **FR-1: File format and location.** A JSON file with (at minimum) an `immich` object:
   `{"immich": {"url": "...", "external_url": "...", "timeout_seconds": 60, "accounts": [{"name": "...", "api_key": "..."}]}}`.
-  Its path is given by a new `CONFIG_FILE` environment variable; `docker-compose.yml` mounts a
-  host file to that path as a new bind-mounted volume, the same pattern used for
+  Its path is given by the `CONFIG_FILE` environment variable; `docker-compose.yml` mounts a host
+  file to that path as a new bind-mounted volume, the same pattern used for
   `HOST_STATE_DIR`/`HOST_CACHE_DIR`/`HOST_MODEL_DIR`.
-- **FR-2: Backward compatibility.** If `CONFIG_FILE` is unset or the file doesn't exist,
-  configuration loading falls back to today's legacy environment variables
+- **FR-2: Backward compatibility.** If `CONFIG_FILE` is unset, or the path it names isn't an
+  existing regular file, configuration loading falls back to today's legacy environment variables
   (`IMMICH_URL`/`IMMICH_API_KEY`/`IMMICH_EXTERNAL_URL`/`IMMICH_TIMEOUT_SECONDS`) exactly as it
   works today, producing a single implicit account. An existing deployment needs zero changes to
-  keep working after upgrading to a build that includes this feature.
+  keep working after upgrading to a build that includes this feature. This check is deliberately
+  "is a file", not "exists": a Docker bind mount whose host source doesn't exist yet is
+  auto-created as a directory, and that must be treated the same as "no config file" rather than
+  raising a confusing `IsADirectoryError`.
 - **FR-3: Validation.** Malformed JSON, a missing required field (`immich.url`; at least one
-  account), or a duplicate account name fails startup immediately with a message naming the file
-  path and the specific problem -- never a stack trace, and never silently falling back to
-  legacy env vars when a config file was clearly intended but is broken.
+  account with a `name` and `api_key`), or a duplicate account name fails startup immediately with
+  a message naming the file path and the specific problem -- never a stack trace, and never
+  silently falling back to legacy env vars when a config file was clearly intended but is broken.
 - **FR-4: Precedence and transparency.** If both a config file and legacy environment variables
   are present at once (e.g. mid-migration), the config file wins outright, and a startup log line
-  states that the legacy environment variables were present but ignored -- so an operator mid-
-  migration is never left guessing which source is actually in effect.
+  states that the legacy environment variables were present but ignored -- so an operator
+  mid-migration is never left guessing which source is actually in effect.
 - **FR-5: Documentation and examples.** A `config.example.json` (mirroring `.env.example`'s role)
   ships in the repo; `docker-compose.yml`, `docs/deployment.md`, and the README are updated to
   show mounting it, and to describe migrating from the legacy `IMMICH_*` environment variables.
@@ -115,20 +125,26 @@ host-mount variables do not.
 - Given a `CONFIG_FILE` path that doesn't exist, startup proceeds on the legacy environment-variable
   path with no error (this is the expected "hasn't migrated yet" state, not a misconfiguration).
 
-## Open questions
+## Out of scope
 
-- **Exact JSON schema.** The `{"immich": {"accounts": [...]}}` shape above is a starting proposal,
-  not final -- key names/nesting should be settled during implementation review, alongside
-  [multi-Immich-account-sync.md](multi-immich-account-sync.md), which is the actual consumer of
-  the `accounts` array.
-- **`CROP_PADDING`'s home.** Whether pipeline tuning knobs like this belong in this file (under,
-  e.g., a `pipeline` object) or should stay plain environment variables. Low-stakes either way;
-  doesn't block the rest of this work.
-- **One-shot migration tooling.** Whether to ship a CLI command (e.g.
-  `immich-dog-tagger migrate-config`) that reads the current environment variables and writes an
-  equivalent `config.json`, so adopting the new format is one command instead of hand-authoring
-  JSON. Not required for FR-2's backward compatibility to hold, but would make migration easier to
-  recommend.
-- **Naming**: `CONFIG_FILE` vs. some other environment variable name, and the default path
-  documented for the Docker image (e.g. `/app/config/config.json`) vs. running from source (e.g.
-  `./config.json`).
+Declaring the actual multi-account *behavior* (scan/download/sync per account, shared
+classification) -- that's [#346](https://github.com/bradreimer/immich-dog-tagger/issues/346),
+which depends on this story landing first. This spec only makes the account list loadable and
+exposes it on `Config.accounts`; nothing yet reads more than the first account
+(`Config.immich_api_key`, unchanged, is the first account's key).
+
+## Resolved decisions
+
+These were open questions when this spec was written; resolved during implementation
+([#348](https://github.com/bradreimer/immich-dog-tagger/issues/348)):
+
+- **Naming and default paths.** `CONFIG_FILE` was kept as proposed. There is no built-in default
+  path in the application itself -- an unset `CONFIG_FILE` means "no config file", full stop, so a
+  stray `config.json` in a source checkout's working directory can never be picked up by
+  surprise. `docker-compose.yml` sets `CONFIG_FILE=/app/config/config.json` for the container and
+  mounts `${HOST_CONFIG_FILE:-./data/config.json}` there (empty by default, matching FR-2's
+  auto-created-directory case); running from source, an operator opts in by setting
+  `CONFIG_FILE=./config.json` (or any path) in `.env` themselves.
+- **Exact JSON schema.** Settled as proposed: `{"immich": {"url", "external_url",
+  "timeout_seconds", "accounts": [{"name", "api_key"}]}}`. `external_url` and `timeout_seconds`
+  are optional (default `""` and `60`, mirroring the legacy environment variables' defaults).

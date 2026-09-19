@@ -19,6 +19,7 @@ import {
   IconRefreshDot,
   IconRocket,
   IconSparkles,
+  IconVectorBezier2,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +85,15 @@ export function OverviewPage() {
         "Use this when the current classifications look good and you want to write those identities into Immich albums and tags.",
       icon: IconCloudUpload,
       ariaLabel: "Synchronize albums and tags to Immich",
+    },
+    {
+      operation: "reembed",
+      headline: "Recompute embeddings",
+      actionLabel: "Re-embed",
+      description:
+        "Use this once after the embedding model changes, to recompute every stored crop vector under the current model and reclassify from it. It never changes a label you've already confirmed.",
+      icon: IconVectorBezier2,
+      ariaLabel: "Recompute embeddings and reclassify",
     },
   ];
 

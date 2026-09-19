@@ -39,6 +39,8 @@ class QueryCounter:
 
 
 class FakeEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed(self, path):
         import numpy as np
 

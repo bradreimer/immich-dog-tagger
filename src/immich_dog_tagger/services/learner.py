@@ -77,6 +77,7 @@ class Learner:
             identity_id=identity.id,
             crop_path=str(image_path),
             embedding=embedding_to_blob(embedding),
+            embedding_model=self.embedder.MODEL_ID,
             source=source,
             captured_at=captured_at,
             latitude=latitude,
@@ -152,6 +153,7 @@ class Learner:
                 identity_id=identity.id,
                 crop_path=str(image_path),
                 embedding=embedding_to_blob(embedding),
+                embedding_model=self.embedder.MODEL_ID,
                 source=source,
                 captured_at=captured_at,
             )

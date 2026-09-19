@@ -37,6 +37,8 @@ class FakeImmichClient:
 
 
 class FakeEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed(self, path):
         return np.array([1.0, 0.0, 0.0], dtype=np.float32)
 

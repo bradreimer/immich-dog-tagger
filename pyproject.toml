@@ -1,6 +1,6 @@
 [project]
 name = "immich-dog-tagger"
-version = "1.31.0"
+version = "1.33.0"
 description = "AI-assisted dog detection and tagging for Immich"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -11,7 +11,7 @@ dependencies = [
     "ultralytics>=8.4.100",
     "pi-heif>=1.4.0",
     "pillow>=12.3.0",
-    "open-clip-torch>=3.3.0",
+    "timm>=1.0.15",
     "fastapi>=0.139.2",
     "uvicorn>=0.51.0",
     "httpx2>=2.9.0",
