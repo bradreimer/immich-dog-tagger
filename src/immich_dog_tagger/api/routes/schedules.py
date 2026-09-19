@@ -58,6 +58,7 @@ def create_schedule(
             expression=request.expression,
             timezone_name=request.timezone_name,
             enabled=request.enabled,
+            account_id=request.account_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -85,6 +86,9 @@ def update_schedule(
             expression=request.expression,
             timezone_name=request.timezone_name,
             enabled=request.enabled,
+            account_id=(
+                request.account_id if "account_id" in request.model_fields_set else ...
+            ),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

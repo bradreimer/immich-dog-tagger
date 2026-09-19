@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import get_config, get_session
 from immich_dog_tagger.api.schemas import (
+    AccountResponse,
     SettingsResponse,
     TaggingSensitivityRequest,
 )
 from immich_dog_tagger.config import Config
+from immich_dog_tagger.services.accounts import AccountService
 from immich_dog_tagger.services.app_settings import AppSettingsService
 from immich_dog_tagger.services.status import StatusService
 from immich_dog_tagger.version import get_version
@@ -28,12 +30,15 @@ def get_settings(
 ):
     scanned_image_count = StatusService(session).asset_count()
 
+    accounts = AccountService(session).sync_from_config(config)
+
     return SettingsResponse(
         immich_url=config.immich_url,
         immich_external_url=config.immich_link_base_url,
         scanned_image_count=scanned_image_count,
         version=get_version(),
         tagging_sensitivity=AppSettingsService(session).sensitivity(),
+        accounts=[AccountResponse.from_account(account) for account in accounts],
     )
 
 
@@ -57,6 +62,7 @@ def set_tagging_sensitivity(
     settings.set_sensitivity(request.tagging_sensitivity)
 
     scanned_image_count = StatusService(session).asset_count()
+    accounts = AccountService(session).sync_from_config(config)
 
     return SettingsResponse(
         immich_url=config.immich_url,
@@ -64,4 +70,5 @@ def set_tagging_sensitivity(
         scanned_image_count=scanned_image_count,
         version=get_version(),
         tagging_sensitivity=settings.sensitivity(),
+        accounts=[AccountResponse.from_account(account) for account in accounts],
     )

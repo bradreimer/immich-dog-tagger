@@ -17,6 +17,7 @@ logging.basicConfig(
 )
 
 from immich_dog_tagger.api.routes import (
+    accounts,
     classifications,
     crops,
     diagnostics,
@@ -33,6 +34,7 @@ from immich_dog_tagger.api.routes import (
     settings,
 )
 from immich_dog_tagger.config import ConfigError, load_config
+from immich_dog_tagger.services.accounts import AccountService
 from immich_dog_tagger.services.job_recovery import recover_interrupted_jobs
 from immich_dog_tagger.services.scheduler_loop import SchedulerHealth, run_scheduler
 from immich_dog_tagger.version import get_version
@@ -52,6 +54,12 @@ async def lifespan(app: FastAPI):
 
     with Session(engine) as session:
         recover_interrupted_jobs(session)
+        # Issue #346: registers/upserts an ImmichAccount row per
+        # Config.accounts entry and backfills any pre-existing Asset onto
+        # the default account -- once per process start, before the
+        # scheduler thread or any request can read PipelineJob/Schedule
+        # account_id or resolve an account to a client.
+        AccountService(session).sync_from_config(config)
 
     scheduler_health = SchedulerHealth()
     stop_event = threading.Event()
@@ -84,6 +92,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(accounts.router)
     app.include_router(classifications.router)
     app.include_router(crops.router)
     app.include_router(diagnostics.router)

@@ -23,6 +23,13 @@ class ScheduleResponse(BaseModel):
     next_run_at: datetime | None
     last_run_at: datetime | None
     last_run_result: str | None
+    # The specific account this schedule is pinned to (issue #346), for an
+    # account-scoped operation (scan/sync/full_pipeline) only -- None for a
+    # local-only operation, and also None for an account-scoped schedule
+    # left unpinned, which runs against the default account (see
+    # services.accounts.resolve_account).
+    account_id: int | None
+    account: str | None
 
     @classmethod
     def from_schedule(cls, schedule):
@@ -38,6 +45,8 @@ class ScheduleResponse(BaseModel):
             next_run_at=schedule.next_run_at,
             last_run_at=schedule.last_run_at,
             last_run_result=schedule.last_run_result,
+            account_id=schedule.account_id,
+            account=schedule.account.name if schedule.account else None,
         )
 
 
@@ -47,6 +56,7 @@ class ScheduleCreateRequest(BaseModel):
     expression: str
     timezone_name: str = "UTC"
     enabled: bool = True
+    account_id: int | None = None
 
 
 class ScheduleRunResponse(BaseModel):
@@ -83,6 +93,10 @@ class ScheduleUpdateRequest(BaseModel):
     expression: str | None = None
     timezone_name: str | None = None
     enabled: bool | None = None
+    # None is a meaningful value here (un-pin the schedule from any specific
+    # account), so the route only forwards this when the request body
+    # actually included the field -- see request.model_fields_set.
+    account_id: int | None = None
 
 
 class DogResponse(BaseModel):
@@ -163,6 +177,12 @@ class ReviewItemResponse(BaseModel):
     captured_at: datetime | None
     immich_asset_id: str | None
     location: str | None
+    # Which configured Immich account this photo belongs to (issue #346),
+    # shown alongside captured_at/location wherever those already are --
+    # None when the asset predates this feature and hasn't been backfilled
+    # (should not happen once AccountService's migration has run, but never
+    # crashes a review/library page if it somehow hasn't).
+    account: str | None
     not_animal: bool
 
     prediction: ReviewPredictionResponse
@@ -179,6 +199,7 @@ class ReviewItemResponse(BaseModel):
             captured_at=item.captured_at,
             immich_asset_id=item.immich_asset_id,
             location=item.location,
+            account=item.account,
             not_animal=item.not_animal,
             prediction=ReviewPredictionResponse(
                 identity=item.prediction.identity,
@@ -435,6 +456,11 @@ class ReviewCandidateResponse(BaseModel):
 class JobCreateRequest(BaseModel):
     operation: PipelineOperation
     start: bool = True
+    # For an account-scoped operation (scan/sync/full_pipeline) only, issue
+    # #346 -- omitted (or on a local-only operation, where it's ignored)
+    # resolves to the default account at run time, matching a schedule with
+    # no account_id set.
+    account_id: int | None = None
 
 
 class ClassificationPassResponse(BaseModel):
@@ -609,6 +635,8 @@ class JobResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    account_id: int | None
+    account: str | None
 
     @classmethod
     def from_job(cls, job):
@@ -624,7 +652,24 @@ class JobResponse(BaseModel):
             created_at=job.created_at,
             started_at=job.started_at,
             completed_at=job.completed_at,
+            account_id=job.account_id,
+            account=job.account.name if job.account else None,
         )
+
+
+class AccountResponse(BaseModel):
+    """
+    A configured Immich account/library (issue #346) -- name only, never the
+    API key, matching the existing convention that `immich_api_key` is
+    write-only from the app's perspective.
+    """
+
+    id: int
+    name: str
+
+    @classmethod
+    def from_account(cls, account):
+        return cls(id=account.id, name=account.name)
 
 
 class SettingsResponse(BaseModel):
@@ -636,6 +681,10 @@ class SettingsResponse(BaseModel):
     # unlike the rest of this response it lives in state.db rather than the
     # environment.
     tagging_sensitivity: TaggingSensitivity
+    # Configured accounts (issue #346) -- always exactly one ({"default"})
+    # for a legacy single-key deployment, so this list appearing with one
+    # entry is not itself a signal anything changed.
+    accounts: list[AccountResponse] = []
 
 
 class TaggingSensitivityRequest(BaseModel):
@@ -783,6 +832,9 @@ class PhotoLookupResponse(BaseModel):
     country: str | None
     state: str | None
     city: str | None
+    # Which configured Immich account this photo belongs to (issue #346),
+    # shown alongside the other photo details above.
+    account: str | None
     detections: list[PhotoLookupDetectionResponse]
 
     @classmethod
@@ -796,6 +848,7 @@ class PhotoLookupResponse(BaseModel):
             country=lookup.country,
             state=lookup.state,
             city=lookup.city,
+            account=lookup.account,
             detections=[
                 PhotoLookupDetectionResponse(
                     detection_id=detection.detection_id,
