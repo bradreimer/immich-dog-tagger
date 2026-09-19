@@ -107,10 +107,13 @@ exists at all.
   against the single configured `IMMICH_URL`/`IMMICH_EXTERNAL_URL`.
 - A deployment with only the existing `IMMICH_API_KEY` set (no accounts declared) behaves exactly
   as today: one implicit account, no visible change anywhere in the CLI, API, or UI.
-- Exact environment-variable shape (a JSON array such as `IMMICH_ACCOUNTS`, vs. numbered variables
-  such as `IMMICH_API_KEY_1`/`IMMICH_ACCOUNT_NAME_1`) is an implementation decision -- see Open
-  Questions -- but must be documented in `.env.example` and `docs/deployment.md` the same way
-  existing `IMMICH_*` variables are.
+- Accounts are declared as a JSON array inside the mounted JSON configuration file introduced by
+  [the configuration-file spec](json-config-file.md) /
+  [issue #TBD](https://github.com/bradreimer/immich-dog-tagger/issues) -- **this story depends on
+  that one landing first**, since a flat environment variable is a poor fit for a list of
+  name/key pairs. See that spec for the file format, location, and env-var-based backward
+  compatibility (an install with no config file and only the legacy `IMMICH_API_KEY` env var set
+  keeps working as a single implicit account).
 
 ### FR-2: Data model
 
@@ -181,6 +184,13 @@ exists at all.
 - The Library and Review pages can filter by account, alongside the existing species/identity/
   reviewed-status/capture-date filters, and each item's detail panel shows which account a photo
   belongs to.
+- **Everywhere a photo's own details are already shown (capture date, location), the account name
+  is shown alongside them**, not only as a separate filter: the Review card, the Library detail
+  panel, and the Photo Lookup page's per-detection details. This is the same "trust signal"
+  treatment capture date got in
+  [v1.4.0](v1.4-trustworthy-photo-library.md)/DT-1111 and location got in
+  [v1.6.0](v1.6-pet-insights.md) -- account is one more fact about where a photo came from, shown
+  next to the others rather than requiring a separate lookup.
 - "View in Immich" / Photo Lookup links need no account-specific logic: the link resolves through
   the browser's own logged-in Immich session, not this app's server-side API key, so the existing
   `immich_link_base_url` behavior is unaffected by which account a photo came from.
@@ -204,14 +214,15 @@ exists at all.
   `Asset`/`SyncedAsset` rows are attributed to one implicit "Default" account, and no photo is
   redownloaded, redetected, reclassified, or resynced as a side effect of the migration alone.
 - Given the Library or Review page with two accounts configured, filtering by account shows only
-  that account's photos, and each photo's detail panel names its account.
+  that account's photos, and each photo's detail panel names its account alongside its capture
+  date and location.
 
 ## Open questions
 
-- **Environment-variable shape** for declaring multiple accounts: a single JSON-array variable
-  (e.g. `IMMICH_ACCOUNTS=[{"name": "...", "api_key": "..."}, ...]`) versus numbered flat variables
-  (`IMMICH_API_KEY_1`, `IMMICH_ACCOUNT_NAME_1`, `IMMICH_API_KEY_2`, ...) consistent with this
-  project's existing flat `.env.example` style. Needs a decision before implementation.
+- **This story is blocked on [the configuration-file spec](json-config-file.md)** landing first --
+  account declaration needs structured (name + key) configuration, which the JSON config file
+  spun off from this one provides. See that spec's own open questions (JSON schema shape, whether
+  other settings besides Immich accounts move into it, migration tooling).
 - **Schedule granularity**: does one `PipelineSchedule` mean "run for every configured account," or
   does an owner create one schedule per account per operation? Affects both the schema
   (`account_id` nullable-meaning-all vs. required) and the Schedules UI.
