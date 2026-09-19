@@ -925,6 +925,22 @@
   view, so a visually-correct group proposed under the wrong dog settles in one click instead of a
   fallback to one-at-a-time review.
 
+- [#337](https://github.com/bradreimer/immich-dog-tagger/issues/337) refined Grouped mode's
+  default selection with the temporal/spatial signal Queue mode already had but Grouped mode
+  ignored: `ReviewGroupingService.groups()` now flags any cluster member whose own top-ranked
+  prediction (`candidates[0]`, already sorted by `weighted_score = similarity * temporal_weight *
+  spatial_weight`, ADR-003/ADR-007) isn't the group's identity -- it was pooled in by raw visual
+  similarity alone, not because the group's identity is actually its best-supported match.
+  `ReviewGroupCard` starts a flagged member deselected and labels it with the same
+  `temporal-mismatch`/`location-mismatch` vocabulary Queue mode's `ReviewReason` already shows
+  (plus a new `different-top-prediction` case when neither weight alone explains it), so a bulk
+  "Approve N as `<identity>`" can't silently misassign a look-alike's photo. No new write path and
+  no change to the clustering algorithm itself -- purely a refinement of each cluster's default
+  selection. `TEMPORAL_MISMATCH_THRESHOLD`/`SPATIAL_MISMATCH_THRESHOLD` (formerly private to
+  `review_query.py`) are now shared with `review_groups.py` so both modes agree on what counts as
+  a mismatch. See
+  [docs/specs/review-groups-temporal-spatial-refinement.md](specs/review-groups-temporal-spatial-refinement.md).
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

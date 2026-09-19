@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import type { ReviewGroup } from "../../../types/clusters";
+import { ReviewReason } from "./ReviewReason";
 
 interface Props {
   group: ReviewGroup;
@@ -26,9 +27,15 @@ interface Props {
 /**
  * One group in the Review tab's Grouped mode: a batch of visually similar
  * pending photos the classifier already put forward for the same identity.
- * Members start selected (the common case is approving the whole group);
- * deselecting the odd photo out is the exception path, matching v1.8 FR-4's
- * convention for the Library's cluster cards.
+ * Members start selected (the common case is approving the whole group),
+ * with one exception: a member whose own top-ranked prediction -- once
+ * capture time/location are weighed in -- disagrees with the group's
+ * identity (`group.mismatches`, see
+ * docs/specs/review-groups-temporal-spatial-refinement.md) starts
+ * deselected instead, since it looked visually similar but isn't actually
+ * this group's best-supported member. Deselecting any other photo remains
+ * the exception path, matching v1.8 FR-4's convention for the Library's
+ * cluster cards.
  */
 export function ReviewGroupCard({
   group,
@@ -38,7 +45,11 @@ export function ReviewGroupCard({
   onSplit,
   disabled,
 }: Props) {
-  const { identity, species, cluster } = group;
+  const { identity, species, cluster, mismatches } = group;
+
+  const mismatchByMember = new Map(
+    mismatches.map((mismatch) => [mismatch.classification_id, mismatch.reason]),
+  );
 
   // The classifier's other top-predicted identities for this visual
   // cluster (issue #335), read off the representative photo -- the same
@@ -54,7 +65,12 @@ export function ReviewGroupCard({
   );
 
   const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(cluster.members.map((member) => member.classification_id)),
+    () =>
+      new Set(
+        cluster.members
+          .filter((member) => !mismatchByMember.has(member.classification_id))
+          .map((member) => member.classification_id),
+      ),
   );
 
   const toggleMember = (classificationId: number) => {
@@ -117,27 +133,31 @@ export function ReviewGroupCard({
         <div className="flex flex-wrap gap-2">
           {cluster.members.map((member) => {
             const isSelected = selected.has(member.classification_id);
+            const mismatchReason = mismatchByMember.get(member.classification_id);
 
             return (
-              <button
-                key={member.classification_id}
-                type="button"
-                onClick={() => toggleMember(member.classification_id)}
-                disabled={disabled}
-                aria-pressed={isSelected}
-                aria-label={`${isSelected ? "Deselect" : "Select"} photo ${member.classification_id}`}
-                className={`overflow-hidden rounded-md border-2 transition-all ${
-                  isSelected ? "border-primary" : "border-transparent opacity-40"
-                }`}
-              >
-                <img
-                  src={`/api/crops/${member.crop_id}`}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="h-16 w-16 object-cover"
-                />
-              </button>
+              <div key={member.classification_id} className="flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => toggleMember(member.classification_id)}
+                  disabled={disabled}
+                  aria-pressed={isSelected}
+                  aria-label={`${isSelected ? "Deselect" : "Select"} photo ${member.classification_id}`}
+                  className={`overflow-hidden rounded-md border-2 transition-all ${
+                    isSelected ? "border-primary" : "border-transparent opacity-40"
+                  }`}
+                >
+                  <img
+                    src={`/api/crops/${member.crop_id}`}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-16 w-16 object-cover"
+                  />
+                </button>
+
+                {mismatchReason && <ReviewReason reason={mismatchReason} />}
+              </div>
             );
           })}
         </div>

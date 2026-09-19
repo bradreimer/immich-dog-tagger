@@ -62,6 +62,7 @@ function buildGroup(overrides: Partial<ReviewGroup> = {}): ReviewGroup {
       earliest_captured_at: null,
       latest_captured_at: null,
     },
+    mismatches: [],
     ...overrides,
   };
 }

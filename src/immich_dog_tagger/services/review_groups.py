@@ -30,7 +30,11 @@ from immich_dog_tagger.services.clusters import (
     RecommendationCluster,
     RecommendationClusterService,
 )
-from immich_dog_tagger.services.review_query import ReviewQueryService
+from immich_dog_tagger.services.review_query import (
+    SPATIAL_MISMATCH_THRESHOLD,
+    TEMPORAL_MISMATCH_THRESHOLD,
+    ReviewQueryService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,25 @@ MAX_GROUP_IDENTITIES = 100
 
 
 @dataclass(frozen=True)
+class GroupMismatch:
+    """A cluster member whose own top-ranked, weighted-by-time-and-location
+    prediction (`candidates[0]`, already sorted by weighted_score -- see
+    classifier.py) is not this group's identity: it was pooled into the
+    cluster because the identity appears *somewhere* in its candidates and
+    it looked visually similar, not because the identity is actually its
+    best match once capture time/location are weighed in. See
+    docs/specs/review-groups-temporal-spatial-refinement.md.
+
+    `reason` reuses the same vocabulary Queue mode's `_review_reason()`
+    already shows for `temporal-mismatch`/`location-mismatch`, plus
+    `different-top-prediction` when neither weight alone explains the
+    mismatch."""
+
+    classification_id: int
+    reason: str
+
+
+@dataclass(frozen=True)
 class ReviewGroup:
     """One identity's cluster, carrying the identity/species it belongs to
     so the caller can act on it (approve/reject) without having to infer
@@ -58,6 +81,9 @@ class ReviewGroup:
     identity: str
     species: Species
     cluster: RecommendationCluster
+    # Members flagged by the temporal/spatial refinement pass, empty when
+    # every member's own top-ranked prediction agrees with `identity`.
+    mismatches: list[GroupMismatch]
 
 
 @dataclass(frozen=True)
@@ -72,6 +98,76 @@ class ReviewGroupsProposal:
     # and the scan was capped.
     truncated_identities: bool
     sort: ClusterSort
+
+
+def _mismatch_reason(
+    group_identity: str,
+    row: tuple[str | None, list[dict]],
+) -> str | None:
+    """
+    None when `group_identity` is this member's own top-ranked, weighted
+    prediction -- `candidates[0]` when candidates exist (already sorted by
+    weighted_score = similarity * temporal_weight * spatial_weight, see
+    classifier.py), falling back to the accepted identity on the rare row
+    with no stored candidates at all. Otherwise the same reason vocabulary
+    Queue mode's `_review_reason()` already shows, read off
+    `group_identity`'s own candidate entry (not necessarily the top one)
+    rather than re-deriving anything: `temporal-mismatch` or
+    `location-mismatch` when that entry's own weight explains why it lost
+    the ranking, `different-top-prediction` when neither does (e.g. it
+    simply lost on raw visual similarity).
+    """
+    accepted, candidates = row
+    candidates = candidates or []
+    top_identity = candidates[0].get("identity") if candidates else accepted
+
+    if top_identity == group_identity:
+        return None
+
+    own = next(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.get("identity") == group_identity
+        ),
+        None,
+    )
+
+    if own is not None:
+        if own.get("temporal_weight", 1.0) < TEMPORAL_MISMATCH_THRESHOLD:
+            return "temporal-mismatch"
+
+        if own.get("spatial_weight", 1.0) < SPATIAL_MISMATCH_THRESHOLD:
+            return "location-mismatch"
+
+    return "different-top-prediction"
+
+
+def _cluster_mismatches(
+    identity: str,
+    cluster: RecommendationCluster,
+    rows_by_id: dict[int, tuple[str | None, list[dict]]],
+) -> list[GroupMismatch]:
+    mismatches = []
+
+    for member in cluster.members:
+        row = rows_by_id.get(member.classification_id)
+
+        # Fails open (no flag) rather than raising: every cluster member
+        # came from this same species' pool, so this should always hit,
+        # but a refinement pass is not the place to turn a lookup gap into
+        # a 500 for the whole group list.
+        if row is None:
+            continue
+
+        reason = _mismatch_reason(identity, row)
+
+        if reason is not None:
+            mismatches.append(
+                GroupMismatch(classification_id=member.classification_id, reason=reason)
+            )
+
+    return mismatches
 
 
 class ReviewGroupingService:
@@ -122,17 +218,32 @@ class ReviewGroupingService:
         # do. Safe because this loop, like `clusters()`, never writes
         # between identities -- see `clusters_in_pool()`'s docstring.
         pools: dict[Species, PendingPool] = {}
+        # Same pool, reshaped once per species into classification_id ->
+        # (accepted identity, candidates) so the refinement pass below can
+        # look up a member's own weighted-ranked prediction without a
+        # second query per identity.
+        rows_by_species: dict[Species, dict[int, tuple[str | None, list[dict]]]] = {}
 
         for identity, species in pairs:
             if species not in pools:
-                pools[species] = self.cluster_service.pending_pool(species)
+                pool = self.cluster_service.pending_pool(species)
+                pools[species] = pool
+                rows_by_species[species] = {
+                    row.id: (row.identity, row.candidates) for row in pool.rows
+                }
 
             proposal = self.cluster_service.clusters_in_pool(
                 identity=identity, species=species, pool=pools[species], sort=sort
             )
+            rows_by_id = rows_by_species[species]
 
             groups.extend(
-                ReviewGroup(identity=identity, species=species, cluster=cluster)
+                ReviewGroup(
+                    identity=identity,
+                    species=species,
+                    cluster=cluster,
+                    mismatches=_cluster_mismatches(identity, cluster, rows_by_id),
+                )
                 for cluster in proposal.clusters
                 if cluster.size >= MIN_GROUP_SIZE
             )
