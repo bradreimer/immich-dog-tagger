@@ -45,6 +45,7 @@ class PipelineService:
         limit: int | None = None,
         force: bool = False,
         should_cancel: Callable[[], bool] | None = None,
+        account_id: int | None = None,
     ) -> PipelineSummary:
         def report(message: str) -> None:
             if progress:
@@ -103,6 +104,7 @@ class PipelineService:
                 limit=batch_limit,
                 force=force,
                 should_cancel=should_cancel,
+                account_id=account_id,
             )
 
             report(f"Downloaded {downloaded} assets")

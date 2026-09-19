@@ -34,6 +34,7 @@ class Downloader:
         force: bool = False,
         should_cancel: Callable[[], bool] | None = None,
         asset_id: int | None = None,
+        account_id: int | None = None,
     ) -> int:
         if force:
             query = select(Asset)
@@ -58,6 +59,16 @@ class Downloader:
         # asset is in.
         if asset_id is not None:
             query = select(Asset).where(Asset.id == asset_id)
+
+        # Issue #346: a client only holds one account's Immich API key, so
+        # downloading an asset belonging to a *different* account would
+        # simply 404/403 against it. Every real caller now resolves and
+        # passes its own account_id; omitted only by the per-photo Repair
+        # path (asset_id already pins one specific asset, so scoping by
+        # account would be redundant there) and by tests that don't exercise
+        # multi-account behavior.
+        if account_id is not None:
+            query = query.where(Asset.account_id == account_id)
 
         if limit is not None:
             query = query.limit(limit)

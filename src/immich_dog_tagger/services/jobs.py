@@ -42,11 +42,13 @@ class PipelineJobRepository:
         operation: PipelineOperation,
         progress_total: int | None = None,
         progress_message: str | None = None,
+        account_id: int | None = None,
     ) -> PipelineJob:
         job = PipelineJob(
             operation=operation,
             progress_total=progress_total,
             progress_message=progress_message,
+            account_id=account_id,
         )
 
         self.session.add(job)
@@ -145,11 +147,13 @@ class PipelineJobService:
         operation: PipelineOperation,
         progress_total: int | None = None,
         progress_message: str | None = None,
+        account_id: int | None = None,
     ) -> PipelineJob:
         job = self.repository.create(
             operation=operation,
             progress_total=progress_total,
             progress_message=progress_message,
+            account_id=account_id,
         )
         self.session.commit()
         self.session.refresh(job)

@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.models import (
+    Asset,
+    Crop,
     CropClassification,
+    Detection,
     ManualAssetTag,
     SyncedAsset,
 )
@@ -60,11 +63,20 @@ class SyncService:
         albums: AlbumService,
         policy: SyncPolicy | None = None,
         tags: TagService | None = None,
+        account_id: int | None = None,
     ):
         self.session = session
         self.albums = albums
         self.policy = policy or SyncPolicy()
         self.tags = tags
+        # Issue #346: which account's photos this instance's `albums`/`tags`
+        # clients belong to, so a multi-account sync run never mixes one
+        # account's asset ids into another account's Immich library. `None`
+        # (the default) preserves this class's pre-#346 behavior --
+        # unscoped, syncing every classification regardless of account --
+        # for the single-account case and any caller that hasn't been
+        # updated to pass one.
+        self.account_id = account_id
 
     def sync(
         self,
@@ -80,7 +92,18 @@ class SyncService:
         skipped_unknown = 0
         skipped_missing_asset = 0
 
-        classifications = self.session.scalars(select(CropClassification)).all()
+        classification_query = select(CropClassification)
+
+        if self.account_id is not None:
+            classification_query = classification_query.where(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.account_id == self.account_id)
+                    )
+                )
+            )
+
+        classifications = self.session.scalars(classification_query).all()
 
         for classification in classifications:
             if classification.confidence < self.policy.minimum_confidence:
@@ -126,9 +149,14 @@ class SyncService:
         # from the existing machinery rather than a parallel path of their
         # own. A manual tag carries no confidence, so the confidence policy
         # above does not apply to it: a human said so.
-        manual_tags = self.session.scalars(
-            select(ManualAssetTag).order_by(ManualAssetTag.id)
-        ).all()
+        manual_tag_query = select(ManualAssetTag).order_by(ManualAssetTag.id)
+
+        if self.account_id is not None:
+            manual_tag_query = manual_tag_query.where(
+                ManualAssetTag.asset.has(Asset.account_id == self.account_id)
+            )
+
+        manual_tags = self.session.scalars(manual_tag_query).all()
 
         manual_tag_count = 0
 
@@ -223,7 +251,12 @@ class SyncService:
     def _previously_synced_state(self) -> dict[tuple[str, str], set[str]]:
         state: dict[tuple[str, str], set[str]] = defaultdict(set)
 
-        for row in self.session.scalars(select(SyncedAsset)).all():
+        query = select(SyncedAsset)
+
+        if self.account_id is not None:
+            query = query.where(SyncedAsset.account_id == self.account_id)
+
+        for row in self.session.scalars(query).all():
             state[(row.species, row.identity)].add(row.immich_asset_id)
 
         return state
@@ -287,7 +320,18 @@ class SyncService:
         previous: dict[tuple[str, str], set[str]],
         failed: set[tuple[str, str]],
     ) -> None:
-        self.session.execute(delete(SyncedAsset))
+        # Issue #346: an unscoped `delete(SyncedAsset)` here would wipe out
+        # every *other* account's tracked membership the moment a second
+        # account's sync ran -- their next sync would then see an empty
+        # `previous` state and never detect a stale removal again. Scoping
+        # the delete to this account_id (when set) keeps each account's
+        # tracked state independent, the same way the reads above are scoped.
+        delete_query = delete(SyncedAsset)
+
+        if self.account_id is not None:
+            delete_query = delete_query.where(SyncedAsset.account_id == self.account_id)
+
+        self.session.execute(delete_query)
 
         for species, identity in set(current) | set(previous):
             key = (species, identity)
@@ -305,6 +349,7 @@ class SyncService:
                         species=species,
                         identity=identity,
                         immich_asset_id=asset_id,
+                        account_id=self.account_id,
                     )
                 )
 

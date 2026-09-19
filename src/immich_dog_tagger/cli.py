@@ -18,6 +18,12 @@ from .policy import DEFAULT_POLICY
 from .review_export import ReviewExporter
 from .review_import import ReviewImporter
 from .runtime import get_embedder
+from .services.accounts import (
+    AccountResolutionError,
+    AccountService,
+    build_immich_client,
+    resolve_account,
+)
 from .services.albums import AlbumService
 from .services.backup import BackupError, BackupService
 from .services.correction import ClassificationCorrectionService
@@ -38,6 +44,7 @@ def run_operation_job(
     operation: PipelineOperation,
     *,
     options: dict | None = None,
+    account_id: int | None = None,
 ) -> dict:
     operation_options = {}
 
@@ -55,7 +62,7 @@ def run_operation_job(
         repository=runner.repository,
     )
 
-    job = service.create_job(operation=operation)
+    job = service.create_job(operation=operation, account_id=account_id)
 
     try:
         result = runner.run_job(job.id)
@@ -64,6 +71,46 @@ def run_operation_job(
         raise SystemExit(1) from exc
 
     return result if isinstance(result, dict) else {}
+
+
+def _resolve_account_selection(
+    session: Session,
+    config,
+    account_name: str | None,
+) -> list[int | None]:
+    """
+    Resolve a CLI `--account NAME` option to the list of account_ids an
+    account-scoped command (scan/download/sync/pipeline) should run for.
+
+    `account_name=None` (the flag omitted) means "every configured
+    account" -- one entry per `Config.accounts`, run in turn with per-account
+    failure isolation by the caller, mirroring the per-identity isolation
+    `SyncService` already has (issues #243/#259). A named account resolves
+    to just that one account_id.
+    """
+
+    AccountService(session).sync_from_config(config)
+
+    if not config.accounts:
+        print(
+            "No Immich accounts configured -- set IMMICH_API_KEY or a JSON "
+            "CONFIG_FILE (see docs/deployment.md)."
+        )
+        raise SystemExit(1)
+
+    if account_name is not None:
+        account = AccountService(session).get_by_name(account_name)
+
+        if account is None or account_name not in {a.name for a in config.accounts}:
+            print(f"No configured account named {account_name!r}")
+            raise SystemExit(1)
+
+        return [account.id]
+
+    return [
+        AccountService(session).get_by_name(account.name).id
+        for account in config.accounts
+    ]
 
 
 def backup_command(args) -> None:
@@ -200,39 +247,77 @@ def scan_command(args) -> None:
 
     engine = create_database(config.state_dir)
 
-    with Session(engine) as session:
-        result = run_operation_job(
-            session,
-            config,
-            PipelineOperation.SCAN,
-        )
+    any_failed = False
 
-    print(f"New assets: {result.get('scanned', 0)}")
+    with Session(engine) as session:
+        account_ids = _resolve_account_selection(session, config, args.account)
+        multi = len(account_ids) > 1
+
+        for account_id in account_ids:
+            account = AccountService(session).get(account_id)
+            label = f"[{account.name}] " if multi else ""
+
+            try:
+                result = run_operation_job(
+                    session,
+                    config,
+                    PipelineOperation.SCAN,
+                    account_id=account_id,
+                )
+            except SystemExit:
+                any_failed = True
+                continue
+
+            print(f"{label}New assets: {result.get('scanned', 0)}")
+
+    if any_failed:
+        raise SystemExit(1)
 
 
 def download_command(args) -> None:
     config = load_config()
 
-    client = ImmichClient(
-        config.immich_url,
-        config.immich_api_key,
-        timeout=config.immich_timeout_seconds,
-    )
-
     engine = create_database(config.state_dir)
 
+    any_failed = False
+
     with Session(engine) as session:
-        downloader = Downloader(
-            client,
-            session,
-            config.cache_dir,
-        )
+        account_ids = _resolve_account_selection(session, config, args.account)
+        multi = len(account_ids) > 1
 
-        count = downloader.download_pending(
-            limit=args.limit,
-        )
+        for account_id in account_ids:
+            account = AccountService(session).get(account_id)
+            label = f"[{account.name}] " if multi else ""
 
-    print(f"Downloaded: {count}")
+            try:
+                resolved = resolve_account(session, config, account_id)
+            except AccountResolutionError as exc:
+                print(f"{label}{exc}")
+                any_failed = True
+                continue
+
+            client = build_immich_client(config, resolved)
+
+            downloader = Downloader(
+                client,
+                session,
+                config.cache_dir,
+            )
+
+            try:
+                count = downloader.download_pending(
+                    limit=args.limit,
+                    account_id=account_id,
+                )
+            except RuntimeError as exc:
+                print(f"{label}Download failed: {exc}")
+                any_failed = True
+                continue
+
+            print(f"{label}Downloaded: {count}")
+
+    if any_failed:
+        raise SystemExit(1)
 
 
 def detect_command(args) -> None:
@@ -532,73 +617,93 @@ def status_command(args) -> None:
 def sync_command(args) -> None:
     config = load_config()
 
-    if args.dry_run:
-        client = ImmichClient(
-            config.immich_url,
-            config.immich_api_key,
-            timeout=config.immich_timeout_seconds,
-        )
-
-        engine = create_database(
-            config.state_dir,
-        )
-
-        with Session(engine) as session:
-            service = SyncService(
-                session,
-                AlbumService(client),
-                tags=TagService(client),
-            )
-
-            summary = service.sync(
-                dry_run=True,
-            )
-
-        print("Would sync:")
-
-        for item in summary.identities:
-            print(f"{item.identity}: {item.assets}")
-
-        skipped = (
-            summary.skipped_low_confidence
-            + summary.skipped_unknown
-            + summary.skipped_missing_asset
-        )
-
-        if skipped:
-            print()
-            print(f"Skipped {skipped} classification(s):")
-            print(f"  {summary.skipped_low_confidence} below confidence threshold")
-            print(f"  {summary.skipped_unknown} unidentified")
-            print(f"  {summary.skipped_missing_asset} missing asset data")
-
-        return
-
     engine = create_database(
         config.state_dir,
     )
 
+    any_failed = False
+
     with Session(engine) as session:
-        result = run_operation_job(
-            session,
-            config,
-            PipelineOperation.SYNC,
-        )
+        account_ids = _resolve_account_selection(session, config, args.account)
+        multi = len(account_ids) > 1
 
-    for item in result.get("items", []):
-        print(f"{item['identity']}: {item['assets']}")
+        for account_id in account_ids:
+            account = AccountService(session).get(account_id)
+            label = f"[{account.name}] " if multi else ""
 
-    failed = result.get("failed_identities", 0)
+            if args.dry_run:
+                try:
+                    resolved = resolve_account(session, config, account_id)
+                except AccountResolutionError as exc:
+                    print(f"{label}{exc}")
+                    any_failed = True
+                    continue
 
-    if failed:
-        print()
-        print(f"Failed to sync {failed} identity/ies (see logs for details)")
+                client = build_immich_client(config, resolved)
 
-        if result.get("permission_error"):
-            print(
-                "This looks like a missing Immich API key permission -- see "
-                f"{IMMICH_PERMISSIONS_DOC_URL}"
-            )
+                service = SyncService(
+                    session,
+                    AlbumService(client),
+                    tags=TagService(client),
+                    account_id=account_id,
+                )
+
+                summary = service.sync(
+                    dry_run=True,
+                )
+
+                print(f"{label}Would sync:")
+
+                for item in summary.identities:
+                    print(f"{label}{item.identity}: {item.assets}")
+
+                skipped = (
+                    summary.skipped_low_confidence
+                    + summary.skipped_unknown
+                    + summary.skipped_missing_asset
+                )
+
+                if skipped:
+                    print(f"{label}Skipped {skipped} classification(s):")
+                    print(
+                        f"{label}  {summary.skipped_low_confidence} below confidence threshold"
+                    )
+                    print(f"{label}  {summary.skipped_unknown} unidentified")
+                    print(
+                        f"{label}  {summary.skipped_missing_asset} missing asset data"
+                    )
+
+                continue
+
+            try:
+                result = run_operation_job(
+                    session,
+                    config,
+                    PipelineOperation.SYNC,
+                    account_id=account_id,
+                )
+            except SystemExit:
+                any_failed = True
+                continue
+
+            for item in result.get("items", []):
+                print(f"{label}{item['identity']}: {item['assets']}")
+
+            failed = result.get("failed_identities", 0)
+
+            if failed:
+                print(
+                    f"{label}Failed to sync {failed} identity/ies (see logs for details)"
+                )
+
+                if result.get("permission_error"):
+                    print(
+                        f"{label}This looks like a missing Immich API key permission "
+                        f"-- see {IMMICH_PERMISSIONS_DOC_URL}"
+                    )
+
+    if any_failed:
+        raise SystemExit(1)
 
 
 def pipeline_command(args) -> None:
@@ -642,26 +747,40 @@ def pipeline_command(args) -> None:
             print("No changes made.")
             return
 
-        result = run_operation_job(
-            session,
-            config,
-            PipelineOperation.FULL_PIPELINE,
-            options={
-                "limit": args.limit,
-                "force": args.force,
-                "progress_callback": lambda message: print(message, flush=True),
-            },
-        )
+        account_ids = _resolve_account_selection(session, config, args.account)
+        multi = len(account_ids) > 1
+        any_failed = False
 
-    print("Pipeline complete")
-    print()
+        for account_id in account_ids:
+            account = AccountService(session).get(account_id)
+            label = f"[{account.name}] " if multi else ""
 
-    print("Summary")
-    print("-------")
-    print(f"Assets scanned:     {result.get('scanned', 0)}")
-    print(f"Downloaded:         {result.get('downloaded', 0)}")
-    print(f"Dogs detected:      {result.get('detected', 0)}")
-    print(f"Classified:         {result.get('classified', 0)}")
+            try:
+                result = run_operation_job(
+                    session,
+                    config,
+                    PipelineOperation.FULL_PIPELINE,
+                    options={
+                        "limit": args.limit,
+                        "force": args.force,
+                        "progress_callback": lambda message, label=label: print(
+                            f"{label}{message}", flush=True
+                        ),
+                    },
+                    account_id=account_id,
+                )
+            except SystemExit:
+                any_failed = True
+                continue
+
+            print(f"{label}Pipeline complete")
+            print(f"{label}Assets scanned:     {result.get('scanned', 0)}")
+            print(f"{label}Downloaded:         {result.get('downloaded', 0)}")
+            print(f"{label}Dogs detected:      {result.get('detected', 0)}")
+            print(f"{label}Classified:         {result.get('classified', 0)}")
+
+    if any_failed:
+        raise SystemExit(1)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -680,9 +799,14 @@ def main(argv: list[str] | None = None) -> None:
 
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser(
+    scan_parser = subparsers.add_parser(
         "scan",
         help="Scan Immich for new assets",
+    )
+
+    scan_parser.add_argument(
+        "--account",
+        help="Only scan this configured account (default: every configured account)",
     )
 
     subparsers.add_parser(
@@ -703,6 +827,11 @@ def main(argv: list[str] | None = None) -> None:
     download_parser = subparsers.add_parser(
         "download",
         help="Download pending assets",
+    )
+
+    download_parser.add_argument(
+        "--account",
+        help="Only download this configured account (default: every configured account)",
     )
 
     download_parser.add_argument(
@@ -867,6 +996,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Show changes without modifying Immich",
     )
 
+    sync_parser.add_argument(
+        "--account",
+        help="Only sync this configured account (default: every configured account)",
+    )
+
     pipeline_parser = subparsers.add_parser(
         "pipeline",
         help="Run complete processing pipeline",
@@ -888,6 +1022,11 @@ def main(argv: list[str] | None = None) -> None:
         "--force",
         action="store_true",
         help="Reprocess existing assets",
+    )
+
+    pipeline_parser.add_argument(
+        "--account",
+        help="Only run this configured account (default: every configured account)",
     )
 
     subparsers.add_parser(
