@@ -50,6 +50,7 @@ from immich_dog_tagger.models import (
     Identity,
     ReviewAction,
 )
+from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
 from immich_dog_tagger.services.correction import ClassificationCorrectionService
 from immich_dog_tagger.services.rejections import (
     RejectionService,
@@ -272,11 +273,13 @@ class RecommendationClusterService:
         *,
         distance_threshold: float = DEFAULT_CLUSTER_DISTANCE,
         max_pool: int = MAX_CANDIDATE_POOL,
+        policy: ClassifierPolicy = DEFAULT_POLICY,
     ):
         self.session = session
         self.distance_threshold = distance_threshold
         self.max_pool = max_pool
-        self.review_query = ReviewQueryService(session)
+        self.policy = policy
+        self.review_query = ReviewQueryService(session, policy=policy)
 
     def clusters(
         self,
@@ -364,12 +367,22 @@ class RecommendationClusterService:
 
     def pending_pool(self, species: Species) -> PendingPool:
         """
-        Every unreviewed classification of `species` that proposes *some*
-        identity (as the accepted prediction or a stored candidate), plus
-        the crop-identity rejections for that pool -- everything
-        `clusters_in_pool()` needs to slice out any one identity's share
-        without a query of its own. See `clusters_in_pool()` for why this
-        is split out rather than folded into `_candidate_ids()`.
+        Every classification of `species` that still needs a human decision
+        -- no review action yet, and either no predicted identity or
+        confidence below `self.policy.confident_threshold` -- and that
+        proposes *some* identity (as the accepted prediction or a stored
+        candidate), plus the crop-identity rejections for that pool --
+        everything `clusters_in_pool()` needs to slice out any one
+        identity's share without a query of its own. See
+        `clusters_in_pool()` for why this is split out rather than folded
+        into `_candidate_ids()`.
+
+        The confidence condition mirrors `ReviewQueryService.active_review()`
+        exactly (issue #341): without it, a confidently-classified photo
+        that simply hasn't been individually approved yet would be pooled
+        and clustered here forever, even though Queue mode and
+        `review_queue_count()` both already treat it as settled and never
+        show it again.
         """
         rows = self.session.execute(
             select(
@@ -386,6 +399,10 @@ class RecommendationClusterService:
                         ReviewAction.classification_id == CropClassification.id,
                     )
                 )
+            )
+            .where(
+                (CropClassification.identity.is_(None))
+                | (CropClassification.confidence < self.policy.confident_threshold)
             )
             .where(
                 (CropClassification.identity.is_not(None))

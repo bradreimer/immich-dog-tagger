@@ -89,7 +89,7 @@ def load_config(load_env_file: bool = True) -> Config:
         yolo_model=Path(
             os.environ.get(
                 "YOLO_MODEL",
-                "/models/yolo11n.pt",
+                "/models/yolo11m.pt",
             )
         ),
         crop_padding=float(

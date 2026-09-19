@@ -11,7 +11,7 @@ services:
       - IMMICH_API_KEY=${IMMICH_API_KEY}
       - STATE_DIR=/app/state
       - CACHE_DIR=/app/cache
-      - YOLO_MODEL=/app/models/yolo11n.pt
+      - YOLO_MODEL=/app/models/yolo11m.pt
       - CROP_PADDING=${CROP_PADDING:-0.15}
 
     volumes:
