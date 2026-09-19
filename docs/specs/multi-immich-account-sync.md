@@ -1,5 +1,18 @@
 # Multi-Immich-Account Support
 
+## Status: Shipped (v1.34.0, issue #346)
+
+FR-1 through FR-5 shipped as designed. FR-6 (jobs/schedules) shipped in a deliberately scoped-down
+form: a job/schedule can be pinned to one specific account (`account_id`), but an account-scoped
+schedule/job left unpinned resolves to the *default* (first configured) account rather than fanning
+out into one job per account -- avoiding changes to the scheduler's existing due-occurrence dedup
+logic, which this work didn't need to touch. A multi-account owner wanting a second library
+scheduled creates a second schedule with `account_id` set explicitly. FR-7's backend (account
+filter/field on Library/Review/Photo Lookup, account on Job/Schedule responses) is complete; the
+Settings page lists accounts, but the Library/Review/Photo Lookup display+filter UI and a Jobs/
+Schedules account picker are deferred to a follow-up UI-only PR (no backend changes needed for it).
+See `docs/status.md`'s #346 entry for the full implementation summary.
+
 ## Purpose
 
 Today the app talks to exactly one Immich account: one `IMMICH_URL` and one `IMMICH_API_KEY`, used
