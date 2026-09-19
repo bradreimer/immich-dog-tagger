@@ -109,9 +109,9 @@ exists at all.
   as today: one implicit account, no visible change anywhere in the CLI, API, or UI.
 - Accounts are declared as a JSON array inside the mounted JSON configuration file introduced by
   [the configuration-file spec](json-config-file.md) /
-  [issue #TBD](https://github.com/bradreimer/immich-dog-tagger/issues) -- **this story depends on
-  that one landing first**, since a flat environment variable is a poor fit for a list of
-  name/key pairs. See that spec for the file format, location, and env-var-based backward
+  [issue #348](https://github.com/bradreimer/immich-dog-tagger/issues/348) -- **this feature
+  depends on that story landing first**, since a flat environment variable is a poor fit for a
+  list of name/key pairs. See that spec for the file format, location, and env-var-based backward
   compatibility (an install with no config file and only the legacy `IMMICH_API_KEY` env var set
   keeps working as a single implicit account).
 
