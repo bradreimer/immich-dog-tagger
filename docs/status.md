@@ -941,6 +941,14 @@
   a mismatch. See
   [docs/specs/review-groups-temporal-spatial-refinement.md](specs/review-groups-temporal-spatial-refinement.md).
 
+- [#339](https://github.com/bradreimer/immich-dog-tagger/issues/339) shipped default detection
+  checkpoint changed from `yolo11n.pt` (nano) to `yolo11m.pt` (medium) -- `config.py`'s
+  `YOLO_MODEL` fallback, `docker-compose.yml`, and `.env.example` -- for better dog detection
+  accuracy at a still-reasonable CPU/GPU cost for a self-hosted single-container deployment.
+  `YOLO_MODEL` remains fully operator-overridable; `ultralytics.YOLO(...)` auto-downloads the new
+  checkpoint on first use the same way it did for nano, so no provisioning step changed. No change
+  to the identity-classification (OpenCLIP) stage.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
