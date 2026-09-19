@@ -98,6 +98,7 @@ class ManualDetectionAssignmentService:
         classification.embedding = embedding_to_blob(
             self.embedder.embed(Path(crop.path))
         )
+        classification.embedding_model = self.embedder.MODEL_ID
 
         self.correction_service.correct(classification.id, identity)
 

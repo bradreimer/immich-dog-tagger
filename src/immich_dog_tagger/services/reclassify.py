@@ -23,6 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from immich_dog_tagger.classifier import IdentityClassifier
+from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import blob_to_embedding, embedding_to_blob
 from immich_dog_tagger.enums import ClassificationPassStatus, ClassificationSources
 from immich_dog_tagger.models import (
@@ -33,7 +34,6 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     Identity,
 )
-from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 from immich_dog_tagger.policy import (
     DEFAULT_POLICY,
     ClassificationDecision,
@@ -68,7 +68,7 @@ class ReclassifyService:
     def __init__(
         self,
         session: Session,
-        embedder: OpenClipEmbedder,
+        embedder: Embedder,
         policy: ClassifierPolicy = DEFAULT_POLICY,
         batch_size: int = 200,
     ):
@@ -223,6 +223,7 @@ class ReclassifyService:
                     missing_embedding, embeddings, strict=True
                 ):
                     classification.embedding = embedding_to_blob(embedding)
+                    classification.embedding_model = self.embedder.MODEL_ID
 
             # One query per chunk, not per crop: a rejection has to survive
             # Reclassify (issue #144), and looking it up per classification

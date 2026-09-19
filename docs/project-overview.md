@@ -38,7 +38,8 @@ browser review workflow, and the active-learning loop are all built and in use. 
 
 ## Technology stack
 
-Python, SQLAlchemy, FastAPI, React + Vite + TypeScript, YOLO, OpenCLIP, pytest, ruff, uv.
+Python, SQLAlchemy, FastAPI, React + Vite + TypeScript, YOLO, a dog re-identification embedding
+model (MegaDescriptor, via timm), pytest, ruff, uv.
 
 ## Architecture
 

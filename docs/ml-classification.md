@@ -8,7 +8,7 @@ never change.
 
 ```
 Crop image
-  → OpenCLIP embedding
+  → dog re-identification embedding
   → IdentityClassifier
   → cosine similarity against each identity's EmbeddingExample records
   → ranked candidates
@@ -34,10 +34,21 @@ back before transposing. See
 
 ## Components
 
-**`OpenClipEmbedder`** turns a crop image into a vector embedding.
+**`DogReIDEmbedder`** turns a crop image into a vector embedding, using a model trained via metric
+learning specifically for individual animal re-identification (MegaDescriptor-L-384) rather than a
+general image-text model -- see [ADR-010](adr/ADR-010-dog-reid-embedding-model.md) for why, and
+[docs/specs/dog-reid-embeddings.md](specs/dog-reid-embeddings.md) for the full requirements. Every
+consumer of an embedding (`IdentityClassifier`, `scoring.py`, the review queue, Reclassify,
+Learning) only ever depends on the `Embedder` protocol (`embed`/`embed_batch`, an L2-normalized
+`float32` vector) -- none of them know or care which model produced it.
 
 **`EmbeddingExample`** is one known example of an identity: an embedding vector, the crop it came
-from, and provenance (automatic prediction vs. human correction).
+from, and provenance (automatic prediction vs. human correction). Both it and `CropClassification`
+carry an `embedding_model` stamp naming the model that produced their vector -- a vector is only
+meaningful compared against another vector from the same model. `reembed`
+(`services/reembed.py`), a pipeline operation like every other stage, recomputes every stored
+vector under the current model (never touching identity/confidence/source) after a model swap,
+followed by a normal Reclassify pass.
 
 **`IdentityClassifier`** (`src/immich_dog_tagger/classifier.py`) does the matching:
 

@@ -31,6 +31,8 @@ def _naive(*args) -> datetime:
 class FakeBatchEmbedder:
     """Returns a fixed embedding per call, tracking which paths it was asked to embed."""
 
+    MODEL_ID = "fake:test"
+
     def __init__(self, vector=None):
         self.vector = vector if vector is not None else [1, 0, 0]
         self.calls: list[list] = []

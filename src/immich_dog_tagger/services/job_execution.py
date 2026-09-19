@@ -21,6 +21,7 @@ from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobSe
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.pipeline import PipelineService
 from immich_dog_tagger.services.reclassify import ReclassifyService
+from immich_dog_tagger.services.reembed import ReembedService
 from immich_dog_tagger.services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
 from immich_dog_tagger.services.tags import TagService
 from immich_dog_tagger.yolo_detector import YOLODetector
@@ -72,6 +73,10 @@ def create_pipeline_job_runner(
             session,
             config,
             options.get(PipelineOperation.FULL_PIPELINE, {}),
+        ),
+        PipelineOperation.REEMBED: _reembed_handler(
+            session,
+            options.get(PipelineOperation.REEMBED, {}),
         ),
     }
 
@@ -262,6 +267,46 @@ def _reclassify_handler(
             "labeled_example_count": result.labeled_example_count,
             "review_queue_size": result.review_queue_size,
             "message": result.message,
+        }
+
+    return run
+
+
+def _reembed_handler(
+    session: Session,
+    options: dict,
+):
+    def run(progress: JobProgressReporter) -> dict[str, object]:
+        progress.message("Recomputing embeddings")
+
+        embedder = get_embedder()
+        reembed = ReembedService(session, embedder)
+
+        summary = reembed.reembed_all(should_cancel=progress.is_cancel_requested)
+
+        progress.message(
+            f"Recomputed {summary.examples_reembedded} example(s) and "
+            f"{summary.classifications_reembedded} classification(s); "
+            f"{summary.examples_skipped + summary.classifications_skipped} skipped "
+            "(missing crop file)"
+        )
+
+        policy = AppSettingsService(session).policy()
+
+        result = ReclassifyService(session, embedder, policy=policy).reclassify(
+            progress=progress, job_id=progress.job.id
+        )
+
+        progress.message(f"Reclassify pass {result.pass_id}: {result.message}")
+
+        return {
+            "examples_reembedded": summary.examples_reembedded,
+            "examples_skipped": summary.examples_skipped,
+            "classifications_reembedded": summary.classifications_reembedded,
+            "classifications_skipped": summary.classifications_skipped,
+            "reclassify_pass_id": result.pass_id,
+            "reclassify_status": result.status.value,
+            "changed_count": result.changed_count,
         }
 
     return run

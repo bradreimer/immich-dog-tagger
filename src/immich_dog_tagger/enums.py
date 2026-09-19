@@ -99,6 +99,10 @@ class PipelineOperation(StrEnum):
     LEARN = "learn"
     SYNC = "sync"
     FULL_PIPELINE = "full_pipeline"
+    # ADR-010: recomputes every stored embedding vector under the current embedder, then runs a
+    # normal Reclassify pass. Run once after swapping the embedding model -- see
+    # docs/specs/dog-reid-embeddings.md.
+    REEMBED = "reembed"
 
 
 class PipelineJobStatus(StrEnum):

@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from .embedder import LEGACY_OPENCLIP_MODEL_ID
 from .enums import (
     AssetStatus,
     ClassificationPassStatus,
@@ -89,6 +90,15 @@ class EmbeddingExample(Base):
     embedding: Mapped[bytes] = mapped_column(
         LargeBinary,
         nullable=False,
+    )
+
+    #: Which embedding model produced `embedding` (ADR-010). A vector is only meaningful compared
+    #: against another vector from the same model -- see database.py's additive migration for how
+    #: existing rows are backfilled.
+    embedding_model: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        default=LEGACY_OPENCLIP_MODEL_ID,
     )
 
     source: Mapped[EmbeddingSources] = mapped_column(
@@ -387,6 +397,13 @@ class CropClassification(Base):
 
     embedding: Mapped[bytes | None] = mapped_column(
         LargeBinary,
+        nullable=True,
+    )
+
+    #: Which embedding model produced `embedding` (ADR-010), mirroring
+    #: EmbeddingExample.embedding_model. NULL exactly when `embedding` is NULL.
+    embedding_model: Mapped[str | None] = mapped_column(
+        String(128),
         nullable=True,
     )
 

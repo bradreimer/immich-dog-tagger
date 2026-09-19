@@ -180,6 +180,8 @@ class FakeCropWriter:
 
 
 class FakeBatchEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed_batch(self, paths):
         return np.zeros((len(paths), 3), dtype=np.float32)
 

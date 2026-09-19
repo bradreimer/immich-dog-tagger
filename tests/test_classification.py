@@ -14,6 +14,8 @@ from immich_dog_tagger.services.classification import BATCH_SIZE, Classification
 
 
 class FakeBatchEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed_batch(self, paths):
         return np.array(
             [
@@ -53,6 +55,8 @@ def test_classification_service_creates_classification(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.zeros(
             (1, 512),
             dtype=np.float32,
@@ -109,6 +113,8 @@ def test_classification_service_skips_existing_classification_by_default(engine)
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         classifier = Mock()
 
         service = ClassificationService(
@@ -153,6 +159,8 @@ def test_classification_service_force_updates_existing_classification(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.array(
             [[1, 0, 0]],
             dtype=np.float32,
@@ -213,6 +221,8 @@ def test_classification_service_respects_limit(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.array(
             [
                 [1, 0, 0],
@@ -270,6 +280,8 @@ def test_classification_service_handles_unknown_identity(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.zeros(
             (1, 512),
             dtype=np.float32,
@@ -327,6 +339,8 @@ def test_classification_service_uses_batch_embedding(engine):
 
         embedder = Mock()
 
+        embedder.MODEL_ID = "fake:test"
+
         embedder.embed_batch.return_value = np.array(
             [
                 [1, 0, 0],
@@ -383,6 +397,8 @@ def test_classification_service_reclassifies_existing_classification(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.array(
             [[1, 0, 0]],
             dtype=np.float32,
@@ -425,6 +441,8 @@ def test_classification_service_passes_threshold(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.zeros(
             (1, 512),
             dtype=np.float32,
@@ -477,6 +495,8 @@ def test_classify_all_includes_classified_crops(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.array(
             [
                 [1, 0, 0],
@@ -528,6 +548,8 @@ def test_classification_service_commits_in_batches(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.zeros(
             (total, 3),
             dtype=np.float32,
@@ -594,6 +616,8 @@ def test_classification_service_unexpected_failure_stops_run_without_raising(
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.zeros(
             (total, 3),
             dtype=np.float32,
@@ -661,6 +685,8 @@ def test_classification_service_honors_should_cancel(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.side_effect = lambda paths: np.zeros(
             (len(paths), 3), dtype=np.float32
         )
@@ -718,6 +744,8 @@ def test_classification_service_chunks_without_an_explicit_limit(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embed_call_sizes = []
 
         def fake_embed_batch(paths):
@@ -776,6 +804,8 @@ def test_classification_isolates_missing_crop_file(engine, tmp_path):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
 
         def fake_embed_batch(paths):
             if str(missing_path) in paths:
@@ -857,6 +887,8 @@ def test_classification_asset_id_scopes_to_one_asset(engine):
         session.commit()
 
         embedder = Mock()
+
+        embedder.MODEL_ID = "fake:test"
         embedder.embed_batch.return_value = np.zeros((1, 512), dtype=np.float32)
 
         classifier = Mock()

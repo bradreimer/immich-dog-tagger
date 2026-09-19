@@ -13,7 +13,8 @@ export type JobOperation =
   | "reclassify"
   | "learn"
   | "sync"
-  | "full_pipeline";
+  | "full_pipeline"
+  | "reembed";
 
 export interface PipelineJob {
   id: number;

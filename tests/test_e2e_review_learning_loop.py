@@ -53,6 +53,8 @@ from immich_dog_tagger.services.sync_policy import SyncPolicy
 class FakeVectorEmbedder:
     """Deterministic embedder: every path maps to a known, fixed vector."""
 
+    MODEL_ID = "fake:test"
+
     def __init__(self, path_to_vector: dict[str, list[float]]):
         self.path_to_vector = path_to_vector
 
@@ -239,6 +241,8 @@ def test_failed_reclassify_job_can_be_retried_without_corruption(engine):
                 raise RuntimeError("simulated embedder crash")
 
         class WorkingEmbedder:
+            MODEL_ID = "fake:test"
+
             def embed_batch(self, paths):
                 return np.array([[1, 0, 0] for _ in paths], dtype=np.float32)
 

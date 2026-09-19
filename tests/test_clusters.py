@@ -42,6 +42,8 @@ from immich_dog_tagger.services.learner import Learner
 class FakeEmbedder:
     """Every crop path embeds to a fixed vector, so learning is deterministic."""
 
+    MODEL_ID = "fake:test"
+
     def __init__(self, vector=(1.0, 0.0, 0.0)):
         self.vector = np.array(vector, dtype=np.float32)
         self.calls = 0
