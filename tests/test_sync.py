@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.immich import ImmichTagAssetsError
@@ -6,6 +7,7 @@ from immich_dog_tagger.models import (
     Crop,
     CropClassification,
     Detection,
+    ImmichAccount,
     SyncedAsset,
 )
 from immich_dog_tagger.services.sync import SyncService
@@ -935,3 +937,89 @@ def test_sync_flags_permission_denied_stale_removal_failure(engine):
 
         assert [item.identity for item in summary.failed_identities] == ["Fibs"]
         assert summary.failed_identities[0].permission_error is True
+
+
+def _make_classification(session, account, immich_asset_id, identity):
+    asset = Asset(
+        immich_asset_id=immich_asset_id,
+        checksum=immich_asset_id,
+        extension=".jpg",
+        account=account,
+    )
+    detection = Detection(
+        asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+    )
+    crop = Crop(detection=detection, path=f"{immich_asset_id}.jpg")
+    classification = CropClassification(crop=crop, identity=identity, confidence=0.95)
+    session.add(classification)
+    session.commit()
+    return classification
+
+
+def test_sync_account_scoping_only_includes_that_accounts_assets(engine):
+    """Issue #346: an account-scoped SyncService must never include another
+    account's classifications, even when both share the same identity name."""
+    with Session(engine) as session:
+        alice = ImmichAccount(name="alice")
+        bob = ImmichAccount(name="bob")
+        session.add_all([alice, bob])
+        session.flush()
+
+        _make_classification(session, alice, "alice-asset", "Rex")
+        _make_classification(session, bob, "bob-asset", "Rex")
+
+        albums_alice = FakeAlbums()
+        SyncService(session, albums_alice, account_id=alice.id).sync()
+
+        assert albums_alice.calls == [("Rex", ["alice-asset"], "dog")]
+
+        albums_bob = FakeAlbums()
+        SyncService(session, albums_bob, account_id=bob.id).sync()
+
+        assert albums_bob.calls == [("Rex", ["bob-asset"], "dog")]
+
+
+def test_sync_account_scoping_does_not_wipe_other_accounts_synced_state(engine):
+    """A second account's sync must not delete the first account's
+    SyncedAsset tracking rows -- the bug an unscoped `delete(SyncedAsset)`
+    would cause (issue #346)."""
+    with Session(engine) as session:
+        alice = ImmichAccount(name="alice")
+        bob = ImmichAccount(name="bob")
+        session.add_all([alice, bob])
+        session.flush()
+
+        _make_classification(session, alice, "alice-asset", "Rex")
+        _make_classification(session, bob, "bob-asset", "Rex")
+
+        SyncService(session, FakeAlbums(), account_id=alice.id).sync()
+        SyncService(session, FakeAlbums(), account_id=bob.id).sync()
+
+        synced = session.scalars(select(SyncedAsset)).all()
+        assert {(row.account_id, row.immich_asset_id) for row in synced} == {
+            (alice.id, "alice-asset"),
+            (bob.id, "bob-asset"),
+        }
+
+        # Re-syncing alice alone must not touch bob's tracked rows.
+        SyncService(session, FakeAlbums(), account_id=alice.id).sync()
+
+        synced_after = session.scalars(select(SyncedAsset)).all()
+        assert any(row.account_id == bob.id for row in synced_after)
+
+
+def test_sync_unscoped_still_sees_every_accounts_classifications(engine):
+    """Backward compatibility: SyncService with no account_id (the pre-#346
+    default) keeps behaving exactly as before -- unscoped."""
+    with Session(engine) as session:
+        alice = ImmichAccount(name="alice")
+        bob = ImmichAccount(name="bob")
+        session.add_all([alice, bob])
+        session.flush()
+
+        _make_classification(session, alice, "alice-asset", "Rex")
+        _make_classification(session, bob, "bob-asset", "Rex")
+
+        summary = SyncService(session, FakeAlbums(), account_id=None).sync(dry_run=True)
+
+        assert summary.identities[0].assets == 2

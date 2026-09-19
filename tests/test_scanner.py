@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import AssetStatus
 from immich_dog_tagger.immich import ImmichAsset, ImmichPerson
-from immich_dog_tagger.models import Asset
+from immich_dog_tagger.models import Asset, ImmichAccount
 from immich_dog_tagger.scanner import BATCH_SIZE, Scanner
 
 
@@ -571,3 +571,57 @@ def test_scan_with_limit_does_not_reconcile(engine, tmp_path):
         asset = session.query(Asset).filter_by(immich_asset_id="untouched").one()
 
         assert asset.status is AssetStatus.DOWNLOADED
+
+
+def test_scanner_stamps_new_assets_with_the_scanning_account(engine):
+    class FakeClient:
+        def list_assets(self):
+            return [ImmichAsset(id="a1", filename="a.jpg", checksum="a")]
+
+    with Session(engine) as session:
+        account = ImmichAccount(name="alice")
+        session.add(account)
+        session.flush()
+
+        Scanner(FakeClient(), session, account_id=account.id).scan()
+
+        asset = session.query(Asset).filter_by(immich_asset_id="a1").one()
+        assert asset.account_id == account.id
+
+
+def test_scanner_full_scan_does_not_reconcile_other_accounts_assets(engine):
+    """
+    Issue #346: a full (unlimited) scan's removal-reconciliation must only
+    consider *this account's* assets -- scanning Account A must never mark
+    Account B's assets REMOVED just because they don't appear in A's own
+    Immich asset listing.
+    """
+
+    class EmptyClient:
+        def list_assets(self):
+            return []
+
+    with Session(engine) as session:
+        alice = ImmichAccount(name="alice")
+        bob = ImmichAccount(name="bob")
+        session.add_all([alice, bob])
+        session.flush()
+
+        session.add(
+            Asset(
+                immich_asset_id="bob-asset",
+                checksum="b",
+                extension=".jpg",
+                account=bob,
+                status=AssetStatus.PENDING,
+            )
+        )
+        session.commit()
+
+        # Alice's own full scan returns nothing -- if this incorrectly swept
+        # every account's assets, bob's untouched asset would be marked
+        # REMOVED even though alice's scan says nothing about bob's library.
+        Scanner(EmptyClient(), session, account_id=alice.id).scan()
+
+        bob_asset = session.query(Asset).filter_by(immich_asset_id="bob-asset").one()
+        assert bob_asset.status is AssetStatus.PENDING
