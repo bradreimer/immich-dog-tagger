@@ -11,6 +11,7 @@ vi.mock("../../lib/api", () => ({
     scanned_image_count: 42,
     version: "1.6.0",
     tagging_sensitivity: "balanced",
+    accounts: [],
   }),
   setTaggingSensitivity: vi.fn(),
   getSchedules: vi.fn().mockResolvedValue([]),
@@ -33,6 +34,24 @@ describe("SettingsPage", () => {
     expect(screen.getByText("https://immich.example.com")).toBeInTheDocument();
   });
 
+  it("lists configured Immich accounts (issue #346)", async () => {
+    vi.mocked(api.getSettings).mockResolvedValueOnce({
+      immich_url: "http://immich-server:2283",
+      immich_external_url: "https://immich.example.com",
+      scanned_image_count: 42,
+      version: "1.6.0",
+      tagging_sensitivity: "balanced",
+      accounts: [
+        { id: 1, name: "alice" },
+        { id: 2, name: "bob" },
+      ],
+    });
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("alice, bob")).toBeInTheDocument();
+  });
+
   it("re-fetches the version when the settings are refreshed", async () => {
     render(<SettingsPage />);
 
@@ -44,6 +63,7 @@ describe("SettingsPage", () => {
       scanned_image_count: 42,
       version: "1.7.0",
       tagging_sensitivity: "balanced",
+      accounts: [],
     });
 
     screen.getByRole("button", { name: "Refresh" }).click();
@@ -97,6 +117,7 @@ describe("SettingsPage", () => {
       scanned_image_count: 42,
       version: "1.6.0",
       tagging_sensitivity: "cautious",
+      accounts: [],
     });
 
     render(<SettingsPage />);

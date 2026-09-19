@@ -70,6 +70,7 @@ describe("LibraryPage", () => {
       scanned_image_count: 0,
       version: "1.11.0",
       tagging_sensitivity: "balanced",
+      accounts: [],
     });
     mockLibrary(0);
   });
