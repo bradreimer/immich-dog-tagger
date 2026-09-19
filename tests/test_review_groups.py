@@ -20,6 +20,7 @@ from immich_dog_tagger.models import (
 from immich_dog_tagger.services.clusters import RecommendationClusterService
 from immich_dog_tagger.services.review_groups import (
     MIN_GROUP_SIZE,
+    GroupMismatch,
     ReviewGroupingService,
 )
 
@@ -277,3 +278,139 @@ def test_sort_is_echoed_back(engine):
         proposal = ReviewGroupingService(session).groups(sort=ClusterSort.CAPTURED_ASC)
 
         assert proposal.sort == ClusterSort.CAPTURED_ASC
+
+
+# docs/specs/review-groups-temporal-spatial-refinement.md: a member is only
+# unflagged when the group's identity is its own top-ranked
+# (weighted-by-time-and-location) prediction -- candidates[0], since
+# candidates is stored sorted by weighted_score = similarity *
+# temporal_weight * spatial_weight (classifier.py). These tests build that
+# invariant by hand rather than through the classifier, so each scenario
+# controls exactly which candidate is "top" and why.
+
+
+def test_member_agreeing_with_group_identity_is_unflagged(engine):
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+
+        _classification(
+            session,
+            path="a.jpg",
+            identity="Fibs",
+            candidates=[{"identity": "Fibs", "similarity": 0.9}],
+            embedding=[1.0, 0.0, 0.0],
+        )
+        _classification(
+            session,
+            path="b.jpg",
+            identity="Fibs",
+            candidates=[{"identity": "Fibs", "similarity": 0.85}],
+            embedding=[0.99, 0.05, 0.0],
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        assert len(proposal.groups) == 1
+        assert proposal.groups[0].mismatches == []
+
+
+def test_member_with_weak_temporal_weight_is_flagged(engine):
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+        _identity(session, "Rex")
+
+        mismatched = _classification(
+            session,
+            path="a.jpg",
+            identity=None,
+            candidates=[
+                {"identity": "Rex", "similarity": 0.9},
+                {"identity": "Fibs", "similarity": 0.85, "temporal_weight": 0.2},
+            ],
+            embedding=[1.0, 0.0, 0.0],
+        )
+        _classification(
+            session,
+            path="b.jpg",
+            identity="Fibs",
+            candidates=[{"identity": "Fibs", "similarity": 0.85}],
+            embedding=[0.99, 0.05, 0.0],
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        fibs_group = next(g for g in proposal.groups if g.identity == "Fibs")
+
+        assert fibs_group.mismatches == [
+            GroupMismatch(classification_id=mismatched.id, reason="temporal-mismatch")
+        ]
+
+
+def test_member_with_weak_spatial_weight_is_flagged(engine):
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+        _identity(session, "Rex")
+
+        mismatched = _classification(
+            session,
+            path="a.jpg",
+            identity=None,
+            candidates=[
+                {"identity": "Rex", "similarity": 0.9},
+                {"identity": "Fibs", "similarity": 0.85, "spatial_weight": 0.1},
+            ],
+            embedding=[1.0, 0.0, 0.0],
+        )
+        _classification(
+            session,
+            path="b.jpg",
+            identity="Fibs",
+            candidates=[{"identity": "Fibs", "similarity": 0.85}],
+            embedding=[0.99, 0.05, 0.0],
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        fibs_group = next(g for g in proposal.groups if g.identity == "Fibs")
+
+        assert fibs_group.mismatches == [
+            GroupMismatch(classification_id=mismatched.id, reason="location-mismatch")
+        ]
+
+
+def test_member_losing_on_visual_similarity_alone_gets_generic_reason(engine):
+    """Neither temporal nor spatial weight explains the mismatch (both are
+    the fail-open default of 1.0, i.e. missing capture date/location) -- the
+    member simply lost the ranking on raw similarity, so it's labeled with
+    the generic reason rather than a temporal/spatial one it didn't earn."""
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+        _identity(session, "Rex")
+
+        mismatched = _classification(
+            session,
+            path="a.jpg",
+            identity=None,
+            candidates=[
+                {"identity": "Rex", "similarity": 0.95},
+                {"identity": "Fibs", "similarity": 0.8},
+            ],
+            embedding=[1.0, 0.0, 0.0],
+        )
+        _classification(
+            session,
+            path="b.jpg",
+            identity="Fibs",
+            candidates=[{"identity": "Fibs", "similarity": 0.85}],
+            embedding=[0.99, 0.05, 0.0],
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        fibs_group = next(g for g in proposal.groups if g.identity == "Fibs")
+
+        assert fibs_group.mismatches == [
+            GroupMismatch(
+                classification_id=mismatched.id, reason="different-top-prediction"
+            )
+        ]

@@ -21,6 +21,9 @@ function formatReason(reason: string): string {
     case "location-mismatch":
       return "Location mismatch";
 
+    case "different-top-prediction":
+      return "Different top prediction";
+
     default:
       return "Needs review";
   }

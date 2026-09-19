@@ -311,6 +311,18 @@ class ClusterProposalResponse(BaseModel):
         )
 
 
+class GroupMismatchResponse(BaseModel):
+    """A cluster member whose own top-ranked, time/location-weighted
+    prediction is not the group's identity -- see
+    docs/specs/review-groups-temporal-spatial-refinement.md. The client
+    starts this member deselected and shows `reason` as a badge, the same
+    `temporal-mismatch`/`location-mismatch` vocabulary Queue mode already
+    uses."""
+
+    classification_id: int
+    reason: str
+
+
 class ReviewGroupResponse(BaseModel):
     """One identity's cluster, carrying the identity/species it belongs to
     so the client can approve/reject it without inferring which pet it's
@@ -320,6 +332,7 @@ class ReviewGroupResponse(BaseModel):
     identity: str
     species: Species
     cluster: RecommendationClusterResponse
+    mismatches: list[GroupMismatchResponse]
 
     @classmethod
     def from_group(cls, group):
@@ -327,6 +340,13 @@ class ReviewGroupResponse(BaseModel):
             identity=group.identity,
             species=group.species,
             cluster=RecommendationClusterResponse.from_cluster(group.cluster),
+            mismatches=[
+                GroupMismatchResponse(
+                    classification_id=mismatch.classification_id,
+                    reason=mismatch.reason,
+                )
+                for mismatch in group.mismatches
+            ],
         )
 
 

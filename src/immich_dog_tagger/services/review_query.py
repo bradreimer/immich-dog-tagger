@@ -47,13 +47,14 @@ from immich_dog_tagger.policy import (
 # with the photo's own capture date (roughly beyond a year and a half, given
 # scoring.TEMPORAL_SIGMA_DAYS/TEMPORAL_FLOOR) that it's worth surfacing to
 # the owner as a reason to double check, rather than presenting it as a
-# routine match.
-_TEMPORAL_MISMATCH_THRESHOLD = 0.5
+# routine match. Public (not module-private): `review_groups.py` reuses it
+# for the same judgment call in Grouped mode's own mismatch flag.
+TEMPORAL_MISMATCH_THRESHOLD = 0.5
 
-# v1.9/ADR-007: the same treatment as _TEMPORAL_MISMATCH_THRESHOLD, for how
+# v1.9/ADR-007: the same treatment as TEMPORAL_MISMATCH_THRESHOLD, for how
 # far a match's example was taken from the photo's own location (roughly
 # beyond ~2.7km, given scoring.SPATIAL_SIGMA_KM/SPATIAL_FLOOR).
-_SPATIAL_MISMATCH_THRESHOLD = 0.5
+SPATIAL_MISMATCH_THRESHOLD = 0.5
 
 
 @dataclass(frozen=True)
@@ -712,7 +713,7 @@ class ReviewQueryService:
         if (
             classification.candidates
             and classification.candidates[0].get("temporal_weight", 1.0)
-            < _TEMPORAL_MISMATCH_THRESHOLD
+            < TEMPORAL_MISMATCH_THRESHOLD
         ):
             return "temporal-mismatch"
 
@@ -723,7 +724,7 @@ class ReviewQueryService:
         if (
             classification.candidates
             and classification.candidates[0].get("spatial_weight", 1.0)
-            < _SPATIAL_MISMATCH_THRESHOLD
+            < SPATIAL_MISMATCH_THRESHOLD
         ):
             return "location-mismatch"
 

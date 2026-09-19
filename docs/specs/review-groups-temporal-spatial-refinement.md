@@ -1,7 +1,8 @@
 # Review Groups: Temporal/Spatial Refinement
 
-Tracking issue: TBD (see [review-tab-batch-approval.md](review-tab-batch-approval.md) for the
-parent Grouped mode spec this refines).
+Tracking issue: [#337](https://github.com/bradreimer/immich-dog-tagger/issues/337) (see
+[review-tab-batch-approval.md](review-tab-batch-approval.md) for the parent Grouped mode spec this
+refines).
 
 ## Purpose
 
@@ -127,3 +128,11 @@ cat's photo the way a purely visual grouping can.
 - Should a flagged member's badge link directly into FR-9's split-into-individual-review flow for
   that one photo, rather than requiring the reviewer to split the whole group? Deferred as a UI
   refinement, not required for the core behavior above.
+
+## Status
+
+- FR-1 through FR-6 -- implemented. `services/review_groups.py` (`GroupMismatch`,
+  `_mismatch_reason()`, `_cluster_mismatches()`), reusing `TEMPORAL_MISMATCH_THRESHOLD`/
+  `SPATIAL_MISMATCH_THRESHOLD` promoted to public constants in `services/review_query.py`;
+  `GET /review/groups`'s `ReviewGroupResponse.mismatches`; `ReviewGroupCard.tsx`'s default
+  selection and `ReviewReason` badge (new `different-top-prediction` case).

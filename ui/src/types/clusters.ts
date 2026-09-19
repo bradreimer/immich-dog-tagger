@@ -53,6 +53,20 @@ export interface ClusterApprovalResult {
 }
 
 /**
+ * A cluster member whose own top-ranked, time/location-weighted prediction
+ * is not the group's identity -- it was pooled in by raw visual similarity,
+ * not because the group's identity is actually its best match once capture
+ * time/location are weighed in. `reason` is the same
+ * `temporal-mismatch`/`location-mismatch` vocabulary Queue mode's
+ * `ReviewItem.reason` already uses, plus `different-top-prediction` when
+ * neither weight alone explains it.
+ */
+export interface GroupMismatch {
+  classification_id: number;
+  reason: string;
+}
+
+/**
  * One identity's cluster, carrying the identity/species it belongs to
  * (Review tab Grouped mode) -- unlike a Library `ClusterProposal`, which is
  * already scoped to one pet by the request, a `ReviewGroup` can be for any
@@ -62,6 +76,7 @@ export interface ReviewGroup {
   identity: string;
   species: string;
   cluster: RecommendationCluster;
+  mismatches: GroupMismatch[];
 }
 
 export interface ReviewGroupsProposal {
