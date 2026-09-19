@@ -82,8 +82,13 @@ corrections, Insights). Multi-account support rides exactly that seam:
   anchors a photo to a specific library (`Asset`). An account is a first-class row
   (`ImmichAccount`: id, name -- no key stored) so `Asset`, `SyncedAsset`, and account-scoped jobs
   can carry a stable `account_id` foreign key without ever putting a credential in `state.db`. The
-  actual API key for a given account name is resolved from configuration at runtime, the same way
-  `config.immich_api_key` is resolved today.
+  actual API key for a given account name is resolved at runtime from
+  [`Config.accounts`](https://github.com/bradreimer/immich-dog-tagger/blob/main/src/immich_dog_tagger/config.py)
+  (issue #348, merged) -- a `tuple[ImmichAccount(name, api_key), ...]` sourced from either the JSON
+  `CONFIG_FILE` or, for a legacy install with no config file, a single synthesized account always
+  named `"default"`. `Config.accounts` is never empty once any Immich credential is configured, in
+  either form, so this feature's account-resolution logic never needs to special-case "legacy
+  install" versus "config-file install" -- both already produce a uniform list of named accounts.
 - **Globally shared, unchanged**: `Identity`, `EmbeddingExample`, `CropClassification`,
   `PetOccurrence`, review actions, Insights, Learning Progress/Metrics. None of these gain an
   `account_id` or any account-awareness at all -- `Detection`/`Crop`/`CropClassification` already
@@ -101,23 +106,38 @@ exists at all.
 
 ## Requirements
 
-### FR-1: Account configuration
+### FR-1: Account configuration -- done, via #348
 
-- Support declaring one or more named Immich accounts, each an (account name, API key) pair,
-  against the single configured `IMMICH_URL`/`IMMICH_EXTERNAL_URL`.
-- A deployment with only the existing `IMMICH_API_KEY` set (no accounts declared) behaves exactly
-  as today: one implicit account, no visible change anywhere in the CLI, API, or UI.
-- Accounts are declared as a JSON array inside the mounted JSON configuration file introduced by
-  [the configuration-file spec](json-config-file.md) /
-  [issue #348](https://github.com/bradreimer/immich-dog-tagger/issues/348) -- **this feature
-  depends on that story landing first**, since a flat environment variable is a poor fit for a
-  list of name/key pairs. See that spec for the file format, location, and env-var-based backward
-  compatibility (an install with no config file and only the legacy `IMMICH_API_KEY` env var set
-  keeps working as a single implicit account).
+[Issue #348](https://github.com/bradreimer/immich-dog-tagger/issues/348) (the
+[JSON config file spec](json-config-file.md)) merged to `main` and already provides everything
+this requirement needs:
+
+- `Config.accounts: tuple[ImmichAccount, ...]` (`ImmichAccount` = `name` + `api_key`), populated
+  from the mounted JSON `CONFIG_FILE`'s `immich.accounts` array when one is configured.
+- A deployment with only the legacy `IMMICH_API_KEY` env var set (no `CONFIG_FILE`) gets exactly
+  one synthesized account, named `"default"`, with no visible change anywhere in the CLI, API, or
+  UI -- FR-1 is already backward compatible with zero further work.
+- `Config.immich_api_key` still returns the first account's key unchanged, so every existing
+  caller that hasn't been touched for multi-account support keeps working exactly as before.
+
+**Nothing else here needs building.** The remaining requirements below (FR-2 through FR-7) are
+this feature's actual scope: making the rest of the app iterate over `Config.accounts` instead of
+assuming exactly one.
 
 ### FR-2: Data model
 
-- New `ImmichAccount` table (`id`, `name` unique, `created_at`). Holds no credential.
+- New `ImmichAccount` table (`id`, `name` unique, `created_at`). Holds no credential -- naming a
+  row is enough to join it against `Config.accounts` by `name` at runtime; the row never stores an
+  `api_key` of its own.
+- **Startup account sync**: on every startup, for each entry in `Config.accounts`, upsert an
+  `ImmichAccount` row by exact `name` match (create it if new; an existing row is left alone
+  otherwise -- names are the join key, so this needs no other identifying data). A DB row whose
+  name is no longer present in `Config.accounts` (removed or renamed in configuration) is **not**
+  deleted -- see Open Questions for how it should be surfaced to the owner instead. Because
+  `Config.accounts` always contains a `"default"`-named account for a config-file-less legacy
+  install (per FR-1), this single startup-sync step is also the entire migration path for an
+  existing single-account install: no separate "is this a fresh install or an upgrade" branch is
+  needed.
 - `Asset` gains a required `account_id` foreign key to `ImmichAccount`. `Asset.immich_asset_id`'s
   uniqueness constraint becomes `(account_id, immich_asset_id)` rather than global, since the same
   Immich asset ID could in principle be visible under more than one account (e.g. partner sharing).
@@ -126,17 +146,23 @@ exists at all.
 - `PipelineJob` and `PipelineSchedule` gain a nullable `account_id`: set for account-scoped
   operations (`scan`, `download`, `sync`, `full_pipeline`), left null for local-only operations
   (`detect`, `classify`, `embed`, `learn`, `reclassify`) -- mirroring the ADR-006 split exactly.
-- Migration is additive and non-destructive (per this project's database-change conventions): on
-  first startup after upgrade, if no `ImmichAccount` rows exist, one is created (e.g. named
-  "Default") and every existing `Asset`/`SyncedAsset` row is backfilled to it. No existing photo,
-  classification, review history, or learned example is reprocessed, re-synced, or reset by this
-  migration.
+- Backfill migration is additive and non-destructive (per this project's database-change
+  conventions): every pre-existing `Asset`/`SyncedAsset` row (from before this feature existed) is
+  backfilled onto the `ImmichAccount` row named `"default"` -- the same name the startup account
+  sync above creates for a legacy install, so the two line up automatically with no separate
+  "which account did old rows belong to" decision to make. No existing photo, classification,
+  review history, or learned example is reprocessed, re-synced, or reset by this migration.
 
 ### FR-3: Scan and download
 
-- `Scanner`/`Downloader` run once per configured account, each using that account's own
-  `ImmichClient` (its own API key, shared `immich_url`), and write/update `Asset` rows tagged with
-  that account's `account_id`.
+- `Scanner`/`Downloader` run once per entry in `Config.accounts`, each using that account's own
+  `ImmichClient` (its own `api_key`, shared `immich_url`), and write/update `Asset` rows tagged
+  with that account's `account_id`.
+- Concretely, this means `api/dependencies.py`'s `get_immich_client()` (currently `@cache`-d,
+  building exactly one `ImmichClient` from `config.immich_api_key`) can no longer return a single
+  client -- it, and every other single-client construction site (the CLI's scan/download/sync
+  commands, `AssetRepairService`, `ManualDetectionAssignmentService`, `job_execution.py`'s
+  handlers), need to build or select one `ImmichClient` per account instead.
 - The CLI's `scan`/`download`/`full_pipeline` commands accept an optional account selector (e.g.
   `--account <name>`); omitting it runs against every configured account in turn.
 - A failure reaching one account's Immich API (bad key, network error, permission error) is
@@ -155,9 +181,9 @@ exists at all.
 
 ### FR-5: Sync
 
-- `SyncService.sync()` runs once per configured account, using that account's own `AlbumService`/
-  `TagService`/`ImmichClient`, and only considers `CropClassification`s whose crop's asset belongs
-  to that account.
+- `SyncService.sync()` runs once per entry in `Config.accounts`, using that account's own
+  `AlbumService`/`TagService`/`ImmichClient` (each constructed from that account's `api_key`), and
+  only considers `CropClassification`s whose crop's asset belongs to that account.
 - Each account's sync writes only that account's own assets into that account's own Immich albums/
   tags. An identity's photos in Account A never appear in Account B's "Dog - Rex" album, and vice
   versa, even though both albums share the same identity name.
@@ -211,18 +237,24 @@ exists at all.
   and why -- the same way a single bad identity's sync failure is named today rather than aborting
   the whole run.
 - Given an existing single-account install upgraded to a build with this feature, all pre-existing
-  `Asset`/`SyncedAsset` rows are attributed to one implicit "Default" account, and no photo is
-  redownloaded, redetected, reclassified, or resynced as a side effect of the migration alone.
+  `Asset`/`SyncedAsset` rows are attributed to one implicit `"default"` account -- matching the
+  name `Config.accounts` already synthesizes for a config-file-less install (#348) -- and no photo
+  is redownloaded, redetected, reclassified, or resynced as a side effect of the migration alone.
 - Given the Library or Review page with two accounts configured, filtering by account shows only
   that account's photos, and each photo's detail panel names its account alongside its capture
   date and location.
 
 ## Open questions
 
-- **This story is blocked on [the configuration-file spec](json-config-file.md)** landing first --
-  account declaration needs structured (name + key) configuration, which the JSON config file
-  spun off from this one provides. See that spec's own open questions (JSON schema shape, whether
-  other settings besides Immich accounts move into it, migration tooling).
+- **Renaming or removing a configured account** after it already has synced data: `Config.accounts`
+  resolves purely by exact string name, so renaming an account in `config.json` is
+  indistinguishable from deleting the old one and adding a brand-new one with the same key --
+  the old `ImmichAccount` DB row simply stops matching anything in `Config.accounts` (per FR-2's
+  startup sync) and is orphaned, silently, unless the owner is told. Options: warn/flag an
+  orphaned `ImmichAccount` in Settings ("configured account 'X' is no longer present in
+  configuration") rather than failing silently on its next scan/sync; or support an explicit
+  rename operation (like an `Identity` rename today) that re-keys the existing row instead of
+  orphaning it. Needs a decision before the Settings UI for this is designed.
 - **Schedule granularity**: does one `PipelineSchedule` mean "run for every configured account," or
   does an owner create one schedule per account per operation? Affects both the schema
   (`account_id` nullable-meaning-all vs. required) and the Schedules UI.
@@ -230,13 +262,10 @@ exists at all.
   API keys turn out to belong to the same underlying Immich user (rather than genuinely separate
   libraries)? Current assumption is no special detection or handling is needed -- each configured
   key is trusted to represent a distinct library the owner intends to sync separately.
-- **Renaming or removing a configured account** after it already has synced data: does changing an
-  account's declared name in configuration rename the existing `ImmichAccount` row (like an
-  `Identity` rename today), or would that need an explicit re-linking step so history isn't
-  silently orphaned? Needs a decision before the Settings UI for this is designed.
 - **Multiple Immich servers** (different `IMMICH_URL` per account) is explicitly out of scope for
   this iteration (Non-goals), but the `ImmichAccount` model should be reviewed for whether it can
   be extended to carry its own URL later without another breaking schema change, in case that is
-  ever requested.
-- Whether this warrants a dedicated ADR once the environment-shape and schedule-granularity
+  ever requested. Not a concern `Config.accounts` (#348) introduces either way -- it deliberately
+  has one shared `immich.url` for every account, per that spec.
+- Whether this warrants a dedicated ADR once the account-renaming and schedule-granularity
   questions above are settled, alongside ADR-001/ADR-006, given how directly it extends both.
