@@ -53,6 +53,8 @@ from immich_dog_tagger.services.sync_policy import SyncPolicy
 class FakeVectorEmbedder:
     """Deterministic embedder: every path maps to a known, fixed vector."""
 
+    MODEL_ID = "fake:test"
+
     def __init__(self, path_to_vector: dict[str, list[float]]):
         self.path_to_vector = path_to_vector
 

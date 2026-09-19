@@ -35,6 +35,8 @@ class DummyProgress:
 
 
 class FakeEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed_batch(self, paths):
         return np.array([[1, 0, 0] for _ in paths], dtype=np.float32)
 

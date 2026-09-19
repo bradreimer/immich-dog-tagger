@@ -28,6 +28,8 @@ from tests.conftest import create_test_classification
 
 
 class FakeEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed(self, path):
         return np.array([1, 0, 0], dtype=np.float32)
 
@@ -203,6 +205,8 @@ def test_correction_creates_review_embedding_example(
     import numpy as np
 
     class FakeEmbedder:
+        MODEL_ID = "fake:test"
+
         def embed(self, path):
             return np.array(
                 [1, 0, 0],
@@ -331,6 +335,8 @@ def test_duplicate_correction_does_not_duplicate_embedding_example(
     import numpy as np
 
     class FakeEmbedder:
+        MODEL_ID = "fake:test"
+
         def embed(self, path):
             return np.array(
                 [1, 0, 0],
@@ -522,6 +528,8 @@ def test_re_review_under_different_identity_supersedes_stale_example(engine, tmp
     import numpy as np
 
     class FakeEmbedder:
+        MODEL_ID = "fake:test"
+
         def embed(self, path):
             return np.array([1, 0, 0], dtype=np.float32)
 
@@ -563,6 +571,8 @@ def test_correcting_to_unknown_removes_stale_embedding_example(engine, tmp_path)
     import numpy as np
 
     class FakeEmbedder:
+        MODEL_ID = "fake:test"
+
         def embed(self, path):
             return np.array([1, 0, 0], dtype=np.float32)
 

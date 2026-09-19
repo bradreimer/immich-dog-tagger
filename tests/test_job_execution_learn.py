@@ -36,6 +36,8 @@ def test_learn_handler_uses_reference_root_when_present(engine, tmp_path, monkey
     import numpy as np
 
     class FakeEmbedder:
+        MODEL_ID = "fake:test"
+
         def embed(self, image_path):
             return np.array([0.1, 0.2, 0.3], dtype=np.float32)
 

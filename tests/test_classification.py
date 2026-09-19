@@ -14,6 +14,8 @@ from immich_dog_tagger.services.classification import BATCH_SIZE, Classification
 
 
 class FakeBatchEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed_batch(self, paths):
         return np.array(
             [

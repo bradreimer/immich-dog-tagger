@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, event, inspect
 
+from .embedder import LEGACY_OPENCLIP_MODEL_ID
 from .models import Base
 
 
@@ -73,6 +74,7 @@ def create_database(state_dir: Path):
     _ensure_embedding_example_location_columns(engine)
     _ensure_crop_not_animal_column(engine)
     _ensure_asset_exif_dimension_columns(engine)
+    _ensure_embedding_model_columns(engine)
     _cleanup_dangling_pet_occurrences(engine)
     _disable_learn_schedules(engine)
 
@@ -361,6 +363,59 @@ def _ensure_crop_not_animal_column(engine) -> None:
         connection.exec_driver_sql(
             "ALTER TABLE crops ADD COLUMN not_animal BOOLEAN NOT NULL DEFAULT 0"
         )
+
+
+def _ensure_embedding_model_columns(engine) -> None:
+    """
+    ADR-010: every EmbeddingExample/CropClassification row written before this column existed
+    was produced by the OpenCLIP embedder this project exclusively used until now, so -- unlike
+    most additive columns here -- existing rows get backfilled with a known value
+    (LEGACY_OPENCLIP_MODEL_ID) instead of NULL, so `reembed` (services/reembed.py) can find and
+    recompute them by querying for that sentinel rather than assuming every existing row predates
+    the new model.
+
+    embedding_examples.embedding is NOT NULL, so every existing row has a real (OpenCLIP) vector
+    and can take the column default directly. crop_classifications.embedding is nullable, so a
+    row with no embedding yet stays NULL here too rather than claiming a model produced a vector
+    that was never actually computed.
+    """
+    inspector = inspect(engine)
+
+    example_columns = {
+        column["name"] for column in inspector.get_columns("embedding_examples")
+    }
+    classification_columns = {
+        column["name"] for column in inspector.get_columns("crop_classifications")
+    }
+
+    statements = []
+
+    if "embedding_model" not in example_columns:
+        statements.append(
+            "ALTER TABLE embedding_examples ADD COLUMN embedding_model VARCHAR(128) "
+            f"NOT NULL DEFAULT '{LEGACY_OPENCLIP_MODEL_ID}'"
+        )
+
+    backfill_classifications = False
+
+    if "embedding_model" not in classification_columns:
+        statements.append(
+            "ALTER TABLE crop_classifications ADD COLUMN embedding_model VARCHAR(128)"
+        )
+        backfill_classifications = True
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+
+        if backfill_classifications:
+            connection.exec_driver_sql(
+                "UPDATE crop_classifications SET embedding_model = "
+                f"'{LEGACY_OPENCLIP_MODEL_ID}' WHERE embedding IS NOT NULL"
+            )
 
 
 def _ensure_embedding_example_location_columns(engine) -> None:

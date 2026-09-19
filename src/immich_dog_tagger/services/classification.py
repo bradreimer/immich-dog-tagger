@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session, joinedload
 
 from immich_dog_tagger.classifier import IdentityClassifier
+from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import AssetStatus, ClassificationMode
 from immich_dog_tagger.models import (
@@ -19,7 +20,6 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
 )
-from immich_dog_tagger.openclip_embedder import OpenClipEmbedder
 from immich_dog_tagger.policy import DEFAULT_POLICY, ClassifierPolicy
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 from immich_dog_tagger.services.rejections import rejected_identities_for
@@ -51,7 +51,7 @@ class ClassificationService:
     def __init__(
         self,
         session: Session,
-        embedder: OpenClipEmbedder,
+        embedder: Embedder,
         classifier: IdentityClassifier,
         policy: ClassifierPolicy = DEFAULT_POLICY,
     ):
@@ -276,6 +276,7 @@ class ClassificationService:
             classification.candidates = candidates
             classification.classifier_version = self.policy.version
             classification.embedding = embedding_blob
+            classification.embedding_model = self.embedder.MODEL_ID
 
         else:
             classification = CropClassification(
@@ -287,6 +288,7 @@ class ClassificationService:
                 source=ClassificationSources.AUTO,
                 classifier_version=self.policy.version,
                 embedding=embedding_blob,
+                embedding_model=self.embedder.MODEL_ID,
             )
 
             self.session.add(classification)

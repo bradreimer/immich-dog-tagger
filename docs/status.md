@@ -1001,6 +1001,19 @@ Docker image by `docker-publish.yml` on every push to `main`), so the sidebar/se
 now changes on every merge instead of only on explicit version bumps.
 
 ## Next Work
+[#342](https://github.com/bradreimer/immich-dog-tagger/issues/342) replaced `OpenClipEmbedder`
+with `DogReIDEmbedder` (MegaDescriptor-L-384, a model trained via metric learning specifically for
+individual animal re-identification rather than CLIP's general image-text alignment -- see
+[ADR-010](adr/ADR-010-dog-reid-embedding-model.md) and
+[docs/specs/dog-reid-embeddings.md](specs/dog-reid-embeddings.md)) behind the existing `Embedder`
+protocol, with no change to `IdentityClassifier`/`ClassifierPolicy`/the review workflow. Added an
+`embedding_model` column on `EmbeddingExample`/`CropClassification` (additive migration,
+backfilled with a sentinel identifying the prior OpenCLIP model) and a new `reembed` pipeline
+operation (`services/reembed.py`, wired into the job system, Overview's Manual Operations card,
+and Job Queue) that recomputes every stored vector under the current model -- never touching
+identity/confidence/source -- followed by a normal Reclassify pass; existing installs run it once
+after upgrading.
+
 A full navigation/intent UX pass across every tab filed 12 issues (#286-#297) -- sidebar/in-app
 navigation defects, Overview job-list/operations consolidation, Dogs & Cats row action layout, a
 Library-to-Review filter bridge, and small UX polish. All 12 have shipped, through v1.26.0:

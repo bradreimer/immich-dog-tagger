@@ -9,6 +9,8 @@ from immich_dog_tagger.services.learner import Learner
 
 
 class FakeEmbedder:
+    MODEL_ID = "fake:test"
+
     def embed(
         self,
         image_path: Path,
