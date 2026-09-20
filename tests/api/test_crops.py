@@ -145,6 +145,64 @@ def test_unmark_crop_not_animal_404_for_unknown_crop(api_client):
     assert response.status_code == 404
 
 
+def test_assign_crop_classifies_an_existing_unclassified_crop(
+    api_client, engine, tmp_path
+):
+    # Issue #353: a crop that already exists (e.g. re-detected by Repair)
+    # but was never classified -- the crop-ful counterpart of
+    # POST /photo-lookup/.../detections/{id}/assign, which creates the crop
+    # too.
+    image = tmp_path / "crop.jpg"
+    image.write_bytes(b"fake-jpeg-data")
+
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path=str(image), species="cat")
+        session.add(crop)
+        session.commit()
+        crop_id = crop.id
+
+    response = api_client.post(
+        f"/crops/{crop_id}/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["crop_id"] == crop_id
+    assert body["classification_id"] is not None
+
+    with Session(engine) as session:
+        result = session.get(Crop, crop_id)
+        assert result.species == "dog"
+        assert result.classification.identity == "Rex"
+        assert result.classification.confidence == 1.0
+
+
+def test_assign_crop_404_for_unknown_crop(api_client):
+    response = api_client.post(
+        "/crops/999999/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_assign_crop_400_when_crop_already_has_a_classification(api_client, engine):
+    with Session(engine) as session:
+        crop = Crop(detection_id=1, path="crop.jpg")
+        classification = CropClassification(crop=crop, identity="Fibs", confidence=0.91)
+        session.add(classification)
+        session.commit()
+        crop_id = crop.id
+
+    response = api_client.post(
+        f"/crops/{crop_id}/assign",
+        json={"species": "dog", "identity": "Rex"},
+    )
+
+    assert response.status_code == 400
+
+
 def test_get_crop_image_survives_a_burst_of_concurrent_requests(
     api_client, engine, tmp_path
 ):

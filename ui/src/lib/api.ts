@@ -897,6 +897,31 @@ export async function assignDetection(
 }
 
 /**
+ * Give a crop that already exists but was never classified (issue #353,
+ * e.g. after Repair) its first species/identity decision -- the crop-ful
+ * counterpart of assignDetection() above, which creates the crop too.
+ */
+export async function assignCrop(
+  cropId: number,
+  species: "dog" | "cat",
+  identity: string | null,
+): Promise<DetectionAssignResult> {
+  const response = await fetch(`/api/crops/${cropId}/assign`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ species, identity }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to classify crop");
+  }
+
+  return response.json();
+}
+
+/**
  * Mark a crop-less detection "not a dog or cat" (issue #261), creating its
  * crop in the process -- the crop-less counterpart of markCropNotAnimal(),
  * which needs a crop to already exist.

@@ -81,7 +81,61 @@ class ManualDetectionAssignmentService:
         reference example when named, and an Insights occurrence sync.
         """
         crop = self._create_crop(detection_id, species)
+        self._classify_new_crop(crop, identity)
 
+        logger.info(
+            "Detection %d manually mapped to species=%s identity=%r (crop %d)",
+            detection_id,
+            species.value,
+            identity,
+            crop.id,
+        )
+
+        return crop
+
+    def assign_crop(
+        self,
+        crop_id: int,
+        species: Species,
+        identity: str | None,
+    ) -> Crop:
+        """
+        Give a crop its first species/identity decision when it already
+        exists but was never classified (issue #353) -- e.g. a Repair that
+        re-detected the photo but whose classify pass didn't produce a
+        `CropClassification` for it. Unlike `assign()`, the crop image
+        itself already exists (this never downloads from Immich or crops
+        again); it only needs the classification `assign()` would otherwise
+        create as a byproduct of building the crop.
+        """
+        crop = self.session.get(Crop, crop_id)
+
+        if crop is None:
+            raise ValueError(f"Crop {crop_id} not found")
+
+        if crop.classification is not None:
+            raise ValueError(
+                f"Crop {crop_id} already has a classification; use the "
+                "existing species/identity correction controls instead"
+            )
+
+        crop.species = species
+        self._classify_new_crop(crop, identity)
+
+        logger.info(
+            "Crop %d manually classified species=%s identity=%r",
+            crop_id,
+            species.value,
+            identity,
+        )
+
+        return crop
+
+    def _classify_new_crop(
+        self,
+        crop: Crop,
+        identity: str | None,
+    ) -> CropClassification:
         # A placeholder the immediately-following correct() call settles for
         # real (confidence, source, identity) -- created first only because
         # correct() needs an existing classification_id to operate on.
@@ -102,15 +156,7 @@ class ManualDetectionAssignmentService:
 
         self.correction_service.correct(classification.id, identity)
 
-        logger.info(
-            "Detection %d manually mapped to species=%s identity=%r (crop %d)",
-            detection_id,
-            species.value,
-            identity,
-            crop.id,
-        )
-
-        return crop
+        return classification
 
     def mark_not_animal(self, detection_id: int) -> Crop:
         """
