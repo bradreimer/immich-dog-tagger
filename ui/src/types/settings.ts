@@ -15,6 +15,17 @@ export interface Settings {
    * environment.
    */
   tagging_sensitivity: TaggingSensitivity;
+  /**
+   * Configured Immich accounts (issue #346) -- always exactly one
+   * ("default") for a legacy single-key deployment, so a single-entry list
+   * here is not itself a signal anything changed.
+   */
+  accounts: Account[];
+}
+
+export interface Account {
+  id: number;
+  name: string;
 }
 
 export type TaggingSensitivity = "cautious" | "balanced" | "eager";

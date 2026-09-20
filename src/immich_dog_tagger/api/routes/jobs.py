@@ -67,7 +67,10 @@ def create_job(
             ),
         )
 
-    job = service.create_job(operation=request.operation)
+    job = service.create_job(
+        operation=request.operation,
+        account_id=request.account_id,
+    )
 
     if request.start:
         dispatcher.trigger()

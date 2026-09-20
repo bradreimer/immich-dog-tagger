@@ -52,6 +52,8 @@ class PhotoLookup:
     country: str | None
     state: str | None
     city: str | None
+    # Which configured Immich account this photo belongs to (issue #346).
+    account: str | None
 
 
 class PhotoLookupService:
@@ -64,7 +66,8 @@ class PhotoLookupService:
             .options(
                 selectinload(Asset.detections)
                 .selectinload(Detection.crop)
-                .selectinload(Crop.classification)
+                .selectinload(Crop.classification),
+                selectinload(Asset.account),
             )
             .where(Asset.immich_asset_id == immich_asset_id)
         ).first()
@@ -88,6 +91,7 @@ class PhotoLookupService:
             country=asset.country,
             state=asset.state,
             city=asset.city,
+            account=asset.account.name if asset.account else None,
         )
 
     def _to_detection(self, detection: Detection) -> PhotoLookupDetection:

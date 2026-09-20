@@ -25,7 +25,8 @@ from immich_dog_tagger.models import (
 REVIEW_ITEM_RELATIONSHIPS = (
     selectinload(CropClassification.crop)
     .selectinload(Crop.detection)
-    .selectinload(Detection.asset),
+    .selectinload(Detection.asset)
+    .selectinload(Asset.account),
     selectinload(CropClassification.matched_example).selectinload(
         EmbeddingExample.identity
     ),
@@ -91,6 +92,11 @@ class ReviewItem:
     # reads (issue #94/#129), joined on whichever parts are present. None
     # when the asset is missing or has no location data at all.
     location: str | None = None
+    # Which configured Immich account this photo belongs to (issue #346),
+    # shown alongside captured_at/location above. None when the asset or
+    # its account is missing (shouldn't happen once AccountService's
+    # migration has run, but fails open the same way location does).
+    account: str | None = None
     # A human's "not a dog or cat" flag on the underlying crop (issue #185),
     # surfaced so the Library/Review UI can render its current state.
     not_animal: bool = False
@@ -316,6 +322,7 @@ class ReviewQueryService:
         identity: str | None = None,
         captured_after: datetime | None = None,
         captured_before: datetime | None = None,
+        account_id: int | None = None,
     ) -> list[ReviewItem]:
         threshold = (
             threshold if threshold is not None else self.policy.confident_threshold
@@ -399,6 +406,15 @@ class ReviewQueryService:
                 )
             )
 
+        if account_id is not None:
+            query = query.where(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.account_id == account_id)
+                    )
+                )
+            )
+
         classifications = self.session.scalars(query).all()
 
         return [
@@ -413,6 +429,7 @@ class ReviewQueryService:
         reviewed: bool | None = None,
         captured_after: datetime | None = None,
         captured_before: datetime | None = None,
+        account_id: int | None = None,
         sort: LibrarySort = LibrarySort.CAPTURED_DESC,
         limit: int = 50,
         offset: int = 0,
@@ -434,6 +451,7 @@ class ReviewQueryService:
             reviewed=reviewed,
             captured_after=captured_after,
             captured_before=captured_before,
+            account_id=account_id,
         )
 
         count_query = select(func.count()).select_from(CropClassification)
@@ -523,6 +541,7 @@ class ReviewQueryService:
         reviewed: bool | None,
         captured_after: datetime | None,
         captured_before: datetime | None,
+        account_id: int | None = None,
     ) -> list:
         filters = []
 
@@ -550,6 +569,15 @@ class ReviewQueryService:
                 CropClassification.crop.has(
                     Crop.detection.has(
                         Detection.asset.has(Asset.captured_at <= captured_before)
+                    )
+                )
+            )
+
+        if account_id is not None:
+            filters.append(
+                CropClassification.crop.has(
+                    Crop.detection.has(
+                        Detection.asset.has(Asset.account_id == account_id)
                     )
                 )
             )
@@ -637,6 +665,7 @@ class ReviewQueryService:
             reason=self._review_reason(classification),
             immich_asset_id=self._immich_asset_id(classification),
             location=self._location(classification),
+            account=self._account(classification),
             not_animal=classification.crop.not_animal,
         )
 
@@ -675,6 +704,21 @@ class ReviewQueryService:
         parts = [part for part in (asset.city, asset.state, asset.country) if part]
 
         return ", ".join(parts) if parts else None
+
+    def _account(
+        self,
+        classification: CropClassification,
+    ) -> str | None:
+        detection = classification.crop.detection
+
+        if (
+            detection is None
+            or detection.asset is None
+            or detection.asset.account is None
+        ):
+            return None
+
+        return detection.asset.account.name
 
     def _has_review_action(self):
         return exists(

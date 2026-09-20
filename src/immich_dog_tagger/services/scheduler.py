@@ -84,7 +84,16 @@ class SchedulerService:
                     handlers={PipelineOperation.FULL_PIPELINE: lambda progress: None},
                 )
 
-        job = job_service.create_job(operation=schedule.operation)
+        # Issue #346: carries the schedule's own account_id onto the job it
+        # creates. A schedule with none set (every schedule created before
+        # this column existed, or one an owner deliberately left unscoped)
+        # resolves to the default account at handler run time -- see
+        # services.accounts.resolve_account -- so an existing single-account
+        # install's schedules keep running unchanged.
+        job = job_service.create_job(
+            operation=schedule.operation,
+            account_id=schedule.account_id,
+        )
         job.schedule_id = schedule.id
         self.session.commit()
         self.session.refresh(job)

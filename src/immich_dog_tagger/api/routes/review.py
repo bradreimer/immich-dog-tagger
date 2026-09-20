@@ -44,6 +44,7 @@ def review(
     identity: str | None = Query(None),
     captured_after: datetime | None = Query(None),
     captured_before: datetime | None = Query(None),
+    account_id: int | None = Query(None),
 ):
     service = get_review_query_service(session)
 
@@ -57,6 +58,7 @@ def review(
         identity=identity,
         captured_after=captured_after,
         captured_before=captured_before,
+        account_id=account_id,
     )
 
     return [ReviewItemResponse.from_item(item) for item in items]

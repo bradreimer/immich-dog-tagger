@@ -25,10 +25,19 @@ class Scanner:
         client: ImmichClient,
         session: Session,
         cache_dir: Path | None = None,
+        account_id: int | None = None,
     ):
         self.client = client
         self.session = session
         self.cache_dir = cache_dir
+        # Issue #346: which configured account's library `client` reaches.
+        # Stamped onto every newly discovered Asset; an Asset already found
+        # by immich_asset_id keeps whichever account first scanned it (see
+        # _process_asset) rather than being reassigned, since the only way
+        # that can differ is the same photo being visible to more than one
+        # account (e.g. Immich partner sharing) -- an explicitly out-of-scope
+        # case (docs/specs/multi-immich-account-sync.md's Non-goals).
+        self.account_id = account_id
 
     def scan(
         self,
@@ -108,10 +117,19 @@ class Scanner:
         queryable; only the cached original and any crop files not backing
         an active-learning reference example (FR-5) are cleaned up from
         disk.
+
+        Scoped to this scan's own account (issue #346) when one is set:
+        `current_ids` only ever lists *this* account's assets, so without
+        this filter, scanning Account A would see every other configured
+        account's assets as "not in this scan's result" and incorrectly
+        mark them removed -- deleting their cached files along with it.
         """
-        candidates = self.session.scalars(
-            select(Asset).where(Asset.status != AssetStatus.REMOVED)
-        ).all()
+        query = select(Asset).where(Asset.status != AssetStatus.REMOVED)
+
+        if self.account_id is not None:
+            query = query.where(Asset.account_id == self.account_id)
+
+        candidates = self.session.scalars(query).all()
 
         removed_count = 0
         since_commit = 0
@@ -214,6 +232,7 @@ class Scanner:
             checksum=immich_asset.checksum,
             extension=immich_asset.extension,
             captured_at=immich_asset.captured_at,
+            account_id=self.account_id,
         )
         apply_immich_metadata(asset, immich_asset)
 

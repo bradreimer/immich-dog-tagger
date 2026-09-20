@@ -12,6 +12,11 @@ from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.models import Crop
 from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.scanner import Scanner
+from immich_dog_tagger.services.accounts import (
+    ResolvedAccount,
+    build_immich_client,
+    resolve_account,
+)
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.app_settings import AppSettingsService
 from immich_dog_tagger.services.classification import ClassificationService
@@ -87,12 +92,32 @@ def create_pipeline_job_runner(
     )
 
 
-def _create_client(config: Config) -> ImmichClient:
-    return ImmichClient(
-        config.immich_url,
-        config.immich_api_key,
-        timeout=config.immich_timeout_seconds,
-    )
+def _account_for_job(
+    session: Session,
+    config: Config,
+    progress: JobProgressReporter,
+) -> ResolvedAccount:
+    """
+    Resolve the Immich account this job runs against: its own `account_id`,
+    or the default account for a local-only/legacy job with none set (see
+    `services.accounts.resolve_account`). Issue #346: every account-touching
+    handler (scan/sync/full_pipeline) goes through this rather than a single
+    process-wide client/account, so each job only ever talks to -- and tags
+    new Assets with -- the one Immich library it was created for.
+    """
+
+    return resolve_account(session, config, progress.job.account_id)
+
+
+def _create_client(config: Config, account: ResolvedAccount) -> ImmichClient:
+    """
+    Thin wrapper kept as its own module-level name (rather than calling
+    `build_immich_client` directly) so tests can monkeypatch this one seam
+    to avoid real network calls, the same way they patched the pre-#346
+    single-argument `_create_client(config)`.
+    """
+
+    return build_immich_client(config, account)
 
 
 def _scan_handler(
@@ -103,10 +128,13 @@ def _scan_handler(
     def run(progress: JobProgressReporter) -> dict[str, int]:
         progress.message("Scanning Immich")
 
+        account = _account_for_job(session, config, progress)
+
         scanner = Scanner(
-            _create_client(config),
+            _create_client(config, account),
             session,
             config.cache_dir,
+            account_id=account.id,
         )
         scanned = scanner.scan(
             limit=options.get("limit"),
@@ -396,12 +424,14 @@ def _sync_handler(
     def run(progress: JobProgressReporter) -> dict[str, int]:
         progress.message("Synchronizing albums and tags")
 
-        client = _create_client(config)
+        account = _account_for_job(session, config, progress)
+        client = _create_client(config, account)
 
         service = SyncService(
             session,
             AlbumService(client),
             tags=TagService(client),
+            account_id=account.id,
         )
         summary = service.sync(
             dry_run=options.get("dry_run", False),
@@ -480,12 +510,13 @@ def _full_pipeline_handler(
     options: dict,
 ):
     def run(progress: JobProgressReporter) -> dict[str, int]:
-        client = _create_client(config)
+        account = _account_for_job(session, config, progress)
+        client = _create_client(config, account)
 
         policy = AppSettingsService(session).policy()
 
         pipeline = PipelineService(
-            Scanner(client, session, config.cache_dir),
+            Scanner(client, session, config.cache_dir, account_id=account.id),
             Downloader(client, session, config.cache_dir),
             DetectionService(
                 YOLODetector(config.yolo_model),
@@ -531,6 +562,7 @@ def _full_pipeline_handler(
             limit=options.get("limit"),
             force=options.get("force", False),
             should_cancel=progress.is_cancel_requested,
+            account_id=account.id,
         )
 
         return {

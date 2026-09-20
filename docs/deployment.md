@@ -107,6 +107,29 @@ file and the specific problem, rather than falling back silently.
 Running from source instead of Docker: set `CONFIG_FILE` directly in `.env` (e.g. `./config.json`)
 rather than `HOST_CONFIG_FILE`, which only matters to `docker-compose.yml`'s volume mount.
 
+### Multiple Immich accounts
+
+With two or more entries under `immich.accounts` in the config file above, this app scans,
+downloads, and syncs each one against its own Immich library, while identity, classification,
+review, and Insights stay fully shared across all of them — see
+[docs/specs/multi-immich-account-sync.md](specs/multi-immich-account-sync.md) for the full
+architecture. Nothing further needs configuring; the backend registers an account per entry
+automatically on startup.
+
+The CLI's `scan`, `download`, `sync`, and `pipeline` commands accept an optional
+`--account <name>`; omitted, each runs against **every** configured account in turn, continuing
+past a failed account (a revoked key, a network error) rather than aborting the whole run:
+
+```bash
+docker compose exec dog-tagger immich-dog-tagger scan --account alice
+docker compose exec dog-tagger immich-dog-tagger sync
+```
+
+The Job Queue and Automation Schedules pages currently start a scan/sync/full-pipeline job against
+the *first* configured account only — a fast-follow UI update will add an account picker there.
+Until then, use the CLI (or the equivalent `account_id` field on `POST /jobs`/`POST /schedules`)
+to target a specific account from a multi-account deployment.
+
 ## Docker network
 
 Both services join the external `proxy` network, so Traefik can reach the frontend and nginx can

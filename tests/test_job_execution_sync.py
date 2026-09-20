@@ -1,14 +1,41 @@
+from pathlib import Path
+from types import SimpleNamespace
+
 from sqlalchemy.orm import Session
 
+from immich_dog_tagger.config import Config
 from immich_dog_tagger.immich import ImmichTagAssetsError
 from immich_dog_tagger.models import Asset, Crop, CropClassification, Detection
 from immich_dog_tagger.services.job_execution import _sync_handler
 from immich_dog_tagger.services.sync import IMMICH_PERMISSIONS_DOC_URL
 
 
+def _fake_config() -> Config:
+    """
+    A minimal Config for _sync_handler's own account resolution (issue
+    #346) to run against -- these tests replace _create_client entirely,
+    so its actual values are never used to build a real ImmichClient, but
+    resolve_account() still needs a real Config object to call
+    Config.accounts/Config.immich_api_key on.
+    """
+
+    return Config(
+        immich_url="http://fake",
+        immich_api_key="fake-key",
+        state_dir=Path("unused"),
+        cache_dir=Path("unused"),
+        yolo_model=Path("unused.pt"),
+        crop_padding=0.0,
+    )
+
+
 class RecordingProgress:
     def __init__(self):
         self.messages: list[str] = []
+        # Issue #346: _account_for_job() reads progress.job.account_id.
+        # None resolves to the default account -- these tests don't
+        # exercise multi-account behavior.
+        self.job = SimpleNamespace(account_id=None)
 
     def set(self, current=None, total=None, message=None):
         if message is not None:
@@ -68,7 +95,7 @@ def test_sync_handler_reports_skipped_classifications_in_progress_message(
     lower-than-expected result, not just say "sync completed"."""
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FakeImmichClient(),
+        lambda config, account: FakeImmichClient(),
     )
 
     with Session(engine) as session:
@@ -78,7 +105,7 @@ def test_sync_handler_reports_skipped_classifications_in_progress_message(
         )
         session.commit()
 
-        handler = _sync_handler(session, config=None, options={})
+        handler = _sync_handler(session, config=_fake_config(), options={})
         progress = RecordingProgress()
         result = handler(progress)
 
@@ -105,14 +132,14 @@ def test_sync_handler_reports_failed_identities_in_progress_message(
 
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FailingImmichClient(),
+        lambda config, account: FailingImmichClient(),
     )
 
     with Session(engine) as session:
         _add_classification(session, asset_id="good", identity="Fibs", confidence=1.0)
         session.commit()
 
-        handler = _sync_handler(session, config=None, options={})
+        handler = _sync_handler(session, config=_fake_config(), options={})
         progress = RecordingProgress()
         result = handler(progress)
 
@@ -144,14 +171,14 @@ def test_sync_handler_links_permissions_doc_on_a_permission_denied_failure(
 
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FailingImmichClient(),
+        lambda config, account: FailingImmichClient(),
     )
 
     with Session(engine) as session:
         _add_classification(session, asset_id="good", identity="Fibs", confidence=1.0)
         session.commit()
 
-        handler = _sync_handler(session, config=None, options={})
+        handler = _sync_handler(session, config=_fake_config(), options={})
         progress = RecordingProgress()
         result = handler(progress)
 
@@ -166,14 +193,14 @@ def test_sync_handler_message_has_no_skip_clause_when_nothing_skipped(
 ):
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FakeImmichClient(),
+        lambda config, account: FakeImmichClient(),
     )
 
     with Session(engine) as session:
         _add_classification(session, asset_id="good", identity="Fibs", confidence=1.0)
         session.commit()
 
-        handler = _sync_handler(session, config=None, options={})
+        handler = _sync_handler(session, config=_fake_config(), options={})
         progress = RecordingProgress()
         handler(progress)
 

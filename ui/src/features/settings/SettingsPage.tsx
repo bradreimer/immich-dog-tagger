@@ -8,6 +8,7 @@ import {
   IconRefresh,
   IconServer2,
   IconTag,
+  IconUsers,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -176,6 +177,16 @@ export function SettingsPage() {
                 label="Images Scanned"
                 value={settings.scanned_image_count}
                 subtext="assets synced from Immich"
+              />
+              <StatTile
+                icon={IconUsers}
+                tone="neutral"
+                label="Immich Accounts"
+                value={settings.accounts.length}
+                subtext={
+                  settings.accounts.map((account) => account.name).join(", ") ||
+                  "none configured"
+                }
               />
             </div>
           </CardContent>

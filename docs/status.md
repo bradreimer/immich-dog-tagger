@@ -1137,6 +1137,39 @@ changed identity specifically due to temporal weighting), or extending #111's ca
 support to `reclassify` (already batches the same way; deliberately left out of #111 to keep that
 change smaller).
 
+- [#346](https://github.com/bradreimer/immich-dog-tagger/issues/346) v1.34.0 multi-Immich-account
+  support: scan, download, and sync run per configured Immich account, while identity,
+  classification, review, and Insights stay fully shared across every account -- correcting a dog
+  in one account's photos improves recognition of that same dog in another account's photos
+  automatically. Builds directly on [#348](https://github.com/bradreimer/immich-dog-tagger/issues/348)'s
+  `Config.accounts`: a new `ImmichAccount` table (name only, no credential -- resolved against
+  `Config.accounts` by exact name match) gives `Asset`/`SyncedAsset`/`PipelineJob`/
+  `PipelineSchedule` a stable `account_id` to carry; `Scanner`/`Downloader`/`SyncService` all take
+  an `account_id` and only ever touch that account's own assets/Immich library.
+  `AccountService.sync_from_config()` runs at API/CLI startup, upserting a DB row per configured
+  account and backfilling every pre-existing `Asset` (from before this feature existed) onto an
+  implicit `"default"` account -- an existing single-account install needs zero changes to keep
+  working. The CLI's `scan`/`download`/`sync`/`pipeline` commands gained an optional
+  `--account <name>`; omitted, they loop over every configured account with per-account failure
+  isolation (one account's Immich outage doesn't block the others), the same pattern
+  `SyncService`'s per-identity isolation (issues #243/#259) already established. Fixed a bug this
+  work surfaced along the way: `Scanner`'s full-scan removal-reconciliation had no account scoping
+  at all, so (before this fix) scanning one account's library would have seen every *other*
+  configured account's assets as "not in this scan's result" and incorrectly marked them
+  `REMOVED` -- caught by a regression test before it ever shipped, not in production.
+  `GET /api/settings` and a new `GET /api/accounts` list configured account names (never a
+  credential, matching the existing `immich_api_key` write-only convention); `GET /api/library` and
+  `GET /api/review` accept an `account_id` filter and every item response carries an `account`
+  field alongside its capture date and location. Job/schedule creation accept an optional
+  `account_id` for the three account-scoped operations (scan/sync/full_pipeline); a schedule left
+  unpinned resolves to the default account rather than fanning out to every configured account --
+  a deliberately scoped-down v1 of FR-6 (see the spec's Open Questions) to avoid touching the
+  scheduler's existing due-occurrence dedup logic. UI: the Settings page lists configured accounts;
+  Library/Review/Photo Lookup account display and filtering, and a Jobs/Schedules account picker,
+  are backend-complete (query params and response fields all wired) but deferred to a follow-up
+  UI-only PR, since the API surface needs no further changes to support them. See
+  [docs/specs/multi-immich-account-sync.md](specs/multi-immich-account-sync.md).
+
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/ -- but only once there's a concrete
   capability to scope; an idea that isn't scoped yet belongs in a GitHub Issue ("Feature Request"
