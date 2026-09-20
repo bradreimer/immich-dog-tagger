@@ -75,6 +75,18 @@ without a way to also flag "not a dog or cat" would not satisfy this contract.
 
 ## Consequences
 
+- **Update (issue #360):** The fourth item's undo control -- for leaving the "not a dog or cat"
+  state once marked -- must read **"Reclassify"** on every surface that renders it (the Review
+  queue, Review's single-item/Library Edit mode, and Photo Lookup's `DetectionList`), not just the
+  surface a given fix happened to touch. This was already true in principle (see the issue #267
+  update below, which renamed `DetectionList.tsx`'s control for exactly this reason: clicking it
+  always leads to the same place -- species Dog, identity Unknown, ready for further correction --
+  not merely reverting a flag), but it drifted: `NotAnimalToggle.tsx` (shared by Review and
+  Library) kept reading "Undo — this is a dog or cat" until this update, silently violating the
+  contract's promise that manual reclassification is "one contract" across surfaces. Any new
+  manual-reclassification surface, or any change to this control's wording, must keep every
+  instance in sync -- a rename in one file that isn't propagated to the others is itself a
+  violation of this ADR, not a separate cosmetic issue.
 - **Update (issue #267):** Photo Lookup's crop-less rows (no `Crop` at all -- by construction,
   `CropWriter` only creates one for a raw YOLO label of `dog`/`cat`) are now rendered pre-settled
   in the not-animal state described here, rather than as a fourth, separately-confirmed "not mapped
