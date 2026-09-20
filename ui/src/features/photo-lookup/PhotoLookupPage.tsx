@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { IconSearch } from "@tabler/icons-react";
 
 import {
+  ClassificationNotFoundError,
+  CropNotFoundError,
   PhotoLookupNotFoundError,
   assignCrop,
   assignDetection,
@@ -44,6 +46,7 @@ export function PhotoLookupPage() {
   const [result, setResult] = useState<PhotoLookupResult | null>(null);
   const [identities, setIdentities] = useState<Dog[]>([]);
   const [repairMessage, setRepairMessage] = useState<string | null>(null);
+  const [staleMessage, setStaleMessage] = useState<string | null>(null);
   const [hoveredDetectionId, setHoveredDetectionId] = useState<number | null>(null);
   const [showAccount, setShowAccount] = useState(false);
 
@@ -62,6 +65,7 @@ export function PhotoLookupPage() {
   const runLookup = async (assetId: string) => {
     setError(null);
     setRepairMessage(null);
+    setStaleMessage(null);
     setLoading(true);
 
     try {
@@ -108,8 +112,39 @@ export function PhotoLookupPage() {
     await runLookup(assetId);
   };
 
+  // A classification_id/crop_id this page already has in memory can be
+  // deleted server-side by a Repair or the Overview "repair missing crops"
+  // action reprocessing the same photo elsewhere (issue #356 hit the same
+  // race in Review). Unlike Review's queue, Photo Lookup has nowhere to
+  // drop the stale item to -- it's a single-photo view -- so the recovery
+  // is to re-fetch this asset's current detections/crops/classifications
+  // (fresh ids) and tell the owner why their action didn't apply, rather
+  // than leaving a doomed classification_id/crop_id on screen for them to
+  // retry against forever.
+  const recoverFromStaleReference = async () => {
+    if (!result) {
+      return;
+    }
+
+    setResult(await getPhotoLookup(result.immich_asset_id));
+    setStaleMessage(
+      "This photo was reprocessed elsewhere since it was looked up here -- refreshed with its current data. Please try again.",
+    );
+  };
+
   const handleCorrect = async (classificationId: number, identity: string) => {
-    await correctClassification(classificationId, identity);
+    setStaleMessage(null);
+
+    try {
+      await correctClassification(classificationId, identity);
+    } catch (err) {
+      if (err instanceof ClassificationNotFoundError) {
+        await recoverFromStaleReference();
+        return;
+      }
+
+      throw err;
+    }
 
     setResult((current) =>
       current
@@ -129,7 +164,18 @@ export function PhotoLookupPage() {
     classificationId: number,
     species: "dog" | "cat",
   ) => {
-    await correctSpecies(classificationId, species);
+    setStaleMessage(null);
+
+    try {
+      await correctSpecies(classificationId, species);
+    } catch (err) {
+      if (err instanceof ClassificationNotFoundError) {
+        await recoverFromStaleReference();
+        return;
+      }
+
+      throw err;
+    }
 
     // Species correction can reclassify the identity/confidence under the
     // new species server-side (ClassificationCorrectionService.correct_
@@ -141,10 +187,21 @@ export function PhotoLookupPage() {
   };
 
   const handleToggleNotAnimal = async (cropId: number, notAnimal: boolean) => {
-    if (notAnimal) {
-      await markCropNotAnimal(cropId);
-    } else {
-      await unmarkCropNotAnimal(cropId);
+    setStaleMessage(null);
+
+    try {
+      if (notAnimal) {
+        await markCropNotAnimal(cropId);
+      } else {
+        await unmarkCropNotAnimal(cropId);
+      }
+    } catch (err) {
+      if (err instanceof CropNotFoundError) {
+        await recoverFromStaleReference();
+        return;
+      }
+
+      throw err;
     }
 
     // Marking settles the crop's classification to Unknown server-side
@@ -193,6 +250,7 @@ export function PhotoLookupPage() {
 
   const handleRepaired = async (repairResult: AssetRepairResult) => {
     setRepairMessage(repairResult.message);
+    setStaleMessage(null);
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
   };
 
@@ -241,6 +299,10 @@ export function PhotoLookupPage() {
 
           {repairMessage && (
             <p className="text-sm text-muted-foreground">{repairMessage}</p>
+          )}
+
+          {staleMessage && (
+            <p className="text-sm text-muted-foreground">{staleMessage}</p>
           )}
 
           <PhotoLookupImage

@@ -17,7 +17,10 @@ vi.mock("@/lib/api", () => ({
   unmarkCropNotAnimal: vi.fn(),
   repairAsset: vi.fn(),
   assignDetection: vi.fn(),
+  assignCrop: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
+  ClassificationNotFoundError: class ClassificationNotFoundError extends Error {},
+  CropNotFoundError: class CropNotFoundError extends Error {},
 }));
 
 const HERMANN: Dog = { id: 1, name: "Hermann", species: "dog", active: true };
@@ -210,6 +213,71 @@ describe("PhotoLookupPage", () => {
     );
   });
 
+  it("recovers by re-fetching when a species correction 404s because the photo was reprocessed elsewhere (issue #364)", async () => {
+    // A classification_id this page already holds can be deleted
+    // server-side by a Repair or the Overview "repair missing crops"
+    // action reprocessing the same photo in another tab/session while this
+    // one is still open -- the same race issue #356 fixed for Review. The
+    // stale id must not just surface a raw "not found" error forever; it
+    // should re-fetch so the page's ids resync with the current data.
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS, WHISKERS]);
+
+    const initial = buildResult();
+    const refreshed: PhotoLookupResult = {
+      ...initial,
+      detections: [{ ...initial.detections[0], classification_id: 200 }],
+    };
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(refreshed);
+    vi.mocked(api.correctSpecies).mockRejectedValue(
+      new api.ClassificationNotFoundError("Classification 100 not found"),
+    );
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    fireEvent.click(await screen.findByLabelText("Set species to Cat"));
+
+    await waitFor(() => {
+      expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    });
+
+    expect(
+      await screen.findByText(/reprocessed elsewhere since it was looked up here/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Classification 100 not found")).not.toBeInTheDocument();
+  });
+
+  it("recovers by re-fetching when an identity correction 404s because the photo was reprocessed elsewhere (issue #364)", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+
+    const initial = buildResult();
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(initial);
+    vi.mocked(api.correctClassification).mockRejectedValue(
+      new api.ClassificationNotFoundError("Classification 100 not found"),
+    );
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    const select = await screen.findByLabelText("Correct identity for detection 1");
+    fireEvent.change(select, { target: { value: "Fibs" } });
+
+    await waitFor(() => {
+      expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    });
+
+    expect(
+      await screen.findByText(/reprocessed elsewhere since it was looked up here/i),
+    ).toBeInTheDocument();
+  });
+
   it("marks a detection as not a dog or cat, and can reclassify it", async () => {
     vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
     vi.mocked(api.markCropNotAnimal).mockResolvedValue(undefined);
@@ -255,6 +323,33 @@ describe("PhotoLookupPage", () => {
 
     expect(await screen.findByText("Unknown (dog)")).toBeInTheDocument();
     expect(api.getPhotoLookup).toHaveBeenCalledTimes(3);
+  });
+
+  it("recovers by re-fetching when marking not-a-dog-or-cat 404s because the photo was reprocessed elsewhere (issue #364)", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.markCropNotAnimal).mockRejectedValue(
+      new api.CropNotFoundError("Crop 1 not found"),
+    );
+
+    const initial = buildResult();
+
+    vi.mocked(api.getPhotoLookup)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(initial);
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    fireEvent.click(await screen.findByRole("button", { name: /not a dog or cat/i }));
+
+    await waitFor(() => {
+      expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    });
+
+    expect(
+      await screen.findByText(/reprocessed elsewhere since it was looked up here/i),
+    ).toBeInTheDocument();
   });
 
   it("shows a crop-less detection pre-settled as not a dog or cat, and reclassifies it to dog by default (issue #267)", async () => {

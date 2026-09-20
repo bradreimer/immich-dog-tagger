@@ -1028,6 +1028,18 @@
   "not found" screen) with a message explaining why, instead of a misleading "Failed to correct
   species".
 
+- [#358](https://github.com/bradreimer/immich-dog-tagger/issues/358) fixed the same #356 race for
+  Photo Lookup, which #356 had explicitly left out of scope: correcting a detection's species (and,
+  by the same gap, its identity or not-animal flag) failed with a raw "Classification X not found"
+  error and never recovered, so retrying against the same now-stale id 404'd repeatedly.
+  `PhotoLookupPage.tsx` already called the same `correctClassification()`/`correctSpecies()`/
+  `markCropNotAnimal()`/`unmarkCropNotAnimal()` functions #356 taught to throw
+  `ClassificationNotFoundError`/`CropNotFoundError` on a 404, but never caught them -- the error
+  just reached `DetectionList.tsx`'s per-row handler, which only showed the raw message. All three
+  handlers now catch these and re-fetch the photo's current data (fresh ids) with an explanatory
+  message, the same recovery Review already has, instead of leaving a permanently-failing id on
+  screen.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the
