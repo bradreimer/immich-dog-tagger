@@ -995,6 +995,39 @@
   stack trace. Both sources present at once: the file wins and a startup log line names the
   ignored environment variables.
 
+- [#353](https://github.com/bradreimer/immich-dog-tagger/issues/353) fixed a Photo Lookup bug
+  violating ADR-009's manual-reclassification contract: `DetectionList.tsx`'s `DetectionRow`
+  rendered a read-only species badge and "Not classified yet" -- no species buttons, no identity
+  selector, only the not-animal toggle -- for any detection with `crop_id !== null` but
+  `classification_id === null` (a crop that exists but was never classified, e.g. after Repair
+  re-detects a photo and the classify pass doesn't produce a `CropClassification` for every crop).
+  New `ManualDetectionAssignmentService.assign_crop()` (shares its embed/`correct()` logic with the
+  existing crop-less `assign()` via a new `_classify_new_crop()` helper) gives such a crop its
+  first species/identity decision without re-downloading or re-cropping from Immich, since the
+  crop image already exists; wired up as `POST /crops/{crop_id}/assign` and the frontend's
+  `assignCrop()`. `DetectionRow` now shows working Dog/Cat buttons for this state, which create the
+  missing classification via `onAssignCrop` instead of `onCorrectSpecies` (which has nothing to
+  correct yet) -- the identity selector and normal per-classification controls appear on the next
+  render once assignment creates the classification.
+
+- [#356](https://github.com/bradreimer/immich-dog-tagger/issues/356) investigated a report that
+  correcting a Review item's species from Cat to Dog failed with an error in both Queue and
+  Grouped-split-view. `ClassificationCorrectionService.correct_species()` itself was not
+  direction-specific or otherwise broken (confirmed with new regression tests exercising Cat->Dog
+  with an existing identity, a real `Learner.forget_image()` call, and rescoring -- a gap the
+  existing tests had left uncovered, having only ever exercised Dog->Cat); the actual failure was
+  a `404` from `session.get(CropClassification, classification_id)`, meaning the classification a
+  reviewer's already-loaded page held in memory had been deleted server-side (e.g. a Repair or the
+  Overview "repair missing crops" derived-data action reprocessing the same photo elsewhere) --
+  `review_query.py`'s own note that the queue fetches once and works through it locally means
+  nothing in Queue mode, Grouped split view, or the single-item edit page ever detected or
+  recovered from that. `correctClassification()`/`correctSpecies()`/`skipClassification()` now
+  throw the existing `ClassificationNotFoundError` on a 404 (previously only `getClassification()`
+  did), and `markCropNotAnimal()`/`unmarkCropNotAnimal()` throw a new `CropNotFoundError`; all
+  three Review surfaces now drop the stale item (or, for the single-item page, show its existing
+  "not found" screen) with a message explaining why, instead of a misleading "Failed to correct
+  species".
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

@@ -41,6 +41,7 @@ describe("DetectionList", () => {
         onCorrectSpecies={noop}
         onToggleNotAnimal={noop}
         onAssign={noop}
+        onAssignCrop={noop}
         onHoverChange={onHoverChange}
       />,
     );
@@ -66,6 +67,7 @@ describe("DetectionList", () => {
         onCorrectSpecies={noop}
         onToggleNotAnimal={onToggleNotAnimal}
         onAssign={noop}
+        onAssignCrop={noop}
         onHoverChange={() => {}}
       />,
     );
@@ -103,6 +105,7 @@ describe("DetectionList", () => {
           onCorrectSpecies={noop}
           onToggleNotAnimal={noop}
           onAssign={noop}
+          onAssignCrop={noop}
           onHoverChange={() => {}}
         />,
       );
@@ -120,6 +123,7 @@ describe("DetectionList", () => {
           onCorrectSpecies={noop}
           onToggleNotAnimal={noop}
           onAssign={noop}
+          onAssignCrop={noop}
           onHoverChange={() => {}}
         />,
       );
@@ -143,6 +147,7 @@ describe("DetectionList", () => {
           onCorrectSpecies={noop}
           onToggleNotAnimal={noop}
           onAssign={onAssign}
+          onAssignCrop={noop}
           onHoverChange={() => {}}
         />,
       );
@@ -152,6 +157,82 @@ describe("DetectionList", () => {
       await waitFor(() => {
         expect(onAssign).toHaveBeenCalledWith(1, "dog", null);
       });
+    });
+  });
+
+  describe("a crop with no classification yet (issue #353)", () => {
+    function unclassifiedDetection(
+      overrides: Partial<PhotoLookupDetection> = {},
+    ): PhotoLookupDetection {
+      return detection({
+        classification_id: null,
+        identity: null,
+        confidence: null,
+        species: "cat",
+        ...overrides,
+      });
+    }
+
+    it("still offers working Dog/Cat species controls, not just a read-only badge", () => {
+      render(
+        <DetectionList
+          detections={[unclassifiedDetection()]}
+          identities={[]}
+          onCorrect={noop}
+          onCorrectSpecies={noop}
+          onToggleNotAnimal={noop}
+          onAssign={noop}
+          onAssignCrop={noop}
+          onHoverChange={() => {}}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /set species to dog/i })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /set species to cat/i })).toBeDisabled();
+      expect(screen.getByText("Not classified yet")).toBeInTheDocument();
+    });
+
+    it("still offers the not-a-dog-or-cat toggle", () => {
+      render(
+        <DetectionList
+          detections={[unclassifiedDetection()]}
+          identities={[]}
+          onCorrect={noop}
+          onCorrectSpecies={noop}
+          onToggleNotAnimal={noop}
+          onAssign={noop}
+          onAssignCrop={noop}
+          onHoverChange={() => {}}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /not a dog or cat/i })).toBeInTheDocument();
+    });
+
+    it("assigns species via onAssignCrop rather than onCorrectSpecies, since there's no classification to correct", async () => {
+      const onAssignCrop = vi.fn().mockResolvedValue(undefined);
+      const onCorrectSpecies = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <DetectionList
+          detections={[unclassifiedDetection({ crop_id: 7 })]}
+          identities={[]}
+          onCorrect={noop}
+          onCorrectSpecies={onCorrectSpecies}
+          onToggleNotAnimal={noop}
+          onAssign={noop}
+          onAssignCrop={onAssignCrop}
+          onHoverChange={() => {}}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /set species to dog/i }));
+
+      await waitFor(() => {
+        expect(onAssignCrop).toHaveBeenCalledWith(7, "dog", null);
+      });
+
+      expect(onCorrectSpecies).not.toHaveBeenCalled();
     });
   });
 });

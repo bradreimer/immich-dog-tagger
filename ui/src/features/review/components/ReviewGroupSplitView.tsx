@@ -3,6 +3,8 @@ import { useState } from "react";
 import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 
 import {
+  ClassificationNotFoundError,
+  CropNotFoundError,
   correctClassification,
   correctSpecies,
   markCropNotAnimal,
@@ -49,6 +51,7 @@ export function ReviewGroupSplitView({
   const [index, setIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [staleMessage, setStaleMessage] = useState<string | null>(null);
 
   const removeCurrent = () => {
     setItems((current) => {
@@ -56,6 +59,21 @@ export function ReviewGroupSplitView({
       setIndex((currentIndex) => Math.min(currentIndex, next.length - 1));
       return next;
     });
+  };
+
+  // The current item's classification/crop was deleted server-side (e.g. a
+  // Repair or derived-data repair reprocessed the photo elsewhere while
+  // this group was already loaded in memory) -- none of Correct/Species/
+  // Skip/Not-animal can do anything useful against a gone classification_
+  // id/crop_id, so this drops the item the same way settling it normally
+  // would, with a message explaining why instead of a misleading "failed
+  // to X" (issue #356).
+  const dropStaleItem = () => {
+    removeCurrent();
+    setStaleMessage(
+      "This photo was reprocessed elsewhere and no longer matches this review item -- removed from this group.",
+    );
+    onReviewed();
   };
 
   const correct = async (identity: string) => {
@@ -66,6 +84,7 @@ export function ReviewGroupSplitView({
     }
 
     setActionError(null);
+    setStaleMessage(null);
 
     try {
       setSaving(true);
@@ -73,6 +92,11 @@ export function ReviewGroupSplitView({
       removeCurrent();
       onReviewed();
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError) {
+        dropStaleItem();
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to save correction");
     } finally {
       setSaving(false);
@@ -87,6 +111,7 @@ export function ReviewGroupSplitView({
     }
 
     setActionError(null);
+    setStaleMessage(null);
 
     try {
       setSaving(true);
@@ -94,6 +119,11 @@ export function ReviewGroupSplitView({
       setItems((current) => current.map((existing, i) => (i === index ? updated : existing)));
       onReviewed();
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError) {
+        dropStaleItem();
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to correct species");
     } finally {
       setSaving(false);
@@ -108,6 +138,7 @@ export function ReviewGroupSplitView({
     }
 
     setActionError(null);
+    setStaleMessage(null);
 
     try {
       setSaving(true);
@@ -115,6 +146,11 @@ export function ReviewGroupSplitView({
       removeCurrent();
       onReviewed();
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError) {
+        dropStaleItem();
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to save skip action");
     } finally {
       setSaving(false);
@@ -129,6 +165,7 @@ export function ReviewGroupSplitView({
     }
 
     setActionError(null);
+    setStaleMessage(null);
 
     try {
       setSaving(true);
@@ -142,6 +179,11 @@ export function ReviewGroupSplitView({
       removeCurrent();
       onReviewed();
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError || err instanceof CropNotFoundError) {
+        dropStaleItem();
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setSaving(false);
@@ -186,6 +228,7 @@ export function ReviewGroupSplitView({
       </div>
 
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+      {staleMessage && <p className="text-sm text-muted-foreground">{staleMessage}</p>}
 
       {item ? (
         <>

@@ -641,6 +641,12 @@ export async function correctClassification(
     },
   );
 
+  if (response.status === 404) {
+    throw new ClassificationNotFoundError(
+      `Classification ${classificationId} not found`,
+    );
+  }
+
   if (!response.ok) {
     throw new Error("Failed to correct classification");
   }
@@ -663,6 +669,12 @@ export async function correctSpecies(
     },
   );
 
+  if (response.status === 404) {
+    throw new ClassificationNotFoundError(
+      `Classification ${classificationId} not found`,
+    );
+  }
+
   if (!response.ok) {
     throw new Error("Failed to correct species");
   }
@@ -679,6 +691,12 @@ export async function skipClassification(
       method: "POST",
     },
   );
+
+  if (response.status === 404) {
+    throw new ClassificationNotFoundError(
+      `Classification ${classificationId} not found`,
+    );
+  }
 
   if (!response.ok) {
     throw new Error("Failed to skip classification");
@@ -897,6 +915,31 @@ export async function assignDetection(
 }
 
 /**
+ * Give a crop that already exists but was never classified (issue #353,
+ * e.g. after Repair) its first species/identity decision -- the crop-ful
+ * counterpart of assignDetection() above, which creates the crop too.
+ */
+export async function assignCrop(
+  cropId: number,
+  species: "dog" | "cat",
+  identity: string | null,
+): Promise<DetectionAssignResult> {
+  const response = await fetch(`/api/crops/${cropId}/assign`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ species, identity }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to classify crop");
+  }
+
+  return response.json();
+}
+
+/**
  * Mark a crop-less detection "not a dog or cat" (issue #261), creating its
  * crop in the process -- the crop-less counterpart of markCropNotAnimal(),
  * which needs a crop to already exist.
@@ -925,6 +968,10 @@ export async function markCropNotAnimal(cropId: number): Promise<void> {
     method: "POST",
   });
 
+  if (response.status === 404) {
+    throw new CropNotFoundError(`Crop ${cropId} not found`);
+  }
+
   if (!response.ok) {
     throw new Error("Failed to mark detection as not a dog or cat");
   }
@@ -936,10 +983,23 @@ export async function unmarkCropNotAnimal(cropId: number): Promise<void> {
     method: "DELETE",
   });
 
+  if (response.status === 404) {
+    throw new CropNotFoundError(`Crop ${cropId} not found`);
+  }
+
   if (!response.ok) {
     throw new Error("Failed to undo not-a-dog-or-cat mark");
   }
 }
+
+/**
+ * Thrown by markCropNotAnimal()/unmarkCropNotAnimal() when the crop no
+ * longer exists -- e.g. a Repair or derived-data repair elsewhere deleted
+ * and is re-creating this photo's Detection/Crop/CropClassification rows
+ * (issue #226) while a review queue fetched before that still holds the
+ * old crop_id in memory (issue #356).
+ */
+export class CropNotFoundError extends Error {}
 
 /** Change how cautious automatic tagging is (issue #149). */
 export async function setTaggingSensitivity(

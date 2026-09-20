@@ -38,6 +38,11 @@ interface RowProps {
     species: "dog" | "cat",
     identity: string | null,
   ) => Promise<void>;
+  onAssignCrop: (
+    cropId: number,
+    species: "dog" | "cat",
+    identity: string | null,
+  ) => Promise<void>;
   onHoverChange: (detectionId: number | null) => void;
 }
 
@@ -56,7 +61,7 @@ function CropLessDetectionRow({
   onHoverChange,
 }: Omit<
   RowProps,
-  "identities" | "onCorrect" | "onCorrectSpecies" | "onToggleNotAnimal"
+  "identities" | "onCorrect" | "onCorrectSpecies" | "onToggleNotAnimal" | "onAssignCrop"
 >) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +118,7 @@ function DetectionRow({
   onCorrect,
   onCorrectSpecies,
   onToggleNotAnimal,
+  onAssignCrop,
   onHoverChange,
 }: Omit<RowProps, "onAssign">) {
   const [saving, setSaving] = useState(false);
@@ -141,8 +147,14 @@ function DetectionRow({
     }
   };
 
-  const handleCorrectSpecies = async (species: "dog" | "cat") => {
-    if (species === detection.species || detection.classification_id === null) {
+  // A crop with no classification yet (issue #353, e.g. after Repair) has
+  // no classification_id to correct -- this gives it its first species
+  // decision via onAssignCrop instead, settling identity to Unknown for
+  // now (matching identities become selectable on the next row render,
+  // once the parent's refetch replaces this crop-less classification with
+  // a real one).
+  const handleSpecies = async (species: "dog" | "cat") => {
+    if (species === detection.species) {
       return;
     }
 
@@ -150,7 +162,15 @@ function DetectionRow({
     setSaving(true);
 
     try {
-      await onCorrectSpecies(detection.classification_id, species);
+      if (detection.classification_id === null) {
+        if (detection.crop_id === null) {
+          return;
+        }
+
+        await onAssignCrop(detection.crop_id, species, null);
+      } else {
+        await onCorrectSpecies(detection.classification_id, species);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to correct species");
     } finally {
@@ -185,7 +205,7 @@ function DetectionRow({
         {index + 1}
       </span>
 
-      {detection.not_animal || detection.classification_id === null ? (
+      {detection.not_animal ? (
         <Badge variant="outline">{speciesLabel(detection.species)}</Badge>
       ) : (
         <div
@@ -201,7 +221,7 @@ function DetectionRow({
             aria-pressed={detection.species === "dog"}
             aria-label="Set species to Dog"
             disabled={saving || detection.species === "dog"}
-            onClick={() => handleCorrectSpecies("dog")}
+            onClick={() => handleSpecies("dog")}
           >
             <IconDog className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -214,7 +234,7 @@ function DetectionRow({
             aria-pressed={detection.species === "cat"}
             aria-label="Set species to Cat"
             disabled={saving || detection.species === "cat"}
-            onClick={() => handleCorrectSpecies("cat")}
+            onClick={() => handleSpecies("cat")}
           >
             <IconCat className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -292,6 +312,7 @@ export function DetectionList({
   onCorrectSpecies,
   onToggleNotAnimal,
   onAssign,
+  onAssignCrop,
   onHoverChange,
 }: Omit<Props, "detection" | "index">) {
   if (detections.length === 0) {
@@ -325,6 +346,7 @@ export function DetectionList({
               onCorrectSpecies={onCorrectSpecies}
               onCorrect={onCorrect}
               onToggleNotAnimal={onToggleNotAnimal}
+              onAssignCrop={onAssignCrop}
               onHoverChange={onHoverChange}
             />
           ),

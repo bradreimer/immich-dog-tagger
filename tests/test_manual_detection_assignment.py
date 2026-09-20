@@ -236,3 +236,84 @@ def test_mark_not_animal_rejects_a_detection_that_already_has_a_crop(engine, tmp
 
         with pytest.raises(ValueError, match="already has a crop"):
             service.mark_not_animal(detection.id)
+
+
+def _seed_unclassified_crop(session: Session, tmp_path, *, species=Species.CAT) -> int:
+    """
+    Issue #353: a `Crop` that exists (e.g. re-detected by Repair) but whose
+    classify pass never produced a `CropClassification` for it -- the
+    on-disk crop image already exists, unlike the crop-less case above.
+    """
+    crop_path = tmp_path / "crop.jpg"
+    crop_path.write_bytes(b"crop bytes")
+
+    asset = Asset(immich_asset_id="asset-1", extension=".jpg")
+    detection = Detection(
+        asset=asset, label=species.value, confidence=0.9, x1=0, y1=0, x2=10, y2=10
+    )
+    crop = Crop(detection=detection, path=str(crop_path), species=species)
+    session.add(crop)
+    session.commit()
+
+    return crop.id
+
+
+def test_assign_crop_classifies_an_existing_unclassified_crop(engine, tmp_path):
+    with Session(engine) as session:
+        crop_id = _seed_unclassified_crop(session, tmp_path, species=Species.CAT)
+
+        service, _ = _build_service(session, tmp_path)
+
+        crop = service.assign_crop(crop_id, Species.DOG, "Rex")
+
+        assert crop.species == Species.DOG
+
+        classification = session.scalars(
+            select(CropClassification).where(CropClassification.crop_id == crop.id)
+        ).one()
+        assert classification.identity == "Rex"
+        assert classification.confidence == 1.0
+        assert classification.source == ClassificationSources.REVIEW
+        assert classification.embedding is not None
+
+        action = session.scalars(
+            select(ReviewAction).where(
+                ReviewAction.classification_id == classification.id
+            )
+        ).one()
+        assert action.action == ReviewActions.CORRECT
+        assert action.identity == "Rex"
+
+
+def test_assign_crop_with_no_identity_lands_at_unknown(engine, tmp_path):
+    with Session(engine) as session:
+        crop_id = _seed_unclassified_crop(session, tmp_path)
+
+        service, _ = _build_service(session, tmp_path)
+
+        crop = service.assign_crop(crop_id, Species.DOG, None)
+
+        classification = session.scalars(
+            select(CropClassification).where(CropClassification.crop_id == crop.id)
+        ).one()
+        assert classification.identity is None
+        assert classification.confidence == 1.0
+
+
+def test_assign_crop_raises_for_unknown_crop(engine, tmp_path):
+    with Session(engine) as session:
+        service, _ = _build_service(session, tmp_path)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.assign_crop(999999, Species.DOG, "Rex")
+
+
+def test_assign_crop_rejects_a_crop_that_already_has_a_classification(engine, tmp_path):
+    with Session(engine) as session:
+        crop_id = _seed_unclassified_crop(session, tmp_path)
+
+        service, _ = _build_service(session, tmp_path)
+        service.assign_crop(crop_id, Species.DOG, "Rex")
+
+        with pytest.raises(ValueError, match="already has a classification"):
+            service.assign_crop(crop_id, Species.CAT, "Whiskers")

@@ -4,6 +4,7 @@ import { IconSearch } from "@tabler/icons-react";
 
 import {
   PhotoLookupNotFoundError,
+  assignCrop,
   assignDetection,
   correctClassification,
   correctSpecies,
@@ -173,6 +174,23 @@ export function PhotoLookupPage() {
     setResult(await getPhotoLookup(result.immich_asset_id));
   };
 
+  const handleAssignCrop = async (
+    cropId: number,
+    species: "dog" | "cat",
+    identity: string | null,
+  ) => {
+    if (!result) {
+      return;
+    }
+
+    await assignCrop(cropId, species, identity);
+
+    // Same reasoning as handleAssign above: the crop gains a classification
+    // server-side, so a full re-fetch turns this row into an ordinary
+    // classified one everywhere it's rendered.
+    setResult(await getPhotoLookup(result.immich_asset_id));
+  };
+
   const handleRepaired = async (repairResult: AssetRepairResult) => {
     setRepairMessage(repairResult.message);
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
@@ -238,6 +256,7 @@ export function PhotoLookupPage() {
             onCorrectSpecies={handleCorrectSpecies}
             onToggleNotAnimal={handleToggleNotAnimal}
             onAssign={handleAssign}
+            onAssignCrop={handleAssignCrop}
             onHoverChange={setHoveredDetectionId}
           />
         </div>
