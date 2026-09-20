@@ -12,9 +12,12 @@ function speciesLabel(species: string): string {
 interface Props {
   entry: LibraryEntry;
   immichUrl: string | null;
+  /** Only worth showing when more than one Immich account is configured
+   * (issue #346) -- see LibraryPage's `showAccount` derivation. */
+  showAccount?: boolean;
 }
 
-export function LibraryDetailsPanel({ entry, immichUrl }: Props) {
+export function LibraryDetailsPanel({ entry, immichUrl, showAccount = false }: Props) {
   const { item } = entry;
   const name = item.not_animal ? "Not a dog or cat" : (item.prediction.identity ?? "Unknown");
 
@@ -37,6 +40,13 @@ export function LibraryDetailsPanel({ entry, immichUrl }: Props) {
 
           <span className="text-muted-foreground">Location</span>
           <span>{item.location ?? "Unknown"}</span>
+
+          {showAccount && item.account && (
+            <>
+              <span className="text-muted-foreground">Account</span>
+              <span>{item.account}</span>
+            </>
+          )}
 
           <span className="text-muted-foreground">Review status</span>
           <span>

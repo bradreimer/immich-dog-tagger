@@ -37,6 +37,7 @@ function buildItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     captured_at: "2026-01-05T12:00:00Z",
     immich_asset_id: "asset-42",
     location: null,
+    account: null,
     not_animal: false,
     prediction: {
       identity: "Hermann",
@@ -286,6 +287,26 @@ describe("ReviewPage", () => {
     );
     expect(api.getReviewStats).not.toHaveBeenCalled();
     expect(screen.queryByText(/reviewed — nice streak/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the account name beside the date when more than one account is configured", async () => {
+    vi.mocked(api.getSettings).mockResolvedValue({
+      immich_url: "http://immich.local",
+      immich_external_url: "http://immich.local",
+      scanned_image_count: 0,
+      version: "1.11.0",
+      tagging_sensitivity: "balanced",
+      accounts: [
+        { id: 1, name: "alice" },
+        { id: 2, name: "bob" },
+      ],
+    });
+    vi.mocked(api.getReview).mockResolvedValue([buildItem({ account: "alice" })]);
+    vi.mocked(api.getReviewStats).mockResolvedValue(STATS);
+
+    render(<ReviewPage onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText("alice")).toBeInTheDocument();
   });
 
   it("switches to Grouped mode without disturbing Queue mode's own state", async () => {

@@ -111,6 +111,7 @@ function ReviewSingleItemPage({
   const [item, setItem] = useState<ReviewItem | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [immichUrl, setImmichUrl] = useState<string | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [repaired, setRepaired] = useState(false);
@@ -133,6 +134,7 @@ function ReviewSingleItemPage({
       setItem(loadedItem);
       setDogs(dogItems);
       setImmichUrl(settings?.immich_external_url || null);
+      setShowAccount((settings?.accounts.length ?? 0) > 1);
     } catch (err) {
       if (err instanceof ClassificationNotFoundError) {
         setNotFound(true);
@@ -294,6 +296,7 @@ function ReviewSingleItemPage({
         item={item}
         identities={speciesIdentities}
         immichUrl={immichUrl}
+        showAccount={showAccount}
         onCorrect={correct}
         onCorrectSpecies={correctSpeciesForItem}
         onToggleNotAnimal={toggleNotAnimal}
@@ -310,6 +313,7 @@ function ReviewQueuePage() {
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [immichUrl, setImmichUrl] = useState<string | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -381,6 +385,7 @@ function ReviewQueuePage() {
       setStats(queueStats);
       setDogs(dogItems);
       setImmichUrl(settings?.immich_external_url || null);
+      setShowAccount((settings?.accounts.length ?? 0) > 1);
       setIndex(0);
     } catch (err) {
       setError(
@@ -662,6 +667,7 @@ function ReviewQueuePage() {
           <ReviewGroupedPanel
             dogs={dogs}
             immichUrl={immichUrl}
+            showAccount={showAccount}
             onReviewed={refreshGroupedStats}
           />
         </div>
@@ -771,6 +777,7 @@ function ReviewQueuePage() {
       item={item}
       identities={speciesIdentities}
       immichUrl={immichUrl}
+      showAccount={showAccount}
       onCorrect={correct}
       onCorrectSpecies={correctSpeciesForCurrentItem}
       onSkip={skip}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import { LibraryDetailsPanel } from "./LibraryDetailsPanel";
 import type { LibraryEntry } from "@/types/library";
@@ -17,6 +17,7 @@ const ENTRY: LibraryEntry = {
     captured_at: "2026-01-05T12:00:00Z",
     immich_asset_id: "asset-1",
     location: "Portland, Oregon, USA",
+    account: null,
     not_animal: false,
     prediction: {
       identity: "Hermann",
@@ -39,5 +40,28 @@ describe("LibraryDetailsPanel", () => {
     // No bottom clamp is required -- it may scroll out of view once the
     // grid content above it ends.
     expect(card).toHaveClass("lg:sticky", "lg:top-6");
+  });
+
+  it("shows the account name alongside capture date when more than one account is configured", () => {
+    const entry: LibraryEntry = {
+      ...ENTRY,
+      item: { ...ENTRY.item, account: "alice" },
+    };
+
+    render(<LibraryDetailsPanel entry={entry} immichUrl={null} showAccount />);
+
+    expect(screen.getByText("Account")).toBeInTheDocument();
+    expect(screen.getByText("alice")).toBeInTheDocument();
+  });
+
+  it("omits the account row for a single-account install", () => {
+    const entry: LibraryEntry = {
+      ...ENTRY,
+      item: { ...ENTRY.item, account: "default" },
+    };
+
+    render(<LibraryDetailsPanel entry={entry} immichUrl={null} showAccount={false} />);
+
+    expect(screen.queryByText("Account")).not.toBeInTheDocument();
   });
 });

@@ -1169,6 +1169,15 @@ change smaller).
   are backend-complete (query params and response fields all wired) but deferred to a follow-up
   UI-only PR, since the API surface needs no further changes to support them. See
   [docs/specs/multi-immich-account-sync.md](specs/multi-immich-account-sync.md).
+- [#354](https://github.com/bradreimer/immich-dog-tagger/issues/354) UI-only follow-up to #346's
+  FR-7: the Review card, Library detail panel, and Photo Lookup page now name a photo's configured
+  Immich account alongside its capture date (and location, where already shown). No backend
+  changes -- `account` was already on every `GET /api/review`/`GET /api/library`/
+  `GET /api/photo-lookup/{id}` response; only the TypeScript types and the three display components
+  were missing it. Shown only when more than one account is configured (`GET /api/settings`'s
+  `accounts.length > 1`), so a legacy single-account install looks exactly as it did before --
+  matching the parent spec's backward-compatibility acceptance criterion. Account filter UI and a
+  Jobs/Schedules account picker remain separate, not-yet-scoped follow-ups.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/ -- but only once there's a concrete

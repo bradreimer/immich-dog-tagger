@@ -5,10 +5,12 @@ import { PhotoLookupPage } from "./PhotoLookupPage";
 import * as api from "@/lib/api";
 import type { Dog } from "@/types/dogs";
 import type { PhotoLookupResult } from "@/types/photoLookup";
+import type { Settings } from "@/types/settings";
 
 vi.mock("@/lib/api", () => ({
   getDogs: vi.fn(),
   getPhotoLookup: vi.fn(),
+  getSettings: vi.fn(),
   correctClassification: vi.fn(),
   correctSpecies: vi.fn(),
   markCropNotAnimal: vi.fn(),
@@ -22,6 +24,18 @@ const HERMANN: Dog = { id: 1, name: "Hermann", species: "dog", active: true };
 const FIBS: Dog = { id: 2, name: "Fibs", species: "dog", active: true };
 const WHISKERS: Dog = { id: 3, name: "Whiskers", species: "cat", active: true };
 
+function buildSettings(overrides: Partial<Settings> = {}): Settings {
+  return {
+    immich_url: "http://immich.local",
+    immich_external_url: "http://immich.local",
+    scanned_image_count: 0,
+    version: "1.34.0",
+    tagging_sensitivity: "balanced",
+    accounts: [],
+    ...overrides,
+  };
+}
+
 function buildResult(): PhotoLookupResult {
   return {
     asset_id: 1,
@@ -32,6 +46,7 @@ function buildResult(): PhotoLookupResult {
     country: null,
     state: null,
     city: null,
+    account: null,
     detections: [
       {
         detection_id: 1,
@@ -61,6 +76,7 @@ describe("PhotoLookupPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.getSettings).mockResolvedValue(buildSettings());
   });
 
   afterEach(() => {
@@ -329,6 +345,43 @@ describe("PhotoLookupPage", () => {
 
     await screen.findAllByText("Hermann (dog)");
     expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+  });
+
+  it("shows the account name next to the taken date when more than one account is configured", async () => {
+    vi.mocked(api.getSettings).mockResolvedValue(
+      buildSettings({
+        accounts: [
+          { id: 1, name: "alice" },
+          { id: 2, name: "bob" },
+        ],
+      }),
+    );
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue({
+      ...buildResult(),
+      account: "alice",
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    expect(await screen.findByText(/· alice/)).toBeInTheDocument();
+  });
+
+  it("omits the account name for a single-account install", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue({
+      ...buildResult(),
+      account: "default",
+    });
+
+    render(<PhotoLookupPage />);
+
+    await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+    await screen.findAllByText("Hermann (dog)");
+    expect(screen.queryByText("default")).not.toBeInTheDocument();
   });
 
   it("shows a distinct message when no dogs or cats were detected", async () => {

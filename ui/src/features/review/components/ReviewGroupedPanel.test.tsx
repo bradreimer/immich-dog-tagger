@@ -32,6 +32,7 @@ function buildItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     captured_at: "2026-01-05T12:00:00Z",
     immich_asset_id: "asset-1",
     location: null,
+    account: null,
     not_animal: false,
     prediction: {
       identity: "Rex",

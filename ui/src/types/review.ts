@@ -16,6 +16,8 @@ export interface ReviewItem {
   captured_at: string | null;
   immich_asset_id: string | null;
   location: string | null;
+  /** Which configured Immich account this photo belongs to (issue #346). */
+  account: string | null;
   not_animal: boolean;
 
   prediction: {

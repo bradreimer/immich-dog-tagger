@@ -22,6 +22,7 @@ interface Props {
   group: ReviewGroup;
   dogs: Dog[];
   immichUrl: string | null;
+  showAccount?: boolean;
   /** Called after every settling action, so the Review tab's lifetime
    * `reviewed` stat (and its milestone celebration) stays accurate no
    * matter which mode produced the correction. */
@@ -36,7 +37,14 @@ interface Props {
  * bindings (`useReviewKeyboard`) Queue mode already uses -- no new
  * vocabulary, no new write path.
  */
-export function ReviewGroupSplitView({ group, dogs, immichUrl, onReviewed, onDone }: Props) {
+export function ReviewGroupSplitView({
+  group,
+  dogs,
+  immichUrl,
+  showAccount = false,
+  onReviewed,
+  onDone,
+}: Props) {
   const [items, setItems] = useState<ReviewItem[]>(group.cluster.members);
   const [index, setIndex] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -185,6 +193,7 @@ export function ReviewGroupSplitView({ group, dogs, immichUrl, onReviewed, onDon
             item={item}
             identities={speciesIdentities}
             immichUrl={immichUrl}
+            showAccount={showAccount}
             onCorrect={correct}
             onCorrectSpecies={correctSpeciesForItem}
             onSkip={skip}

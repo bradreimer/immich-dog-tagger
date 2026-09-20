@@ -15,6 +15,7 @@ function buildItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     captured_at: "2026-01-05T12:00:00Z",
     immich_asset_id: "asset-42",
     location: null,
+    account: null,
     not_animal: false,
     prediction: {
       identity: null,
@@ -43,6 +44,41 @@ describe("ReviewCard", () => {
 
     expect(screen.getByText("Unknown identity")).toBeInTheDocument();
     expect(screen.getByText("January 5, 2026")).toBeInTheDocument();
+  });
+
+  it("shows the account name beside the date when more than one account is configured", () => {
+    render(
+      <ReviewCard
+        item={buildItem({ account: "alice" })}
+        identities={["Rex"]}
+        showAccount
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
+        disabled={false}
+      />,
+    );
+
+    expect(screen.getByText("alice")).toBeInTheDocument();
+  });
+
+  it("omits the account name for a single-account install", () => {
+    render(
+      <ReviewCard
+        item={buildItem({ account: "default" })}
+        identities={["Rex"]}
+        onCorrect={vi.fn()}
+        onCorrectSpecies={vi.fn()}
+        onSkip={vi.fn()}
+        onToggleNotAnimal={vi.fn()}
+        onRepaired={vi.fn()}
+        disabled={false}
+      />,
+    );
+
+    expect(screen.queryByText("default")).not.toBeInTheDocument();
   });
 
   it("links to the original photo in Immich beside the reason and date", () => {

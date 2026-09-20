@@ -8,10 +8,12 @@ schedule/job left unpinned resolves to the *default* (first configured) account 
 out into one job per account -- avoiding changes to the scheduler's existing due-occurrence dedup
 logic, which this work didn't need to touch. A multi-account owner wanting a second library
 scheduled creates a second schedule with `account_id` set explicitly. FR-7's backend (account
-filter/field on Library/Review/Photo Lookup, account on Job/Schedule responses) is complete; the
-Settings page lists accounts, but the Library/Review/Photo Lookup display+filter UI and a Jobs/
-Schedules account picker are deferred to a follow-up UI-only PR (no backend changes needed for it).
-See `docs/status.md`'s #346 entry for the full implementation summary.
+filter/field on Library/Review/Photo Lookup, account on Job/Schedule responses) is complete, and its
+display half (issue #354) also shipped: the Review card, Library detail panel, and Photo Lookup page
+now name a photo's account alongside its capture date/location, shown only when more than one
+account is configured. Still deferred to a follow-up: account *filter* UI on Library/Review, and a
+Jobs/Schedules account picker. See `docs/status.md`'s #346 and #354 entries for the full
+implementation summary.
 
 ## Purpose
 

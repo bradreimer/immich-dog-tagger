@@ -9,6 +9,7 @@ import {
   correctSpecies,
   getDogs,
   getPhotoLookup,
+  getSettings,
   markCropNotAnimal,
   unmarkCropNotAnimal,
 } from "@/lib/api";
@@ -43,11 +44,18 @@ export function PhotoLookupPage() {
   const [identities, setIdentities] = useState<Dog[]>([]);
   const [repairMessage, setRepairMessage] = useState<string | null>(null);
   const [hoveredDetectionId, setHoveredDetectionId] = useState<number | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
 
   useEffect(() => {
     getDogs()
       .then(setIdentities)
       .catch(() => setIdentities([]));
+
+    // Only worth showing an account column when more than one is actually
+    // configured (issue #346); a failed read just leaves it hidden.
+    getSettings()
+      .then((settings) => setShowAccount(settings.accounts.length > 1))
+      .catch(() => setShowAccount(false));
   }, []);
 
   const runLookup = async (assetId: string) => {
@@ -204,6 +212,7 @@ export function PhotoLookupPage() {
             <p className="text-sm text-muted-foreground">
               Taken {formatDate(result.captured_at)}
               {locationText && ` · ${locationText}`}
+              {showAccount && result.account && ` · ${result.account}`}
             </p>
 
             <RepairButton
