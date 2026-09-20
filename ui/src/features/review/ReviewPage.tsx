@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
 import {
   ClassificationNotFoundError,
+  CropNotFoundError,
   getClassification,
   getDogs,
   correctClassification,
@@ -157,6 +158,16 @@ function ReviewSingleItemPage({
         await correctClassification(classificationId, identity);
         setItem(await getClassification(classificationId));
       } catch (err) {
+        // The classification this link points at was deleted (e.g. a
+        // Repair or derived-data repair reprocessed the photo elsewhere
+        // while this page was open) -- there's nothing left here to save
+        // a correction against, so this falls into the same "not found"
+        // screen the initial load already shows for a bad id (issue #356).
+        if (err instanceof ClassificationNotFoundError) {
+          setNotFound(true);
+          return;
+        }
+
         setActionError(err instanceof Error ? err.message : "Failed to save correction");
       } finally {
         setSaving(false);
@@ -173,6 +184,11 @@ function ReviewSingleItemPage({
         setSaving(true);
         setItem(await correctSpecies(classificationId, species));
       } catch (err) {
+        if (err instanceof ClassificationNotFoundError) {
+          setNotFound(true);
+          return;
+        }
+
         setActionError(err instanceof Error ? err.message : "Failed to correct species");
       } finally {
         setSaving(false);
@@ -199,6 +215,11 @@ function ReviewSingleItemPage({
 
       setItem(await getClassification(classificationId));
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError || err instanceof CropNotFoundError) {
+        setNotFound(true);
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setSaving(false);
@@ -393,6 +414,29 @@ function ReviewQueuePage() {
     }
   }, [filter, bridgeFilters]);
 
+  // The current item's classification/crop was deleted server-side (e.g. a
+  // Repair or derived-data repair reprocessed the photo -- possibly from a
+  // different page or session -- while this queue was already loaded in
+  // memory, per review_query.py's note that the queue fetches once and
+  // works through it locally). None of Correct/Species/Skip/Not-animal can
+  // do anything useful against a gone classification_id/crop_id, so this
+  // drops the stale item the same way settling it normally would, with a
+  // message explaining why instead of a misleading "failed to X" (issue
+  // #356).
+  const dropStaleItem = useCallback(async () => {
+    setItems((current) => {
+      const next = current.filter((_, i) => i !== index);
+      setIndex((currentIndex) => Math.min(currentIndex, next.length - 1));
+      return next;
+    });
+
+    setRepairMessage(
+      "This photo was reprocessed elsewhere and no longer matches this review item -- removed from the queue.",
+    );
+
+    applyReviewStats(await getReviewStats());
+  }, [index, applyReviewStats]);
+
   const correct = useCallback(
     async (identity: string) => {
       const item = items[index];
@@ -423,6 +467,11 @@ function ReviewQueuePage() {
 
         applyReviewStats(await getReviewStats());
       } catch (err) {
+        if (err instanceof ClassificationNotFoundError) {
+          await dropStaleItem();
+          return;
+        }
+
         setActionError(
           err instanceof Error
           ? err.message
@@ -432,7 +481,7 @@ function ReviewQueuePage() {
         setSaving(false);
       }
     },
-    [items, index, applyReviewStats],
+    [items, index, applyReviewStats, dropStaleItem],
   );
 
 
@@ -460,6 +509,11 @@ function ReviewQueuePage() {
 
         applyReviewStats(await getReviewStats());
       } catch (err) {
+        if (err instanceof ClassificationNotFoundError) {
+          await dropStaleItem();
+          return;
+        }
+
         setActionError(
           err instanceof Error
           ? err.message
@@ -469,7 +523,7 @@ function ReviewQueuePage() {
         setSaving(false);
       }
     },
-    [items, index, applyReviewStats],
+    [items, index, applyReviewStats, dropStaleItem],
   );
 
 
@@ -489,11 +543,16 @@ function ReviewQueuePage() {
       });
       applyReviewStats(await getReviewStats());
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError) {
+        await dropStaleItem();
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to save skip action");
     } finally {
       setSaving(false);
     }
-  }, [items, index, applyReviewStats]);
+  }, [items, index, applyReviewStats, dropStaleItem]);
 
   const toggleNotAnimal = useCallback(async () => {
     const item = items[index];
@@ -524,11 +583,16 @@ function ReviewQueuePage() {
 
       applyReviewStats(await getReviewStats());
     } catch (err) {
+      if (err instanceof ClassificationNotFoundError || err instanceof CropNotFoundError) {
+        await dropStaleItem();
+        return;
+      }
+
       setActionError(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setSaving(false);
     }
-  }, [items, index, applyReviewStats]);
+  }, [items, index, applyReviewStats, dropStaleItem]);
 
 
   // Repairing recreates the current item's Detection/Crop/CropClassification

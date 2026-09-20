@@ -730,6 +730,85 @@ def test_correct_species_forgets_stale_learning_example(engine, tmp_path):
         assert session.query(EmbeddingExample).count() == 0
 
 
+def test_correct_species_cat_to_dog_forgets_stale_example_and_rescores(
+    engine, tmp_path
+):
+    """
+    Regression test for issue #356. Every existing correct_species() test
+    above only exercised Dog->Cat; investigating a report that Cat->Dog
+    "didn't work" in Review found this direction was never actually broken
+    at this layer (the real cause was a stale classification_id after
+    another repair/reprocess elsewhere, fixed in the API/frontend), but the
+    missing coverage meant a real regression here could have gone
+    unnoticed. Mirrors test_correct_species_forgets_stale_learning_example
+    and test_correct_species_rescores_against_new_species_pool, direction
+    reversed.
+    """
+    image_path = tmp_path / "cat.jpg"
+    image_path.write_bytes(b"fake")
+
+    with Session(engine) as session:
+        cat_whiskers = Identity(name="Whiskers", species=Species.CAT)
+        dog_max = Identity(name="Max", species=Species.DOG)
+        session.add_all([cat_whiskers, dog_max])
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=cat_whiskers.id,
+                crop_path=str(image_path),
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.REVIEW,
+            )
+        )
+        session.add(
+            EmbeddingExample(
+                identity_id=dog_max.id,
+                crop_path="dog-max.jpg",
+                embedding=embedding_to_blob(np.array([0, 1, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+
+        crop = Crop(detection_id=1, path=str(image_path), species=Species.CAT)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Whiskers",
+            confidence=1.0,
+            source=ClassificationSources.REVIEW,
+            embedding=embedding_to_blob(np.array([0.05, 0.95, 0], dtype=np.float32)),
+        )
+        session.add(classification)
+        session.commit()
+
+        learner = Learner(embedder=None, session=session)
+        service = ClassificationCorrectionService(
+            session,
+            learner=learner,
+            classifier=IdentityClassifier(session),
+        )
+
+        result = service.correct_species(classification.id, Species.DOG)
+
+        assert crop.species == Species.DOG
+        assert result.identity == "Max"
+        assert result.confidence > 0.9
+        assert result.source == ClassificationSources.AUTO
+
+        # The stale Cat example is forgotten, same as the Dog->Cat direction.
+        assert (
+            session.query(EmbeddingExample).filter_by(crop_path=str(image_path)).count()
+            == 0
+        )
+
+        # No ReviewAction should be written -- a species correction doesn't
+        # decide an identity.
+        assert session.query(ReviewAction).count() == 0
+
+
 def test_correction_does_not_hold_write_lock_during_embedding_inference(
     engine, tmp_path
 ):
