@@ -738,3 +738,20 @@ def test_get_asset_raises_on_http_error():
 
     with pytest.raises(ImmichGetAssetError):
         client.get_asset("does-not-exist")
+
+
+def test_get_asset_raises_on_connection_error():
+    # Issue #350: a malformed/unreachable configured URL (or any other httpx failure short of
+    # a response, e.g. DNS/connection/TLS errors) must surface as ImmichGetAssetError too, not
+    # propagate raw -- that's what lets AssetRepairService turn it into a friendly failure
+    # message instead of an unhandled 500.
+    def handler(request):
+        raise httpx.ConnectError("connection refused")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichGetAssetError):
+        client.get_asset("abc123")

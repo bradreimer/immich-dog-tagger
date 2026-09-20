@@ -296,16 +296,21 @@ class ImmichClient:
         parses via _parse_immich_asset(), so the same parser is reused here.
         """
 
-        response = self.client.get(
-            f"{self.url}/api/assets/{asset_id}",
-        )
-
         try:
+            response = self.client.get(
+                f"{self.url}/api/assets/{asset_id}",
+            )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             raise ImmichGetAssetError(
                 f"Immich API error {response.status_code}: {response.text}"
             ) from exc
+        except httpx.HTTPError as exc:
+            # Anything short of a response -- a malformed/unreachable configured URL, DNS
+            # failure, connection refused/timeout, TLS error -- so AssetRepairService's existing
+            # ImmichGetAssetError handler turns it into a friendly repair-failed message instead
+            # of an unhandled 500 (issue #350).
+            raise ImmichGetAssetError(f"could not reach Immich: {exc}") from exc
 
         return _parse_immich_asset(response.json())
 
