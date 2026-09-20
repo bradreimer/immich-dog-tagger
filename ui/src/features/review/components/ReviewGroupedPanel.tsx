@@ -19,6 +19,7 @@ import { ReviewSkeleton } from "./ReviewSkeleton";
 interface Props {
   dogs: Dog[];
   immichUrl: string | null;
+  showAccount?: boolean;
   /** Refreshes the Review tab's lifetime `reviewed` stat (and its milestone
    * celebration) after a group settles -- the same call site Queue mode
    * uses, so the two modes advance the same counters identically. */
@@ -36,7 +37,12 @@ function groupKey(group: ReviewGroup): string {
   return `${group.species}:${group.identity}:${group.cluster.id}`;
 }
 
-export function ReviewGroupedPanel({ dogs, immichUrl, onReviewed }: Props) {
+export function ReviewGroupedPanel({
+  dogs,
+  immichUrl,
+  showAccount = false,
+  onReviewed,
+}: Props) {
   const [groups, setGroups] = useState<ReviewGroup[] | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -142,6 +148,7 @@ export function ReviewGroupedPanel({ dogs, immichUrl, onReviewed }: Props) {
         group={splitGroup}
         dogs={dogs}
         immichUrl={immichUrl}
+        showAccount={showAccount}
         onReviewed={onReviewed}
         onDone={() => {
           setSplitGroup(null);

@@ -18,6 +18,9 @@ interface Props {
   item: ReviewItem;
   identities: string[];
   immichUrl?: string | null;
+  /** Only worth showing when more than one Immich account is configured
+   * (issue #346) -- see ReviewPage's `showAccount` derivation. */
+  showAccount?: boolean;
   onCorrect: (identity: string) => void;
   onCorrectSpecies: (species: "dog" | "cat") => void;
   /** Omitted in single-item mode (v1.11): there is no queue to skip past. */
@@ -31,6 +34,7 @@ export function ReviewCard({
   item,
   identities,
   immichUrl = null,
+  showAccount = false,
   onCorrect,
   onCorrectSpecies,
   onSkip,
@@ -46,6 +50,10 @@ export function ReviewCard({
         <span className="text-sm text-muted-foreground">
           {formatDate(item.captured_at)}
         </span>
+
+        {showAccount && item.account && (
+          <span className="text-sm text-muted-foreground">{item.account}</span>
+        )}
 
         <ImmichPhotoLink
           immichUrl={immichUrl}

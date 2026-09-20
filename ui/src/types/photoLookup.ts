@@ -21,6 +21,8 @@ export interface PhotoLookupResult {
   country: string | null;
   state: string | null;
   city: string | null;
+  /** Which configured Immich account this photo belongs to (issue #346). */
+  account: string | null;
   detections: PhotoLookupDetection[];
 }
 

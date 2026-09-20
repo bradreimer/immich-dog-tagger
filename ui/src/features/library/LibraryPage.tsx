@@ -35,6 +35,7 @@ export function LibraryPage({ onNavigate }: Props) {
 
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [immichUrl, setImmichUrl] = useState<string | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(initialUrlState.offset);
@@ -50,7 +51,10 @@ export function LibraryPage({ onNavigate }: Props) {
     // The Immich deep link on the details panel is a convenience; failing
     // to read the configured URL must not take the grid down with it.
     getSettings()
-      .then((settings) => setImmichUrl(settings.immich_external_url || null))
+      .then((settings) => {
+        setImmichUrl(settings.immich_external_url || null);
+        setShowAccount(settings.accounts.length > 1);
+      })
       .catch(() => setImmichUrl(null));
   }, []);
 
@@ -286,7 +290,11 @@ export function LibraryPage({ onNavigate }: Props) {
           </div>
 
           {selectedEntry && (
-            <LibraryDetailsPanel entry={selectedEntry} immichUrl={immichUrl} />
+            <LibraryDetailsPanel
+              entry={selectedEntry}
+              immichUrl={immichUrl}
+              showAccount={showAccount}
+            />
           )}
         </div>
       )}

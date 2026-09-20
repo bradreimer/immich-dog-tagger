@@ -29,6 +29,7 @@ function buildEntry(classificationId: number): LibraryEntry {
       captured_at: "2026-01-05T12:00:00Z",
       immich_asset_id: `asset-${classificationId}`,
       location: "Portland, Oregon, USA",
+      account: null,
       not_animal: false,
       prediction: {
         identity: "Hermann",
@@ -199,6 +200,35 @@ describe("LibraryPage", () => {
 
     expect(await screen.findByText("Portland, Oregon, USA")).toBeInTheDocument();
     expect(screen.getByText("90.0%")).toBeInTheDocument();
+  });
+
+  it("shows the account name in the details panel when more than one account is configured", async () => {
+    vi.mocked(api.getSettings).mockResolvedValue({
+      immich_url: "http://immich.local",
+      immich_external_url: "http://immich.local",
+      scanned_image_count: 0,
+      version: "1.11.0",
+      tagging_sensitivity: "balanced",
+      accounts: [
+        { id: 1, name: "alice" },
+        { id: 2, name: "bob" },
+      ],
+    });
+
+    const entry = buildEntry(1);
+    vi.mocked(api.getLibrary).mockResolvedValue({
+      items: [{ ...entry, item: { ...entry.item, account: "alice" } }],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
+
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "View details for Hermann" }));
+
+    expect(await screen.findByText("Account")).toBeInTheDocument();
+    expect(screen.getByText("alice")).toBeInTheDocument();
   });
 
   it("reflects non-default filters in the URL", async () => {
