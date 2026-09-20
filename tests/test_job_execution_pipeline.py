@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,11 @@ class RecordingProgress:
     def __init__(self):
         self.messages: list[str] = []
         self.sets: list[tuple[int, int | None]] = []
+        # Issue #346: _account_for_job() reads progress.job.account_id to
+        # resolve which Immich account a job runs against. None means
+        # "resolve to the default account" -- these tests don't exercise
+        # multi-account behavior, so this fake job is never anything else.
+        self.job = SimpleNamespace(account_id=None)
 
     def message(self, value):
         self.messages.append(value)
