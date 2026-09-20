@@ -144,11 +144,18 @@ def resolve_account(
     `AccountService.list_accounts()`/`Config.accounts` themselves and call
     this once per account instead of relying on this fallback.
 
-    Raises `AccountResolutionError` when an *explicit* account_id names a
-    row that no longer matches anything in `Config.accounts` (renamed or
-    removed there -- see the multi-account spec's open question on this),
-    or when nothing can be resolved at all (no accounts configured
-    anywhere, explicit or default).
+    Raises `AccountResolutionError` only when an *explicit* account_id names
+    a row that no longer matches anything in `Config.accounts` (renamed or
+    removed there -- see the multi-account spec's open question on this).
+    The default (`account_id=None`) path never raises, even when nothing is
+    configured at all -- it resolves to an empty API key instead, the exact
+    pre-#346 behavior of building a client from `Config.immich_api_key`
+    unconditionally and letting a genuinely missing credential fail where
+    it's actually used (a real Immich call), not preemptively here. Several
+    existing tests deliberately run a pipeline stage against a faked-out
+    Immich client with no credentials configured at all; raising here would
+    break that pattern for no benefit, since nothing downstream would have
+    made a real network call anyway.
     """
 
     if account_id is not None:
@@ -174,11 +181,14 @@ def resolve_account(
     if config.accounts:
         default_name = config.accounts[0].name
         default_api_key = config.accounts[0].api_key
-    elif config.immich_api_key:
+    else:
+        # Empty even when config.immich_api_key is also empty -- that's the
+        # pre-#346 status quo (an unconfigured deployment building a client
+        # with an empty key, which only fails once something actually tries
+        # to use it), not a new error condition this function should
+        # introduce.
         default_name = DEFAULT_ACCOUNT_NAME
         default_api_key = config.immich_api_key
-    else:
-        raise AccountResolutionError("No Immich account is configured")
 
     db_account = AccountService(session).get_by_name(default_name)
 

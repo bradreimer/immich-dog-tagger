@@ -68,7 +68,7 @@ def test_sync_handler_reports_skipped_classifications_in_progress_message(
     lower-than-expected result, not just say "sync completed"."""
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FakeImmichClient(),
+        lambda config, account: FakeImmichClient(),
     )
 
     with Session(engine) as session:
@@ -105,7 +105,7 @@ def test_sync_handler_reports_failed_identities_in_progress_message(
 
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FailingImmichClient(),
+        lambda config, account: FailingImmichClient(),
     )
 
     with Session(engine) as session:
@@ -144,7 +144,7 @@ def test_sync_handler_links_permissions_doc_on_a_permission_denied_failure(
 
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FailingImmichClient(),
+        lambda config, account: FailingImmichClient(),
     )
 
     with Session(engine) as session:
@@ -166,7 +166,7 @@ def test_sync_handler_message_has_no_skip_clause_when_nothing_skipped(
 ):
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: FakeImmichClient(),
+        lambda config, account: FakeImmichClient(),
     )
 
     with Session(engine) as session:

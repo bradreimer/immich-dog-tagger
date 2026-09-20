@@ -100,12 +100,23 @@ class PipelineService:
 
             report("Downloading assets")
 
-            downloaded = self.downloader.download_pending(
-                limit=batch_limit,
-                force=force,
-                should_cancel=should_cancel,
-                account_id=account_id,
-            )
+            # account_id is only ever passed through when explicitly given
+            # (issue #346's actual production callers always resolve one).
+            # self.downloader is duck-typed -- many existing tests supply a
+            # narrow fake implementing only (limit, force, should_cancel) --
+            # so omitting the kwarg entirely when there's no account to
+            # scope by keeps this call compatible with every one of them,
+            # exactly like before this parameter existed.
+            download_kwargs = {
+                "limit": batch_limit,
+                "force": force,
+                "should_cancel": should_cancel,
+            }
+
+            if account_id is not None:
+                download_kwargs["account_id"] = account_id
+
+            downloaded = self.downloader.download_pending(**download_kwargs)
 
             report(f"Downloaded {downloaded} assets")
 

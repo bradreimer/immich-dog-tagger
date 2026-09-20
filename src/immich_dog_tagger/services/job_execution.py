@@ -8,6 +8,7 @@ from immich_dog_tagger.config import Config
 from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.enums import ClassificationMode, PipelineOperation, Species
+from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.models import Crop
 from immich_dog_tagger.runtime import get_embedder
 from immich_dog_tagger.scanner import Scanner
@@ -108,6 +109,17 @@ def _account_for_job(
     return resolve_account(session, config, progress.job.account_id)
 
 
+def _create_client(config: Config, account: ResolvedAccount) -> ImmichClient:
+    """
+    Thin wrapper kept as its own module-level name (rather than calling
+    `build_immich_client` directly) so tests can monkeypatch this one seam
+    to avoid real network calls, the same way they patched the pre-#346
+    single-argument `_create_client(config)`.
+    """
+
+    return build_immich_client(config, account)
+
+
 def _scan_handler(
     session: Session,
     config: Config,
@@ -119,7 +131,7 @@ def _scan_handler(
         account = _account_for_job(session, config, progress)
 
         scanner = Scanner(
-            build_immich_client(config, account),
+            _create_client(config, account),
             session,
             config.cache_dir,
             account_id=account.id,
@@ -413,7 +425,7 @@ def _sync_handler(
         progress.message("Synchronizing albums and tags")
 
         account = _account_for_job(session, config, progress)
-        client = build_immich_client(config, account)
+        client = _create_client(config, account)
 
         service = SyncService(
             session,
@@ -499,7 +511,7 @@ def _full_pipeline_handler(
 ):
     def run(progress: JobProgressReporter) -> dict[str, int]:
         account = _account_for_job(session, config, progress)
-        client = build_immich_client(config, account)
+        client = _create_client(config, account)
 
         policy = AppSettingsService(session).policy()
 

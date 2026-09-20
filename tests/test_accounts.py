@@ -134,11 +134,22 @@ def test_resolve_account_none_falls_back_to_legacy_immich_api_key(engine, tmp_pa
     assert resolved.id is None
 
 
-def test_resolve_account_none_raises_when_nothing_is_configured(engine, tmp_path):
+def test_resolve_account_none_resolves_to_an_empty_key_when_nothing_is_configured(
+    engine, tmp_path
+):
+    """
+    Backward compatibility: this must never raise, even with nothing
+    configured at all -- several existing tests deliberately run a pipeline
+    stage against a faked-out Immich client with no credentials set, and
+    raising here would break that pattern for no benefit (nothing
+    downstream would make a real network call either way).
+    """
     config = _config(tmp_path)
 
-    with Session(engine) as session, pytest.raises(AccountResolutionError):
-        resolve_account(session, config, None)
+    with Session(engine) as session:
+        resolved = resolve_account(session, config, None)
+
+    assert resolved.api_key == ""
 
 
 def test_resolve_account_raises_for_an_unknown_id(engine, tmp_path):

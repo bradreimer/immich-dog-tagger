@@ -91,13 +91,6 @@ def _resolve_account_selection(
 
     AccountService(session).sync_from_config(config)
 
-    if not config.accounts:
-        print(
-            "No Immich accounts configured -- set IMMICH_API_KEY or a JSON "
-            "CONFIG_FILE (see docs/deployment.md)."
-        )
-        raise SystemExit(1)
-
     if account_name is not None:
         account = AccountService(session).get_by_name(account_name)
 
@@ -107,10 +100,25 @@ def _resolve_account_selection(
 
         return [account.id]
 
+    if not config.accounts:
+        # Nothing configured at all (no CONFIG_FILE, no IMMICH_API_KEY) --
+        # a single implicit run, exactly the pre-#346 behavior of building
+        # a client from an empty Config.immich_api_key and letting it fail
+        # wherever it's actually used, not preemptively here.
+        return [None]
+
     return [
         AccountService(session).get_by_name(account.name).id
         for account in config.accounts
     ]
+
+
+def _account_label(session: Session, account_id: int | None, multi: bool) -> str:
+    if not multi or account_id is None:
+        return ""
+
+    account = AccountService(session).get(account_id)
+    return f"[{account.name}] " if account else ""
 
 
 def backup_command(args) -> None:
@@ -254,8 +262,7 @@ def scan_command(args) -> None:
         multi = len(account_ids) > 1
 
         for account_id in account_ids:
-            account = AccountService(session).get(account_id)
-            label = f"[{account.name}] " if multi else ""
+            label = _account_label(session, account_id, multi)
 
             try:
                 result = run_operation_job(
@@ -286,8 +293,7 @@ def download_command(args) -> None:
         multi = len(account_ids) > 1
 
         for account_id in account_ids:
-            account = AccountService(session).get(account_id)
-            label = f"[{account.name}] " if multi else ""
+            label = _account_label(session, account_id, multi)
 
             try:
                 resolved = resolve_account(session, config, account_id)
@@ -628,8 +634,7 @@ def sync_command(args) -> None:
         multi = len(account_ids) > 1
 
         for account_id in account_ids:
-            account = AccountService(session).get(account_id)
-            label = f"[{account.name}] " if multi else ""
+            label = _account_label(session, account_id, multi)
 
             if args.dry_run:
                 try:
@@ -752,8 +757,7 @@ def pipeline_command(args) -> None:
         any_failed = False
 
         for account_id in account_ids:
-            account = AccountService(session).get(account_id)
-            label = f"[{account.name}] " if multi else ""
+            label = _account_label(session, account_id, multi)
 
             try:
                 result = run_operation_job(

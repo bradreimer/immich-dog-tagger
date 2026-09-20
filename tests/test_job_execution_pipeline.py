@@ -26,7 +26,7 @@ class RecordingProgress:
 
 
 class FakeScanner:
-    def __init__(self, client, session, cache_dir=None):
+    def __init__(self, client, session, cache_dir=None, account_id=None):
         pass
 
     def scan(self, limit=None, force=False, should_cancel=None):
@@ -80,7 +80,7 @@ class FakeClassificationService(PoolStage):
 def _patch_pipeline_dependencies(monkeypatch):
     monkeypatch.setattr(
         "immich_dog_tagger.services.job_execution._create_client",
-        lambda config: object(),
+        lambda config, account: object(),
     )
     monkeypatch.setattr("immich_dog_tagger.services.job_execution.Scanner", FakeScanner)
     monkeypatch.setattr(
