@@ -1039,6 +1039,14 @@
   handlers now catch these and re-fetch the photo's current data (fresh ids) with an explanatory
   message, the same recovery Review already has, instead of leaving a permanently-failing id on
   screen.
+- [#360](https://github.com/bradreimer/immich-dog-tagger/issues/360) fixed a labeling
+  inconsistency in the manual-reclassification contract ([ADR-009](adr/ADR-009-manual-reclassification-contract.md)):
+  Review/Library's "not a dog or cat" undo control (`NotAnimalToggle.tsx`) still read "Undo — this
+  is a dog or cat" while Photo Lookup's equivalent control was renamed "Reclassify" by issue #267,
+  since both always lead to the same place (species Dog, identity Unknown, ready for further
+  correction). `NotAnimalToggle.tsx` now reads "Reclassify" too, matching every other manual-
+  reclassification surface; ADR-009 gained a consequence entry making explicit that a wording
+  drift like this one is itself a violation of the contract, not a separate cosmetic issue.
 
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),

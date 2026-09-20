@@ -13,7 +13,10 @@ interface Props {
  * reviewer doesn't recognize it / doesn't want to assign it an identity --
  * both settle to the same Unknown state, so one toggle covers both, per
  * ADR-009. Mirrors Photo Lookup's DetectionList row, the toggle's original
- * home.
+ * home -- including its undo label, "Reclassify" (issue #360): clicking it
+ * always leads to the same place (species Dog, identity Unknown, ready for
+ * further correction), not merely reverting a flag, so every manual-
+ * reclassification surface must use the same word for it, per ADR-009.
  *
  * Content-only (no Card wrapper) so ReviewCard can group this with
  * SpeciesChooser inside one shared card -- see
@@ -26,7 +29,7 @@ export function NotAnimalToggle({ notAnimal, onToggle, disabled }: Props) {
 
       <Button type="button" variant="outline" onClick={onToggle} disabled={disabled}>
         {!notAnimal && <IconX className="h-4 w-4" aria-hidden="true" />}
-        {notAnimal ? "Undo — this is a dog or cat" : "Not a dog or cat"}
+        {notAnimal ? "Reclassify" : "Not a dog or cat"}
       </Button>
     </div>
   );

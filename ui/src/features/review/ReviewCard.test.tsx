@@ -208,7 +208,7 @@ describe("ReviewCard", () => {
     expect(onToggleNotAnimal).toHaveBeenCalled();
   });
 
-  it("offers to undo an existing not-a-dog-or-cat mark", () => {
+  it("offers to reclassify an existing not-a-dog-or-cat mark, matching Photo Lookup (issue #360)", () => {
     render(
       <ReviewCard
         item={buildItem({ not_animal: true })}
@@ -222,9 +222,7 @@ describe("ReviewCard", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Undo — this is a dog or cat" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reclassify" })).toBeInTheDocument();
   });
 
   it("falls back to a placeholder when the capture date is unknown", () => {
