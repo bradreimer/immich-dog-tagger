@@ -96,6 +96,11 @@ docker compose exec dog-tagger immich-dog-tagger detect
 docker compose exec dog-tagger immich-dog-tagger classify
 ```
 
+After an embedding model upgrade, recompute stored vectors and reclassify with
+`docker compose exec dog-tagger immich-dog-tagger reembed`. To recompute automatic predictions
+from your current reference examples, run `immich-dog-tagger reclassify`. Reviewed labels are
+never changed by either command.
+
 Expect almost everything to come back Unknown the first time — there are no reference examples
 yet. That's expected, not a bug.
 
