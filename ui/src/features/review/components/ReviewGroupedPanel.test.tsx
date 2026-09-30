@@ -8,6 +8,8 @@ import type { ReviewItem } from "../../../types/review";
 import type { Dog } from "../../../types/dogs";
 
 vi.mock("../../../lib/api", () => ({
+  ClassificationNotFoundError: class extends Error {},
+  CropNotFoundError: class extends Error {},
   getReviewGroups: vi.fn(),
   approveCluster: vi.fn(),
   reassignCluster: vi.fn(),
@@ -20,6 +22,8 @@ vi.mock("../../../lib/api", () => ({
 }));
 
 const REX: Dog = { id: 1, name: "Rex", species: "dog", active: true };
+const FIDO: Dog = { id: 2, name: "Fido", species: "dog", active: true };
+const TOM: Dog = { id: 3, name: "Tom", species: "cat", active: true };
 
 function buildItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
   return {
@@ -87,7 +91,7 @@ describe("ReviewGroupedPanel", () => {
 
     render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
 
-    expect(await screen.findByText("Rex")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Rex" })).toBeInTheDocument();
     expect(screen.getByText("2 photos")).toBeInTheDocument();
   });
 
@@ -123,8 +127,7 @@ describe("ReviewGroupedPanel", () => {
 
     render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={onReviewed} />);
 
-    const approveButton = await screen.findByRole("button", { name: /approve 2 as rex/i });
-    fireEvent.click(approveButton);
+    fireEvent.click(await screen.findByRole("button", { name: "Rex (predicted)" }));
 
     await waitFor(() => {
       expect(api.approveCluster).toHaveBeenCalledWith("Rex", "dog", [1, 2]);
@@ -134,26 +137,9 @@ describe("ReviewGroupedPanel", () => {
     expect(await screen.findByText(/approved 2 as rex/i)).toBeInTheDocument();
   });
 
-  it("approves the group as an alternate top-predicted identity", async () => {
-    const group = buildGroup({
-      cluster: {
-        ...buildGroup().cluster,
-        representative: buildItem({
-          classification_id: 1,
-          crop_id: 1,
-          prediction: {
-            identity: "Rex",
-            similarity: 0.8,
-            candidates: [
-              { identity: "Rex", similarity: 0.8, matched_example_id: 1 },
-              { identity: "Fido", similarity: 0.62, matched_example_id: 2 },
-            ],
-          },
-        }),
-      },
-    });
+  it("reassigns the group when choosing a different identity", async () => {
     vi.mocked(api.getReviewGroups).mockResolvedValue({
-      groups: [group],
+      groups: [buildGroup()],
       identity_count: 1,
       truncated_identities: false,
       sort: "confidence_desc",
@@ -167,25 +153,161 @@ describe("ReviewGroupedPanel", () => {
 
     const onReviewed = vi.fn();
 
-    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={onReviewed} />);
+    render(
+      <ReviewGroupedPanel dogs={[REX, FIDO, TOM]} immichUrl={null} onReviewed={onReviewed} />,
+    );
 
-    const alternateButton = await screen.findByRole("button", {
-      name: /approve 2 as fido \(62%\)/i,
-    });
-    fireEvent.click(alternateButton);
+    fireEvent.click(await screen.findByRole("button", { name: "Fido" }));
 
     await waitFor(() => {
       expect(api.reassignCluster).toHaveBeenCalledWith("Fido", "dog", [1, 2]);
     });
 
+    expect(api.approveCluster).not.toHaveBeenCalled();
     expect(onReviewed).toHaveBeenCalled();
     expect(await screen.findByText(/approved 2 as fido/i)).toBeInTheDocument();
+    // Only same-species identities are offered.
+    expect(screen.queryByRole("button", { name: "Tom" })).not.toBeInTheDocument();
   });
 
-  it("shows no alternate-identity buttons when the representative has none", async () => {
-    const group = buildGroup();
+  it("shows one group at a time and navigates between them", async () => {
     vi.mocked(api.getReviewGroups).mockResolvedValue({
-      groups: [group],
+      groups: [
+        buildGroup(),
+        buildGroup({
+          identity: "Fido",
+          cluster: { ...buildGroup().cluster, id: 3 },
+        }),
+      ],
+      identity_count: 2,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+
+    render(<ReviewGroupedPanel dogs={[REX, FIDO]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    expect(await screen.findByText("Group 1 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Rex" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Fido" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /next group/i }));
+    expect(screen.getByText("Group 2 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fido" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(screen.getByText("Group 1 of 2")).toBeInTheDocument();
+  });
+
+  it("applies a keyboard identity choice to the selection", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [buildGroup()],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+    vi.mocked(api.approveCluster).mockResolvedValue({
+      identity: "Rex",
+      applied: 2,
+      skipped: 0,
+      skips: [],
+    });
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    await screen.findByText("Group 1 of 1");
+    fireEvent.keyDown(window, { key: "1" });
+
+    await waitFor(() => {
+      expect(api.approveCluster).toHaveBeenCalledWith("Rex", "dog", [1, 2]);
+    });
+  });
+
+  it("skips only the selected members", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [buildGroup()],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+    vi.mocked(api.skipClassification).mockResolvedValue(undefined);
+
+    const onReviewed = vi.fn();
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={onReviewed} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Deselect photo 2" }));
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+
+    await waitFor(() => {
+      expect(api.skipClassification).toHaveBeenCalledWith(1);
+    });
+
+    expect(api.skipClassification).toHaveBeenCalledTimes(1);
+    expect(onReviewed).toHaveBeenCalled();
+    expect(await screen.findByText("Skipped 1.")).toBeInTheDocument();
+  });
+
+  it("corrects the species of every selected member", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [buildGroup()],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+    vi.mocked(api.correctSpecies).mockResolvedValue(buildItem({ species: "cat" }));
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cat" }));
+
+    await waitFor(() => {
+      expect(api.correctSpecies).toHaveBeenCalledTimes(2);
+    });
+
+    expect(api.correctSpecies).toHaveBeenCalledWith(1, "cat");
+    expect(api.correctSpecies).toHaveBeenCalledWith(2, "cat");
+    expect(await screen.findByText("Changed 2 to cat.")).toBeInTheDocument();
+  });
+
+  it("marks selected members as not a dog or cat, skipping stale crops", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [
+        buildGroup({
+          cluster: {
+            ...buildGroup().cluster,
+            members: [
+              buildItem({ classification_id: 1, crop_id: 11 }),
+              buildItem({ classification_id: 2, crop_id: 12 }),
+            ],
+          },
+        }),
+      ],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+    vi.mocked(api.markCropNotAnimal)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new api.CropNotFoundError("gone"));
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /not a dog or cat/i }));
+
+    await waitFor(() => {
+      expect(api.markCropNotAnimal).toHaveBeenCalledTimes(2);
+    });
+
+    expect(api.markCropNotAnimal).toHaveBeenCalledWith(11);
+    expect(api.markCropNotAnimal).toHaveBeenCalledWith(12);
+    expect(
+      await screen.findByText(/marked 1 as not a dog or cat, skipped 1/i),
+    ).toBeInTheDocument();
+  });
+
+  it("disables group actions when nothing is selected", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [buildGroup()],
       identity_count: 1,
       truncated_identities: false,
       sort: "confidence_desc",
@@ -193,11 +315,12 @@ describe("ReviewGroupedPanel", () => {
 
     render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
 
-    await screen.findByRole("button", { name: /approve 2 as rex/i });
+    fireEvent.click(await screen.findByRole("button", { name: /select none/i }));
 
-    expect(
-      screen.queryByRole("button", { name: /approve 2 as (?!rex)/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rex (predicted)" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /skip/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /not rex/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /multiple dogs here/i })).toBeEnabled();
   });
 
   it("rejects the selected members without touching the reviewed stat", async () => {
@@ -275,7 +398,11 @@ describe("ReviewGroupedPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /back to groups/i }));
 
-    expect(await screen.findByText("Rex")).toBeInTheDocument();
-    expect(api.getReviewGroups).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(api.getReviewGroups).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Rex" })).toBeInTheDocument();
+    });
   });
 });

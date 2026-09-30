@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { IconRefresh } from "@tabler/icons-react";
+import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
 
 import {
+  ClassificationNotFoundError,
+  CropNotFoundError,
   approveCluster,
+  correctSpecies,
   getReviewGroups,
+  markCropNotAnimal,
   reassignCluster,
   rejectCluster,
+  skipClassification,
 } from "../../../lib/api";
 import type { ReviewGroup } from "../../../types/clusters";
 import type { Dog } from "../../../types/dogs";
@@ -50,6 +55,13 @@ export function ReviewGroupedPanel({
   const [busy, setBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [splitGroup, setSplitGroup] = useState<ReviewGroup | null>(null);
+  // Position in `groups`, kept across refetches: once the group at this
+  // position settles and drops out of the list, the same index shows the
+  // next one.
+  const [index, setIndex] = useState(0);
+  // Bumped on every refetch so a partially settled group remounts with a
+  // fresh default selection instead of keeping ids that no longer exist.
+  const [generation, setGeneration] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +71,8 @@ export function ReviewGroupedPanel({
       const proposal = await getReviewGroups();
       setGroups(proposal.groups);
       setTruncated(proposal.truncated_identities);
+      setGeneration((current) => current + 1);
+      setIndex((current) => Math.max(0, Math.min(current, proposal.groups.length - 1)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load review groups");
     } finally {
@@ -70,77 +84,116 @@ export function ReviewGroupedPanel({
     load();
   }, [load]);
 
-  const approve = async (group: ReviewGroup, classificationIds: number[]) => {
+  /**
+   * Runs one settling action, reports its outcome, and refetches so the
+   * settled group drops out of the list. `countsAsReviewed` is false only
+   * for "Not <identity>", which settles no identity (parent spec FR-7).
+   */
+  const run = async (
+    action: () => Promise<string>,
+    failure: string,
+    countsAsReviewed = true,
+  ) => {
     setBusy(true);
     setActionMessage(null);
 
     try {
-      const result = await approveCluster(group.identity, group.species, classificationIds);
+      setActionMessage(await action());
 
-      setActionMessage(
-        result.skipped > 0
-          ? `Approved ${result.applied} as ${group.identity}, skipped ${result.skipped} (already settled elsewhere).`
-          : `Approved ${result.applied} as ${group.identity}.`,
-      );
+      if (countsAsReviewed) {
+        onReviewed();
+      }
 
-      onReviewed();
       await load();
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Failed to approve group");
+      setActionMessage(err instanceof Error ? err.message : failure);
     } finally {
       setBusy(false);
     }
   };
 
   /**
-   * Settle the selection as a candidate *other* than the one the group is
-   * clustered under (issue #335) -- `reassignCluster`, not `approveCluster`,
-   * since not every member's own candidate list is guaranteed to include
-   * the alternate identity, and reassignment is exactly the write path
-   * that doesn't require it (issue #166).
+   * Applies a per-photo write to every selected member in turn. A member
+   * whose classification/crop was deleted server-side (a Repair elsewhere
+   * reprocessed the photo while this group was loaded) is counted as
+   * skipped rather than failing the whole batch -- the same handling the
+   * split view gives a stale item (issue #356).
    */
-  const approveAs = async (
-    group: ReviewGroup,
-    identity: string,
+  const eachMember = async (
     classificationIds: number[],
+    write: (classificationId: number) => Promise<unknown>,
   ) => {
-    setBusy(true);
-    setActionMessage(null);
+    let applied = 0;
+    let skipped = 0;
 
-    try {
-      const result = await reassignCluster(identity, group.species, classificationIds);
+    for (const classificationId of classificationIds) {
+      try {
+        await write(classificationId);
+        applied += 1;
+      } catch (err) {
+        if (err instanceof ClassificationNotFoundError || err instanceof CropNotFoundError) {
+          skipped += 1;
+          continue;
+        }
 
-      setActionMessage(
-        result.skipped > 0
-          ? `Approved ${result.applied} as ${identity}, skipped ${result.skipped} (already settled elsewhere).`
-          : `Approved ${result.applied} as ${identity}.`,
+        throw err;
+      }
+    }
+
+    return { applied, skipped };
+  };
+
+  const summarize = (summary: string, skipped: number) =>
+    skipped > 0 ? `${summary}, skipped ${skipped} (already settled elsewhere).` : `${summary}.`;
+
+  /**
+   * Choosing the group's own identity is an approval of what the
+   * classifier proposed; choosing any other identity is a reassignment
+   * (issue #166), since not every member's own candidate list is
+   * guaranteed to include it.
+   */
+  const chooseIdentity = (group: ReviewGroup, identity: string, classificationIds: number[]) =>
+    run(async () => {
+      const settle = identity === group.identity ? approveCluster : reassignCluster;
+      const result = await settle(identity, group.species, classificationIds);
+      return summarize(`Approved ${result.applied} as ${identity}`, result.skipped);
+    }, "Failed to approve group");
+
+  const reject = (group: ReviewGroup, classificationIds: number[]) =>
+    run(
+      async () => {
+        const result = await rejectCluster(group.identity, group.species, classificationIds);
+        return `Recorded "not ${group.identity}" for ${result.applied} photo(s).`;
+      },
+      "Failed to reject group",
+      false,
+    );
+
+  const skip = (classificationIds: number[]) =>
+    run(async () => {
+      const { applied, skipped } = await eachMember(classificationIds, skipClassification);
+      return summarize(`Skipped ${applied}`, skipped);
+    }, "Failed to save skip action");
+
+  const correctSpeciesForGroup = (species: "dog" | "cat", classificationIds: number[]) =>
+    run(async () => {
+      const { applied, skipped } = await eachMember(classificationIds, (id) =>
+        correctSpecies(id, species),
       );
+      return summarize(`Changed ${applied} to ${species}`, skipped);
+    }, "Failed to correct species");
 
-      onReviewed();
-      await load();
-    } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Failed to approve group");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const reject = async (group: ReviewGroup, classificationIds: number[]) => {
-    setBusy(true);
-    setActionMessage(null);
-
-    try {
-      const result = await rejectCluster(group.identity, group.species, classificationIds);
-
-      setActionMessage(`Recorded "not ${group.identity}" for ${result.applied} photo(s).`);
-
-      await load();
-    } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Failed to reject group");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const markNotAnimal = (group: ReviewGroup, classificationIds: number[]) =>
+    run(async () => {
+      const cropByClassification = new Map(
+        group.cluster.members.map((member) => [member.classification_id, member.crop_id]),
+      );
+      const { applied, skipped } = await eachMember(classificationIds, (id) => {
+        const cropId = cropByClassification.get(id);
+        return cropId === undefined ? Promise.resolve() : markCropNotAnimal(cropId);
+      });
+      return summarize(`Marked ${applied} as not a dog or cat`, skipped);
+    }, "Failed to update");
 
   if (splitGroup) {
     return (
@@ -158,7 +211,7 @@ export function ReviewGroupedPanel({
     );
   }
 
-  if (loading) {
+  if (loading && !groups) {
     return <ReviewSkeleton />;
   }
 
@@ -176,12 +229,32 @@ export function ReviewGroupedPanel({
 
   if (!groups || groups.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No batches of similar photos to review right now. Items without a predicted
-        identity still need the regular Queue view.
-      </p>
+      <div className="space-y-4">
+        {actionMessage && <p className="text-sm text-muted-foreground">{actionMessage}</p>}
+        <p className="text-sm text-muted-foreground">
+          No batches of similar photos to review right now. Items without a predicted
+          identity still need the regular Queue view.
+        </p>
+      </div>
     );
   }
+
+  const group = groups[Math.min(index, groups.length - 1)];
+  const position = groups.indexOf(group);
+  const previous = () => {
+    if (!busy) {
+      setIndex(Math.max(0, position - 1));
+    }
+  };
+  const next = () => {
+    if (!busy) {
+      setIndex(Math.min(groups.length - 1, position + 1));
+    }
+  };
+
+  const identities = dogs
+    .filter((dog) => dog.species === group.species)
+    .map((dog) => dog.name);
 
   return (
     <div className="space-y-4">
@@ -192,19 +265,44 @@ export function ReviewGroupedPanel({
         </p>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground">
+          Group {position + 1} of {groups.length}
+        </span>
+
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={previous} disabled={busy || position === 0}>
+            <IconArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Previous group
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={next}
+            disabled={busy || position === groups.length - 1}
+          >
+            Next group
+            <IconArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+
       {actionMessage && <p className="text-sm text-muted-foreground">{actionMessage}</p>}
 
-      {groups.map((group) => (
-        <ReviewGroupCard
-          key={groupKey(group)}
-          group={group}
-          disabled={busy}
-          onApprove={(ids) => approve(group, ids)}
-          onApproveAs={(identity, ids) => approveAs(group, identity, ids)}
-          onReject={(ids) => reject(group, ids)}
-          onSplit={() => setSplitGroup(group)}
-        />
-      ))}
+      <ReviewGroupCard
+        key={`${groupKey(group)}:${generation}`}
+        group={group}
+        identities={identities}
+        disabled={busy || loading}
+        onChooseIdentity={(identity, ids) => chooseIdentity(group, identity, ids)}
+        onReject={(ids) => reject(group, ids)}
+        onSkip={skip}
+        onCorrectSpecies={correctSpeciesForGroup}
+        onNotAnimal={(ids) => markNotAnimal(group, ids)}
+        onSplit={() => setSplitGroup(group)}
+        onNext={next}
+        onPrevious={previous}
+      />
     </div>
   );
 }
