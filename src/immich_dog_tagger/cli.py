@@ -377,6 +377,64 @@ def classify_command(args) -> None:
         print(f"{identity}: {count}")
 
 
+def reembed_command(args) -> None:
+    """
+    Recompute every stored vector with the current embedding model (ADR-010), then reclassify --
+    the same REEMBED job Overview > Manual Operations runs (issue #373).
+    """
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        result = run_operation_job(
+            session,
+            config,
+            PipelineOperation.REEMBED,
+        )
+
+    print(
+        f"Examples re-embedded: {result.get('examples_reembedded', 0)} "
+        f"(skipped, missing crop file: {result.get('examples_skipped', 0)})"
+    )
+    print(
+        f"Classifications re-embedded: {result.get('classifications_reembedded', 0)} "
+        f"(skipped, missing crop file: {result.get('classifications_skipped', 0)})"
+    )
+    print(
+        f"Reclassify pass {result.get('reclassify_pass_id')}: "
+        f"{result.get('reclassify_status')}, changed: {result.get('changed_count', 0)}"
+    )
+
+
+def reclassify_command(args) -> None:
+    """
+    Recompute AUTO predictions against the current examples -- the same RECLASSIFY job
+    Overview > Manual Operations runs (issue #373). Reviewed labels are never touched.
+    """
+    config = load_config()
+
+    engine = create_database(
+        config.state_dir,
+    )
+
+    with Session(engine) as session:
+        result = run_operation_job(
+            session,
+            config,
+            PipelineOperation.RECLASSIFY,
+        )
+
+    print(f"Reclassify pass {result.get('pass_id')}: {result.get('message', '')}")
+    print(f"Eligible: {result.get('eligible_count', 0)}")
+    print(f"Confident: {result.get('confident_count', 0)}")
+    print(f"Needs review: {result.get('needs_review_count', 0)}")
+    print(f"Unknown: {result.get('unknown_count', 0)}")
+    print(f"Changed: {result.get('changed_count', 0)}")
+
+
 def learn_command(args) -> None:
     config = load_config()
 
@@ -879,6 +937,19 @@ def main(argv: list[str] | None = None) -> None:
         help="Reclassify already classified crops",
     )
 
+    subparsers.add_parser(
+        "reembed",
+        help=(
+            "Recompute every stored embedding with the current model, then reclassify "
+            "(run after an embedding model upgrade)"
+        ),
+    )
+
+    subparsers.add_parser(
+        "reclassify",
+        help="Recompute automatic predictions from current examples (reviewed labels are kept)",
+    )
+
     learn_parser = subparsers.add_parser(
         "learn",
         help="Add reference examples for a dog or cat identity from images",
@@ -1098,6 +1169,12 @@ def dispatch_command(parser: argparse.ArgumentParser, args) -> None:
 
     elif args.command == "classify":
         classify_command(args)
+
+    elif args.command == "reembed":
+        reembed_command(args)
+
+    elif args.command == "reclassify":
+        reclassify_command(args)
 
     elif args.command == "learn":
         learn_command(args)

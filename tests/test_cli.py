@@ -196,3 +196,57 @@ def test_help_describes_learn_as_reference_example_import(capsys):
     output = capsys.readouterr().out
 
     assert "reference examples" in output
+
+
+@pytest.mark.parametrize(
+    ("command", "operation", "expected"),
+    [
+        ("reembed", PipelineOperation.REEMBED, "Examples re-embedded: 0"),
+        ("reclassify", PipelineOperation.RECLASSIFY, "Confident: 0"),
+    ],
+)
+def test_reembed_and_reclassify_run_through_job_runner(
+    capsys, command, operation, expected
+):
+    with (
+        patch("sys.argv", ["immich-dog-tagger", command]),
+        patch("immich_dog_tagger.services.job_execution.get_embedder"),
+    ):
+        main()
+
+    assert expected in capsys.readouterr().out
+
+    engine = create_database(load_config().state_dir)
+
+    with Session(engine) as session:
+        jobs = session.query(PipelineJob).all()
+        assert len(jobs) == 1
+        assert jobs[0].operation is operation
+        assert jobs[0].status is PipelineJobStatus.COMPLETED
+
+
+@pytest.mark.parametrize(
+    ("command", "service_path"),
+    [
+        ("reembed", "immich_dog_tagger.services.job_execution.ReembedService"),
+        ("reclassify", "immich_dog_tagger.services.job_execution.ReclassifyService"),
+    ],
+)
+def test_reembed_and_reclassify_failure_returns_nonzero(command, service_path):
+    with (
+        patch("sys.argv", ["immich-dog-tagger", command]),
+        patch("immich_dog_tagger.services.job_execution.get_embedder"),
+        patch(service_path, side_effect=RuntimeError("boom")),
+        pytest.raises(SystemExit) as exc,
+    ):
+        main()
+
+    assert exc.value.code == 1
+
+    engine = create_database(load_config().state_dir)
+
+    with Session(engine) as session:
+        jobs = session.query(PipelineJob).all()
+        assert len(jobs) == 1
+        assert jobs[0].status is PipelineJobStatus.FAILED
+        assert jobs[0].error_message == "boom"
