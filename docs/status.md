@@ -1074,7 +1074,7 @@
   cat call the existing per-photo endpoints, skipping and reporting stale members (#356).
   "Not `<identity>`" and "Review individually" stay. Keys `1`-`9` and `S` act on the selection.
   UI-only; no API changes.
-- [#373](https://github.com/bradreimer/immich-dog-tagger/issues/373) v1.36.0 `reembed` and
+- [#373](https://github.com/bradreimer/immich-dog-tagger/issues/373) v1.37.0 `reembed` and
   `reclassify` CLI commands. Both run the existing REEMBED/RECLASSIFY jobs through the shared job
   runner, as `detect` and `classify` do, so they are recorded in job history, and they exit with
   status 1 when the job fails. `reembed` also runs the Reclassify pass that the REEMBED job
