@@ -182,7 +182,7 @@ authoritative store that Immich and the local cache feed into and get synced bac
   selection queries, `services/metrics.py`, `services/status.py`) without adding a second axis
   those call sites would all need to learn about; `metrics.py`/`status.py` already had
   `DETECTION_FAILED`/`CLASSIFICATION_FAILED`-shaped buckets to extend the same way.
-- **Active-learning embedding examples are retained, not deleted.** `Scanner._mark_removed()`
+- **Active-learning embedding examples are retained, not deleted.** `mark_asset_removed()` (`scanner.py`)
   checks each of the removed asset's crop files against `EmbeddingExample.crop_path` before
   deleting it; a crop still backing an example is left on disk (and the example row untouched).
   Only crops with no such reference are removed. This favors not silently degrading
@@ -207,3 +207,25 @@ authoritative store that Immich and the local cache feed into and get synced bac
 - **`check-derived-data --repair` (FR-12) covers `missing_downloads`/`missing_crops` only,**
   matching the spec's own Acceptance Criteria wording. `missing_embedding_sources` has no source
   image left to reconstruct from and still requires a human (re-run `learn`/`import-review`).
+
+## Addendum: Repair on a photo Immich no longer has (#370)
+
+A full scan was the only path to `REMOVED`, so a deleted photo stayed in Review, broken, until
+the next scan. Clicking **Repair** on it failed with "could not refresh photo metadata" every
+time, because `ImmichClient.get_asset()` reported every failure the same way.
+
+- `get_asset()` raises `ImmichAssetNotFoundError` (a subclass of `ImmichGetAssetError`) when
+  Immich answers 400 or 404. Immich returns 400 "Not found or no asset.read access" for a deleted
+  asset's ID. 401, 403, 5xx, and network errors stay plain `ImmichGetAssetError`, since they say
+  nothing about whether the photo exists.
+- `AssetRepairService.repair()` catches it and calls `mark_asset_removed()`, the same helper scan
+  reconciliation uses. The row, detections, and review history are kept (ADR-001); the cached
+  original and crops not backing a reference example are deleted.
+- Repair's Immich client holds the default account's API key, and Immich also answers "not
+  found" for another account's photo. So Repair marks a photo removed only when it belongs to
+  that account (or has no account recorded). Otherwise it reports "Repair failed" and changes
+  nothing.
+- The batch stale-detection repair reports these photos as `removed`, separate from `repaired`
+  and `failed`.
+- Review drops the photo from the queue (as it already did after any Repair). Photo Lookup clears
+  the photo and shows the "Removed" message instead of re-fetching it.

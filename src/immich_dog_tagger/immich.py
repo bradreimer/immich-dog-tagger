@@ -50,6 +50,13 @@ class ImmichGetAssetError(Exception):
     pass
 
 
+class ImmichAssetNotFoundError(ImmichGetAssetError):
+    """Immich answered, and says it has no such asset (issue #370): a 404, or the 400 "Not found
+    or no asset.read access" Immich returns for a deleted asset's ID. A subclass so existing
+    ImmichGetAssetError handlers keep treating it as a failed fetch; AssetRepairService catches
+    it first to mark the asset removed instead."""
+
+
 class ImmichListAlbumsError(Exception):
     pass
 
@@ -302,9 +309,15 @@ class ImmichClient:
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            raise ImmichGetAssetError(
-                f"Immich API error {response.status_code}: {response.text}"
-            ) from exc
+            message = f"Immich API error {response.status_code}: {response.text}"
+
+            # Only "this asset doesn't exist" statuses -- never 401/403 (a credential or
+            # permission problem) or 5xx (Immich itself failing), which say nothing about
+            # whether the photo still exists (issue #370).
+            if response.status_code in (400, 404):
+                raise ImmichAssetNotFoundError(message) from exc
+
+            raise ImmichGetAssetError(message) from exc
         except httpx.HTTPError as exc:
             # Anything short of a response -- a malformed/unreachable configured URL, DNS
             # failure, connection refused/timeout, TLS error -- so AssetRepairService's existing

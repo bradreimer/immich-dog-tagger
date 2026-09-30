@@ -19,6 +19,45 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 1000
 
 
+def mark_asset_removed(
+    session: Session,
+    asset: Asset,
+    cache_dir: Path | None,
+) -> None:
+    """
+    Move an asset deleted in Immich to the terminal AssetStatus.REMOVED and
+    clean up its local files. Shared by scan reconciliation (issue #194) and
+    the per-photo Repair action (issue #370). The row itself is kept (ADR-001),
+    so review history/provenance referencing it stay queryable. Doesn't
+    commit -- the caller decides the transaction boundary.
+    """
+    asset.status = AssetStatus.REMOVED
+
+    if cache_dir is not None:
+        asset.cache_path(cache_dir).unlink(missing_ok=True)
+
+    for detection in asset.detections:
+        if detection.crop is not None:
+            _maybe_delete_crop_file(session, detection.crop.path)
+
+
+def _maybe_delete_crop_file(session: Session, crop_path: str) -> None:
+    in_use = session.scalar(
+        select(EmbeddingExample.id).where(
+            EmbeddingExample.crop_path == crop_path,
+        )
+    )
+
+    if in_use is not None:
+        # Retained: still backing an active-learning reference example
+        # (FR-5) -- deleting it here would silently degrade future
+        # classification quality for other photos, not just destroy
+        # this asset's own review history.
+        return
+
+    Path(crop_path).unlink(missing_ok=True)
+
+
 class Scanner:
     def __init__(
         self,
@@ -142,7 +181,7 @@ class Scanner:
                 self.session.rollback()
                 return removed_count
 
-            self._mark_removed(asset)
+            mark_asset_removed(self.session, asset, self.cache_dir)
             removed_count += 1
             since_commit += 1
 
@@ -160,32 +199,6 @@ class Scanner:
             )
 
         return removed_count
-
-    def _mark_removed(self, asset: Asset) -> None:
-        asset.status = AssetStatus.REMOVED
-
-        if self.cache_dir is not None:
-            asset.cache_path(self.cache_dir).unlink(missing_ok=True)
-
-        for detection in asset.detections:
-            if detection.crop is not None:
-                self._maybe_delete_crop_file(detection.crop.path)
-
-    def _maybe_delete_crop_file(self, crop_path: str) -> None:
-        in_use = self.session.scalar(
-            select(EmbeddingExample.id).where(
-                EmbeddingExample.crop_path == crop_path,
-            )
-        )
-
-        if in_use is not None:
-            # Retained: still backing an active-learning reference example
-            # (FR-5) -- deleting it here would silently degrade future
-            # classification quality for other photos, not just destroy
-            # this asset's own review history.
-            return
-
-        Path(crop_path).unlink(missing_ok=True)
 
     def _process_asset(
         self,

@@ -58,14 +58,17 @@ export function StaleDetectionRepairAction({ status, onRepaired }: Props) {
 
   const resultSummary = result && beforeFlagged !== null && (() => {
     const actualDrop = beforeFlagged - status.flagged;
-    const short = result.repaired > 0 && actualDrop < result.repaired;
+    const expectedDrop = result.repaired + result.removed;
+    const short = expectedDrop > 0 && actualDrop < expectedDrop;
 
     return (
       <p
         className={`w-full text-xs ${short ? "font-medium text-status-warning" : "text-muted-foreground"}`}
       >
         Repaired {result.repaired}, skipped {result.skipped_reviewed} reviewed, failed{" "}
-        {result.failed} — {beforeFlagged} → {status.flagged} still flagged
+        {result.failed}
+        {result.removed > 0 && `, removed ${result.removed} no longer in Immich`} —{" "}
+        {beforeFlagged} → {status.flagged} still flagged
         {short && " (fewer than expected -- may need investigation)"}.
       </p>
     );

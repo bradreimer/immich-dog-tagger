@@ -11,7 +11,7 @@ from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.enums import AssetStatus, ReviewActions
-from immich_dog_tagger.immich import ImmichAsset
+from immich_dog_tagger.immich import ImmichAsset, ImmichAssetNotFoundError
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -341,3 +341,23 @@ def test_repair_raises_nothing_when_nothing_flagged(session, tmp_path):
     summary = StaleDetectionService(session).repair(asset_repair_service)
 
     assert summary.total == 0
+
+
+def test_repair_counts_photos_gone_from_immich_as_removed(session, tmp_path):
+    # Issue #370: a flagged photo Immich no longer has is retired, not
+    # counted as repaired.
+    asset = _make_asset(session)
+    _make_detection(session, asset, x2=3500, y2=100)
+    session.commit()
+
+    asset_repair_service = _build_repair_service(session, tmp_path)
+    asset_repair_service.downloader.client.get_asset.side_effect = (
+        ImmichAssetNotFoundError("Immich API error 400: Not found")
+    )
+
+    summary = StaleDetectionService(session).repair(asset_repair_service)
+
+    assert summary.removed == 1
+    assert summary.repaired == 0
+    assert summary.failed == 0
+    assert StaleDetectionService(session).check().healthy
