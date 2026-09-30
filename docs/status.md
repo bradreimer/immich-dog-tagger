@@ -1057,6 +1057,12 @@
   warning naming how many stored vectors are stale and pointing at Re-embed. The classifications
   routes now return 404 only for a new `ClassificationNotFoundError`, so other failures surface
   as server errors instead of "not found".
+- [#368](https://github.com/bradreimer/immich-dog-tagger/issues/368) fixed the same mixed-model
+  crash in Grouped Review: `GET /review/groups` returned 500 ("array at index 0 has size 1536 and
+  the array at index 55 has size 512") because `RecommendationClusterService._build_clusters()`
+  stacked every pending crop's vector into one matrix. It now clusters each embedding model's
+  vectors separately (keyed by model and dimension), so crops still on the previous model stay
+  reviewable in their own groups until Re-embed runs, and no cluster ever mixes models.
 
 - [#366](https://github.com/bradreimer/immich-dog-tagger/issues/366) v1.35.0 Grouped review focus
   mode ([spec](specs/review-grouped-focus-mode.md)): Grouped mode now shows one group at a time
