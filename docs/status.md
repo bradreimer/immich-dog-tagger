@@ -1058,6 +1058,17 @@
   routes now return 404 only for a new `ClassificationNotFoundError`, so other failures surface
   as server errors instead of "not found".
 
+- [#366](https://github.com/bradreimer/immich-dog-tagger/issues/366) v1.35.0 Grouped review focus
+  mode ([spec](specs/review-grouped-focus-mode.md)): Grouped mode now shows one group at a time
+  ("Group X of N", Previous/Next, arrow keys) instead of a stacked list. Member thumbnails grew
+  from 64px to a responsive grid of at least 160px squares. The action panel reuses Queue mode's
+  `IdentityChooser`, `SpeciesChooser`, and `NotAnimalToggle`, applied to the selected members:
+  the starred identity approves (`approveCluster`), any other same-species identity reassigns
+  (`reassignCluster`, replacing #335's runner-up buttons), and Skip / wrong species / not a dog or
+  cat call the existing per-photo endpoints, skipping and reporting stale members (#356).
+  "Not `<identity>`" and "Review individually" stay. Keys `1`-`9` and `S` act on the selection.
+  UI-only; no API changes.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

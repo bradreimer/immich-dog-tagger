@@ -197,3 +197,7 @@ groups are in the queue rather than with how many photos are in it.
   `services/clusters.py` (`pending_pool()`/`clusters_in_pool()`, issue #334),
   `GET /review/groups`, `ui/src/features/review/components/ReviewGroupedPanel.tsx`,
   `ReviewGroupCard.tsx`, and `ReviewGroupSplitView.tsx`.
+- Superseded in part by [review-grouped-focus-mode.md](review-grouped-focus-mode.md) (issue #366):
+  groups are now shown one at a time with larger thumbnails and Queue mode's full action set, the
+  group view gained Queue mode's keyboard bindings (replacing FR-8), and FR-10's runner-up buttons
+  became the shared identity chooser.
