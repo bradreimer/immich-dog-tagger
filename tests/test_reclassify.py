@@ -55,6 +55,7 @@ def _add_identity(session, name, vector, species=Species.DOG):
             identity_id=identity.id,
             crop_path=f"{species.value}-{name.lower()}.jpg",
             embedding=embedding_to_blob(np.array(vector, dtype=np.float32)),
+            embedding_model=FakeBatchEmbedder.MODEL_ID,
             source=EmbeddingSources.BOOTSTRAP,
         )
     )
@@ -83,6 +84,7 @@ def _add_auto_classification(
         embedding=embedding_to_blob(np.array(embedding, dtype=np.float32))
         if embedding is not None
         else None,
+        embedding_model=FakeBatchEmbedder.MODEL_ID if embedding is not None else None,
     )
     session.add(classification)
     session.commit()
@@ -434,3 +436,43 @@ def test_reclassify_failure_marks_pass_failed_and_preserves_earlier_batches(engi
             .count()
         )
         assert updated == 1
+
+
+def test_reclassify_completes_with_embeddings_from_mixed_models(engine, caplog):
+    """
+    Issue #362: an install that upgraded its embedding model (ADR-010) but hasn't run Re-embed
+    yet holds vectors of different lengths. Reclassify must complete -- matching each crop only
+    against examples from its own model -- and name Re-embed as the fix, not crash on the first
+    cross-model comparison.
+    """
+    with Session(engine) as session:
+        legacy_identity = Identity(name="Legacy", species=Species.DOG)
+        session.add(legacy_identity)
+        session.flush()
+        session.add(
+            EmbeddingExample(
+                identity_id=legacy_identity.id,
+                crop_path="legacy-example.jpg",
+                embedding=embedding_to_blob(np.array([1, 0], dtype=np.float32)),
+                embedding_model="old:model",
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+        _add_identity(session, "Current", [1, 0, 0])
+
+        legacy = _add_auto_classification(session, "legacy.jpg")
+        legacy.embedding = embedding_to_blob(np.array([1, 0], dtype=np.float32))
+        legacy.embedding_model = "old:model"
+        current = _add_auto_classification(session, "current.jpg", embedding=[1, 0, 0])
+        session.commit()
+
+        with caplog.at_level("WARNING"):
+            result = ReclassifyService(session, FakeBatchEmbedder()).reclassify()
+
+        assert result.status is ClassificationPassStatus.COMPLETED
+
+        session.refresh(legacy)
+        session.refresh(current)
+        assert legacy.identity == "Legacy"
+        assert current.identity == "Current"
+        assert "run Re-embed" in caplog.text

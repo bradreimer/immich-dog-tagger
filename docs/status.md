@@ -1047,6 +1047,16 @@
   correction). `NotAnimalToggle.tsx` now reads "Reclassify" too, matching every other manual-
   reclassification surface; ADR-009 gained a consequence entry making explicit that a wording
   drift like this one is itself a violation of the contract, not a separate cosmetic issue.
+- [#362](https://github.com/bradreimer/immich-dog-tagger/issues/362) fixed a crash on installs that
+  upgraded to the MegaDescriptor embedder ([ADR-010](adr/ADR-010-dog-reid-embedding-model.md))
+  but hadn't run Re-embed yet. Stored 512-dim OpenCLIP vectors and new 1536-dim vectors were
+  compared directly, so every Reclassify failed with "shapes (512,) and (1536,) not aligned", and
+  `POST /classifications/{id}/species` returned 404 because the route mapped that `ValueError` to
+  "not found". `IdentityClassifier.classify()` now takes the query's `embedding_model` and only
+  compares examples stamped with the same model; every caller passes it. Reclassify logs a
+  warning naming how many stored vectors are stale and pointing at Re-embed. The classifications
+  routes now return 404 only for a new `ClassificationNotFoundError`, so other failures surface
+  as server errors instead of "not found".
 
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),

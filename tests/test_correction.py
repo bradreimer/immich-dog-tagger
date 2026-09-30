@@ -665,6 +665,63 @@ def test_correct_species_rescores_against_new_species_pool(engine):
         assert session.query(ReviewAction).count() == 0
 
 
+def test_correct_species_with_legacy_embedding_ignores_other_model_examples(engine):
+    """
+    Issue #362: POST /classifications/{id}/species returned 404 because rescoring a crop whose
+    embedding predates the model swap (ADR-010) against a newer, longer example raised a shape
+    ValueError. The crop must be rescored only against examples from its own model.
+    """
+    with Session(engine) as session:
+        legacy_cat = Identity(name="Legacy", species=Species.CAT)
+        current_cat = Identity(name="Current", species=Species.CAT)
+        session.add_all([legacy_cat, current_cat])
+        session.flush()
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=legacy_cat.id,
+                    crop_path="legacy-cat.jpg",
+                    embedding=embedding_to_blob(np.array([1, 0], dtype=np.float32)),
+                    embedding_model="old:model",
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+                EmbeddingExample(
+                    identity_id=current_cat.id,
+                    crop_path="current-cat.jpg",
+                    embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                    embedding_model="new:model",
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+            ]
+        )
+
+        crop = Crop(detection_id=1, path="mystery.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=-1.0,
+            source=ClassificationSources.AUTO,
+            embedding=embedding_to_blob(np.array([1, 0], dtype=np.float32)),
+            embedding_model="old:model",
+        )
+        session.add(classification)
+        session.commit()
+
+        service = ClassificationCorrectionService(
+            session,
+            classifier=IdentityClassifier(session),
+        )
+
+        result = service.correct_species(classification.id, Species.CAT)
+
+        assert crop.species == Species.CAT
+        assert result.identity == "Legacy"
+
+
 def test_correct_species_noop_when_unchanged(engine):
     with Session(engine) as session:
         crop = Crop(detection_id=1, path="dog.jpg", species=Species.DOG)

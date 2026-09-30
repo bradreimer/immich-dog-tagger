@@ -608,3 +608,52 @@ def test_classifier_returns_one_candidate_per_identity(engine):
 
         assert len(result.candidates) == 1
         assert result.candidates[0].identity == "Hermann"
+
+
+def test_classifier_only_compares_examples_from_the_same_embedding_model(engine):
+    """
+    Issue #362: after an embedding model swap (ADR-010) and before Re-embed runs, examples from
+    two models -- with different vector lengths -- coexist. Comparing across them used to raise
+    "shapes (512,) and (1536,) not aligned"; each vector must only meet its own model's examples.
+    """
+    with Session(engine) as session:
+        legacy_dog = Identity(name="Legacy")
+        current_dog = Identity(name="Current")
+        session.add_all([legacy_dog, current_dog])
+        session.flush()
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=legacy_dog.id,
+                    crop_path="legacy.jpg",
+                    embedding=embedding_to_blob(np.array([1, 0], dtype=np.float32)),
+                    embedding_model="old:model",
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+                EmbeddingExample(
+                    identity_id=current_dog.id,
+                    crop_path="current.jpg",
+                    embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                    embedding_model="new:model",
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+            ]
+        )
+        session.commit()
+
+        classifier = IdentityClassifier(session)
+
+        current = classifier.classify(
+            np.array([1, 0, 0], dtype=np.float32),
+            embedding_model="new:model",
+        )
+        legacy = classifier.classify(
+            np.array([1, 0], dtype=np.float32),
+            embedding_model="old:model",
+        )
+
+        assert current.identity == "Current"
+        assert [c.identity for c in current.candidates] == ["Current"]
+        assert legacy.identity == "Legacy"
+        assert [c.identity for c in legacy.candidates] == ["Legacy"]

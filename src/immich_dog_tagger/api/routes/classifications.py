@@ -15,7 +15,10 @@ from immich_dog_tagger.api.schemas import (
     SpeciesCorrectionRequest,
 )
 from immich_dog_tagger.services.app_settings import AutoReclassifyService
-from immich_dog_tagger.services.correction import ClassificationCorrectionService
+from immich_dog_tagger.services.correction import (
+    ClassificationCorrectionService,
+    ClassificationNotFoundError,
+)
 from immich_dog_tagger.services.review_query import ReviewQueryService
 
 router = APIRouter(
@@ -65,7 +68,7 @@ def correct(
             classification_id,
             request.identity,
         )
-    except ValueError as e:
+    except ClassificationNotFoundError as e:
         raise HTTPException(
             status_code=404,
             detail=str(e),
@@ -105,7 +108,7 @@ def correct_species(
             classification_id,
             request.species,
         )
-    except ValueError as e:
+    except ClassificationNotFoundError as e:
         raise HTTPException(
             status_code=404,
             detail=str(e),
