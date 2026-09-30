@@ -1047,6 +1047,13 @@
   correction). `NotAnimalToggle.tsx` now reads "Reclassify" too, matching every other manual-
   reclassification surface; ADR-009 gained a consequence entry making explicit that a wording
   drift like this one is itself a violation of the contract, not a separate cosmetic issue.
+- [#363](https://github.com/bradreimer/immich-dog-tagger/issues/363) fixed Review dropping an
+  item as "reprocessed elsewhere" when its species was changed to Dog. The species correction
+  rescores the crop, and a reference example whose vector came from a different embedding model
+  (not yet recomputed by Re-embed, ADR-010) has a different length, so `np.dot` raised
+  `ValueError`; the route maps that to 404, which the UI reads as a stale item (#356).
+  `IdentityClassifier.classify()` now skips incomparable examples and logs a warning suggesting
+  Re-embed, so species correction always succeeds.
 
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),

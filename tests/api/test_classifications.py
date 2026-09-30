@@ -179,6 +179,56 @@ def test_correct_species(api_client, engine):
         assert session.query(ReviewAction).count() == 0
 
 
+def test_correct_species_with_stale_embedding_model_does_not_404(api_client, engine):
+    """
+    Regression: when the crop's stored vector and the target species'
+    reference examples came from different embedding models (different
+    lengths), rescoring raised ValueError, which the route reported as a
+    404 -- and the Review page read that as "reprocessed elsewhere" and
+    dropped the item instead of letting the owner pick an identity.
+    """
+    with Session(engine) as session:
+        dog_rex = Identity(name="Rex", species=Species.DOG)
+        session.add(dog_rex)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=dog_rex.id,
+                crop_path="rex.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+
+        crop = Crop(detection_id=1, path="mystery.jpg", species=Species.CAT)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity=None,
+            confidence=-1.0,
+            embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+        )
+        session.add(classification)
+        session.commit()
+
+        classification_id = classification.id
+
+    response = api_client.post(
+        f"/classifications/{classification_id}/species",
+        json={
+            "species": "dog",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["species"] == "dog"
+    assert body["prediction"]["identity"] is None
+
+
 def test_correct_species_not_found(api_client):
     response = api_client.post(
         "/classifications/999999/species",

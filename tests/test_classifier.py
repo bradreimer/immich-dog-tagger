@@ -111,6 +111,47 @@ def test_classifier_selects_best_matching_example(engine):
         assert result.candidates[0].similarity > result.candidates[1].similarity
 
 
+def test_classifier_skips_examples_from_a_different_embedding_model(engine):
+    """
+    A reference example whose vector hasn't been re-embedded under the
+    current model (ADR-010) has a different length than the query. It can't
+    be compared, so it's skipped instead of raising from np.dot.
+    """
+    with Session(engine) as session:
+        hermann = Identity(name="Hermann")
+        fibs = Identity(name="Fibs")
+
+        session.add_all([hermann, fibs])
+        session.flush()
+
+        session.add_all(
+            [
+                EmbeddingExample(
+                    identity_id=hermann.id,
+                    crop_path="hermann.jpg",
+                    embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+                EmbeddingExample(
+                    identity_id=fibs.id,
+                    crop_path="fibs-legacy.jpg",
+                    embedding=embedding_to_blob(
+                        np.array([1, 0, 0, 0], dtype=np.float32)
+                    ),
+                    source=EmbeddingSources.BOOTSTRAP,
+                ),
+            ]
+        )
+        session.commit()
+
+        result = IdentityClassifier(session).classify(
+            np.array([0.9, 0.1, 0], dtype=np.float32)
+        )
+
+        assert result.identity == "Hermann"
+        assert [c.identity for c in result.candidates] == ["Hermann"]
+
+
 def test_classifier_never_returns_cross_species_candidate(engine):
     # DT-1110 acceptance criterion 3: a cat crop is never suggested a dog
     # identity, and vice versa. Both identities have the *same* name and

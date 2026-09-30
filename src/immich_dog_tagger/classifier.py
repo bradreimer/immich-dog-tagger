@@ -2,6 +2,7 @@
 Dog identity classifier.
 """
 
+import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
@@ -14,6 +15,8 @@ from .enums import Species
 from .models import EmbeddingExample, Identity
 from .policy import DEFAULT_POLICY, ClassifierPolicy
 from .scoring import SimilarityScorer
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -91,12 +94,21 @@ class IdentityClassifier:
         excluded = frozenset(excluded_identities or ())
 
         identity_scores: dict[str, ClassificationCandidate] = {}
+        incomparable = 0
 
         for example in self._load_examples(species):
             if example.identity.name in excluded:
                 continue
 
             known = blob_to_embedding(example.embedding)
+
+            if known.shape != embedding.shape:
+                # A vector from a different embedding model (ADR-010) that
+                # Re-embed hasn't recomputed yet. It can't be compared at
+                # all, so skip it rather than let np.dot raise -- a raise
+                # here surfaced as a bogus 404 on species correction.
+                incomparable += 1
+                continue
 
             similarity = self._cosine_similarity(
                 embedding,
@@ -125,6 +137,14 @@ class IdentityClassifier:
 
             if existing is None or candidate.weighted_score > existing.weighted_score:
                 identity_scores[candidate.identity] = candidate
+
+        if incomparable:
+            logger.warning(
+                "Skipped %d %s reference example(s) with a different embedding "
+                "size than the query; run Re-embed to recompute stale vectors",
+                incomparable,
+                species,
+            )
 
         candidates = list(identity_scores.values())
 
