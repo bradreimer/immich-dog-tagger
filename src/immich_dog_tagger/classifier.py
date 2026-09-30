@@ -68,8 +68,17 @@ class IdentityClassifier:
         latitude: float | None = None,
         longitude: float | None = None,
         excluded_identities: Collection[str] | None = None,
+        embedding_model: str | None = None,
     ) -> ClassificationResult:
         """
+        `embedding_model` names the model that produced `embedding` (ADR-010).
+        When given, only examples stamped with the same model are compared:
+        a vector is only meaningful against another vector from the same
+        model, and after a model swap two models' vectors are usually not
+        even the same length. Until Re-embed brings every stored vector onto
+        the current model, a crop is matched only against examples it can
+        actually be compared with (issue #362).
+
         `excluded_identities` are identities a human has rejected for this
         particular crop (issue #144). They are dropped before scoring, so a
         rejected pet cannot come back as the accepted identity *or* as a
@@ -94,6 +103,12 @@ class IdentityClassifier:
 
         for example in self._load_examples(species):
             if example.identity.name in excluded:
+                continue
+
+            if (
+                embedding_model is not None
+                and example.embedding_model != embedding_model
+            ):
                 continue
 
             known = blob_to_embedding(example.embedding)

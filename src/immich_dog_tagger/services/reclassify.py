@@ -189,6 +189,8 @@ class ReclassifyService:
             self._snapshot_trend_fields(classification_pass)
             return message
 
+        self._warn_if_stale_embeddings()
+
         classifier = IdentityClassifier(self.session, policy=self.policy)
 
         confident = needs_review = unknown = changed = 0
@@ -253,6 +255,7 @@ class ReclassifyService:
                     latitude=latitude,
                     longitude=longitude,
                     excluded_identities=rejections.get(classification.crop_id),
+                    embedding_model=classification.embedding_model,
                 )
 
                 if result.identity != classification.identity:
@@ -307,6 +310,45 @@ class ReclassifyService:
         self._snapshot_trend_fields(classification_pass)
 
         return f"Reclassified {total} crop(s)."
+
+    def _warn_if_stale_embeddings(self) -> None:
+        """
+        Name the fix when stored vectors predate the current embedding model (ADR-010). The
+        classifier only compares vectors from the same model (issue #362), so a pass still
+        completes -- but until Re-embed runs, older crops are matched only against older
+        examples, and newly learned examples can't help them.
+        """
+        current = self.embedder.MODEL_ID
+
+        stale_examples = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(EmbeddingExample)
+                .where(EmbeddingExample.embedding_model != current)
+            )
+            or 0
+        )
+
+        stale_classifications = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(CropClassification)
+                .where(
+                    CropClassification.embedding.is_not(None),
+                    CropClassification.embedding_model != current,
+                )
+            )
+            or 0
+        )
+
+        if stale_examples or stale_classifications:
+            logger.warning(
+                "%d example(s) and %d classification(s) have embeddings from a model other "
+                "than %s; run Re-embed (Overview > Manual Operations) to bring them up to date",
+                stale_examples,
+                stale_classifications,
+                current,
+            )
 
     def _snapshot_trend_fields(
         self,

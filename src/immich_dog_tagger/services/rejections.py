@@ -226,6 +226,7 @@ class RejectionService:
             latitude=latitude,
             longitude=longitude,
             excluded_identities=excluded,
+            embedding_model=classification.embedding_model,
         )
 
         classification.identity = result.identity

@@ -46,6 +46,7 @@ from immich_dog_tagger.services.job_runner import PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.reclassify import ReclassifyService
+from immich_dog_tagger.services.reembed import ReembedService
 from immich_dog_tagger.services.sync import SyncService
 from immich_dog_tagger.services.sync_policy import SyncPolicy
 
@@ -214,6 +215,7 @@ def test_failed_reclassify_job_can_be_retried_without_corruption(engine):
                 identity_id=identity.id,
                 crop_path="hermann.jpg",
                 embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                embedding_model=FakeVectorEmbedder.MODEL_ID,
                 source=EmbeddingSources.BOOTSTRAP,
             )
         )
@@ -299,6 +301,8 @@ def test_existing_project_migrates_and_continues_working(tmp_path: Path):
     """Scenario 11: an existing project (pre-dating the v1.0.0 schema
     additions) upgrades cleanly and the review/reclassify loop keeps working."""
     database_path = tmp_path / "state.db"
+    example_path = tmp_path / "hermann.jpg"
+    example_path.touch()
     connection = sqlite3.connect(database_path)
     connection.execute(
         "CREATE TABLE identities (id INTEGER PRIMARY KEY, name VARCHAR(64) NOT NULL UNIQUE)"
@@ -328,7 +332,7 @@ def test_existing_project_migrates_and_continues_working(tmp_path: Path):
         "VALUES (?, ?, ?, ?)",
         (
             1,
-            "hermann.jpg",
+            str(example_path),
             np.array([1, 0, 0], dtype=np.float32).tobytes(),
             "BOOTSTRAP",
         ),
@@ -360,8 +364,14 @@ def test_existing_project_migrates_and_continues_working(tmp_path: Path):
         session.commit()
 
         embedder = FakeVectorEmbedder(
-            {"new-dog.jpg": [1.0, 0.0, 0.0], "hermann.jpg": [1.0, 0.0, 0.0]}
+            {"new-dog.jpg": [1.0, 0.0, 0.0], str(example_path): [1.0, 0.0, 0.0]}
         )
+
+        # The migrated example carries the legacy OpenCLIP stamp, so it is only comparable
+        # after Re-embed brings it onto the current model -- the step ADR-010 requires of
+        # every upgraded install (issue #362).
+        examples_done, _ = ReembedService(session, embedder).reembed_examples()
+        assert examples_done == 1
 
         classification_service = ClassificationService(
             session, embedder, IdentityClassifier(session)
@@ -595,7 +605,7 @@ def test_cluster_approval_survives_reclassification(engine):
         correction.correct(seed.classification.id, "Fibs")
         correction.correct(other.classification.id, "Hermann")
 
-        ReclassifyService(session, IdentityClassifier(session)).reclassify()
+        ReclassifyService(session, embedder).reclassify()
 
         proposal = RecommendationClusterService(session).clusters(
             identity="Fibs",
@@ -638,7 +648,7 @@ def test_cluster_approval_survives_reclassification(engine):
         # Reclassification is derived state and must never rewrite a human
         # decision -- twice over, to pin idempotency.
         for _ in range(2):
-            ReclassifyService(session, IdentityClassifier(session)).reclassify()
+            ReclassifyService(session, embedder).reclassify()
 
             for classification in session.query(CropClassification).all():
                 assert classification.identity == approved[classification.id]

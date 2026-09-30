@@ -252,6 +252,7 @@ class ClassificationService:
             latitude=latitude,
             longitude=longitude,
             excluded_identities=excluded_identities,
+            embedding_model=self.embedder.MODEL_ID,
         )
 
         candidates = [

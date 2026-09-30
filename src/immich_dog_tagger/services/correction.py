@@ -21,6 +21,14 @@ from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 logger = logging.getLogger(__name__)
 
 
+class ClassificationNotFoundError(ValueError):
+    """
+    The classification a correction targets does not exist. A distinct type so the API maps only
+    this case to 404; any other failure while correcting (issue #362's embedding shape mismatch,
+    for one) must surface as the server error it is, not as "not found".
+    """
+
+
 class ClassificationCorrectionService:
     def __init__(
         self,
@@ -54,7 +62,9 @@ class ClassificationCorrectionService:
         )
 
         if classification is None:
-            raise ValueError(f"Classification {classification_id} not found")
+            raise ClassificationNotFoundError(
+                f"Classification {classification_id} not found"
+            )
 
         original_identity = classification.identity
         crop_path = Path(classification.crop.path) if self.learner is not None else None
@@ -152,7 +162,9 @@ class ClassificationCorrectionService:
         )
 
         if classification is None:
-            raise ValueError(f"Classification {classification_id} not found")
+            raise ClassificationNotFoundError(
+                f"Classification {classification_id} not found"
+            )
 
         crop = classification.crop
         original_species = crop.species
@@ -184,6 +196,7 @@ class ClassificationCorrectionService:
                 captured_at=captured_at,
                 latitude=latitude,
                 longitude=longitude,
+                embedding_model=classification.embedding_model,
             )
 
             classification.identity = result.identity
