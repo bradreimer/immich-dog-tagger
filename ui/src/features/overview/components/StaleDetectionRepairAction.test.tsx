@@ -25,6 +25,7 @@ function buildResult(
     repaired: 2,
     skipped_reviewed: 1,
     failed: 0,
+    removed: 0,
     ...overrides,
   };
 }
@@ -125,6 +126,35 @@ describe("StaleDetectionRepairAction", () => {
     const summary = await screen.findByText(/3 → 1 still flagged/);
     expect(summary).toHaveTextContent(
       "Repaired 2, skipped 1 reviewed, failed 0 — 3 → 1 still flagged.",
+    );
+    expect(summary.className).not.toContain("text-status-warning");
+  });
+
+  it("reports photos removed because Immich no longer has them", async () => {
+    // Issue #370.
+    vi.mocked(api.repairStaleDetections).mockResolvedValue(
+      buildResult({ repaired: 1, skipped_reviewed: 0, failed: 0, removed: 1 }),
+    );
+
+    const { rerender } = render(
+      <StaleDetectionRepairAction status={buildStatus({ flagged: 2 })} onRepaired={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, repair/i }));
+
+    await waitFor(() => expect(api.repairStaleDetections).toHaveBeenCalled());
+
+    rerender(
+      <StaleDetectionRepairAction
+        status={buildStatus({ healthy: true, flagged: 0 })}
+        onRepaired={vi.fn()}
+      />,
+    );
+
+    const summary = await screen.findByText(/2 → 0 still flagged/);
+    expect(summary).toHaveTextContent(
+      "Repaired 1, skipped 0 reviewed, failed 0, removed 1 no longer in Immich — 2 → 0 still flagged.",
     );
     expect(summary.className).not.toContain("text-status-warning");
   });

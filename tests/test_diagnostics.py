@@ -228,7 +228,7 @@ def test_repair_stale_detections_endpoint_skips_reviewed_by_default(api_client, 
     assert response.status_code == 200
 
     data = response.json()
-    assert data == {"repaired": 0, "skipped_reviewed": 1, "failed": 0}
+    assert data == {"repaired": 0, "skipped_reviewed": 1, "failed": 0, "removed": 0}
     mock_repair_service.repair.assert_not_called()
 
 
@@ -247,7 +247,7 @@ def test_repair_stale_detections_endpoint_include_reviewed_opt_in(api_client, en
     assert response.status_code == 200
 
     data = response.json()
-    assert data == {"repaired": 1, "skipped_reviewed": 0, "failed": 0}
+    assert data == {"repaired": 1, "skipped_reviewed": 0, "failed": 0, "removed": 0}
     mock_repair_service.repair.assert_called_once_with("asset-1")
 
 

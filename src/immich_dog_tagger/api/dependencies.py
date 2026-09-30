@@ -13,6 +13,7 @@ from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.runtime import get_embedder, get_yolo_detector
+from immich_dog_tagger.services.accounts import resolve_account
 from immich_dog_tagger.services.app_settings import (
     AppSettingsService,
     AutoReclassifyService,
@@ -263,6 +264,10 @@ def get_asset_repair_service(
             IdentityClassifier(session, policy=policy),
             policy=policy,
         ),
+        # get_immich_client() holds the default account's API key (issue
+        # #370): only that account's photos may be marked removed on a
+        # "not found" from Immich.
+        account_id=resolve_account(session, config, None).id,
     )
 
 

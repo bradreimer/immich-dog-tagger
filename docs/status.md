@@ -1081,6 +1081,15 @@
   already includes. This gives a shell recovery path for
   [#371](https://github.com/bradreimer/immich-dog-tagger/issues/371): `immich-dog-tagger reembed`.
 
+- [#370](https://github.com/bradreimer/immich-dog-tagger/issues/370) v1.36.0 Repair removes a
+  photo Immich no longer has ([spec addendum](specs/asset-state-reconciliation.md)): Repair on a
+  photo deleted in Immich used to fail with "could not refresh photo metadata" and leave it broken
+  in Review. `ImmichClient.get_asset()` now raises `ImmichAssetNotFoundError` for a 400/404, and
+  Repair marks the photo `REMOVED` with the same `mark_asset_removed()` helper scan reconciliation
+  uses (extracted from `Scanner`). Other errors (401/403/5xx/network) and another account's photo
+  never remove anything. The batch stale-detection repair counts these as `removed`. Photo Lookup
+  clears a removed photo instead of re-fetching it.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

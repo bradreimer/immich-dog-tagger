@@ -64,6 +64,8 @@ export interface StaleDetectionRepairResult {
   repaired: number;
   skipped_reviewed: number;
   failed: number;
+  /** Photos Immich no longer has, marked removed instead of repaired (issue #370). */
+  removed: number;
 }
 
 export interface Diagnostics {

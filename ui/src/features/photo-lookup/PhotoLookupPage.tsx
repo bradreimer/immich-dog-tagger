@@ -251,6 +251,14 @@ export function PhotoLookupPage() {
   const handleRepaired = async (repairResult: AssetRepairResult) => {
     setRepairMessage(repairResult.message);
     setStaleMessage(null);
+
+    // Issue #370: Immich no longer has this photo, so there's nothing left
+    // to show -- clear it rather than rendering a broken image.
+    if (repairResult.status === "removed") {
+      setResult(null);
+      return;
+    }
+
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
   };
 
@@ -279,6 +287,10 @@ export function PhotoLookupPage() {
           </form>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
+
+          {!result && repairMessage && (
+            <p className="text-sm text-muted-foreground">{repairMessage}</p>
+          )}
         </CardContent>
       </Card>
 

@@ -67,10 +67,12 @@ class StaleDetectionRepairSummary:
     repaired: int = 0
     skipped_reviewed: int = 0
     failed: int = 0
+    # Photos Immich no longer has, retired rather than repaired (issue #370).
+    removed: int = 0
 
     @property
     def total(self) -> int:
-        return self.repaired + self.skipped_reviewed + self.failed
+        return self.repaired + self.skipped_reviewed + self.failed + self.removed
 
 
 class StaleDetectionService:
@@ -162,8 +164,12 @@ class StaleDetectionService:
                 continue
 
             try:
-                asset_repair_service.repair(immich_asset_id)
-                summary.repaired += 1
+                result = asset_repair_service.repair(immich_asset_id)
+
+                if result.status == AssetStatus.REMOVED:
+                    summary.removed += 1
+                else:
+                    summary.repaired += 1
             except Exception:
                 # Isolated per-asset, mirroring DetectionService's own
                 # per-asset error handling -- one bad photo shouldn't abort
