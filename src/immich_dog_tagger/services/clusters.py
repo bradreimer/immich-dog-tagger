@@ -476,22 +476,40 @@ class RecommendationClusterService:
         if not classifications:
             return []
 
-        matrix = np.vstack(embeddings)
+        # Vectors from two embedding models are not comparable (ADR-010),
+        # and after a model switch their dimensions differ too (issue #368).
+        # Cluster each model's vectors on their own, so a crop still on the
+        # previous model stays reviewable instead of crashing the pass or
+        # being hidden until Re-embed runs. Keyed by dimension as well, so a
+        # mislabelled row can never reach `np.vstack` with the wrong shape.
+        partitions: dict[tuple[str | None, int], list[int]] = {}
 
-        groups = agglomerative_clusters(
-            matrix,
-            distance_threshold=self.distance_threshold,
-        )
+        for index, (classification, embedding) in enumerate(
+            zip(classifications, embeddings, strict=True)
+        ):
+            key = (classification.embedding_model, embedding.shape[-1])
+            partitions.setdefault(key, []).append(index)
 
-        clusters = [
-            self._to_cluster(
-                [classifications[index] for index in group],
-                classifications[medoid(matrix, group)],
-                identity,
-                sort,
+        clusters: list[RecommendationCluster] = []
+
+        for indices in partitions.values():
+            members = [classifications[index] for index in indices]
+            matrix = np.vstack([embeddings[index] for index in indices])
+
+            groups = agglomerative_clusters(
+                matrix,
+                distance_threshold=self.distance_threshold,
             )
-            for group in groups
-        ]
+
+            clusters.extend(
+                self._to_cluster(
+                    [members[index] for index in group],
+                    members[medoid(matrix, group)],
+                    identity,
+                    sort,
+                )
+                for group in groups
+            )
 
         return _sort_clusters(clusters, sort)
 

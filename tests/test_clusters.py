@@ -83,6 +83,7 @@ def _classification(
     confidence: float = 0.75,
     species: Species = Species.DOG,
     embedding: list[float] | None = (1.0, 0.0, 0.0),
+    embedding_model: str | None = None,
     candidates: list[dict] | None = None,
     captured_at: datetime | None = None,
     reviewed: bool = False,
@@ -116,6 +117,7 @@ def _classification(
             if embedding is not None
             else None
         ),
+        embedding_model=embedding_model,
     )
 
     session.add(classification)
@@ -1420,3 +1422,66 @@ class TestClusterApprovalServiceMove:
             )
 
             assert after.clusters == []
+
+
+def test_clusters_keep_embedding_models_apart(engine):
+    """
+    After an embedding-model switch the pool mixes vectors of different
+    models and dimensions (issue #368). Each model clusters on its own:
+    nothing crashes, nothing is hidden, and no cluster mixes models.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(
+            session,
+            path="new-a.jpg",
+            embedding=[1.0, 0.0, 0.0, 0.0],
+            embedding_model="new",
+        )
+        _classification(
+            session,
+            path="new-b.jpg",
+            embedding=[0.99, 0.05, 0.0, 0.0],
+            embedding_model="new",
+        )
+        _classification(
+            session, path="old-a.jpg", embedding=[1.0, 0.0], embedding_model="old"
+        )
+        _classification(
+            session, path="old-b.jpg", embedding=[0.99, 0.05], embedding_model="old"
+        )
+
+        proposal = RecommendationClusterService(session).clusters(
+            identity="Fibs",
+            species=Species.DOG,
+        )
+
+        assert proposal.excluded == []
+        assert proposal.clustered_count == 4
+
+        paths = sorted(
+            sorted(member.path.name for member in cluster.members)
+            for cluster in proposal.clusters
+        )
+        assert paths == [["new-a.jpg", "new-b.jpg"], ["old-a.jpg", "old-b.jpg"]]
+
+
+def test_clusters_never_mix_models_with_the_same_dimension(engine):
+    """Same shape is not enough: vectors from two models are not comparable."""
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(
+            session, path="a.jpg", embedding=[1.0, 0.0, 0.0], embedding_model="a"
+        )
+        _classification(
+            session, path="b.jpg", embedding=[1.0, 0.0, 0.0], embedding_model="b"
+        )
+
+        proposal = RecommendationClusterService(session).clusters(
+            identity="Fibs",
+            species=Species.DOG,
+        )
+
+        assert [cluster.size for cluster in proposal.clusters] == [1, 1]

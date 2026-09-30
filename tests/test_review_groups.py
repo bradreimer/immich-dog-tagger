@@ -41,6 +41,7 @@ def _classification(
     confidence: float = 0.75,
     species: Species = Species.DOG,
     embedding: list[float] | None = (1.0, 0.0, 0.0),
+    embedding_model: str | None = None,
     candidates: list[dict] | None = None,
     reviewed: bool = False,
 ) -> CropClassification:
@@ -69,6 +70,7 @@ def _classification(
             if embedding is not None
             else None
         ),
+        embedding_model=embedding_model,
     )
 
     session.add(classification)
@@ -483,3 +485,36 @@ def test_member_losing_on_visual_similarity_alone_gets_generic_reason(engine):
                 classification_id=mismatched.id, reason="different-top-prediction"
             )
         ]
+
+
+def test_groups_survive_a_pool_mixing_embedding_models(engine):
+    """
+    Regression for issue #368: `GET /review/groups` crashed with a NumPy
+    shape error when some pending crops still carried a previous model's
+    (differently sized) embedding.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        _classification(
+            session,
+            path="new-a.jpg",
+            embedding=[1.0, 0.0, 0.0, 0.0],
+            embedding_model="new",
+        )
+        _classification(
+            session,
+            path="new-b.jpg",
+            embedding=[0.99, 0.05, 0.0, 0.0],
+            embedding_model="new",
+        )
+        _classification(
+            session, path="old-a.jpg", embedding=[1.0, 0.0], embedding_model="old"
+        )
+        _classification(
+            session, path="old-b.jpg", embedding=[0.99, 0.05], embedding_model="old"
+        )
+
+        proposal = ReviewGroupingService(session).groups()
+
+        assert [group.cluster.size for group in proposal.groups] == [2, 2]
