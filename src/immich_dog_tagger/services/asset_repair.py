@@ -20,6 +20,11 @@ CropClassification and ReviewAction rows already recorded against them --
 i.e. repairing a reviewed photo discards its review history. That's an
 accepted, visible cost of an explicit per-photo action, not something to
 silently do library-wide.
+
+A photo Immich no longer has (issue #370) can't be repaired, only retired:
+Repair marks it AssetStatus.REMOVED -- the same terminal state a full scan
+reconciles deleted photos to (issue #194) -- so it leaves Review instead of
+staying there broken until the next scan.
 """
 
 import logging
@@ -31,9 +36,9 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.enums import AssetStatus, ClassificationMode
-from immich_dog_tagger.immich import ImmichGetAssetError
+from immich_dog_tagger.immich import ImmichAssetNotFoundError, ImmichGetAssetError
 from immich_dog_tagger.models import Asset
-from immich_dog_tagger.scanner import apply_immich_metadata
+from immich_dog_tagger.scanner import apply_immich_metadata, mark_asset_removed
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.detection import DetectionService
 
@@ -65,8 +70,14 @@ class AssetRepairService:
         downloader: Downloader,
         detection_service: DetectionService,
         classification_service: ClassificationService,
+        account_id: int | None = None,
     ):
         self.session = session
+        # Issue #346/#370: which configured account downloader.client's API
+        # key belongs to. Immich answers "not found" for another account's
+        # asset too, so only an asset from this account (or one with no
+        # account recorded) is ever marked removed on that answer.
+        self.account_id = account_id
         self.downloader = downloader
         self.detection_service = detection_service
         self.classification_service = classification_service
@@ -88,6 +99,30 @@ class AssetRepairService:
         # reason to stop before attempting the rest of the pipeline.
         try:
             immich_asset = self.downloader.client.get_asset(immich_asset_id)
+        except ImmichAssetNotFoundError as e:
+            if not self._client_owns(asset):
+                return self._result(
+                    asset,
+                    message=(
+                        "Repair failed: this photo belongs to another Immich "
+                        f"account, which Repair can't reach: {e}"
+                    ),
+                )
+
+            mark_asset_removed(self.session, asset, self.downloader.cache_dir)
+            self.session.commit()
+
+            logger.info(
+                "Repair marked asset id=%d immich_asset_id=%s removed: "
+                "no longer in Immich",
+                asset_id,
+                immich_asset_id,
+            )
+
+            return self._result(
+                asset,
+                message="Removed: this photo no longer exists in Immich.",
+            )
         except ImmichGetAssetError as e:
             return self._result(
                 asset,
@@ -139,6 +174,13 @@ class AssetRepairService:
                 f"Repaired: {detected.detections} detection(s) found, "
                 f"{classified.classified} classified. Metadata refreshed from Immich."
             ),
+        )
+
+    def _client_owns(self, asset: Asset) -> bool:
+        return (
+            self.account_id is None
+            or asset.account_id is None
+            or asset.account_id == self.account_id
         )
 
     def _result(

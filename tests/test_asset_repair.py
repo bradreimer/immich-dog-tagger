@@ -8,14 +8,25 @@ from sqlalchemy.orm import Session
 from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.downloader import Downloader
-from immich_dog_tagger.enums import AssetStatus, ReviewActions, Species
-from immich_dog_tagger.immich import ImmichAsset, ImmichGetAssetError
+from immich_dog_tagger.enums import (
+    AssetStatus,
+    EmbeddingSources,
+    ReviewActions,
+    Species,
+)
+from immich_dog_tagger.immich import (
+    ImmichAsset,
+    ImmichAssetNotFoundError,
+    ImmichGetAssetError,
+)
 from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
     Detection,
+    EmbeddingExample,
     Identity,
+    ImmichAccount,
     PetOccurrence,
     ReviewAction,
 )
@@ -381,3 +392,153 @@ def test_repair_short_circuits_when_metadata_fetch_fails(engine, tmp_path):
 
         session.refresh(asset)
         assert asset.captured_at == original_captured_at
+
+
+def _make_asset_with_crop(session, tmp_path, account_id=None):
+    asset = Asset(
+        immich_asset_id="target",
+        checksum="xyz",
+        extension=".jpg",
+        status=AssetStatus.CLASSIFIED,
+        account_id=account_id,
+    )
+    session.add(asset)
+    session.flush()
+
+    detection = Detection(
+        asset_id=asset.id,
+        label="dog",
+        confidence=0.9,
+        x1=0,
+        y1=0,
+        x2=10,
+        y2=10,
+    )
+    session.add(detection)
+    session.flush()
+
+    crop_path = tmp_path / "crop.jpg"
+    crop_path.write_bytes(b"crop")
+    crop = Crop(detection_id=detection.id, path=str(crop_path))
+    session.add(crop)
+    session.flush()
+
+    classification = CropClassification(
+        crop_id=crop.id, identity="Hermann", confidence=0.9
+    )
+    session.add(classification)
+    session.flush()
+
+    session.add(
+        ReviewAction(
+            classification_id=classification.id,
+            action=ReviewActions.CORRECT,
+            identity="Hermann",
+        )
+    )
+    session.commit()
+
+    cached = asset.cache_path(tmp_path)
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(b"original")
+
+    return asset, crop_path, cached
+
+
+def test_repair_marks_photo_gone_from_immich_as_removed(engine, tmp_path):
+    # Issue #370: Immich answers 400 for a deleted photo. Repair retires it
+    # instead of leaving it broken in Review.
+    with Session(engine) as session:
+        asset, crop_path, cached = _make_asset_with_crop(session, tmp_path)
+
+        service, client = _build_service(session, tmp_path)
+        client.get_asset.side_effect = ImmichAssetNotFoundError(
+            "Immich API error 400: Not found or no asset.read access"
+        )
+
+        result = service.repair("target")
+
+        assert result.status == AssetStatus.REMOVED
+        assert result.message == "Removed: this photo no longer exists in Immich."
+        client.download_asset.assert_not_called()
+
+        session.refresh(asset)
+        assert asset.status == AssetStatus.REMOVED
+        assert not cached.exists()
+        assert not crop_path.exists()
+
+        # Kept, not hard-deleted (ADR-001).
+        assert session.query(Detection).count() == 1
+        assert session.query(ReviewAction).count() == 1
+
+
+def test_repair_keeps_crop_backing_a_reference_example(engine, tmp_path):
+    with Session(engine) as session:
+        asset, crop_path, _ = _make_asset_with_crop(session, tmp_path)
+
+        identity = Identity(name="Hermann")
+        session.add(identity)
+        session.flush()
+        session.add(
+            EmbeddingExample(
+                identity_id=identity.id,
+                crop_path=str(crop_path),
+                embedding=b"123",
+                source=EmbeddingSources.REVIEW,
+            )
+        )
+        session.commit()
+
+        service, client = _build_service(session, tmp_path)
+        client.get_asset.side_effect = ImmichAssetNotFoundError("404")
+
+        service.repair("target")
+
+        session.refresh(asset)
+        assert asset.status == AssetStatus.REMOVED
+        assert crop_path.exists()
+
+
+def test_repair_does_not_remove_on_other_immich_errors(engine, tmp_path):
+    with Session(engine) as session:
+        asset, crop_path, cached = _make_asset_with_crop(session, tmp_path)
+
+        service, client = _build_service(session, tmp_path)
+        client.get_asset.side_effect = ImmichGetAssetError("Immich API error 500")
+
+        result = service.repair("target")
+
+        assert result.status == AssetStatus.CLASSIFIED
+        assert result.message.startswith("Repair failed")
+
+        session.refresh(asset)
+        assert asset.status == AssetStatus.CLASSIFIED
+        assert cached.exists()
+        assert crop_path.exists()
+
+
+def test_repair_does_not_remove_another_accounts_photo(engine, tmp_path):
+    # Repair's client holds one account's API key; Immich answers "not found"
+    # for another account's photo too, which doesn't mean it was deleted.
+    with Session(engine) as session:
+        primary = ImmichAccount(name="primary")
+        other = ImmichAccount(name="other")
+        session.add_all([primary, other])
+        session.flush()
+
+        asset, crop_path, cached = _make_asset_with_crop(
+            session, tmp_path, account_id=other.id
+        )
+
+        service, client = _build_service(session, tmp_path)
+        service.account_id = primary.id
+        client.get_asset.side_effect = ImmichAssetNotFoundError("400")
+
+        result = service.repair("target")
+
+        assert result.message.startswith("Repair failed")
+
+        session.refresh(asset)
+        assert asset.status == AssetStatus.CLASSIFIED
+        assert cached.exists()
+        assert crop_path.exists()

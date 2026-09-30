@@ -5,6 +5,7 @@ import pytest
 
 from immich_dog_tagger.immich import (
     ImmichAddAssetsToAlbumError,
+    ImmichAssetNotFoundError,
     ImmichClient,
     ImmichGetAssetError,
     ImmichRemoveAssetsFromAlbumError,
@@ -738,6 +739,40 @@ def test_get_asset_raises_on_http_error():
 
     with pytest.raises(ImmichGetAssetError):
         client.get_asset("does-not-exist")
+
+
+@pytest.mark.parametrize("status_code", [400, 404])
+def test_get_asset_raises_not_found_when_immich_has_no_such_asset(status_code):
+    # Issue #370: Immich answers 400 "Not found or no asset.read access" (or
+    # 404) for a deleted asset's ID.
+    def handler(request):
+        return httpx.Response(status_code, text="Not found or no asset.read access")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichAssetNotFoundError):
+        client.get_asset("deleted")
+
+
+@pytest.mark.parametrize("status_code", [401, 403, 500, 503])
+def test_get_asset_other_errors_are_not_not_found(status_code):
+    # A credential, permission or server failure says nothing about whether
+    # the photo still exists, so it must never read as "not found".
+    def handler(request):
+        return httpx.Response(status_code, text="nope")
+
+    transport = httpx.MockTransport(handler)
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=transport, headers={"x-api-key": "secret"})
+
+    with pytest.raises(ImmichGetAssetError) as excinfo:
+        client.get_asset("abc123")
+
+    assert not isinstance(excinfo.value, ImmichAssetNotFoundError)
 
 
 def test_get_asset_raises_on_connection_error():

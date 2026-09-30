@@ -897,6 +897,7 @@ class StaleDetectionRepairResponse(BaseModel):
     repaired: int
     skipped_reviewed: int
     failed: int
+    removed: int
 
     @classmethod
     def from_summary(cls, summary):
@@ -904,6 +905,7 @@ class StaleDetectionRepairResponse(BaseModel):
             repaired=summary.repaired,
             skipped_reviewed=summary.skipped_reviewed,
             failed=summary.failed,
+            removed=summary.removed,
         )
 
 

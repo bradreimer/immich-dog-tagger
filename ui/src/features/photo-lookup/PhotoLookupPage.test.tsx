@@ -113,6 +113,44 @@ describe("PhotoLookupPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("clears the photo when Repair removes it because Immich no longer has it", async () => {
+    // Issue #370.
+    vi.mocked(api.getDogs).mockResolvedValue([HERMANN]);
+    vi.mocked(api.getPhotoLookup).mockResolvedValue(buildResult());
+    vi.mocked(api.repairAsset).mockResolvedValue({
+      asset_id: 1,
+      immich_asset_id: "asset-42",
+      status: "removed",
+      detections: 0,
+      dogs: 0,
+      cats: 0,
+      classified: 0,
+      message: "Removed: this photo no longer exists in Immich.",
+      captured_at: null,
+      latitude: null,
+      longitude: null,
+      country: null,
+      state: null,
+      city: null,
+    });
+
+    window.history.replaceState({}, "", "/photo-lookup?assetId=asset-42");
+
+    render(<PhotoLookupPage />);
+
+    await screen.findAllByText("Hermann (dog)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, repair/i }));
+
+    expect(
+      await screen.findByText("Removed: this photo no longer exists in Immich."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Hermann (dog)")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Repair" })).not.toBeInTheDocument();
+    expect(api.getPhotoLookup).toHaveBeenCalledTimes(1);
+  });
+
   it("does not run a lookup on load when no assetId query param is present", () => {
     vi.mocked(api.getDogs).mockResolvedValue([]);
 
