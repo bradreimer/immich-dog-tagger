@@ -18,6 +18,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     ReviewAction,
 )
+from immich_dog_tagger.services.crop_files import discard_crop_file
 
 logger = logging.getLogger(__name__)
 
@@ -295,10 +296,9 @@ class DerivedDataService:
 
                     for detection in detections:
                         if detection.crop is not None:
-                            crop_path = Path(detection.crop.path)
-
-                            if crop_path.exists():
-                                crop_path.unlink()
+                            # Keeps a file a learned example still uses
+                            # (issue #380).
+                            discard_crop_file(self.session, detection.crop.path)
 
                         self.session.delete(detection)
 

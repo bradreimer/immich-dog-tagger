@@ -1099,6 +1099,11 @@
   (CLI and the Overview Derived Data tile) now removes them, so missing embedding sources reach 0.
   The confirmation states how many examples will go. Examples whose path a live crop still uses
   are kept; the crop repair regenerates that file.
+  [#380](https://github.com/bradreimer/immich-dog-tagger/issues/380): `detect --force`, per-photo
+  Repair, and derived-data crop repair no longer delete crop files a learned example uses. New
+  crops reuse the `{asset}_{index}.jpg` names, so the file moves to an `_example_` name and the
+  example follows it (`services/crop_files.py`), rather than being deleted or overwritten with a
+  different detection's crop.
 
 - [#370](https://github.com/bradreimer/immich-dog-tagger/issues/370) v1.36.0 Repair removes a
   photo Immich no longer has ([spec addendum](specs/asset-state-reconciliation.md)): Repair on a

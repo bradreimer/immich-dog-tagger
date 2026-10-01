@@ -339,6 +339,31 @@ def test_repair_keeps_example_sharing_a_live_missing_crop(session, tmp_path):
     assert session.get(EmbeddingExample, example.id) is not None
 
 
+def test_repair_keeps_another_crop_file_a_learned_example_uses(session, tmp_path):
+    # Issue #380: repairing one missing crop re-detects the whole photo, so
+    # its other crops are discarded -- one a learned example uses must move
+    # aside rather than be deleted.
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+    file = asset.cache_path(cache_dir)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.touch()
+    _make_crop(session, _make_detection(session, asset), str(tmp_path / "missing.jpg"))
+    learned = tmp_path / "learned.jpg"
+    learned.write_bytes(b"learned crop")
+    _make_crop(session, _make_detection(session, asset), str(learned))
+    example = _make_example(session, str(learned))
+    session.commit()
+
+    summary = DerivedDataService(session, cache_dir).repair()
+
+    assert summary.crops_repaired == 1
+    assert summary.examples_removed == 0
+    session.refresh(example)
+    assert Path(example.crop_path).read_bytes() == b"learned crop"
+    assert not learned.exists()
+
+
 def test_repair_isolates_a_failed_example_removal(session, tmp_path, monkeypatch):
     first = _make_example(session, str(tmp_path / "a.jpg"))
     second = _make_example(session, str(tmp_path / "b.jpg"))

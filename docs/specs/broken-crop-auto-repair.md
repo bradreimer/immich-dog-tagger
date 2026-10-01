@@ -136,4 +136,9 @@ its photo was removed from Immich, so there's nothing to rebuild it from or re-e
 - The Overview Derived Data tile includes orphaned examples in its repair-eligible count, and the
   confirmation states how many learned examples will be removed.
 - `check-derived-data` guidance points at `check-derived-data --repair` instead of `import-review`.
+- Issue #380 keeps new orphans from appearing: re-detect and the crop repair discard crop files
+  through `discard_crop_file()` (`services/crop_files.py`), which moves a file a learned example
+  uses to a unique `{stem}_example_{hex}.jpg` name and updates the example's `crop_path`, rather
+  than deleting it. Re-detect writes new crops to the same `{asset}_{index}.jpg` names, so leaving
+  the file in place would let a different detection's crop replace the example's image.
 
