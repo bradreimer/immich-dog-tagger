@@ -1084,6 +1084,13 @@
   longer shows photos deleted in Immich. Queue mode already excluded `REMOVED` photos, but the
   Grouped Review pools didn't, so those photos' images returned 404. All review surfaces now share
   one `classification_asset_removed()` condition.
+- [#377](https://github.com/bradreimer/immich-dog-tagger/issues/377) v1.37.2 OpenCLIP is the
+  embedding model again ([ADR-011](adr/ADR-011-restore-openclip-embedding-model.md)). After
+  Re-embed under MegaDescriptor, a real library's confidently classified crops fell from about
+  10,400 to 586. A leave-one-out check on 4,693 reviewed examples found 49.4% top-1 accuracy when
+  the match had to come from a different day, so no threshold could recover it.
+  `OpenClipEmbedder` reuses the legacy `openclip:` model stamp, so never-re-embedded vectors stay
+  comparable. Owners who ran Re-embed under MegaDescriptor run `reembed` once after upgrading.
 
 - [#370](https://github.com/bradreimer/immich-dog-tagger/issues/370) v1.36.0 Repair removes a
   photo Immich no longer has ([spec addendum](specs/asset-state-reconciliation.md)): Repair on a
