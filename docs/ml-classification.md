@@ -34,10 +34,11 @@ back before transposing. See
 
 ## Components
 
-**`DogReIDEmbedder`** turns a crop image into a vector embedding, using a model trained via metric
-learning specifically for individual animal re-identification (MegaDescriptor-L-384) rather than a
-general image-text model -- see [ADR-010](adr/ADR-010-dog-reid-embedding-model.md) for why, and
-[docs/specs/dog-reid-embeddings.md](specs/dog-reid-embeddings.md) for the full requirements. Every
+**`OpenClipEmbedder`** turns a crop image into a vector embedding with OpenCLIP (`ViT-B-32` /
+`laion2b_s34b_b79k`). MegaDescriptor briefly replaced it
+([ADR-010](adr/ADR-010-dog-reid-embedding-model.md)), but it could not match the same dog across
+different days, so OpenCLIP was restored -- see
+[ADR-011](adr/ADR-011-restore-openclip-embedding-model.md) for the measurements. Every
 consumer of an embedding (`IdentityClassifier`, `scoring.py`, the review queue, Reclassify,
 Learning) only ever depends on the `Embedder` protocol (`embed`/`embed_batch`, an L2-normalized
 `float32` vector) -- none of them know or care which model produced it.

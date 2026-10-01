@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR-011](ADR-011-restore-openclip-embedding-model.md). MegaDescriptor could
+not match the same dog across different days on a real library, so OpenCLIP is the embedder
+again. The `embedding_model` tracking and `reembed` operation described here remain.
 
 ## Context
 

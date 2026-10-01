@@ -1,5 +1,10 @@
 # Dog re-ID embeddings
 
+> **Status: model choice reverted.** [ADR-011](../adr/ADR-011-restore-openclip-embedding-model.md)
+> ([#377](https://github.com/bradreimer/immich-dog-tagger/issues/377)) restored OpenCLIP after
+> MegaDescriptor reached only 49% top-1 accuracy when matching reviewed examples across different
+> days. FR-2 (`embedding_model` tracking) and FR-3 (`reembed`) remain in effect.
+
 ## Purpose
 
 Replace OpenCLIP as the embedding backbone behind classification with a model purpose-built for
