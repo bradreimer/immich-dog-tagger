@@ -171,9 +171,12 @@ def check_derived_data_command(args) -> None:
 
         if getattr(args, "repair", False):
             summary = svc.repair()
-            print(f"Repaired {summary.total_repaired} asset(s):")
-            print(f"  Routed back to download: {summary.downloads_repaired}")
-            print(f"  Routed back to detect:   {summary.crops_repaired}")
+            print(f"Repaired {summary.total_repaired} item(s):")
+            print(f"  Routed back to download:   {summary.downloads_repaired}")
+            print(f"  Routed back to detect:     {summary.crops_repaired}")
+            print(f"  Orphaned examples removed: {summary.examples_removed}")
+            if summary.failed:
+                print(f"  Failed:                    {summary.failed}")
             print()
             report = svc.check()
         else:

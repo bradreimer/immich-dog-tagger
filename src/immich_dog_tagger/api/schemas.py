@@ -912,6 +912,7 @@ class StaleDetectionRepairResponse(BaseModel):
 class DerivedDataRepairResponse(BaseModel):
     downloads_repaired: int
     crops_repaired: int
+    examples_removed: int
     failed: int
     total_repaired: int
 
@@ -920,6 +921,7 @@ class DerivedDataRepairResponse(BaseModel):
         return cls(
             downloads_repaired=summary.downloads_repaired,
             crops_repaired=summary.crops_repaired,
+            examples_removed=summary.examples_removed,
             failed=summary.failed,
             total_repaired=summary.total_repaired,
         )

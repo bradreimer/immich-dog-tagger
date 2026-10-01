@@ -12,6 +12,7 @@ from immich_dog_tagger.enums import AssetStatus, Species
 from immich_dog_tagger.images import upright_size
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import Asset, Crop, Detection
+from immich_dog_tagger.services.crop_files import discard_crop_file
 
 logger = logging.getLogger(__name__)
 
@@ -132,10 +133,8 @@ class DetectionService:
 
                 for detection in existing:
                     if detection.crop:
-                        crop_path = Path(detection.crop.path)
-
-                        if crop_path.exists():
-                            crop_path.unlink()
+                        # Keeps a file a learned example still uses (issue #380).
+                        discard_crop_file(self.session, detection.crop.path)
 
                     self.session.delete(detection)
 

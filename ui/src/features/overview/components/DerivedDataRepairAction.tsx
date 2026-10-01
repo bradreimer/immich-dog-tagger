@@ -13,11 +13,10 @@ interface Props {
 
 /**
  * Batch-runs DerivedDataService.repair() (issue #194/#323) over every
- * currently missing download/crop file (docs/specs/broken-crop-auto-repair.md).
- * Scoped to missing_downloads/missing_crops -- the two categories repair()
- * actually fixes -- rather than total_missing, since missing embedding
- * sources have no automatic fix (they still need a human to re-run
- * learn/import-review).
+ * currently missing download/crop file (docs/specs/broken-crop-auto-repair.md)
+ * and removes orphaned learned examples (issue #379). Scoped to the categories
+ * repair() actually fixes rather than total_missing: a missing embedding
+ * source that still has a live crop comes back with that crop's repair.
  */
 export function DerivedDataRepairAction({ status, onRepaired }: Props) {
   const [confirming, setConfirming] = useState(false);
@@ -29,7 +28,8 @@ export function DerivedDataRepairAction({ status, onRepaired }: Props) {
   // StaleDetectionRepairAction rationale, #282/#293).
   const [beforeEligible, setBeforeEligible] = useState<number | null>(null);
 
-  const repairEligible = status.missing_downloads + status.missing_crops;
+  const repairEligible =
+    status.missing_downloads + status.missing_crops + status.orphaned_examples;
 
   // A fully successful repair flips repairEligible to 0, which would
   // otherwise unmount this whole component (and the result it just posted)
@@ -65,7 +65,10 @@ export function DerivedDataRepairAction({ status, onRepaired }: Props) {
       >
         Repaired {result.total_repaired} ({result.downloads_repaired} download
         {result.downloads_repaired === 1 ? "" : "s"}, {result.crops_repaired} crop
-        {result.crops_repaired === 1 ? "" : "s"}), failed {result.failed} —{" "}
+        {result.crops_repaired === 1 ? "" : "s"}
+        {result.examples_removed > 0 &&
+          `, ${result.examples_removed} orphaned example${result.examples_removed === 1 ? "" : "s"} removed`}
+        ), failed {result.failed} —{" "}
         {beforeEligible} → {repairEligible} still missing
         {short && " (fewer than expected -- may need investigation)"}.
       </p>
@@ -84,6 +87,13 @@ export function DerivedDataRepairAction({ status, onRepaired }: Props) {
           <p className="text-sm text-muted-foreground">
             Repairs {repairEligible} missing derived file{repairEligible === 1 ? "" : "s"} by
             re-downloading or re-detecting as needed.{" "}
+            {status.orphaned_examples > 0 && (
+              <>
+                <span className="font-medium">{status.orphaned_examples}</span> learned example
+                {status.orphaned_examples === 1 ? "" : "s"} with no source crop left to rebuild
+                from will be removed.{" "}
+              </>
+            )}
             {status.reviewed_at_risk > 0 && (
               <>
                 <span className="font-medium">{status.reviewed_at_risk}</span> of the affected
@@ -120,7 +130,7 @@ export function DerivedDataRepairAction({ status, onRepaired }: Props) {
       <IconAlertTriangle className="h-4 w-4 shrink-0 text-status-warning" aria-hidden="true" />
       <p className="text-sm">
         <span className="font-medium">{repairEligible} file{repairEligible === 1 ? "" : "s"}</span>{" "}
-        missing (downloads/crops) and ready to repair.
+        missing and ready to repair.
       </p>
       <Button
         variant="outline"

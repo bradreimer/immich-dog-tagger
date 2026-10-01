@@ -21,11 +21,13 @@ export interface DerivedDataStatus {
   missing_embedding_sources: number;
   total_missing: number;
   reviewed_at_risk: number;
+  orphaned_examples: number;
 }
 
 export interface DerivedDataRepairResult {
   downloads_repaired: number;
   crops_repaired: number;
+  examples_removed: number;
   failed: number;
   total_repaired: number;
 }

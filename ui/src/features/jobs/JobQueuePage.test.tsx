@@ -48,6 +48,7 @@ function buildDiagnostics(overrides: Partial<Diagnostics> = {}): Diagnostics {
       missing_embedding_sources: 0,
       total_missing: 0,
       reviewed_at_risk: 0,
+      orphaned_examples: 0,
     },
     stale_detections: { healthy: true, flagged: 0, reviewed_at_risk: 0 },
     ...overrides,

@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.enums import AssetStatus
-from immich_dog_tagger.models import Asset, Crop, Detection
+from immich_dog_tagger.models import (
+    Asset,
+    Crop,
+    Detection,
+    EmbeddingExample,
+    Identity,
+)
 from immich_dog_tagger.services.detection import BATCH_SIZE, DetectionService
 
 
@@ -355,6 +361,63 @@ def test_detection_force_replaces_existing_crop(
 
         assert len(crops) == 1
         assert crops[0].path != str(old_crop)
+
+
+def test_detection_force_keeps_a_crop_file_a_learned_example_uses(
+    engine,
+    tmp_path,
+):
+    # Issue #380: re-detect writes new crops to the same {asset}_{index}.jpg
+    # names, so the example's image must move out of the way rather than be
+    # deleted or overwritten with a different detection's crop.
+    old_crop = tmp_path / "abc123_0.jpg"
+    old_crop.write_bytes(b"learned crop")
+
+    class SameNameCropWriter:
+        def write(self, image_path, asset_id, detections):
+            old_crop.write_bytes(b"new crop")
+            return [(0, old_crop)]
+
+    with Session(engine) as session:
+        asset = Asset(
+            immich_asset_id="abc123",
+            checksum="xyz",
+            extension=".jpg",
+            status=AssetStatus.DETECTED,
+        )
+        session.add(asset)
+        session.flush()
+
+        detection = Detection(
+            asset_id=asset.id, label="cat", confidence=0.9, x1=1, y1=2, x2=50, y2=60
+        )
+        session.add(detection)
+        session.flush()
+        session.add(Crop(detection_id=detection.id, path=str(old_crop)))
+
+        identity = Identity(name="Rex")
+        session.add(identity)
+        session.flush()
+        example = EmbeddingExample(
+            identity_id=identity.id,
+            crop_path=str(old_crop),
+            embedding=b"\x00" * 4,
+            source="review",
+        )
+        session.add(example)
+        session.commit()
+
+        asset.cache_path(tmp_path).write_bytes(b"data")
+
+        DetectionService(
+            FakeDetector(), session, tmp_path, crop_writer=SameNameCropWriter()
+        ).run(force=True)
+
+        session.refresh(example)
+        kept = Path(example.crop_path)
+        assert kept != old_crop
+        assert kept.read_bytes() == b"learned crop"
+        assert old_crop.read_bytes() == b"new crop"
 
 
 def test_detection_failure_is_isolated_to_the_failing_asset(

@@ -18,6 +18,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     ReviewAction,
 )
+from immich_dog_tagger.services.crop_files import discard_crop_file
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,11 @@ class DerivedDataReport:
     # deletes all of an affected asset's Detection rows, which cascades to
     # any CropClassification/ReviewAction tied to them.
     reviewed_at_risk: int = 0
+    # The missing_embedding_sources that are orphaned (issue #379): no live
+    # Crop row references the path, so the bounding box it was cut from is
+    # gone and there is nothing to rebuild it from. repair() removes these.
+    # The rest share a path with a missing crop and come back with it.
+    orphaned_example_paths: list[str] = field(default_factory=list)
 
     @property
     def healthy(self) -> bool:
@@ -57,6 +63,7 @@ class DerivedDataReport:
             "missing_embedding_sources": len(self.missing_embedding_sources),
             "total_missing": self.total_missing,
             "reviewed_at_risk": self.reviewed_at_risk,
+            "orphaned_examples": len(self.orphaned_example_paths),
         }
 
 
@@ -64,11 +71,12 @@ class DerivedDataReport:
 class DerivedDataRepairSummary:
     downloads_repaired: int = 0
     crops_repaired: int = 0
+    examples_removed: int = 0
     failed: int = 0
 
     @property
     def total_repaired(self) -> int:
-        return self.downloads_repaired + self.crops_repaired
+        return self.downloads_repaired + self.crops_repaired + self.examples_removed
 
 
 def _load_check_candidates(
@@ -126,9 +134,14 @@ def _scan_check_candidates(
         if not Path(path).exists():
             report.missing_crops.append(path)
 
+    live_crop_paths = set(crop_paths)
+
     for path in example_paths:
         if not Path(path).exists():
             report.missing_embedding_sources.append(path)
+
+            if path not in live_crop_paths:
+                report.orphaned_example_paths.append(path)
 
     return report
 
@@ -214,13 +227,16 @@ class DerivedDataService:
         """
         Turn `check()`'s report into an actual fix (issue #194/FR-12):
         missing downloads and missing crops are automatically routed back
-        through the pipeline. Missing embedding sources are left alone --
-        there is nothing to regenerate them from; that still needs a human
-        (re-run learn/import-review).
+        through the pipeline. Orphaned embedding examples -- crop file gone and
+        no live Crop row left to regenerate it from (issue #379) -- are
+        removed: their bounding box was already discarded by an earlier
+        re-detect/repair or their photo was removed, so they can never be
+        re-embedded. An example whose path a live Crop row still references is
+        left alone; the crop repair below regenerates that file.
 
-        Each asset is committed (or rolled back) individually so one asset's
+        Each asset/example is committed (or rolled back) individually so one
         failure can't abort the rest of the batch or leave an earlier,
-        already-repaired asset's changes uncommitted (issue #323/FR-6).
+        already-repaired item's changes uncommitted (issue #323/FR-6).
         """
         report = self.check()
         summary = DerivedDataRepairSummary()
@@ -280,10 +296,9 @@ class DerivedDataService:
 
                     for detection in detections:
                         if detection.crop is not None:
-                            crop_path = Path(detection.crop.path)
-
-                            if crop_path.exists():
-                                crop_path.unlink()
+                            # Keeps a file a learned example still uses
+                            # (issue #380).
+                            discard_crop_file(self.session, detection.crop.path)
 
                         self.session.delete(detection)
 
@@ -305,6 +320,30 @@ class DerivedDataService:
                     )
                     summary.failed += 1
 
+        if report.orphaned_example_paths:
+            examples = self.session.scalars(
+                select(EmbeddingExample).where(
+                    EmbeddingExample.crop_path.in_(set(report.orphaned_example_paths))
+                )
+            ).all()
+
+            for example in examples:
+                try:
+                    if Path(example.crop_path).exists():
+                        # Reappeared since check() -- no longer orphaned.
+                        continue
+
+                    self.session.delete(example)
+                    self.session.commit()
+                    summary.examples_removed += 1
+                except Exception:
+                    self.session.rollback()
+                    logger.exception(
+                        "Derived-data orphaned example removal failed for example id %s",
+                        example.id,
+                    )
+                    summary.failed += 1
+
         return summary
 
     @staticmethod
@@ -323,10 +362,12 @@ class DerivedDataService:
                 " Re-detect to rebuild crops:"
             )
             lines.append("  immich-dog-tagger detect")
-        if report.missing_embedding_sources:
+        if report.orphaned_example_paths:
+            # Not import-review: that only imports cache/review/confirmed/, so
+            # it can't rebuild these (issue #379).
             lines.append(
-                f"# {len(report.missing_embedding_sources)} embedding source file(s) missing."
-                " Re-run learn/import-review to rebuild embeddings:"
+                f"# {len(report.orphaned_example_paths)} learned example(s) have no source crop"
+                " left to rebuild from. Remove them with:"
             )
-            lines.append("  immich-dog-tagger import-review")
+            lines.append("  immich-dog-tagger check-derived-data --repair")
         return lines
