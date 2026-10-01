@@ -8,7 +8,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.embeddings import embedding_to_blob
-from immich_dog_tagger.enums import ClusterSort, ReviewActions, Species
+from immich_dog_tagger.enums import AssetStatus, ClusterSort, ReviewActions, Species
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -115,6 +115,39 @@ def test_groups_span_every_identity_with_pending_work(engine):
         assert proposal.truncated_identities is False
         assert {group.identity for group in proposal.groups} == {"Fibs", "Rex"}
         assert all(group.cluster.size == 2 for group in proposal.groups)
+
+
+def test_groups_exclude_photos_removed_from_immich(engine):
+    """
+    Issue #375: Queue mode already hides photos deleted in Immich, and
+    their crop images 404. Grouped mode must hide them too -- including
+    not counting an identity whose only pending work is removed photos.
+    """
+    with Session(engine) as session:
+        _identity(session, "Fibs")
+        _identity(session, "Rex")
+
+        _classification(
+            session, path="fibs-a.jpg", identity="Fibs", embedding=[1.0, 0.0, 0.0]
+        )
+        _classification(
+            session, path="fibs-b.jpg", identity="Fibs", embedding=[0.99, 0.05, 0.0]
+        )
+        removed = [
+            _classification(
+                session, path=path, identity="Rex", embedding=[0.0, 1.0, 0.0]
+            )
+            for path in ("rex-a.jpg", "rex-b.jpg")
+        ]
+
+        for classification in removed:
+            classification.crop.detection.asset.status = AssetStatus.REMOVED
+        session.commit()
+
+        proposal = ReviewGroupingService(session).groups()
+
+        assert proposal.identity_count == 1
+        assert [group.identity for group in proposal.groups] == ["Fibs"]
 
 
 def test_singleton_clusters_are_excluded(engine):

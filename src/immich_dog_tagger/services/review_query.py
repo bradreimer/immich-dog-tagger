@@ -136,6 +136,20 @@ class LibraryPage:
     offset: int
 
 
+def classification_asset_removed():
+    """
+    SQL condition: the classification's photo was reconciled out because it
+    was deleted in Immich (issue #194/FR-3). Such a photo shouldn't be
+    surfaced for human action any more -- there's nothing left to review it
+    against, and `GET /crops/{id}` refuses to serve its image. Shared by
+    every review surface (Queue and Grouped Review, issue #375) so they agree
+    on what "pending review" means.
+    """
+    return CropClassification.crop.has(
+        Crop.detection.has(Detection.asset.has(Asset.status == AssetStatus.REMOVED))
+    )
+
+
 class ReviewQueryService:
     def __init__(
         self,
@@ -305,7 +319,7 @@ class ReviewQueryService:
                 (CropClassification.identity.is_(None))
                 | (CropClassification.confidence < threshold)
             )
-            .where(~self._asset_removed())
+            .where(~classification_asset_removed())
         )
 
         return self.session.scalar(query) or 0
@@ -360,7 +374,7 @@ class ReviewQueryService:
                 (CropClassification.identity.is_(None))
                 | (CropClassification.confidence < threshold)
             )
-            .where(~self._asset_removed())
+            .where(~classification_asset_removed())
             .order_by(
                 priority.asc(),
                 func.random(),
@@ -725,14 +739,6 @@ class ReviewQueryService:
             select(ReviewAction.id).where(
                 ReviewAction.classification_id == CropClassification.id,
             )
-        )
-
-    def _asset_removed(self):
-        # A photo reconciled out because it was deleted in Immich (issue
-        # #194/FR-3) shouldn't be surfaced for human action any more --
-        # there's nothing left to review it against.
-        return CropClassification.crop.has(
-            Crop.detection.has(Detection.asset.has(Asset.status == AssetStatus.REMOVED))
         )
 
     def _review_reason(

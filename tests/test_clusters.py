@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.embeddings import embedding_to_blob
 from immich_dog_tagger.enums import (
+    AssetStatus,
     ClassificationSources,
     ClusterSort,
     EmbeddingSources,
@@ -619,6 +620,37 @@ def test_pending_pool_excludes_confidently_classified_unreviewed_rows(engine):
         ids = {row.id for row in pool.rows}
         assert needs_review.id in ids
         assert confident.id not in ids
+
+
+def test_pool_excludes_photos_removed_from_immich(engine):
+    """
+    Issue #375: a photo deleted in Immich and reconciled to REMOVED is
+    already excluded from Queue mode, and `GET /crops/{id}` 404s its image.
+    Both the per-pet pool and Grouped mode's shared pool must exclude it
+    too, or Grouped Review shows broken images.
+    """
+    with Session(engine) as session:
+        _identity(session)
+
+        kept = _classification(session, path="kept.jpg", embedding=[1.0, 0.0, 0.0])
+        removed = _classification(
+            session, path="removed.jpg", embedding=[0.99, 0.05, 0.0]
+        )
+        removed.crop.detection.asset.status = AssetStatus.REMOVED
+        session.commit()
+
+        service = RecommendationClusterService(session)
+
+        pool_ids = {row.id for row in service.pending_pool(Species.DOG).rows}
+        assert pool_ids == {kept.id}
+
+        proposal = service.clusters(identity="Fibs", species=Species.DOG)
+        member_ids = {
+            member.classification_id
+            for cluster in proposal.clusters
+            for member in cluster.members
+        }
+        assert member_ids == {kept.id}
 
 
 def test_pending_pool_confidence_filter_uses_the_configured_policy(engine):
