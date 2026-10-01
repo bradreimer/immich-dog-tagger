@@ -1080,6 +1080,10 @@
   status 1 when the job fails. `reembed` also runs the Reclassify pass that the REEMBED job
   already includes. This gives a shell recovery path for
   [#371](https://github.com/bradreimer/immich-dog-tagger/issues/371): `immich-dog-tagger reembed`.
+- [#375](https://github.com/bradreimer/immich-dog-tagger/issues/375) v1.37.1 Grouped Review no
+  longer shows photos deleted in Immich. Queue mode already excluded `REMOVED` photos, but the
+  Grouped Review pools didn't, so those photos' images returned 404. All review surfaces now share
+  one `classification_asset_removed()` condition.
 
 - [#370](https://github.com/bradreimer/immich-dog-tagger/issues/370) v1.36.0 Repair removes a
   photo Immich no longer has ([spec addendum](specs/asset-state-reconciliation.md)): Repair on a
