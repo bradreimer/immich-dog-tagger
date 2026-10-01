@@ -17,6 +17,7 @@ function buildStatus(overrides: Partial<DerivedDataStatus> = {}): DerivedDataSta
     missing_embedding_sources: 0,
     total_missing: 3,
     reviewed_at_risk: 1,
+    orphaned_examples: 0,
     ...overrides,
   };
 }
@@ -27,6 +28,7 @@ function buildResult(
   return {
     downloads_repaired: 1,
     crops_repaired: 2,
+    examples_removed: 0,
     failed: 0,
     total_repaired: 3,
     ...overrides,
@@ -49,10 +51,9 @@ describe("DerivedDataRepairAction", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders nothing when only embedding sources are missing", () => {
-    // repair() can't fix missing embedding sources (needs a human re-run of
-    // learn/import-review), so the action shouldn't offer a Repair button
-    // that would do nothing.
+  it("renders nothing when only non-orphaned embedding sources are missing", () => {
+    // These come back with their crop's repair, so on their own there's
+    // nothing for the Repair button to do.
     const { container } = render(
       <DerivedDataRepairAction
         status={buildStatus({
@@ -66,6 +67,51 @@ describe("DerivedDataRepairAction", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers repair and states the count when only orphaned examples are missing", () => {
+    render(
+      <DerivedDataRepairAction
+        status={buildStatus({
+          missing_downloads: 0,
+          missing_crops: 0,
+          missing_embedding_sources: 3,
+          orphaned_examples: 3,
+          total_missing: 3,
+          reviewed_at_risk: 0,
+        })}
+        onRepaired={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+
+    expect(
+      screen.getByText(/learned examples with no source crop left to rebuild from will be removed/),
+    ).toBeInTheDocument();
+  });
+
+  it("reports removed orphaned examples in the result summary", async () => {
+    vi.mocked(api.repairDerivedData).mockResolvedValue(
+      buildResult({
+        downloads_repaired: 0,
+        crops_repaired: 0,
+        examples_removed: 2,
+        total_repaired: 2,
+      }),
+    );
+
+    render(
+      <DerivedDataRepairAction
+        status={buildStatus({ missing_downloads: 0, missing_crops: 0, orphaned_examples: 2 })}
+        onRepaired={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    fireEvent.click(screen.getByRole("button", { name: /yes, repair/i }));
+
+    expect(await screen.findByText(/2 orphaned examples removed/)).toBeInTheDocument();
   });
 
   it("asks for confirmation before repairing", () => {

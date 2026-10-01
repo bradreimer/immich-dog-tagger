@@ -310,7 +310,7 @@ def test_repair_derived_data_endpoint_returns_service_summary(api_client, engine
 
     mock_service = Mock()
     mock_service.repair.return_value = DerivedDataRepairSummary(
-        downloads_repaired=2, crops_repaired=3, failed=1
+        downloads_repaired=2, crops_repaired=3, examples_removed=4, failed=1
     )
     api_client.app.dependency_overrides[get_derived_data_service] = lambda: mock_service
 
@@ -321,8 +321,9 @@ def test_repair_derived_data_endpoint_returns_service_summary(api_client, engine
     assert data == {
         "downloads_repaired": 2,
         "crops_repaired": 3,
+        "examples_removed": 4,
         "failed": 1,
-        "total_repaired": 5,
+        "total_repaired": 9,
     }
     mock_service.repair.assert_called_once_with()
 
@@ -341,6 +342,7 @@ def test_repair_derived_data_endpoint_repairs_missing_crop_end_to_end(
     assert data == {
         "downloads_repaired": 0,
         "crops_repaired": 1,
+        "examples_removed": 0,
         "failed": 0,
         "total_repaired": 1,
     }

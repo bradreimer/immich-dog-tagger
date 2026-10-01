@@ -1091,6 +1091,14 @@
   the match had to come from a different day, so no threshold could recover it.
   `OpenClipEmbedder` reuses the legacy `openclip:` model stamp, so never-re-embedded vectors stay
   comparable. Owners who ran Re-embed under MegaDescriptor run `reembed` once after upgrading.
+- [#379](https://github.com/bradreimer/immich-dog-tagger/issues/379) v1.38.1 Derived-data Repair
+  removes orphaned learned examples ([spec addendum](specs/broken-crop-auto-repair.md)). An
+  example whose crop file is gone and that no live `Crop` row references has no bounding box left
+  to rebuild from, so it can never be re-embedded. `check-derived-data` used to suggest
+  `import-review` for these, which only imports `cache/review/confirmed/` and can't help. Repair
+  (CLI and the Overview Derived Data tile) now removes them, so missing embedding sources reach 0.
+  The confirmation states how many examples will go. Examples whose path a live crop still uses
+  are kept; the crop repair regenerates that file.
 
 - [#370](https://github.com/bradreimer/immich-dog-tagger/issues/370) v1.36.0 Repair removes a
   photo Immich no longer has ([spec addendum](specs/asset-state-reconciliation.md)): Repair on a

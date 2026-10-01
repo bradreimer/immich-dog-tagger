@@ -114,3 +114,26 @@ the same "state the cost, require confirmation" treatment here, not a silent bat
 - Should this same batch action also cover `missing_downloads` (already computed, already in
   `DerivedDataRepairSummary`, currently unreachable from the UI), or stay scoped to crops for this
   pass and treat downloads as a follow-up?
+
+## Addendum: orphaned embedding examples (issue #379)
+
+`missing_embedding_sources` counts learned `EmbeddingExample` rows whose `crop_path` file is
+missing. Before this change, repair left all of them alone and the guidance suggested
+`import-review`. That command only imports images from `cache/review/confirmed/`, so it could never
+fix them.
+
+An example is **orphaned** when its file is missing and no `Crop` row on a non-`REMOVED` asset
+references its path. Its bounding box was already discarded by an earlier re-detect or repair, or
+its photo was removed from Immich, so there's nothing to rebuild it from or re-embed.
+
+- `DerivedDataReport.orphaned_example_paths` lists them; `GET /diagnostics` reports the count as
+  `derived_data.orphaned_examples`.
+- `DerivedDataService.repair()` removes orphaned examples, one commit per example, and reports
+  `examples_removed` in its summary and `POST /diagnostics/derived-data/repair` response. Deleting
+  an example clears `CropClassification.matched_example_id` on classifications that referenced it.
+- An example whose path a live `Crop` row still references is kept: the crop repair regenerates
+  that file.
+- The Overview Derived Data tile includes orphaned examples in its repair-eligible count, and the
+  confirmation states how many learned examples will be removed.
+- `check-derived-data` guidance points at `check-derived-data --repair` instead of `import-review`.
+

@@ -55,9 +55,11 @@ def _make_crop(session: Session, detection: Detection, path: str) -> Crop:
 
 
 def _make_example(session: Session, path: str) -> EmbeddingExample:
-    identity = Identity(name="Fido")
-    session.add(identity)
-    session.flush()
+    identity = session.query(Identity).filter_by(name="Fido").one_or_none()
+    if identity is None:
+        identity = Identity(name="Fido")
+        session.add(identity)
+        session.flush()
     example = EmbeddingExample(
         identity_id=identity.id,
         crop_path=path,
@@ -147,6 +149,39 @@ def test_report_detects_missing_embedding_source(session, tmp_path):
     svc = DerivedDataService(session, tmp_path / "cache")
     report = svc.check()
     assert len(report.missing_embedding_sources) == 1
+    assert report.orphaned_example_paths == [str(tmp_path / "missing_emb.jpg")]
+
+
+def test_check_does_not_count_example_sharing_a_live_missing_crop_as_orphaned(
+    session, tmp_path
+):
+    # The crop repair regenerates this file, so the example isn't orphaned.
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+    det = _make_detection(session, asset)
+    path = str(tmp_path / "missing_crop.jpg")
+    _make_crop(session, det, path)
+    _make_example(session, path)
+    session.commit()
+
+    report = DerivedDataService(session, cache_dir).check()
+
+    assert report.missing_embedding_sources == [path]
+    assert report.orphaned_example_paths == []
+
+
+def test_check_counts_example_of_a_removed_asset_crop_as_orphaned(session, tmp_path):
+    # A removed photo's crop can't be regenerated either.
+    asset = _make_asset(session, status=AssetStatus.REMOVED)
+    det = _make_detection(session, asset)
+    path = str(tmp_path / "gone.jpg")
+    _make_crop(session, det, path)
+    _make_example(session, path)
+    session.commit()
+
+    report = DerivedDataService(session, tmp_path / "cache").check()
+
+    assert report.orphaned_example_paths == [path]
 
 
 def test_rebuild_guidance_produced_for_each_category(tmp_path):
@@ -154,12 +189,16 @@ def test_rebuild_guidance_produced_for_each_category(tmp_path):
         missing_downloads=["a"],
         missing_crops=["b"],
         missing_embedding_sources=["c"],
+        orphaned_example_paths=["c"],
     )
     guidance = DerivedDataService.rebuild_guidance(report)
     combined = "\n".join(guidance)
     assert "download" in combined
     assert "detect" in combined
-    assert "import-review" in combined
+    assert "check-derived-data --repair" in combined
+    # import-review only imports cache/review/confirmed/ -- it can't rebuild
+    # these (issue #379).
+    assert "import-review" not in combined
 
 
 def test_report_as_dict_keys():
@@ -172,6 +211,7 @@ def test_report_as_dict_keys():
         "missing_embedding_sources",
         "total_missing",
         "reviewed_at_risk",
+        "orphaned_examples",
     } <= d.keys()
 
 
@@ -234,19 +274,92 @@ def test_repair_routes_missing_crop_back_to_downloaded_for_redetect(session, tmp
     assert report.missing_crops == []
 
 
-def test_repair_leaves_missing_embedding_sources_alone(session, tmp_path):
-    # No original crop/photo remains to regenerate an embedding source
-    # from -- repair only fixes what's actually reconstructible.
-    _make_example(session, str(tmp_path / "missing_emb.jpg"))
+def test_repair_removes_orphaned_example(session, tmp_path):
+    # Issue #379: no Crop row (so no bounding box) remains to rebuild this
+    # example's source from, so repair removes it.
+    orphan = _make_example(session, str(tmp_path / "missing_emb.jpg"))
+    orphan_id = orphan.id
+    present_path = tmp_path / "present.jpg"
+    present_path.touch()
+    kept = _make_example(session, str(present_path))
     session.commit()
 
     svc = DerivedDataService(session, tmp_path / "cache")
     summary = svc.repair()
 
-    assert summary.total_repaired == 0
+    assert summary.examples_removed == 1
+    assert summary.total_repaired == 1
+    assert session.get(EmbeddingExample, orphan_id) is None
+    assert session.get(EmbeddingExample, kept.id) is not None
 
     report = svc.check()
-    assert len(report.missing_embedding_sources) == 1
+    assert report.missing_embedding_sources == []
+    assert report.healthy
+
+
+def test_repair_clears_matched_example_on_classifications(session, tmp_path):
+    orphan = _make_example(session, str(tmp_path / "missing_emb.jpg"))
+    asset = _make_asset(session, status=AssetStatus.REMOVED)
+    det = _make_detection(session, asset)
+    crop = _make_crop(session, det, str(tmp_path / "other.jpg"))
+    classification = CropClassification(
+        crop_id=crop.id,
+        identity="Fido",
+        confidence=0.9,
+        matched_example_id=orphan.id,
+    )
+    session.add(classification)
+    session.commit()
+
+    summary = DerivedDataService(session, tmp_path / "cache").repair()
+
+    assert summary.examples_removed == 1
+    session.refresh(classification)
+    assert classification.matched_example_id is None
+
+
+def test_repair_keeps_example_sharing_a_live_missing_crop(session, tmp_path):
+    # The crop repair routes the asset back to detect, which regenerates the
+    # file -- the example isn't orphaned, so it stays.
+    cache_dir = tmp_path / "cache"
+    asset = _make_asset(session, status=AssetStatus.DETECTED)
+    file = asset.cache_path(cache_dir)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.touch()
+    det = _make_detection(session, asset)
+    path = str(tmp_path / "missing_crop.jpg")
+    _make_crop(session, det, path)
+    example = _make_example(session, path)
+    session.commit()
+
+    summary = DerivedDataService(session, cache_dir).repair()
+
+    assert summary.crops_repaired == 1
+    assert summary.examples_removed == 0
+    assert session.get(EmbeddingExample, example.id) is not None
+
+
+def test_repair_isolates_a_failed_example_removal(session, tmp_path, monkeypatch):
+    first = _make_example(session, str(tmp_path / "a.jpg"))
+    second = _make_example(session, str(tmp_path / "b.jpg"))
+    first_id, second_id = first.id, second.id
+    session.commit()
+
+    original_delete = session.delete
+
+    def flaky_delete(obj):
+        if isinstance(obj, EmbeddingExample) and obj.id == first_id:
+            raise RuntimeError("boom")
+        original_delete(obj)
+
+    monkeypatch.setattr(session, "delete", flaky_delete)
+
+    summary = DerivedDataService(session, tmp_path / "cache").repair()
+
+    assert summary.examples_removed == 1
+    assert summary.failed == 1
+    assert session.get(EmbeddingExample, first_id) is not None
+    assert session.get(EmbeddingExample, second_id) is None
 
 
 def test_check_derived_data_releases_session_before_scanning_disk(
