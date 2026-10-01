@@ -1084,7 +1084,7 @@
   longer shows photos deleted in Immich. Queue mode already excluded `REMOVED` photos, but the
   Grouped Review pools didn't, so those photos' images returned 404. All review surfaces now share
   one `classification_asset_removed()` condition.
-- [#377](https://github.com/bradreimer/immich-dog-tagger/issues/377) v1.37.2 OpenCLIP is the
+- [#377](https://github.com/bradreimer/immich-dog-tagger/issues/377) v1.38.0 OpenCLIP is the
   embedding model again ([ADR-011](adr/ADR-011-restore-openclip-embedding-model.md)). After
   Re-embed under MegaDescriptor, a real library's confidently classified crops fell from about
   10,400 to 586. A leave-one-out check on 4,693 reviewed examples found 49.4% top-1 accuracy when
