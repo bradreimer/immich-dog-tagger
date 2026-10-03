@@ -1101,6 +1101,10 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#387](https://github.com/bradreimer/immich-dog-tagger/issues/387) v1.41.0 Clear list also
+  clears Recent Failures and moves to the Job Queue header, left of Refresh. The Recent Failures
+  card read `recent_failures()`, which ignored the `visible` flag that Clear list sets, so cleared
+  failures stayed on screen. That query now skips hidden jobs; rows are kept, not deleted.
 - [#384](https://github.com/bradreimer/immich-dog-tagger/issues/384) v1.40.0 Job Queue times show
   in local time. Job, schedule, and classification-pass timestamps are stored as naive UTC, and the
   API sent them without an offset, so the browser read them as local time and showed the UTC clock

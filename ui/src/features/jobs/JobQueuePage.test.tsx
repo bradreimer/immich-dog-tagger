@@ -94,6 +94,20 @@ describe("JobQueuePage", () => {
     ).toBeInTheDocument();
   });
 
+  it("places Clear list in the page header, left of Refresh", async () => {
+    vi.mocked(api.getJobs).mockResolvedValue([buildJob()]);
+
+    render(<JobQueuePage />);
+
+    const clearButton = await screen.findByRole("button", { name: "Clear list" });
+    const refreshButton = screen.getByRole("button", { name: /Refresh/ });
+
+    expect(clearButton.closest("header")).not.toBeNull();
+    expect(
+      clearButton.compareDocumentPosition(refreshButton) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("asks for confirmation before clearing job history", async () => {
     vi.mocked(api.getJobs).mockResolvedValue([buildJob()]);
 
