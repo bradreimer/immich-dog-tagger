@@ -312,6 +312,16 @@ export async function getJobs(
   return response.json();
 }
 
+export async function getJob(id: number): Promise<PipelineJob> {
+  const response = await fetch(`/api/jobs/${id}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load job");
+  }
+
+  return response.json();
+}
+
 export async function clearJobHistory(): Promise<{ cleared: number }> {
   const response = await fetch("/api/jobs/clear-history", {
     method: "POST",
@@ -904,6 +914,32 @@ export async function repairAsset(
 
   if (!response.ok) {
     throw new Error("Failed to repair photo");
+  }
+
+  return response.json();
+}
+
+/**
+ * Queue Look harder for one photo (issue #390): Repair with the slower,
+ * open-vocabulary detector. Returns the queued job; poll it with getJob().
+ */
+export async function lookHarder(immichAssetId: string): Promise<PipelineJob> {
+  const response = await fetch(
+    `/api/photo-lookup/${encodeURIComponent(immichAssetId)}/look-harder`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (response.status === 404) {
+    throw new PhotoLookupNotFoundError(
+      "That photo hasn't been scanned by this instance yet.",
+    );
+  }
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail ?? "Failed to start Look harder");
   }
 
   return response.json();

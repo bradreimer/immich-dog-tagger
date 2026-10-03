@@ -18,6 +18,7 @@ function detection(overrides: Partial<PhotoLookupDetection> = {}): PhotoLookupDe
     identity: "Rex",
     confidence: 0.9,
     not_animal: false,
+    detector: "yolo",
     ...overrides,
   };
 }
@@ -234,5 +235,24 @@ describe("DetectionList", () => {
 
       expect(onCorrectSpecies).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("DetectionList detector provenance (issue #390)", () => {
+  it("marks boxes found by Look harder", () => {
+    render(
+      <DetectionList
+        detections={[detection({ detector: "grounding_dino" }), detection({ detection_id: 2 })]}
+        identities={[]}
+        onCorrect={noop}
+        onCorrectSpecies={noop}
+        onToggleNotAnimal={noop}
+        onAssign={noop}
+        onAssignCrop={noop}
+        onHoverChange={() => {}}
+      />,
+    );
+
+    expect(screen.getAllByText("Found by Look harder")).toHaveLength(1);
   });
 });

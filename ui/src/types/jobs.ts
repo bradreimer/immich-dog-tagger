@@ -14,7 +14,8 @@ export type JobOperation =
   | "learn"
   | "sync"
   | "full_pipeline"
-  | "reembed";
+  | "reembed"
+  | "look_harder";
 
 export interface PipelineJob {
   id: number;
@@ -28,4 +29,6 @@ export interface PipelineJob {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  /** The one photo a per-photo job acts on (issue #390's look_harder). */
+  target_immich_asset_id?: string | null;
 }

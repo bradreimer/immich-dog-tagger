@@ -10,6 +10,8 @@ export interface PhotoLookupDetection {
   identity: string | null;
   confidence: number | null;
   not_animal: boolean;
+  /** Which detector found this box: "yolo", or "grounding_dino" from Look harder (issue #390). */
+  detector: string;
 }
 
 export interface PhotoLookupResult {
@@ -24,6 +26,8 @@ export interface PhotoLookupResult {
   /** Which configured Immich account this photo belongs to (issue #346). */
   account: string | null;
   detections: PhotoLookupDetection[];
+  /** Whether the Look harder detector can run in this install (issue #390). */
+  look_harder_available: boolean;
 }
 
 /** Result of mapping a crop-less detection to a dog/cat, or marking it not-animal (issue #261). */

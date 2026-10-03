@@ -18,6 +18,7 @@ function detection(overrides: Partial<PhotoLookupDetection> = {}): PhotoLookupDe
     identity: "Rex",
     confidence: 0.9,
     not_animal: false,
+    detector: "yolo",
     ...overrides,
   };
 }
