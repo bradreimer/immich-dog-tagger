@@ -113,6 +113,7 @@ class PipelineJobRepository:
         return self.session.scalars(
             select(PipelineJob)
             .where(PipelineJob.status == PipelineJobStatus.FAILED)
+            .where(PipelineJob.visible.is_(True))
             .order_by(PipelineJob.completed_at.desc())
             .limit(limit)
         ).all()

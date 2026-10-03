@@ -224,6 +224,27 @@ def test_clear_history_hides_only_finished_jobs(engine):
         assert running.id in visible_ids
 
 
+def test_clear_history_hides_recent_failures(engine):
+    """Issue #387: "Clear list" must also clear the Recent Failures card,
+    while failures recorded after the clear still show up."""
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+
+        old_failure = service.create_job(operation=PipelineOperation.DETECT)
+        service.start_job(old_failure)
+        service.fail_job(old_failure, error_message="boom")
+
+        service.clear_history()
+
+        assert service.recent_failures() == []
+
+        new_failure = service.create_job(operation=PipelineOperation.SCAN)
+        service.start_job(new_failure)
+        service.fail_job(new_failure, error_message="boom again")
+
+        assert [job.id for job in service.recent_failures()] == [new_failure.id]
+
+
 def test_clear_history_is_idempotent(engine):
     with Session(engine) as session:
         service = PipelineJobService(session)

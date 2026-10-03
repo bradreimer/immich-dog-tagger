@@ -288,7 +288,7 @@ def test_per_photo_detect_replaces_look_harder_detections(engine, tmp_path):
 # --- AssetRepairService action naming ------------------------------------------
 
 
-def test_repair_failure_names_the_action_and_sets_failed(engine, tmp_path):
+def test_repair_failure_names_the_action(engine, tmp_path):
     with Session(engine) as session:
         _downloaded_asset(session, tmp_path)
 
@@ -305,7 +305,7 @@ def test_repair_failure_names_the_action_and_sets_failed(engine, tmp_path):
 
         result = service.repair("target")
 
-        assert result.failed is True
+        assert result.succeeded is False
         assert result.message.startswith("Look harder failed:")
 
 

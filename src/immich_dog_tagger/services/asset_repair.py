@@ -55,9 +55,10 @@ class AssetRepairResult:
     cats: int
     classified: int
     message: str
-    # True when the repair stopped early (metadata, download, or detection
-    # failure). The look_harder job (issue #390) fails on this.
-    failed: bool = False
+    # False when the repair stopped at a handled failure (issue #386), so a
+    # batch caller can tell it from a real repair without parsing `message`.
+    # True for a removed photo: retiring it is the intended outcome.
+    succeeded: bool = True
     captured_at: datetime | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -110,11 +111,11 @@ class AssetRepairService:
             if not self._client_owns(asset):
                 return self._result(
                     asset,
+                    succeeded=False,
                     message=(
                         f"{self.action} failed: this photo belongs to another "
                         f"Immich account, which {self.action} can't reach: {e}"
                     ),
-                    failed=True,
                 )
 
             mark_asset_removed(self.session, asset, self.downloader.cache_dir)
@@ -134,11 +135,11 @@ class AssetRepairService:
         except ImmichGetAssetError as e:
             return self._result(
                 asset,
+                succeeded=False,
                 message=(
                     f"{self.action} failed: could not refresh photo metadata "
                     f"from Immich: {e}"
                 ),
-                failed=True,
             )
 
         apply_immich_metadata(asset, immich_asset)
@@ -151,10 +152,10 @@ class AssetRepairService:
         if asset.status == AssetStatus.DOWNLOAD_FAILED:
             return self._result(
                 asset,
+                succeeded=False,
                 message=(
                     f"{self.action} failed: could not re-download the photo from Immich."
                 ),
-                failed=True,
             )
 
         detected = self.detection_service.run(force=True, asset_id=asset_id)
@@ -163,8 +164,8 @@ class AssetRepairService:
         if asset.status == AssetStatus.DETECTION_FAILED:
             return self._result(
                 asset,
+                succeeded=False,
                 message=f"{self.action} failed: could not re-run detection on the photo.",
-                failed=True,
             )
 
         classified = self.classification_service.classify(
@@ -203,11 +204,11 @@ class AssetRepairService:
         self,
         asset: Asset,
         message: str,
+        succeeded: bool = True,
         detections: int = 0,
         dogs: int = 0,
         cats: int = 0,
         classified: int = 0,
-        failed: bool = False,
     ) -> AssetRepairResult:
         return AssetRepairResult(
             asset_id=asset.id,
@@ -218,7 +219,7 @@ class AssetRepairService:
             cats=cats,
             classified=classified,
             message=message,
-            failed=failed,
+            succeeded=succeeded,
             captured_at=asset.captured_at,
             latitude=asset.latitude,
             longitude=asset.longitude,

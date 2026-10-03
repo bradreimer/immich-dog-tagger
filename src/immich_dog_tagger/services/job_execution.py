@@ -393,7 +393,7 @@ def _look_harder_handler(
 
         result = service.repair(immich_asset_id)
 
-        if result.failed:
+        if not result.succeeded:
             raise RuntimeError(result.message)
 
         if result.status == AssetStatus.REMOVED:

@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import exists, select
@@ -279,6 +280,9 @@ class DetectionService:
                     )
 
             asset.status = AssetStatus.DETECTED
+            # Issue #386: these detections came from open_upright(), so the
+            # stale-detection check must never flag them as pre-fix.
+            asset.upright_detected_at = datetime.now(UTC).replace(tzinfo=None)
 
             processed += 1
             since_commit += 1
