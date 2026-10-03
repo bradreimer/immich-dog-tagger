@@ -36,6 +36,7 @@ vi.mock("../../lib/api", () => ({
   getLearningMetrics: vi.fn(() => Promise.resolve(metrics)),
   getDogs: vi.fn(() => Promise.resolve([])),
   getSpeciesTimeline: vi.fn(() => Promise.resolve({ species: "dog", identities: [], points: [] })),
+  getFriendsInFrame: vi.fn(() => Promise.resolve({ nodes: [], edges: [] })),
 }));
 
 describe("MetricsPage library coverage", () => {
@@ -133,5 +134,23 @@ describe("MetricsPage species timeline charts", () => {
     fireEvent.click(navButton);
 
     expect(onNavigate).toHaveBeenCalledWith("/dogs/9/insights");
+  });
+});
+
+describe("MetricsPage friends in frame", () => {
+  it("renders the Friends in Frame section", async () => {
+    render(<MetricsPage onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText("Friends in Frame")).toBeInTheDocument();
+  });
+
+  it("hides the section when the endpoint fails, like the timelines do", async () => {
+    const api = await import("../../lib/api");
+    vi.mocked(api.getFriendsInFrame).mockRejectedValueOnce(new Error("boom"));
+
+    render(<MetricsPage onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText("Photos with a dog")).toBeInTheDocument();
+    expect(screen.queryByText("Friends in Frame")).not.toBeInTheDocument();
   });
 });

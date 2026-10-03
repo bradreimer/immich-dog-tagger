@@ -11,7 +11,7 @@ import type {
   DerivedDataRepairResult,
   StaleDetectionRepairResult,
 } from "../types/diagnostics";
-import type { LearningMetrics, SpeciesTimeline } from "../types/metrics";
+import type { FriendsInFrame, LearningMetrics, SpeciesTimeline } from "../types/metrics";
 import type { LibraryPage, LibrarySort } from "../types/library";
 import type {
   ClusterApprovalResult,
@@ -799,6 +799,14 @@ export async function getSpeciesTimeline(species: "dog" | "cat"): Promise<Specie
   const response = await fetch(`/api/metrics/species-timeline/${species}`);
   if (!response.ok) {
     throw new Error(`Failed to load ${species} timeline`);
+  }
+  return response.json();
+}
+
+export async function getFriendsInFrame(): Promise<FriendsInFrame> {
+  const response = await fetch("/api/metrics/friends-in-frame");
+  if (!response.ok) {
+    throw new Error("Failed to load friends in frame");
   }
   return response.json();
 }
