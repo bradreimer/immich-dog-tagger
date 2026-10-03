@@ -582,6 +582,44 @@ class SpeciesTimelineResponse(BaseModel):
         )
 
 
+class FriendNodeResponse(BaseModel):
+    id: int
+    name: str
+    species: Species
+    image_count: int
+    key_crop_id: int | None
+
+
+class FriendEdgeResponse(BaseModel):
+    a_id: int
+    b_id: int
+    count: int
+
+
+class FriendsInFrameResponse(BaseModel):
+    nodes: list[FriendNodeResponse]
+    edges: list[FriendEdgeResponse]
+
+    @classmethod
+    def from_friends(cls, friends):
+        return cls(
+            nodes=[
+                FriendNodeResponse(
+                    id=node.id,
+                    name=node.name,
+                    species=node.species,
+                    image_count=node.image_count,
+                    key_crop_id=node.key_crop_id,
+                )
+                for node in friends.nodes
+            ],
+            edges=[
+                FriendEdgeResponse(a_id=edge.a_id, b_id=edge.b_id, count=edge.count)
+                for edge in friends.edges
+            ],
+        )
+
+
 class LearningMetricsResponse(BaseModel):
     eligible_count: int
     reviewed_count: int

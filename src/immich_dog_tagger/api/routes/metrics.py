@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.api.dependencies import get_session
 from immich_dog_tagger.api.schemas import (
+    FriendsInFrameResponse,
     LearningMetricsResponse,
     SpeciesTimelineResponse,
 )
 from immich_dog_tagger.enums import Species
+from immich_dog_tagger.services.friends_in_frame import FriendsInFrameService
 from immich_dog_tagger.services.metrics import MetricsService
 
 router = APIRouter(
@@ -39,3 +41,15 @@ def species_timeline(
     service = MetricsService(session)
 
     return SpeciesTimelineResponse.from_timeline(service.species_timeline(species))
+
+
+@router.get(
+    "/friends-in-frame",
+    response_model=FriendsInFrameResponse,
+)
+def friends_in_frame(
+    session: Annotated[Session, Depends(get_session)],
+):
+    service = FriendsInFrameService(session)
+
+    return FriendsInFrameResponse.from_friends(service.build())
