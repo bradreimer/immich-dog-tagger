@@ -1091,6 +1091,16 @@
   the match had to come from a different day, so no threshold could recover it.
   `OpenClipEmbedder` reuses the legacy `openclip:` model stamp, so never-re-embedded vectors stay
   comparable. Owners who ran Re-embed under MegaDescriptor run `reembed` once after upgrading.
+- [#382](https://github.com/bradreimer/immich-dog-tagger/issues/382) v1.39.0 Review advances
+  instantly and `Z` undoes the last identity choice
+  ([spec](specs/review-instant-advance-and-undo.md)). Choosing an identity in Queue mode used to
+  wait about 10 seconds for `POST /classifications/{id}/correct`, which runs embedding inference
+  on the crop, before showing the next photo. The queue now moves on at once and saves in the
+  background; a failed save puts the photo back with an error. `Z` (or the Undo button) reverses
+  the newest choice through the new `POST /classifications/{id}/undo-review`, which deletes that
+  `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
+  (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
+  or cat still wait and behave as before. The next crop image is also preloaded.
 - [#379](https://github.com/bradreimer/immich-dog-tagger/issues/379) v1.38.1 Derived-data Repair
   removes orphaned learned examples ([spec addendum](specs/broken-crop-auto-repair.md)). An
   example whose crop file is gone and that no live `Crop` row references has no bounding box left

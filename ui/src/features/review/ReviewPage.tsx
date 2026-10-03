@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { IconArrowLeft, IconArrowRight, IconRefresh } from "@tabler/icons-react";
+import {
+  IconArrowBackUp,
+  IconArrowLeft,
+  IconArrowRight,
+  IconRefresh,
+} from "@tabler/icons-react";
 import {
   ClassificationNotFoundError,
   CropNotFoundError,
@@ -13,6 +18,7 @@ import {
   getSettings,
   markCropNotAnimal,
   skipClassification,
+  undoReview,
   unmarkCropNotAnimal,
 } from "../../lib/api";
 import type { ReviewQuery } from "../../lib/api";
@@ -41,6 +47,15 @@ import type { Dog } from "../../types/dogs";
  * docs/specs/review-tab-batch-approval.md. An additive toggle: Queue stays
  * the default and every existing Queue-mode behavior is untouched. */
 type ReviewMode = "queue" | "grouped";
+
+/** An identity choice the queue already moved past (issue #382). `save`
+ * resolves to whether the background correction actually landed, so undo
+ * can wait for it and knows whether there's anything server-side to undo. */
+type UndoableCorrection = {
+  item: ReviewItem;
+  identity: string;
+  save: Promise<boolean>;
+};
 
 /** Reads `?classification_id=` on initial load only -- this page doesn't
  * otherwise change the URL, so there's nothing to react to after mount. */
@@ -345,6 +360,20 @@ function ReviewQueuePage() {
   const [milestone, setMilestone] = useState<number | null>(null);
   const [mode, setMode] = useState<ReviewMode>("queue");
 
+  // Undo history for identity choices (issue #382). A ref, not state, so two
+  // quick Z presses each pop a different entry instead of both reading the
+  // same stale array; `lastUndoable` mirrors the top entry for rendering.
+  const undoStack = useRef<UndoableCorrection[]>([]);
+  const [lastUndoable, setLastUndoable] = useState<UndoableCorrection | null>(null);
+  // Items whose background save hasn't finished yet, so a queue reload can't
+  // bring one back for a second review while its first is still landing.
+  const savingIds = useRef(new Set<number>());
+  const indexRef = useRef(index);
+
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+
   const dismissMilestone = useCallback(() => setMilestone(null), []);
 
   /**
@@ -402,7 +431,9 @@ function ReviewQueuePage() {
         getSettings().catch(() => null),
       ]);
 
-      setItems(queue);
+      setItems(
+        queue.filter((queued) => !savingIds.current.has(queued.classification_id)),
+      );
       setStats(queueStats);
       setDogs(dogItems);
       setImmichUrl(settings?.immich_external_url || null);
@@ -442,52 +473,143 @@ function ReviewQueuePage() {
     applyReviewStats(await getReviewStats());
   }, [index, applyReviewStats]);
 
+  /** Puts an item back in the queue as the current photo -- after an undo,
+   * or when its background save failed. */
+  const restoreItem = useCallback((restored: ReviewItem) => {
+    setItems((current) => {
+      const position = Math.max(0, Math.min(indexRef.current, current.length));
+      const next = [...current];
+
+      next.splice(position, 0, restored);
+      setIndex(position);
+
+      return next;
+    });
+  }, []);
+
+  /** Best-effort stats refresh after a background write; a failure here must
+   * not be mistaken for the write itself failing. */
+  const refreshStats = useCallback(async () => {
+    try {
+      applyReviewStats(await getReviewStats());
+    } catch {
+      // Same tolerance as refreshGroupedStats: stale numbers until the next
+      // successful refresh.
+    }
+  }, [applyReviewStats]);
+
+  /**
+   * Moves to the next photo immediately and saves in the background (issue
+   * #382): the correction runs embedding inference server-side, and the
+   * reviewer doesn't need its result to keep going. Z undoes it.
+   */
   const correct = useCallback(
-    async (identity: string) => {
+    (identity: string) => {
       const item = items[index];
 
       if (!item) {
         return;
       }
 
+      const classificationId = item.classification_id;
+
       setActionError(null);
+      setRepairMessage(null);
 
-      try {
-        setSaving(true);
-
-        await correctClassification(
-          item.classification_id,
-          identity,
+      // By id, not position: a failed save may have restored another photo
+      // into the queue since this render.
+      setItems((current) => {
+        const next = current.filter(
+          (queued) => queued.classification_id !== classificationId,
         );
 
-        setItems((current) => {
-          const next = current.filter((_, i) => i !== index);
+        setIndex((currentIndex) =>
+          Math.min(currentIndex, next.length - 1),
+        );
 
-          setIndex((currentIndex) =>
-            Math.min(currentIndex, next.length - 1),
-          );
+        return next;
+      });
 
-          return next;
-        });
+      savingIds.current.add(classificationId);
 
-        applyReviewStats(await getReviewStats());
-      } catch (err) {
-        if (err instanceof ClassificationNotFoundError) {
-          await dropStaleItem();
-          return;
+      const save = (async () => {
+        try {
+          await correctClassification(classificationId, identity);
+        } catch (err) {
+          if (err instanceof ClassificationNotFoundError) {
+            setRepairMessage(
+              "A photo was reprocessed elsewhere and no longer matches its review item -- removed from the queue.",
+            );
+          } else {
+            setActionError(
+              `Couldn't save ${identity} for a photo, so it's back in the queue.`,
+            );
+            restoreItem(item);
+          }
+
+          await refreshStats();
+          return false;
+        } finally {
+          savingIds.current.delete(classificationId);
         }
 
-        setActionError(
-          err instanceof Error
-          ? err.message
-          : "Failed to save correction",
-        );
-      } finally {
-        setSaving(false);
-      }
+        await refreshStats();
+        return true;
+      })();
+
+      const entry = { item, identity, save };
+
+      undoStack.current.push(entry);
+      setLastUndoable(entry);
     },
-    [items, index, applyReviewStats, dropStaleItem],
+    [items, index, restoreItem, refreshStats],
   );
+
+  /** Undoes the most recent identity choice, newest first (issue #382). */
+  const undo = useCallback(async () => {
+    const entry = undoStack.current.pop();
+
+    setLastUndoable(undoStack.current.at(-1) ?? null);
+
+    if (!entry) {
+      return;
+    }
+
+    setActionError(null);
+    setRepairMessage(null);
+
+    // A failed save already put the item back (or dropped a stale one), so
+    // there's nothing server-side to reverse.
+    if (!(await entry.save)) {
+      return;
+    }
+
+    try {
+      restoreItem(await undoReview(entry.item.classification_id));
+    } catch (err) {
+      setActionError(
+        err instanceof ClassificationNotFoundError
+          ? "That photo was reprocessed elsewhere, so there's nothing to undo."
+          : err instanceof Error
+            ? err.message
+            : "Failed to undo review",
+      );
+    }
+
+    await refreshStats();
+  }, [restoreItem, refreshStats]);
+
+  // Warm the browser cache with the next crop so advancing shows it at once.
+  const nextCropId = items[index + 1]?.crop_id;
+
+  useEffect(() => {
+    if (nextCropId === undefined) {
+      return;
+    }
+
+    const image = new Image();
+    image.src = `/api/crops/${nextCropId}`;
+  }, [nextCropId]);
 
 
   const correctSpeciesForCurrentItem = useCallback(
@@ -657,7 +779,20 @@ function ReviewQueuePage() {
     skip,
     next,
     previous,
+    // Undo applies to Queue mode's identity choices only.
+    undo: mode === "queue" ? undo : undefined,
   });
+
+  const undoButton = (
+    <Button
+      variant="outline"
+      onClick={() => void undo()}
+      disabled={!lastUndoable}
+    >
+      <IconArrowBackUp className="h-4 w-4" aria-hidden="true" />
+      {lastUndoable ? `Undo ${lastUndoable.identity}` : "Undo"}
+    </Button>
+  );
 
   // Rendered before every early return (not just the loaded-item case) so a
   // milestone reached on the last item in a filter still celebrates even
@@ -744,7 +879,13 @@ function ReviewQueuePage() {
       <>
         {milestoneOverlay}
         <div className="mx-auto max-w-5xl space-y-2">
-          {modeToggle}
+          <div className="flex flex-wrap gap-2">
+            {modeToggle}
+            {lastUndoable && undoButton}
+          </div>
+          {actionError && (
+            <p className="text-sm text-destructive">{actionError}</p>
+          )}
           <ReviewEmptyState
             onRefresh={() => loadReview()}
           />
@@ -869,6 +1010,8 @@ function ReviewQueuePage() {
     <IconArrowRight className="h-4 w-4" aria-hidden="true" />
     Next
     </Button>
+
+    {undoButton}
     </div>
 
     <KeyboardHints />

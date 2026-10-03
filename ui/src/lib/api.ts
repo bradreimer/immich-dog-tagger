@@ -682,6 +682,31 @@ export async function correctSpecies(
   return response.json();
 }
 
+/**
+ * Reverses the latest identity correction (issue #382), returning the item
+ * restored to its pending, predicted state so the queue can show it again.
+ */
+export async function undoReview(classificationId: number): Promise<ReviewItem> {
+  const response = await fetch(
+    `/api/classifications/${classificationId}/undo-review`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (response.status === 404) {
+    throw new ClassificationNotFoundError(
+      `Classification ${classificationId} not found`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to undo review");
+  }
+
+  return response.json();
+}
+
 export async function skipClassification(
   classificationId: number,
 ): Promise<void> {

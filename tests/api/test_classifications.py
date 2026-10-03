@@ -244,3 +244,82 @@ def test_repeated_corrections_queue_only_one_reclassify(api_client, engine):
         )
 
         assert len(jobs) == 1
+
+
+def _create_predicted_classification(engine) -> int:
+    """A pending item the classifier predicts as dog "Max" from its stored embedding."""
+    with Session(engine) as session:
+        max_dog = Identity(name="Max", species=Species.DOG)
+        session.add(max_dog)
+        session.flush()
+
+        session.add(
+            EmbeddingExample(
+                identity_id=max_dog.id,
+                crop_path="max.jpg",
+                embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+                source=EmbeddingSources.BOOTSTRAP,
+            )
+        )
+
+        crop = Crop(detection_id=1, path="pending.jpg", species=Species.DOG)
+        session.add(crop)
+        session.flush()
+
+        classification = CropClassification(
+            crop=crop,
+            identity="Max",
+            confidence=0.7,
+            source=ClassificationSources.AUTO,
+            embedding=embedding_to_blob(np.array([0.9, 0.1, 0], dtype=np.float32)),
+        )
+        session.add(classification)
+        session.commit()
+
+        return classification.id
+
+
+def test_undo_review_restores_pending_item(api_client, engine):
+    """Issue #382: undo reverses a correction so the item is pending again."""
+    classification_id = _create_predicted_classification(engine)
+
+    corrected = api_client.post(
+        f"/classifications/{classification_id}/correct",
+        json={"identity": "Bella"},
+    )
+    assert corrected.status_code == 200
+
+    response = api_client.post(f"/classifications/{classification_id}/undo-review")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["classification_id"] == classification_id
+    assert body["prediction"]["identity"] == "Max"
+
+    with Session(engine) as session:
+        restored = session.get(CropClassification, classification_id)
+        assert restored.identity == "Max"
+        assert restored.source == ClassificationSources.AUTO
+        assert session.query(ReviewAction).count() == 0
+        assert (
+            session.scalar(
+                select(EmbeddingExample).where(
+                    EmbeddingExample.crop_path == "pending.jpg"
+                )
+            )
+            is None
+        )
+
+
+def test_undo_review_without_correction_conflicts(api_client, engine):
+    classification_id = _create_predicted_classification(engine)
+
+    response = api_client.post(f"/classifications/{classification_id}/undo-review")
+
+    assert response.status_code == 409
+
+
+def test_undo_review_not_found(api_client):
+    response = api_client.post("/classifications/999999/undo-review")
+
+    assert response.status_code == 404

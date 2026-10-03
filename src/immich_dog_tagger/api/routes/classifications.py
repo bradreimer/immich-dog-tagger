@@ -18,6 +18,7 @@ from immich_dog_tagger.services.app_settings import AutoReclassifyService
 from immich_dog_tagger.services.correction import (
     ClassificationCorrectionService,
     ClassificationNotFoundError,
+    NothingToUndoError,
 )
 from immich_dog_tagger.services.review_query import ReviewQueryService
 
@@ -113,6 +114,54 @@ def correct_species(
             status_code=404,
             detail=str(e),
         ) from e
+
+    item = review_query_service.item_for_classification(classification_id)
+
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Classification {classification_id} not found",
+        )
+
+    return ReviewItemResponse.from_item(item)
+
+
+@router.post("/{classification_id}/undo-review", response_model=ReviewItemResponse)
+def undo_review(
+    classification_id: int,
+    correction_service: Annotated[
+        ClassificationCorrectionService,
+        Depends(get_correction_service),
+    ],
+    review_query_service: Annotated[
+        ReviewQueryService,
+        Depends(get_review_query_service),
+    ],
+    auto_reclassify: Annotated[
+        AutoReclassifyService,
+        Depends(get_auto_reclassify_service),
+    ],
+):
+    """
+    Reverse the latest identity correction (issue #382), returning the item
+    in the same shape `/review` uses so the queue can show it again.
+    """
+    try:
+        correction_service.undo_correction(classification_id)
+    except ClassificationNotFoundError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        ) from e
+    except NothingToUndoError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e),
+        ) from e
+
+    # Removing a learned example makes derived predictions stale, the same
+    # way adding one does in correct() above.
+    auto_reclassify.request()
 
     item = review_query_service.item_for_classification(classification_id)
 
