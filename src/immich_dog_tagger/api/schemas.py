@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 from immich_dog_tagger.enums import (
     ClusterSort,
@@ -11,6 +12,16 @@ from immich_dog_tagger.enums import (
 )
 
 
+def _assume_utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+# System timestamps (jobs, schedules, classification passes) are stored as naive
+# UTC in state.db. Marking them UTC here makes responses carry an explicit offset,
+# so clients render them in the viewer's local time instead of reading them as local.
+UtcDatetime = Annotated[datetime, AfterValidator(_assume_utc)]
+
+
 class ScheduleResponse(BaseModel):
     id: int
     name: str
@@ -18,10 +29,10 @@ class ScheduleResponse(BaseModel):
     expression: str
     timezone_name: str
     enabled: bool
-    created_at: datetime
-    updated_at: datetime
-    next_run_at: datetime | None
-    last_run_at: datetime | None
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
+    next_run_at: UtcDatetime | None
+    last_run_at: UtcDatetime | None
     last_run_result: str | None
     # The specific account this schedule is pinned to (issue #346), for an
     # account-scoped operation (scan/sync/full_pipeline) only -- None for a
@@ -67,9 +78,9 @@ class ScheduleRunResponse(BaseModel):
     progress_total: int | None
     progress_message: str | None
     error_message: str | None
-    created_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
+    created_at: UtcDatetime
+    started_at: UtcDatetime | None
+    completed_at: UtcDatetime | None
 
     @classmethod
     def from_job(cls, job):
@@ -476,8 +487,8 @@ class ClassificationPassResponse(BaseModel):
     labeled_example_count: int | None
     review_queue_size: int | None
     error_message: str | None
-    started_at: datetime
-    completed_at: datetime | None
+    started_at: UtcDatetime
+    completed_at: UtcDatetime | None
 
     @classmethod
     def from_summary(cls, summary):
@@ -632,9 +643,9 @@ class JobResponse(BaseModel):
     progress_message: str | None
     error_message: str | None
     cancel_requested: bool
-    created_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
+    created_at: UtcDatetime
+    started_at: UtcDatetime | None
+    completed_at: UtcDatetime | None
     account_id: int | None
     account: str | None
 

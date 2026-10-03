@@ -80,6 +80,20 @@ describe("JobQueuePage", () => {
     expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
   });
 
+  it("shows job times in the viewer's local time", async () => {
+    const createdAt = "2026-01-01T12:00:00Z";
+    vi.mocked(api.getJobs).mockResolvedValue([
+      buildJob({ created_at: createdAt, started_at: null, completed_at: null }),
+    ]);
+
+    render(<JobQueuePage />);
+
+    const localCreated = new Date(createdAt).toLocaleString();
+    expect(
+      await screen.findByText(`Created: ${localCreated} | Started: - | Completed: -`),
+    ).toBeInTheDocument();
+  });
+
   it("asks for confirmation before clearing job history", async () => {
     vi.mocked(api.getJobs).mockResolvedValue([buildJob()]);
 
