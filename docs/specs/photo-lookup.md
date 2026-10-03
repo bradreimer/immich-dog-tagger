@@ -229,7 +229,50 @@ visibly updates or a clear error is shown.
   creates a real, correctable `Crop`/`CropClassification` -- matching #253's lesson that this exact
   kind of code path was previously "verified" by inspection alone and still shipped non-functional.
 
-### Open questions
+### Addendum: "Look harder" re-detects one photo with a stronger detector (issue #390)
+
+Repair (issue #226) re-runs detection with the same YOLO model the batch pipeline uses. When YOLO
+misses a dog -- an odd pose, heavy blur, a costume, partial occlusion -- Repair returns the same
+result, and the owner has no other way to get that dog detected. For a single photo, an owner will
+wait minutes for a better answer.
+
+Photo Lookup gains a second action, **Look harder**, next to Repair. It runs the same per-photo
+repair flow, but with an open-vocabulary detector (Grounding DINO, see
+[ADR-012](../adr/ADR-012-look-harder-open-vocabulary-detector.md)) in place of YOLO. Cropping,
+OpenCLIP embedding, and classification are unchanged, so a dog it finds is matched exactly like any
+other.
+
+### Requirements
+- **Repair is unchanged.** It keeps using the default YOLO detector.
+- **Look harder runs as a background job.** `POST /photo-lookup/{immich_asset_id}/look-harder`
+  queues a `look_harder` pipeline job for that one photo and returns the job. It can take several
+  minutes on CPU, which exceeds a normal request timeout. The job queue runs one job at a time, so
+  Look harder waits behind a running pipeline job.
+- **The job targets one photo.** `PipelineJob.target_immich_asset_id` names it. The generic
+  `POST /jobs` endpoint and schedules reject `look_harder`, because they have no way to name a
+  photo.
+- **Detections record which detector produced them.** `Detection.detector` is `yolo` or
+  `grounding_dino`. An additive migration backfills existing rows to `yolo`.
+- **A batch `detect --force` skips photos with Look harder detections.** Only an explicit
+  per-photo Repair or Look harder replaces them, so the time the owner invested isn't silently
+  undone.
+- **Availability is explicit.** Photo Lookup reports whether Look harder can run
+  (`look_harder_available`). If its dependency is missing, the button is disabled and the endpoint
+  returns 503. Repair and the batch pipeline are unaffected.
+- **Destructive like Repair.** Look harder replaces the photo's current detections and discards
+  any review recorded against them. If it finds nothing, the photo is left with no detections and
+  the result says so. The confirm copy states both, and that it may take several minutes.
+- **Local only.** The model runs in-process. Weights download once from Hugging Face on first use
+  (or load from a local path in `LOOK_HARDER_MODEL`). No image data leaves the machine.
+- **Visible provenance.** Photo Lookup marks boxes found by Look harder.
+
+### Non-goals
+- Using the alternate detector in batch runs, or changing the default detector.
+- Changing the OpenCLIP matching model.
+- A larger YOLO, higher inference resolution, test-time augmentation, or tiling.
+- A custom text prompt.
+
+## Open questions
 - Should the padding/box-expansion constants (`CropWriter(padding=0.15)`) be reused as-is for a
   manually-cropped box, or does a human-confirmed box deserve tighter/no padding since there's no
   detector-confidence uncertainty to hedge against? Default to reusing the existing constant unless
@@ -328,6 +371,49 @@ detect/classify re-run it already does, not a separate concern.
 - This is still the one Repair action, not a second control: the confirm copy is updated to
   mention the metadata refresh, but the existing destructive behavior (re-detect/re-classify,
   discarding prior review history for the asset) is unchanged.
+
+## Addendum: "Look harder" re-detects one photo with a stronger detector (issue #390)
+
+Repair (issue #226) re-runs detection with the same YOLO model the batch pipeline uses. When YOLO
+misses a dog -- an odd pose, heavy blur, a costume, partial occlusion -- Repair returns the same
+result, and the owner has no other way to get that dog detected. For a single photo, an owner will
+wait minutes for a better answer.
+
+Photo Lookup gains a second action, **Look harder**, next to Repair. It runs the same per-photo
+repair flow, but with an open-vocabulary detector (Grounding DINO, see
+[ADR-012](../adr/ADR-012-look-harder-open-vocabulary-detector.md)) in place of YOLO. Cropping,
+OpenCLIP embedding, and classification are unchanged, so a dog it finds is matched exactly like any
+other.
+
+### Requirements
+- **Repair is unchanged.** It keeps using the default YOLO detector.
+- **Look harder runs as a background job.** `POST /photo-lookup/{immich_asset_id}/look-harder`
+  queues a `look_harder` pipeline job for that one photo and returns the job. It can take several
+  minutes on CPU, which exceeds a normal request timeout. The job queue runs one job at a time, so
+  Look harder waits behind a running pipeline job.
+- **The job targets one photo.** `PipelineJob.target_immich_asset_id` names it. The generic
+  `POST /jobs` endpoint and schedules reject `look_harder`, because they have no way to name a
+  photo.
+- **Detections record which detector produced them.** `Detection.detector` is `yolo` or
+  `grounding_dino`. An additive migration backfills existing rows to `yolo`.
+- **A batch `detect --force` skips photos with Look harder detections.** Only an explicit
+  per-photo Repair or Look harder replaces them, so the time the owner invested isn't silently
+  undone.
+- **Availability is explicit.** Photo Lookup reports whether Look harder can run
+  (`look_harder_available`). If its dependency is missing, the button is disabled and the endpoint
+  returns 503. Repair and the batch pipeline are unaffected.
+- **Destructive like Repair.** Look harder replaces the photo's current detections and discards
+  any review recorded against them. If it finds nothing, the photo is left with no detections and
+  the result says so. The confirm copy states both, and that it may take several minutes.
+- **Local only.** The model runs in-process. Weights download once from Hugging Face on first use
+  (or load from a local path in `LOOK_HARDER_MODEL`). No image data leaves the machine.
+- **Visible provenance.** Photo Lookup marks boxes found by Look harder.
+
+### Non-goals
+- Using the alternate detector in batch runs, or changing the default detector.
+- Changing the OpenCLIP matching model.
+- A larger YOLO, higher inference resolution, test-time augmentation, or tiling.
+- A custom text prompt.
 
 ## Open questions
 - None, other than the addenda above.
