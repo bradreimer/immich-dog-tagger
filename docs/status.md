@@ -1101,6 +1101,13 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#394](https://github.com/bradreimer/immich-dog-tagger/issues/394) v1.44.0 Friends in Frame
+  graph logic ([spec](specs/friends-in-frame.md)). Pure TypeScript under
+  `ui/src/features/metrics/utils/`: `friendsGraph.ts` picks which relationships to draw (each
+  pet's strongest 1-3 by library size, weak edges suppressed, `Top 25`, `All`, a minimum-together
+  threshold) and sizes thumbnails; `friendsLayout.ts` is a deterministic force-directed layout that
+  depends only on the data and canvas size, so it stays stable across hover, filtering and
+  sessions. No UI yet (#395, #396).
 - [#392](https://github.com/bradreimer/immich-dog-tagger/issues/392),
   [#393](https://github.com/bradreimer/immich-dog-tagger/issues/393) v1.43.0 Friends in Frame
   backend ([spec](specs/friends-in-frame.md)). Each pet gets a key thumbnail: its clearest, most
