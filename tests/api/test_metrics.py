@@ -143,3 +143,60 @@ def test_metrics_query_count_does_not_scale_with_library_size(api_client, engine
         assert api_client.get("/metrics").status_code == 200
 
     assert large.count == small.count
+
+
+def test_friends_in_frame_empty_project(api_client):
+    response = api_client.get("/metrics/friends-in-frame")
+
+    assert response.status_code == 200
+    assert response.json() == {"nodes": [], "edges": []}
+
+
+def test_friends_in_frame_reports_nodes_and_edges(api_client, engine):
+    from immich_dog_tagger.enums import Species
+    from immich_dog_tagger.models import Identity, PetOccurrence
+
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs", species=Species.DOG)
+        henri = Identity(name="Henri", species=Species.DOG)
+        session.add_all([fibs, henri])
+        asset = Asset(immich_asset_id="a", extension=".jpg")
+        session.add(asset)
+        session.flush()
+        for identity in (fibs, henri):
+            detection = Detection(
+                asset_id=asset.id,
+                label="dog",
+                confidence=0.9,
+                x1=0,
+                y1=0,
+                x2=300,
+                y2=300,
+            )
+            session.add(detection)
+            session.flush()
+            crop = Crop(detection_id=detection.id, path=f"{identity.name}.jpg")
+            session.add(crop)
+            session.flush()
+            classification = CropClassification(
+                crop=crop, identity=identity.name, confidence=0.9
+            )
+            session.add(classification)
+            session.flush()
+            session.add(
+                PetOccurrence(
+                    crop_classification_id=classification.id,
+                    asset_id=asset.id,
+                    identity_id=identity.id,
+                    confidence=0.9,
+                    source=classification.source,
+                )
+            )
+        session.commit()
+
+    payload = api_client.get("/metrics/friends-in-frame").json()
+
+    assert [node["name"] for node in payload["nodes"]] == ["Fibs", "Henri"]
+    assert all(node["image_count"] == 1 for node in payload["nodes"])
+    assert all(node["key_crop_id"] is not None for node in payload["nodes"])
+    assert [edge["count"] for edge in payload["edges"]] == [1]

@@ -1101,6 +1101,14 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#392](https://github.com/bradreimer/immich-dog-tagger/issues/392),
+  [#393](https://github.com/bradreimer/immich-dog-tagger/issues/393) v1.43.0 Friends in Frame
+  backend ([spec](specs/friends-in-frame.md)). Each pet gets a key thumbnail: its clearest, most
+  circle-friendly crop (`FriendsInFrameService.key_crop_ids`: human-confirmed first, then
+  detection confidence x squareness x size). "Front-facing" is not detectable from stored data,
+  so that is a proxy. `GET /metrics/friends-in-frame` derives nodes (with photo counts) and
+  co-occurrence edges at read time from `PetOccurrence`; no schema change. The Metrics-tab UI
+  follows in #394-#396.
 - [#390](https://github.com/bradreimer/immich-dog-tagger/issues/390) v1.42.0 Look harder on
   Photo Lookup ([spec addendum](specs/photo-lookup.md),
   [ADR-012](adr/ADR-012-look-harder-open-vocabulary-detector.md)). A second action next to Repair
