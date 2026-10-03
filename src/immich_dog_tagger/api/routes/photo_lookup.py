@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from immich_dog_tagger.api.dependencies import (
     get_asset_repair_service,
     get_immich_client,
+    get_job_dispatcher,
+    get_job_service,
     get_manual_detection_assignment_service,
     get_photo_lookup_service,
 )
@@ -13,11 +15,18 @@ from immich_dog_tagger.api.schemas import (
     AssetRepairResponse,
     DetectionAssignRequest,
     DetectionAssignResponse,
+    JobResponse,
     PhotoLookupResponse,
+)
+from immich_dog_tagger.enums import PipelineOperation
+from immich_dog_tagger.grounding_dino_detector import (
+    is_available as look_harder_available,
 )
 from immich_dog_tagger.images import open_upright, to_jpeg_bytes, upright_size
 from immich_dog_tagger.immich import ImmichClient, ImmichDownloadError
 from immich_dog_tagger.services.asset_repair import AssetRepairService
+from immich_dog_tagger.services.job_dispatcher import PipelineJobDispatcher
+from immich_dog_tagger.services.jobs import PipelineJobService
 from immich_dog_tagger.services.manual_detection_assignment import (
     ManualDetectionAssignmentService,
 )
@@ -81,7 +90,10 @@ def photo_lookup(
             detail=f"No scanned photo found for Immich asset {immich_asset_id}",
         )
 
-    return PhotoLookupResponse.from_lookup(lookup)
+    return PhotoLookupResponse.from_lookup(
+        lookup,
+        look_harder_available=look_harder_available(),
+    )
 
 
 @router.get("/{immich_asset_id}/image")
@@ -156,6 +168,45 @@ def repair_photo(
         ) from e
 
     return AssetRepairResponse.from_result(result)
+
+
+@router.post(
+    "/{immich_asset_id}/look-harder",
+    response_model=JobResponse,
+    status_code=201,
+)
+def look_harder(
+    immich_asset_id: str,
+    lookup_service: Annotated[PhotoLookupService, Depends(get_photo_lookup_service)],
+    job_service: Annotated[PipelineJobService, Depends(get_job_service)],
+    dispatcher: Annotated[PipelineJobDispatcher, Depends(get_job_dispatcher)],
+):
+    # Issue #390: Repair with the open-vocabulary detector. Queued as a job
+    # rather than run in the request -- it can take minutes on CPU, past a
+    # typical reverse-proxy timeout. The UI polls GET /jobs/{id}.
+    if lookup_service.get(immich_asset_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No scanned photo found for Immich asset {immich_asset_id}",
+        )
+
+    if not look_harder_available():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Look harder isn't available: its detector dependency "
+                "(transformers) isn't installed."
+            ),
+        )
+
+    job = job_service.create_job(
+        operation=PipelineOperation.LOOK_HARDER,
+        target_immich_asset_id=immich_asset_id,
+        progress_message="Queued: Look harder",
+    )
+    dispatcher.trigger()
+
+    return JobResponse.from_job(job)
 
 
 @router.post(

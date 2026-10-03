@@ -6,10 +6,13 @@ from .detector import (
     DetectionResult,
     ObjectDetector,
 )
+from .enums import DetectorKind
 from .images import open_upright
 
 
 class YOLODetector(ObjectDetector):
+    kind = DetectorKind.YOLO
+
     def __init__(
         self,
         model_path: Path,

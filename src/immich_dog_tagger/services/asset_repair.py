@@ -55,6 +55,9 @@ class AssetRepairResult:
     cats: int
     classified: int
     message: str
+    # True when the repair stopped early (metadata, download, or detection
+    # failure). The look_harder job (issue #390) fails on this.
+    failed: bool = False
     captured_at: datetime | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -71,8 +74,12 @@ class AssetRepairService:
         detection_service: DetectionService,
         classification_service: ClassificationService,
         account_id: int | None = None,
+        action: str = "Repair",
     ):
         self.session = session
+        # Names the action in failure messages: "Repair", or "Look harder"
+        # when this runs with the open-vocabulary detector (issue #390).
+        self.action = action
         # Issue #346/#370: which configured account downloader.client's API
         # key belongs to. Immich answers "not found" for another account's
         # asset too, so only an asset from this account (or one with no
@@ -104,9 +111,10 @@ class AssetRepairService:
                 return self._result(
                     asset,
                     message=(
-                        "Repair failed: this photo belongs to another Immich "
-                        f"account, which Repair can't reach: {e}"
+                        f"{self.action} failed: this photo belongs to another "
+                        f"Immich account, which {self.action} can't reach: {e}"
                     ),
+                    failed=True,
                 )
 
             mark_asset_removed(self.session, asset, self.downloader.cache_dir)
@@ -126,7 +134,11 @@ class AssetRepairService:
         except ImmichGetAssetError as e:
             return self._result(
                 asset,
-                message=f"Repair failed: could not refresh photo metadata from Immich: {e}",
+                message=(
+                    f"{self.action} failed: could not refresh photo metadata "
+                    f"from Immich: {e}"
+                ),
+                failed=True,
             )
 
         apply_immich_metadata(asset, immich_asset)
@@ -139,7 +151,10 @@ class AssetRepairService:
         if asset.status == AssetStatus.DOWNLOAD_FAILED:
             return self._result(
                 asset,
-                message="Repair failed: could not re-download the photo from Immich.",
+                message=(
+                    f"{self.action} failed: could not re-download the photo from Immich."
+                ),
+                failed=True,
             )
 
         detected = self.detection_service.run(force=True, asset_id=asset_id)
@@ -148,7 +163,8 @@ class AssetRepairService:
         if asset.status == AssetStatus.DETECTION_FAILED:
             return self._result(
                 asset,
-                message="Repair failed: could not re-run detection on the photo.",
+                message=f"{self.action} failed: could not re-run detection on the photo.",
+                failed=True,
             )
 
         classified = self.classification_service.classify(
@@ -191,6 +207,7 @@ class AssetRepairService:
         dogs: int = 0,
         cats: int = 0,
         classified: int = 0,
+        failed: bool = False,
     ) -> AssetRepairResult:
         return AssetRepairResult(
             asset_id=asset.id,
@@ -201,6 +218,7 @@ class AssetRepairService:
             cats=cats,
             classified=classified,
             message=message,
+            failed=failed,
             captured_at=asset.captured_at,
             latitude=asset.latitude,
             longitude=asset.longitude,

@@ -25,6 +25,7 @@ from .enums import (
     AssetStatus,
     ClassificationPassStatus,
     ClassificationSources,
+    DetectorKind,
     EmbeddingSources,
     PipelineJobStatus,
     PipelineOperation,
@@ -386,6 +387,16 @@ class Detection(Base):
     y1: Mapped[int]
     x2: Mapped[int]
     y2: Mapped[int]
+
+    # Issue #390: which detector found this box. Stored as plain text rather
+    # than a SQLAlchemy Enum so the migration's 'yolo' backfill and new rows
+    # use the same values, and a future detector needs no schema change.
+    detector: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=DetectorKind.YOLO.value,
+        server_default=DetectorKind.YOLO.value,
+    )
 
     asset: Mapped[Asset] = relationship(back_populates="detections")
 
@@ -1013,6 +1024,13 @@ class PipelineJob(Base):
     )
 
     account: Mapped[ImmichAccount | None] = relationship()
+
+    # The one photo a per-photo job acts on (issue #390's look_harder). NULL
+    # for every library-wide operation.
+    target_immich_asset_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

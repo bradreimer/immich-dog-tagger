@@ -648,6 +648,8 @@ class JobResponse(BaseModel):
     completed_at: UtcDatetime | None
     account_id: int | None
     account: str | None
+    # The one photo a per-photo job acts on (issue #390's look_harder).
+    target_immich_asset_id: str | None = None
 
     @classmethod
     def from_job(cls, job):
@@ -665,6 +667,7 @@ class JobResponse(BaseModel):
             completed_at=job.completed_at,
             account_id=job.account_id,
             account=job.account.name if job.account else None,
+            target_immich_asset_id=job.target_immich_asset_id,
         )
 
 
@@ -832,6 +835,7 @@ class PhotoLookupDetectionResponse(BaseModel):
     identity: str | None
     confidence: float | None
     not_animal: bool
+    detector: str
 
 
 class PhotoLookupResponse(BaseModel):
@@ -847,9 +851,11 @@ class PhotoLookupResponse(BaseModel):
     # shown alongside the other photo details above.
     account: str | None
     detections: list[PhotoLookupDetectionResponse]
+    # Whether the "Look harder" detector can run in this install (issue #390).
+    look_harder_available: bool = False
 
     @classmethod
-    def from_lookup(cls, lookup):
+    def from_lookup(cls, lookup, look_harder_available: bool = False):
         return cls(
             asset_id=lookup.asset_id,
             immich_asset_id=lookup.immich_asset_id,
@@ -873,9 +879,11 @@ class PhotoLookupResponse(BaseModel):
                     identity=detection.identity,
                     confidence=detection.confidence,
                     not_animal=detection.not_animal,
+                    detector=detection.detector,
                 )
                 for detection in lookup.detections
             ],
+            look_harder_available=look_harder_available,
         )
 
 

@@ -76,6 +76,8 @@ def create_database(state_dir: Path):
     _ensure_asset_exif_dimension_columns(engine)
     _ensure_embedding_model_columns(engine)
     _ensure_account_columns(engine)
+    _ensure_detection_detector_column(engine)
+    _ensure_pipeline_job_target_asset_column(engine)
     _cleanup_dangling_pet_occurrences(engine)
     _disable_learn_schedules(engine)
 
@@ -479,6 +481,42 @@ def _ensure_account_columns(engine) -> None:
             connection.exec_driver_sql(
                 f"ALTER TABLE {table} ADD COLUMN account_id {column_type}"
             )
+
+
+def _ensure_detection_detector_column(engine) -> None:
+    """
+    Issue #390: detections record which detector produced them. Every row
+    before this column existed came from YOLO -- the only detector there was
+    -- so 'yolo' is a correct backfill.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("detections")}
+
+    if "detector" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE detections ADD COLUMN detector VARCHAR(32) NOT NULL "
+            "DEFAULT 'yolo'"
+        )
+
+
+def _ensure_pipeline_job_target_asset_column(engine) -> None:
+    """
+    Issue #390: a look_harder job names the one photo it acts on. NULL is
+    correct for every existing job -- all of them were library-wide.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("pipeline_jobs")}
+
+    if "target_immich_asset_id" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE pipeline_jobs ADD COLUMN target_immich_asset_id VARCHAR(255)"
+        )
 
 
 def _cleanup_dangling_pet_occurrences(engine) -> None:

@@ -140,6 +140,12 @@ class PipelineScheduleService:
 
     @staticmethod
     def _validate_operation(operation: PipelineOperation) -> None:
+        if operation == PipelineOperation.LOOK_HARDER:
+            raise ValueError(
+                "Look harder cannot be scheduled: it acts on one photo, chosen from "
+                "Photo Lookup."
+            )
+
         if operation == PipelineOperation.LEARN:
             raise ValueError(
                 "Learn cannot be scheduled: it requires a specific identity and reference "

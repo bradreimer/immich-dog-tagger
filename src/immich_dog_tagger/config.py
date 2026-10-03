@@ -13,6 +13,9 @@ from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_LOOK_HARDER_MODEL = "IDEA-Research/grounding-dino-base"
+
+
 class ConfigError(Exception):
     """
     Raised when configuration (a ``CONFIG_FILE``, in practice) is present but invalid.
@@ -55,6 +58,10 @@ class Config:
     #: over the first entry here for callers that don't yet need multi-account support -- see
     #: issue #346, which is the actual consumer of more than one account.
     accounts: tuple[ImmichAccount, ...] = ()
+
+    #: Hugging Face model id, or a local directory, for Photo Lookup's "Look harder" detector
+    #: (issue #390, ADR-012). Loaded lazily on first use; weights cache under ``HF_HOME``.
+    look_harder_model: str = DEFAULT_LOOK_HARDER_MODEL
 
     @property
     def crop_dir(self) -> Path:
@@ -270,5 +277,9 @@ def load_config(load_env_file: bool = True) -> Config:
                 "CROP_PADDING",
                 "0.15",
             )
+        ),
+        look_harder_model=os.environ.get(
+            "LOOK_HARDER_MODEL",
+            DEFAULT_LOOK_HARDER_MODEL,
         ),
     )

@@ -345,3 +345,58 @@ def test_mark_detection_not_animal_flags_a_crop_less_detection(api_client, engin
     detection = lookup["detections"][0]
     assert detection["not_animal"] is True
     assert detection["identity"] is None
+
+
+def test_photo_lookup_reports_detector_and_look_harder_availability(api_client, engine):
+    # Issue #390: each box says which detector found it, and the page knows
+    # whether Look harder can run in this install.
+    with Session(engine) as session:
+        _seed_asset_with_detection(session)
+
+    payload = api_client.get("/photo-lookup/asset-1").json()
+
+    assert payload["detections"][0]["detector"] == "yolo"
+    assert payload["look_harder_available"] is True
+
+
+def test_look_harder_queues_a_job_for_the_photo(api_client, engine):
+    with Session(engine) as session:
+        _seed_asset_with_detection(session)
+
+    response = api_client.post("/photo-lookup/asset-1/look-harder")
+
+    assert response.status_code == 201
+    job = response.json()
+    assert job["operation"] == "look_harder"
+    assert job["status"] == "pending"
+    assert job["target_immich_asset_id"] == "asset-1"
+    assert api_client.app.state.fake_job_dispatcher.triggers == 1
+
+    # Pollable through the generic jobs endpoint.
+    polled = api_client.get(f"/jobs/{job['id']}").json()
+    assert polled["target_immich_asset_id"] == "asset-1"
+
+
+def test_look_harder_404_for_unscanned_asset(api_client):
+    response = api_client.post("/photo-lookup/does-not-exist/look-harder")
+
+    assert response.status_code == 404
+    assert api_client.app.state.fake_job_dispatcher.triggers == 0
+
+
+def test_look_harder_503_when_detector_unavailable(api_client, engine, monkeypatch):
+    monkeypatch.setattr(
+        "immich_dog_tagger.api.routes.photo_lookup.look_harder_available",
+        lambda: False,
+    )
+
+    with Session(engine) as session:
+        _seed_asset_with_detection(session)
+
+    response = api_client.post("/photo-lookup/asset-1/look-harder")
+
+    assert response.status_code == 503
+    assert api_client.app.state.fake_job_dispatcher.triggers == 0
+    assert (
+        api_client.get("/photo-lookup/asset-1").json()["look_harder_available"] is False
+    )

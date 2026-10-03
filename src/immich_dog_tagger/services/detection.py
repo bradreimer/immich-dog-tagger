@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.detector import ObjectDetector
-from immich_dog_tagger.enums import AssetStatus, Species
+from immich_dog_tagger.enums import AssetStatus, DetectorKind, Species
 from immich_dog_tagger.images import upright_size
 from immich_dog_tagger.media import is_supported_image
 from immich_dog_tagger.models import Asset, Crop, Detection
@@ -51,6 +51,9 @@ class DetectionService:
         crop_writer: CropWriter | None = None,
     ):
         self.detector = detector
+        # Recorded on every Detection this run creates (issue #390). A
+        # duck-typed detector without `kind` stands in for YOLO.
+        self.detector_kind: DetectorKind = getattr(detector, "kind", DetectorKind.YOLO)
         self.session = session
         self.cache_dir = cache_dir
         self.crop_writer = crop_writer
@@ -75,7 +78,15 @@ class DetectionService:
                         AssetStatus.DOWNLOADED,
                         AssetStatus.DETECTED,
                     ]
-                )
+                ),
+                # Issue #390: a photo an owner ran "Look harder" on keeps
+                # those detections through a batch re-detect. Only an
+                # explicit per-photo Repair/Look harder (asset_id below)
+                # replaces them.
+                ~exists().where(
+                    Detection.asset_id == Asset.id,
+                    Detection.detector != DetectorKind.YOLO.value,
+                ),
             )
 
         # Scopes to a single asset (issue #226's per-photo Repair action),
@@ -249,6 +260,7 @@ class DetectionService:
                     y1=detection.y1,
                     x2=detection.x2,
                     y2=detection.y2,
+                    detector=self.detector_kind.value,
                 )
 
                 self.session.add(db_detection)

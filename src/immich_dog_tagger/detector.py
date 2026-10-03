@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from .enums import DetectorKind
+
 
 @dataclass(frozen=True)
 class DetectionResult:
@@ -12,6 +14,11 @@ class DetectionResult:
 
 
 class ObjectDetector:
+    # Recorded on each Detection this detector produces (issue #390).
+    # Defaults to YOLO, the pipeline's detector, so a test double standing in
+    # for it needs no extra setup.
+    kind: DetectorKind = DetectorKind.YOLO
+
     def detect(
         self,
         image_path: str,
