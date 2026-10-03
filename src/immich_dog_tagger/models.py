@@ -356,6 +356,19 @@ class Asset(Base):
     exif_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     exif_orientation: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # When detection last ran on this asset's EXIF-orientation-corrected
+    # (upright) decode (issue #386). Every detection run since the
+    # orientation fix sets it, so a non-NULL value means this asset's
+    # Detection rows can't be stale from the pre-fix decode, whatever
+    # exif_width/exif_height say -- Immich sometimes reports those already
+    # rotated, which made the stale-detection check's geometric test flag a
+    # freshly repaired photo forever. NULL on any asset not re-detected
+    # since this column was added.
+    upright_detected_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
     pet_occurrences: Mapped[list[PetOccurrence]] = relationship(
         back_populates="asset",
         cascade="all, delete-orphan",

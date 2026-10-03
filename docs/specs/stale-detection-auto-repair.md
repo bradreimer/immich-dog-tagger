@@ -123,10 +123,6 @@ does on demand.
   dedicated one-off command, or accept that the count is incomplete until the user's next regular
   `scan` naturally re-visits each asset (FR-2 already leans toward the latter, but this should be
   an explicit decision, not a default)?
-- Is `Detection.x2 > exif_height` (etc.) exactly right, or does Immich's `exifImageWidth`/
-  `exifImageHeight` sometimes already reflect the rotated (display) dimensions rather than the raw
-  sensor dimensions, depending on server version -- this needs confirming against a real Immich
-  instance/API response before implementation, not assumed from the field names.
 
 ## Resolved decisions
 
@@ -136,3 +132,11 @@ does on demand.
   explicit switch to include those photos, never a default. Implemented as
   `StaleDetectionService.repair(asset_repair_service, include_reviewed=False)` and
   `POST /diagnostics/stale-detections/repair?include_reviewed=<bool>`.
+- **Detections from the upright decode are never flagged (issue #386).** Immich's
+  `exifImageWidth`/`exifImageHeight` sometimes already reflect the display dimensions, which
+  answers the former open question: the geometric test can read a correct upright box as stale,
+  so Repair re-detected the same correct box and the photo stayed flagged forever. Detection now
+  records `Asset.upright_detected_at`, and `check()` only applies the geometric test to assets
+  without it (legacy detections). This narrows the earlier Non-goal about a version/timestamp
+  marker: it can't classify the existing backlog, but it does stop flagging anything detected
+  since. A per-photo repair that returns a handled failure counts as `failed`, not `repaired`.

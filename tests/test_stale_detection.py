@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import numpy as np
@@ -11,7 +12,11 @@ from immich_dog_tagger.classifier import ClassificationResult
 from immich_dog_tagger.detector import DetectionResult
 from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.enums import AssetStatus, ReviewActions
-from immich_dog_tagger.immich import ImmichAsset, ImmichAssetNotFoundError
+from immich_dog_tagger.immich import (
+    ImmichAsset,
+    ImmichAssetNotFoundError,
+    ImmichGetAssetError,
+)
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -361,3 +366,72 @@ def test_repair_counts_photos_gone_from_immich_as_removed(session, tmp_path):
     assert summary.repaired == 0
     assert summary.failed == 0
     assert StaleDetectionService(session).check().healthy
+
+
+def test_check_skips_asset_detected_on_upright_decode(session):
+    # Issue #386: detections computed on the upright decode can't be stale
+    # from the pre-fix one, even when the geometric test would flag them.
+    asset = _make_asset(session)
+    _make_detection(session, asset, x2=3500, y2=100)
+    asset.upright_detected_at = datetime.now(UTC).replace(tzinfo=None)
+    session.commit()
+
+    report = StaleDetectionService(session).check()
+
+    assert report.flagged_immich_asset_ids == []
+    assert report.healthy
+
+
+class DisplayDimensionsDetector:
+    """A correct upright box in the lower part of a portrait photo."""
+
+    def detect(self, image_path, expected_size=None):
+        return [
+            DetectionResult(
+                label="dog", confidence=0.99, x1=10, y1=3000, x2=1000, y2=3500
+            )
+        ]
+
+
+def test_repair_clears_flag_when_immich_reports_display_dimensions(session, tmp_path):
+    """
+    Issue #386: Immich can report exifImageWidth/exifImageHeight already
+    rotated (here 3024x4032 portrait with orientation 6), so the geometric
+    test reads a correct upright box (y2=3500) as out of bounds. Repair used
+    to re-detect that same correct box and leave the photo flagged forever.
+    """
+    asset = _make_asset(session, exif_width=3024, exif_height=4032)
+    _make_detection(session, asset, x2=1000, y2=3500)
+    session.commit()
+
+    assert StaleDetectionService(session).check().flagged == 1
+
+    asset_repair_service = _build_repair_service(session, tmp_path)
+    asset_repair_service.detection_service.detector = DisplayDimensionsDetector()
+
+    summary = StaleDetectionService(session).repair(asset_repair_service)
+
+    assert summary.repaired == 1
+
+    detection = session.query(Detection).filter_by(asset_id=asset.id).one()
+    assert (detection.x2, detection.y2) == (1000, 3500)
+    assert StaleDetectionService(session).check().healthy
+
+
+def test_repair_counts_a_handled_failure_as_failed(session, tmp_path):
+    # Issue #386: AssetRepairService returns, not raises, on a handled
+    # failure -- that must not be counted as a repair.
+    asset = _make_asset(session)
+    _make_detection(session, asset, x2=3500, y2=100)
+    session.commit()
+
+    asset_repair_service = _build_repair_service(session, tmp_path)
+    asset_repair_service.downloader.client.get_asset.side_effect = ImmichGetAssetError(
+        "Immich API error 500"
+    )
+
+    summary = StaleDetectionService(session).repair(asset_repair_service)
+
+    assert summary.repaired == 0
+    assert summary.failed == 1
+    assert StaleDetectionService(session).check().flagged == 1

@@ -825,3 +825,38 @@ def test_database_removes_dangling_pet_occurrences_from_an_existing_database(
         ).scalar()
 
     assert count_after == 0
+
+
+def test_database_adds_asset_upright_detected_at_column(tmp_path: Path):
+    """Issue #386: plain ADD COLUMN, NULL for every existing asset."""
+
+    from immich_dog_tagger.database import create_database
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        session.add(
+            Asset(
+                immich_asset_id="asset-1",
+                checksum="xyz",
+                extension=".jpg",
+                status=AssetStatus.DETECTED,
+            )
+        )
+        session.commit()
+
+    engine.dispose()
+
+    connection = sqlite3.connect(tmp_path / "state.db")
+    connection.execute("ALTER TABLE assets DROP COLUMN upright_detected_at")
+    connection.commit()
+    connection.close()
+
+    engine = create_database(tmp_path)
+
+    with Session(engine) as session:
+        migrated = session.scalar(select(Asset))
+
+        assert migrated is not None
+        assert migrated.immich_asset_id == "asset-1"
+        assert migrated.upright_detected_at is None
