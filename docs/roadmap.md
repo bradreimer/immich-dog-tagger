@@ -382,6 +382,31 @@ Completed.
 
 ---
 
+## v1.43.0 - v1.46.0 - Friends in Frame
+
+See [docs/specs/friends-in-frame.md](specs/friends-in-frame.md). Tracking issues:
+[#392](https://github.com/bradreimer/immich-dog-tagger/issues/392),
+[#393](https://github.com/bradreimer/immich-dog-tagger/issues/393),
+[#394](https://github.com/bradreimer/immich-dog-tagger/issues/394),
+[#395](https://github.com/bradreimer/immich-dog-tagger/issues/395),
+[#396](https://github.com/bradreimer/immich-dog-tagger/issues/396).
+
+Goal:
+Show which pets tend to appear in the same photos, as a network of pet thumbnails on the Metrics
+tab that stays readable from 1 to 50+ pets.
+
+Completed:
+- #392 (v1.43.0): per-pet key thumbnail (clearest, most circle-friendly crop; human-confirmed first).
+- #393 (v1.43.0): `GET /metrics/friends-in-frame` (nodes with image counts, co-occurrence edges).
+- #394 (v1.44.0): edge-visibility strategy and a deterministic, stable force layout.
+- #395 (v1.45.0): interactive network (hover, click-to-focus, edge tooltips, connection controls).
+- #396 (v1.46.0): Most Common Pairs row and Metrics-tab integration.
+
+Exit criteria:
+Completed.
+
+---
+
 ## Active Learning Improvements
 
 Goal:

@@ -1101,6 +1101,14 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#396](https://github.com/bradreimer/immich-dog-tagger/issues/396) v1.46.0 Most Common Pairs and
+  the Friends in Frame Metrics section ([spec](specs/friends-in-frame.md)). A "Friends in Frame"
+  card now sits before "Dogs Over Time" on the Metrics tab: the network, then Most Common Pairs, a
+  horizontally scrolling row of thumbnail-pair cards ranked by shared photos (top 6, "Show more"
+  up to 24). Hovering a card lights its edge in the network. The section hides itself if
+  `GET /metrics/friends-in-frame` fails, like the species timelines. Checked in a browser against
+  mocked 1-, 5-, 22- and 50-pet data at desktop and phone width; not yet checked against a real
+  library.
 - [#395](https://github.com/bradreimer/immich-dog-tagger/issues/395) v1.45.0 Friends in Frame
   network component ([spec](specs/friends-in-frame.md)). `FriendsNetwork.tsx` draws every pet as
   its key thumbnail on a dark canvas (SVG edges, focusable thumbnail buttons). Hover enlarges a

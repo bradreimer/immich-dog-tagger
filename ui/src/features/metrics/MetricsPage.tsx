@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getDogs, getLearningMetrics, getSpeciesTimeline } from "../../lib/api";
+import { getDogs, getFriendsInFrame, getLearningMetrics, getSpeciesTimeline } from "../../lib/api";
 import type { Dog } from "../../types/dogs";
-import type { LearningMetrics, SpeciesTimeline } from "../../types/metrics";
+import type { FriendsInFrame as FriendsInFrameData, LearningMetrics, SpeciesTimeline } from "../../types/metrics";
 import {
   IconBolt,
   IconBooks,
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DonutChart } from "./components/DonutChart";
+import { FriendsInFrame } from "./components/FriendsInFrame";
 import { ProgressOverTimeChart, type ProgressPassPoint } from "./components/ProgressOverTimeChart";
 import { SpeciesTimelineChart } from "./components/SpeciesTimelineChart";
 
@@ -119,6 +120,7 @@ export function MetricsPage({ onNavigate }: Props) {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [dogTimeline, setDogTimeline] = useState<SpeciesTimeline | null>(null);
   const [catTimeline, setCatTimeline] = useState<SpeciesTimeline | null>(null);
+  const [friends, setFriends] = useState<FriendsInFrameData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,17 +129,19 @@ export function MetricsPage({ onNavigate }: Props) {
     setError(null);
 
     try {
-      const [learningMetrics, dogItems, dogTimelineData, catTimelineData] = await Promise.all([
+      const [learningMetrics, dogItems, dogTimelineData, catTimelineData, friendsData] = await Promise.all([
         getLearningMetrics(),
         getDogs({ includeInactive: false }).catch(() => null),
         getSpeciesTimeline("dog").catch(() => null),
         getSpeciesTimeline("cat").catch(() => null),
+        getFriendsInFrame().catch(() => null),
       ]);
       setMetrics(learningMetrics);
       setActiveDogCount(dogItems ? dogItems.length : null);
       setDogs(dogItems ?? []);
       setDogTimeline(dogTimelineData);
       setCatTimeline(catTimelineData);
+      setFriends(friendsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load metrics");
     } finally {
@@ -425,6 +429,8 @@ export function MetricsPage({ onNavigate }: Props) {
           </CardContent>
         </Card>
       )}
+
+      {metrics && friends && <FriendsInFrame data={friends} onNavigate={onNavigate} />}
 
       {metrics && dogTimeline && (
         <Card>
