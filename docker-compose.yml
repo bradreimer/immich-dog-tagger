@@ -17,6 +17,10 @@ services:
       - STATE_DIR=/app/state
       - CACHE_DIR=/app/cache
       - YOLO_MODEL=/app/models/yolo11m.pt
+      # Photo Lookup's "Look harder" detector (Grounding DINO, ADR-012). Weights (~900 MB)
+      # download on first use and cache here, on the models volume, so they survive restarts.
+      - HF_HOME=/app/models/huggingface
+      - LOOK_HARDER_MODEL=${LOOK_HARDER_MODEL:-IDEA-Research/grounding-dino-base}
       - CROP_PADDING=${CROP_PADDING:-0.15}
 
     volumes:
