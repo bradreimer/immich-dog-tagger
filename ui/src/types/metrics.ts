@@ -55,3 +55,25 @@ export interface LearningMetrics {
   pass_history: ClassificationPassSummary[];
   detection_coverage: DetectionCoverage;
 }
+
+export interface FriendNode {
+  id: number;
+  name: string;
+  species: "dog" | "cat";
+  /** Distinct photos with a confirmed occurrence of this pet. */
+  image_count: number;
+  /** Crop to show as this pet's thumbnail; null when no eligible crop exists. */
+  key_crop_id: number | null;
+}
+
+export interface FriendEdge {
+  a_id: number;
+  b_id: number;
+  /** Distinct photos both pets appear in. */
+  count: number;
+}
+
+export interface FriendsInFrame {
+  nodes: FriendNode[];
+  edges: FriendEdge[];
+}
