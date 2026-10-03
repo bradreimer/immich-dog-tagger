@@ -63,6 +63,9 @@ def test_detection_creates_record(
         session.refresh(asset)
 
         assert asset.status is AssetStatus.DETECTED
+        # Issue #386: marks these detections as computed on the upright
+        # decode, so the stale-detection check never flags them.
+        assert asset.upright_detected_at is not None
 
 
 def test_detection_skips_video_assets(engine):

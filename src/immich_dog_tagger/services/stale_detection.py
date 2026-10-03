@@ -89,6 +89,12 @@ class StaleDetectionService:
                 Asset.exif_orientation.in_(ROTATED_ORIENTATIONS),
                 Asset.exif_width.is_not(None),
                 Asset.exif_height.is_not(None),
+                # Detections computed on the upright decode can't be stale
+                # from the pre-fix one (issue #386). Only legacy detections
+                # get the geometric test, which can't tell a correct box
+                # from a stale one when Immich reports exif dimensions
+                # already rotated.
+                Asset.upright_detected_at.is_(None),
                 exists().where(Detection.asset_id == Asset.id),
             )
             .distinct()
@@ -168,8 +174,17 @@ class StaleDetectionService:
 
                 if result.status == AssetStatus.REMOVED:
                     summary.removed += 1
-                else:
+                elif result.succeeded:
                     summary.repaired += 1
+                else:
+                    # A handled failure (metadata fetch, download, or
+                    # detection) is returned, not raised (issue #386).
+                    logger.warning(
+                        "Stale-detection repair failed for asset %s: %s",
+                        immich_asset_id,
+                        result.message,
+                    )
+                    summary.failed += 1
             except Exception:
                 # Isolated per-asset, mirroring DetectionService's own
                 # per-asset error handling -- one bad photo shouldn't abort

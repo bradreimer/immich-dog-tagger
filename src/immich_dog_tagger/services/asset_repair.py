@@ -55,6 +55,10 @@ class AssetRepairResult:
     cats: int
     classified: int
     message: str
+    # False when the repair stopped at a handled failure (issue #386), so a
+    # batch caller can tell it from a real repair without parsing `message`.
+    # True for a removed photo: retiring it is the intended outcome.
+    succeeded: bool = True
     captured_at: datetime | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -103,6 +107,7 @@ class AssetRepairService:
             if not self._client_owns(asset):
                 return self._result(
                     asset,
+                    succeeded=False,
                     message=(
                         "Repair failed: this photo belongs to another Immich "
                         f"account, which Repair can't reach: {e}"
@@ -126,6 +131,7 @@ class AssetRepairService:
         except ImmichGetAssetError as e:
             return self._result(
                 asset,
+                succeeded=False,
                 message=f"Repair failed: could not refresh photo metadata from Immich: {e}",
             )
 
@@ -139,6 +145,7 @@ class AssetRepairService:
         if asset.status == AssetStatus.DOWNLOAD_FAILED:
             return self._result(
                 asset,
+                succeeded=False,
                 message="Repair failed: could not re-download the photo from Immich.",
             )
 
@@ -148,6 +155,7 @@ class AssetRepairService:
         if asset.status == AssetStatus.DETECTION_FAILED:
             return self._result(
                 asset,
+                succeeded=False,
                 message="Repair failed: could not re-run detection on the photo.",
             )
 
@@ -187,6 +195,7 @@ class AssetRepairService:
         self,
         asset: Asset,
         message: str,
+        succeeded: bool = True,
         detections: int = 0,
         dogs: int = 0,
         cats: int = 0,
@@ -201,6 +210,7 @@ class AssetRepairService:
             cats=cats,
             classified=classified,
             message=message,
+            succeeded=succeeded,
             captured_at=asset.captured_at,
             latitude=asset.latitude,
             longitude=asset.longitude,

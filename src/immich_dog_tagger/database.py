@@ -74,6 +74,7 @@ def create_database(state_dir: Path):
     _ensure_embedding_example_location_columns(engine)
     _ensure_crop_not_animal_column(engine)
     _ensure_asset_exif_dimension_columns(engine)
+    _ensure_asset_upright_detected_at_column(engine)
     _ensure_embedding_model_columns(engine)
     _ensure_account_columns(engine)
     _cleanup_dangling_pet_occurrences(engine)
@@ -345,6 +346,26 @@ def _ensure_asset_exif_dimension_columns(engine) -> None:
     with engine.begin() as connection:
         for statement in statements:
             connection.exec_driver_sql(statement)
+
+
+def _ensure_asset_upright_detected_at_column(engine) -> None:
+    """
+    Issue #386: assets gain an `upright_detected_at` marker recording when
+    detection last ran on the EXIF-orientation-corrected decode. Plain ADD
+    COLUMN -- NULL is the correct backfill, since nothing recorded that for
+    any existing asset; the stale-detection check keeps using its geometric
+    test for those.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("assets")}
+
+    if "upright_detected_at" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE assets ADD COLUMN upright_detected_at DATETIME"
+        )
 
 
 def _ensure_crop_not_animal_column(engine) -> None:

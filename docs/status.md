@@ -1107,6 +1107,14 @@
   value. Those response fields now use a `UtcDatetime` schema type that marks naive values as UTC,
   so responses end in `Z` and `toLocaleString()` converts them to the viewer's time zone. Stored
   data is unchanged; no migration.
+- [#386](https://github.com/bradreimer/immich-dog-tagger/issues/386) v1.40.1 Stale-detection
+  Repair clears the flag ([spec](specs/stale-detection-auto-repair.md)). A repaired photo could stay
+  flagged forever: Immich sometimes reports `exifImageWidth`/`exifImageHeight` already rotated, so
+  the geometric check read a correct upright box as out of bounds. Detection now sets
+  `Asset.upright_detected_at` (new nullable column, plain `ADD COLUMN`), and the check skips assets
+  that have it; only legacy detections get the geometric test. The batch repair also counts a
+  handled per-photo failure (metadata, download, or detection) as `failed` instead of `repaired`,
+  using a new `AssetRepairResult.succeeded` flag, and logs the reason.
 - [#379](https://github.com/bradreimer/immich-dog-tagger/issues/379) v1.38.1 Derived-data Repair
   removes orphaned learned examples ([spec addendum](specs/broken-crop-auto-repair.md)). An
   example whose crop file is gone and that no live `Crop` row references has no bounding box left
