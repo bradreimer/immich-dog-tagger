@@ -1101,7 +1101,7 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
-- [#390](https://github.com/bradreimer/immich-dog-tagger/issues/390) v1.41.0 Look harder on
+- [#390](https://github.com/bradreimer/immich-dog-tagger/issues/390) v1.42.0 Look harder on
   Photo Lookup ([spec addendum](specs/photo-lookup.md),
   [ADR-012](adr/ADR-012-look-harder-open-vocabulary-detector.md)). A second action next to Repair
   re-detects one photo with Grounding DINO, an open-vocabulary detector, for dogs YOLO misses.
