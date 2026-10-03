@@ -1101,6 +1101,12 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#384](https://github.com/bradreimer/immich-dog-tagger/issues/384) v1.40.0 Job Queue times show
+  in local time. Job, schedule, and classification-pass timestamps are stored as naive UTC, and the
+  API sent them without an offset, so the browser read them as local time and showed the UTC clock
+  value. Those response fields now use a `UtcDatetime` schema type that marks naive values as UTC,
+  so responses end in `Z` and `toLocaleString()` converts them to the viewer's time zone. Stored
+  data is unchanged; no migration.
 - [#379](https://github.com/bradreimer/immich-dog-tagger/issues/379) v1.38.1 Derived-data Repair
   removes orphaned learned examples ([spec addendum](specs/broken-crop-auto-repair.md)). An
   example whose crop file is gone and that no live `Crop` row references has no bounding box left

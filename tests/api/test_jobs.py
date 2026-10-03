@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import PipelineJobStatus, PipelineOperation
@@ -33,6 +35,24 @@ def test_jobs_get_returns_single_job(api_client, engine):
     assert payload["id"] == job.id
     assert payload["operation"] == "sync"
     assert payload["status"] == "pending"
+
+
+def test_jobs_timestamps_include_utc_offset(api_client, engine):
+    with Session(engine) as session:
+        job = PipelineJobService(session).create_job(operation=PipelineOperation.SCAN)
+        job.started_at = datetime(2026, 1, 1, 12, 0, tzinfo=UTC).replace(tzinfo=None)
+        job.completed_at = datetime(2026, 1, 1, 12, 5, tzinfo=UTC).replace(tzinfo=None)
+        session.commit()
+        job_id = job.id
+
+    payload = api_client.get(f"/jobs/{job_id}").json()
+
+    for field in ("created_at", "started_at", "completed_at"):
+        parsed = datetime.fromisoformat(payload[field])
+        assert parsed.utcoffset() is not None, field
+    assert datetime.fromisoformat(payload["started_at"]) == datetime(
+        2026, 1, 1, 12, 0, 0, tzinfo=UTC
+    )
 
 
 def test_jobs_get_missing_returns_404(api_client):
