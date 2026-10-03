@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
 import { RepairButton } from "@/features/review/components/RepairButton";
+import { LookHarderButton } from "./components/LookHarderButton";
 import type { Dog } from "@/types/dogs";
 import type { AssetRepairResult, PhotoLookupResult } from "@/types/photoLookup";
 
@@ -262,6 +263,24 @@ export function PhotoLookupPage() {
     setResult(await getPhotoLookup(repairResult.immich_asset_id));
   };
 
+  // Issue #390: Look harder ran as a job; its message replaces Repair's and
+  // the lookup is re-fetched to show the new boxes.
+  const handleLookedHarder = async (message: string) => {
+    if (!result) {
+      return;
+    }
+
+    setRepairMessage(message);
+    setStaleMessage(null);
+
+    try {
+      setResult(await getPhotoLookup(result.immich_asset_id));
+    } catch {
+      // Immich no longer has this photo (issue #370): nothing left to show.
+      setResult(null);
+    }
+  };
+
   const locationText = result ? formatLocation(result) : null;
 
   return (
@@ -306,6 +325,12 @@ export function PhotoLookupPage() {
             <RepairButton
               immichAssetId={result.immich_asset_id}
               onRepaired={handleRepaired}
+            />
+
+            <LookHarderButton
+              immichAssetId={result.immich_asset_id}
+              available={result.look_harder_available}
+              onFinished={handleLookedHarder}
             />
           </div>
 

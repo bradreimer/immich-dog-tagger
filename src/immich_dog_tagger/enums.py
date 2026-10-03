@@ -11,6 +11,17 @@ class Species(StrEnum):
     CAT = "cat"
 
 
+class DetectorKind(StrEnum):
+    """
+    Which detector produced a Detection (issue #390, ADR-012). YOLO is the
+    pipeline default; Grounding DINO only runs from Photo Lookup's per-photo
+    "Look harder" action.
+    """
+
+    YOLO = "yolo"
+    GROUNDING_DINO = "grounding_dino"
+
+
 class AssetStatus(StrEnum):
     PENDING = "pending"
     DOWNLOADED = "downloaded"
@@ -103,6 +114,10 @@ class PipelineOperation(StrEnum):
     # normal Reclassify pass. Run once after swapping the embedding model -- see
     # docs/specs/dog-reid-embeddings.md.
     REEMBED = "reembed"
+    # Issue #390: re-detects one photo with the open-vocabulary detector. Only
+    # created from Photo Lookup, which names the photo -- POST /jobs and
+    # schedules can't, so both reject it.
+    LOOK_HARDER = "look_harder"
 
 
 class PipelineJobStatus(StrEnum):

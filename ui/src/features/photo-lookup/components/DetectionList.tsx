@@ -251,6 +251,12 @@ function DetectionRow({
             {detection.identity ?? "Unknown"} ({detection.species})
           </span>
 
+          {detection.detector === "grounding_dino" && (
+            <Badge variant="outline" className="shrink-0">
+              Found by Look harder
+            </Badge>
+          )}
+
           {detection.confidence !== null && (
             <span className="shrink-0 text-sm text-muted-foreground">
               {(detection.confidence * 100).toFixed(1)}% confidence

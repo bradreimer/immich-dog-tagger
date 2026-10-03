@@ -67,6 +67,12 @@ def create_job(
             ),
         )
 
+    if request.operation == PipelineOperation.LOOK_HARDER:
+        raise HTTPException(
+            status_code=400,
+            detail="Look harder acts on one photo. Start it from Photo Lookup instead.",
+        )
+
     job = service.create_job(
         operation=request.operation,
         account_id=request.account_id,

@@ -227,3 +227,12 @@ def test_jobs_cancel_already_terminal_job_conflict(api_client, engine):
     assert response.json() == {
         "detail": "Job is not pending or running and cannot be canceled",
     }
+
+
+def test_jobs_create_rejects_look_harder(api_client):
+    # Issue #390: Look harder acts on one photo, which this endpoint has no
+    # field to name -- Photo Lookup creates it instead.
+    response = api_client.post("/jobs", json={"operation": "look_harder"})
+
+    assert response.status_code == 400
+    assert "Photo Lookup" in response.json()["detail"]

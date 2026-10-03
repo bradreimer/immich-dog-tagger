@@ -7,10 +7,15 @@ from immich_dog_tagger.classifier import IdentityClassifier
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.crops import CropWriter
 from immich_dog_tagger.downloader import Downloader
-from immich_dog_tagger.enums import ClassificationMode, PipelineOperation, Species
+from immich_dog_tagger.enums import (
+    AssetStatus,
+    ClassificationMode,
+    PipelineOperation,
+    Species,
+)
 from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.models import Crop
-from immich_dog_tagger.runtime import get_embedder
+from immich_dog_tagger.runtime import get_embedder, get_look_harder_detector
 from immich_dog_tagger.scanner import Scanner
 from immich_dog_tagger.services.accounts import (
     ResolvedAccount,
@@ -19,6 +24,7 @@ from immich_dog_tagger.services.accounts import (
 )
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.app_settings import AppSettingsService
+from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.job_runner import JobProgressReporter, PipelineJobRunner
@@ -82,6 +88,10 @@ def create_pipeline_job_runner(
         PipelineOperation.REEMBED: _reembed_handler(
             session,
             options.get(PipelineOperation.REEMBED, {}),
+        ),
+        PipelineOperation.LOOK_HARDER: _look_harder_handler(
+            session,
+            config,
         ),
     }
 
@@ -335,6 +345,74 @@ def _reembed_handler(
             "reclassify_pass_id": result.pass_id,
             "reclassify_status": result.status.value,
             "changed_count": result.changed_count,
+        }
+
+    return run
+
+
+def _look_harder_handler(
+    session: Session,
+    config: Config,
+):
+    """
+    Issue #390: Repair for one photo, with the open-vocabulary detector in
+    place of YOLO. Cropping, embedding, and classification are unchanged.
+    """
+
+    def run(progress: JobProgressReporter) -> dict[str, object]:
+        immich_asset_id = progress.job.target_immich_asset_id
+
+        if not immich_asset_id:
+            raise ValueError("Look harder job has no target photo")
+
+        progress.message("Looking harder at this photo (this can take several minutes)")
+
+        # The default account's client, same as the Repair endpoint
+        # (get_asset_repair_service) -- see AssetRepairService.account_id.
+        account = resolve_account(session, config, None)
+        policy = AppSettingsService(session).policy()
+
+        service = AssetRepairService(
+            session,
+            Downloader(_create_client(config, account), session, config.cache_dir),
+            DetectionService(
+                get_look_harder_detector(),
+                session,
+                config.cache_dir,
+                CropWriter(config.crop_dir, config.crop_padding),
+            ),
+            ClassificationService(
+                session,
+                get_embedder(),
+                IdentityClassifier(session, policy=policy),
+                policy=policy,
+            ),
+            account_id=account.id,
+            action="Look harder",
+        )
+
+        result = service.repair(immich_asset_id)
+
+        if not result.succeeded:
+            raise RuntimeError(result.message)
+
+        if result.status == AssetStatus.REMOVED:
+            message = result.message
+        elif result.detections == 0:
+            message = "Look harder found no dogs or cats in this photo."
+        else:
+            message = (
+                f"Look harder found {result.dogs} dog(s) and {result.cats} cat(s); "
+                f"{result.classified} classified."
+            )
+
+        progress.message(message)
+
+        return {
+            "detections": result.detections,
+            "dogs": result.dogs,
+            "cats": result.cats,
+            "classified": result.classified,
         }
 
     return run

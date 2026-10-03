@@ -1101,6 +1101,18 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#390](https://github.com/bradreimer/immich-dog-tagger/issues/390) v1.42.0 Look harder on
+  Photo Lookup ([spec addendum](specs/photo-lookup.md),
+  [ADR-012](adr/ADR-012-look-harder-open-vocabulary-detector.md)). A second action next to Repair
+  re-detects one photo with Grounding DINO, an open-vocabulary detector, for dogs YOLO misses.
+  It runs as a `look_harder` job (`PipelineJob.target_immich_asset_id`) through the same
+  `AssetRepairService` flow, so cropping, OpenCLIP embedding, and classification are unchanged.
+  The UI polls the job and refreshes when it finishes. `Detection.detector` records `yolo` or
+  `grounding_dino` (additive migration, existing rows backfilled to `yolo`), and a batch
+  `detect --force` skips photos with Look harder detections. Repair keeps using YOLO.
+  `transformers` is a new dependency; the model loads lazily, and weights download once into
+  `HF_HOME`. Not yet verified against the real model weights in CI (Hugging Face is
+  unreachable there); the detector is covered by unit tests with a stubbed model.
 - [#384](https://github.com/bradreimer/immich-dog-tagger/issues/384) v1.40.0 Job Queue times show
   in local time. Job, schedule, and classification-pass timestamps are stored as naive UTC, and the
   API sent them without an offset, so the browser read them as local time and showed the UTC clock

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { PhotoLookupPage } from "./PhotoLookupPage";
 import * as api from "@/lib/api";
@@ -16,6 +16,8 @@ vi.mock("@/lib/api", () => ({
   markCropNotAnimal: vi.fn(),
   unmarkCropNotAnimal: vi.fn(),
   repairAsset: vi.fn(),
+  lookHarder: vi.fn(),
+  getJob: vi.fn(),
   assignDetection: vi.fn(),
   assignCrop: vi.fn(),
   PhotoLookupNotFoundError: class PhotoLookupNotFoundError extends Error {},
@@ -63,8 +65,10 @@ function buildResult(): PhotoLookupResult {
         identity: "Hermann",
         confidence: 0.87,
         not_animal: false,
+        detector: "yolo",
       },
     ],
+    look_harder_available: true,
   };
 }
 
@@ -197,6 +201,60 @@ describe("PhotoLookupPage", () => {
 
     expect(await screen.findAllByText("Hermann (dog)")).not.toHaveLength(0);
     expect(screen.getByText("87.0% confidence")).toBeInTheDocument();
+  });
+
+  it("runs Look harder, then shows its result and re-fetches the photo (issue #390)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    try {
+      vi.mocked(api.getDogs).mockResolvedValue([HERMANN, FIBS]);
+      vi.mocked(api.getPhotoLookup).mockResolvedValue(buildResult());
+      vi.mocked(api.lookHarder).mockResolvedValue({
+        id: 9,
+        operation: "look_harder",
+        status: "pending",
+        progress_current: 0,
+        progress_total: null,
+        progress_message: "Queued: Look harder",
+        error_message: null,
+        cancel_requested: false,
+        created_at: "2026-10-03T00:00:00Z",
+        started_at: null,
+        completed_at: null,
+      });
+      vi.mocked(api.getJob).mockResolvedValue({
+        id: 9,
+        operation: "look_harder",
+        status: "completed",
+        progress_current: 0,
+        progress_total: null,
+        progress_message: "Look harder found 2 dog(s) and 0 cat(s); 2 classified.",
+        error_message: null,
+        cancel_requested: false,
+        created_at: "2026-10-03T00:00:00Z",
+        started_at: null,
+        completed_at: null,
+      });
+
+      render(<PhotoLookupPage />);
+      await pasteAndSubmit("http://immich.local/photos/asset-42");
+
+      fireEvent.click(await screen.findByRole("button", { name: "Look harder" }));
+      fireEvent.click(screen.getByRole("button", { name: /yes, look harder/i }));
+      expect(await screen.findByText(/waiting for any running job/i)).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+
+      expect(
+        await screen.findByText("Look harder found 2 dog(s) and 0 cat(s); 2 classified."),
+      ).toBeInTheDocument();
+      expect(api.lookHarder).toHaveBeenCalledWith("asset-42");
+      expect(api.getPhotoLookup).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("corrects a detection's identity in place", async () => {
@@ -408,6 +466,7 @@ describe("PhotoLookupPage", () => {
           identity: null,
           confidence: null,
           not_animal: false,
+          detector: "yolo",
         },
       ],
     };

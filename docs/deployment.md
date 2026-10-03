@@ -130,6 +130,22 @@ the *first* configured account only — a fast-follow UI update will add an acco
 Until then, use the CLI (or the equivalent `account_id` field on `POST /jobs`/`POST /schedules`)
 to target a specific account from a multi-account deployment.
 
+## Look harder detector
+
+Photo Lookup's **Look harder** action re-detects one photo with Grounding DINO, a slower
+open-vocabulary detector, when YOLO misses a dog
+([ADR-012](adr/ADR-012-look-harder-open-vocabulary-detector.md)). It needs no setup in the
+default Docker Compose deployment:
+
+- The first run downloads about 900 MB of weights from Hugging Face into `HF_HOME`
+  (`/app/models/huggingface`, on the models volume). Later runs load from that cache. Only the
+  weights are downloaded; photos never leave the machine.
+- To run without internet access, download the model ahead of time and set `LOOK_HARDER_MODEL`
+  to its local directory (for example, `/app/models/grounding-dino-base`).
+- It runs as a `look_harder` job, so it waits behind any running pipeline job. On CPU, expect
+  roughly 15 seconds to a few minutes per photo. With a GPU, it takes a few seconds.
+- While loaded, the model uses about 1–2 GB of additional memory.
+
 ## Docker network
 
 Both services join the external `proxy` network, so Traefik can reach the frontend and nginx can

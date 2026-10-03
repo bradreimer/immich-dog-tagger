@@ -28,6 +28,8 @@ class PhotoLookupDetection:
     identity: str | None
     confidence: float | None
     not_animal: bool
+    # Which detector found this box, "yolo" or "grounding_dino" (issue #390).
+    detector: str = "yolo"
 
 
 @dataclass(frozen=True)
@@ -112,4 +114,5 @@ class PhotoLookupService:
                 classification.confidence if classification is not None else None
             ),
             not_animal=crop.not_animal if crop is not None else False,
+            detector=detection.detector,
         )
