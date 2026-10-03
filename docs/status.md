@@ -1115,6 +1115,10 @@
   that have it; only legacy detections get the geometric test. The batch repair also counts a
   handled per-photo failure (metadata, download, or detection) as `failed` instead of `repaired`,
   using a new `AssetRepairResult.succeeded` flag, and logs the reason.
+- [#387](https://github.com/bradreimer/immich-dog-tagger/issues/387) v1.41.0 Clear list also
+  clears Recent Failures and moves to the Job Queue header, left of Refresh. The Recent Failures
+  card read `recent_failures()`, which ignored the `visible` flag that Clear list sets, so cleared
+  failures stayed on screen. That query now skips hidden jobs; rows are kept, not deleted.
 - [#379](https://github.com/bradreimer/immich-dog-tagger/issues/379) v1.38.1 Derived-data Repair
   removes orphaned learned examples ([spec addendum](specs/broken-crop-auto-repair.md)). An
   example whose crop file is gone and that no live `Crop` row references has no bounding box left

@@ -252,10 +252,42 @@ export function JobQueuePage() {
           )}
         </div>
 
-        <Button variant="outline" onClick={() => load()} disabled={loading}>
-          <IconRefresh className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
-          {loading ? "Refreshing…" : "Refresh"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {clearConfirming ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="destructive"
+                onClick={clearVisibleHistory}
+                disabled={clearing}
+              >
+                <IconTrash className="h-4 w-4" aria-hidden="true" />
+                {clearing ? "Clearing…" : "Yes, clear list"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setClearConfirming(false)}
+                disabled={clearing}
+              >
+                <IconX className="h-4 w-4" aria-hidden="true" />
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="destructive"
+              onClick={() => setClearConfirming(true)}
+              disabled={groups.history.length === 0 || clearing}
+            >
+              <IconTrash className="h-4 w-4" aria-hidden="true" />
+              Clear list
+            </Button>
+          )}
+
+          <Button variant="outline" onClick={() => load()} disabled={loading}>
+            <IconRefresh className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        </div>
       </header>
 
       <span role="status" className="sr-only">
@@ -348,44 +380,9 @@ export function JobQueuePage() {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <div>
-                <CardTitle>History</CardTitle>
-                <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
-              </div>
-
-              {clearConfirming ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={clearVisibleHistory}
-                    disabled={clearing}
-                  >
-                    <IconTrash className="h-4 w-4" aria-hidden="true" />
-                    {clearing ? "Clearing…" : "Yes, clear list"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setClearConfirming(false)}
-                    disabled={clearing}
-                  >
-                    <IconX className="h-4 w-4" aria-hidden="true" />
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setClearConfirming(true)}
-                  disabled={groups.history.length === 0 || clearing}
-                >
-                  <IconTrash className="h-4 w-4" aria-hidden="true" />
-                  Clear list
-                </Button>
-              )}
+            <CardHeader>
+              <CardTitle>History</CardTitle>
+              <CardDescription>Completed, failed, and canceled jobs.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {groups.history.length === 0 ? (
