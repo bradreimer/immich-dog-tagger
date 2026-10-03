@@ -1101,6 +1101,16 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#395](https://github.com/bradreimer/immich-dog-tagger/issues/395) v1.45.0 Friends in Frame
+  network component ([spec](specs/friends-in-frame.md)). `FriendsNetwork.tsx` draws every pet as
+  its key thumbnail on a dark canvas (SVG edges, focusable thumbnail buttons). Hover enlarges a
+  pet, lights its connections and dims the rest; hovering an edge shows "A + B / N images
+  together" plus each pet's share of its own photos (`image_count`); clicking a pet moves it to
+  the center with its friends fanned out by strength ("Back to all friends" or Escape returns).
+  Controls: `Strong | Top 25 | All`, a minimum-together slider (only when the data has a useful
+  range), and "Show more connections". Names show for the 12 most connected pets in large
+  libraries; empty states cover 1 pet, 2 pets and no shared photos. Not wired into the Metrics
+  page yet (#396).
 - [#394](https://github.com/bradreimer/immich-dog-tagger/issues/394) v1.44.0 Friends in Frame
   graph logic ([spec](specs/friends-in-frame.md)). Pure TypeScript under
   `ui/src/features/metrics/utils/`: `friendsGraph.ts` picks which relationships to draw (each
