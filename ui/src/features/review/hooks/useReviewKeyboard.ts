@@ -6,6 +6,8 @@ type ReviewKeyboardActions = {
   skip: () => void;
   next: () => void;
   previous: () => void;
+  /** Undo the last identity choice (Z). Omitted where undo doesn't apply. */
+  undo?: () => void;
 };
 
 export function useReviewKeyboard({
@@ -14,6 +16,7 @@ export function useReviewKeyboard({
   skip,
   next,
   previous,
+  undo,
 }: ReviewKeyboardActions) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -30,6 +33,12 @@ export function useReviewKeyboard({
           break;
         case "s":
           skip();
+          break;
+        case "z":
+          // Leave Ctrl/Cmd+Z to the browser.
+          if (undo && !event.ctrlKey && !event.metaKey) {
+            undo();
+          }
           break;
         case "1":
         case "2":
@@ -56,5 +65,5 @@ export function useReviewKeyboard({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [correct, identities, next, previous, skip]);
+  }, [correct, identities, next, previous, skip, undo]);
 }

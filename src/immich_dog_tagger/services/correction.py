@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
@@ -26,6 +27,13 @@ class ClassificationNotFoundError(ValueError):
     The classification a correction targets does not exist. A distinct type so the API maps only
     this case to 404; any other failure while correcting (issue #362's embedding shape mismatch,
     for one) must surface as the server error it is, not as "not found".
+    """
+
+
+class NothingToUndoError(ValueError):
+    """
+    The classification's latest review action is not an identity correction, so there is nothing
+    `undo_correction()` may reverse. A distinct type so the API maps it to 409.
     """
 
 
@@ -177,6 +185,99 @@ class ClassificationCorrectionService:
 
         crop.species = species
 
+        self._rescore(classification)
+
+        classification.source = ClassificationSources.AUTO
+
+        PetOccurrenceService(self.session).sync_classification(classification)
+
+        if self.learner is not None and original_identity is not None:
+            # The crop's whole species assignment was wrong, so any example
+            # learned from it belongs to the wrong species' identity too.
+            self.learner.forget_image(crop_path)
+
+        self.session.commit()
+
+        logger.info(
+            "Classification %d species corrected: %r -> %r (identity %r -> %r)",
+            classification.id,
+            original_species,
+            species,
+            original_identity,
+            classification.identity,
+        )
+
+        return classification
+
+    def undo_correction(
+        self,
+        classification_id: int,
+    ) -> CropClassification:
+        """
+        Reverse the latest identity correction, putting the item back in the
+        review queue as if it had never been reviewed (issue #382).
+
+        Only the single latest ReviewAction is removed, and only when it is a
+        CORRECT: older history stays intact, and a skip is not this method's
+        to reverse. The prediction is rescored rather than remembered, since
+        it is derived state. The learning example the correction created is
+        forgotten *before* rescoring so the crop can't match itself.
+        """
+        classification = self.session.get(
+            CropClassification,
+            classification_id,
+        )
+
+        if classification is None:
+            raise ClassificationNotFoundError(
+                f"Classification {classification_id} not found"
+            )
+
+        latest = self.session.scalar(
+            select(ReviewAction)
+            .where(ReviewAction.classification_id == classification_id)
+            .order_by(ReviewAction.created_at.desc(), ReviewAction.id.desc())
+            .limit(1)
+        )
+
+        if latest is None or latest.action != ReviewActions.CORRECT:
+            raise NothingToUndoError(
+                f"Classification {classification_id} has no correction to undo"
+            )
+
+        undone_identity = latest.identity
+        self.session.delete(latest)
+
+        if self.learner is not None:
+            self.learner.forget_image(Path(classification.crop.path))
+            self.session.flush()
+
+        self._rescore(classification)
+        classification.source = ClassificationSources.AUTO
+
+        PetOccurrenceService(self.session).sync_classification(classification)
+
+        self.session.commit()
+
+        logger.info(
+            "Classification %d correction undone: %r -> %r",
+            classification.id,
+            undone_identity,
+            classification.identity,
+        )
+
+        return classification
+
+    def _rescore(self, classification: CropClassification) -> None:
+        """
+        Recompute a classification's prediction from its stored embedding
+        against its crop's current species pool. Shared by species
+        correction and undo, which both need a fresh derived prediction
+        rather than one remembered from before. Does not set `source`.
+        """
+        crop = classification.crop
+        species = crop.species
+
         if classification.embedding is not None:
             embedding = blob_to_embedding(classification.embedding)
 
@@ -217,30 +318,8 @@ class ClassificationCorrectionService:
             # No cached embedding to rescore against -- shouldn't happen for
             # a crop that reached the review queue (classify()/reclassify()
             # always store one), but fail open to Unknown rather than keep a
-            # prediction computed under the wrong species.
+            # stale prediction.
             classification.identity = None
             classification.confidence = -1.0
             classification.matched_example_id = None
             classification.candidates = []
-
-        classification.source = ClassificationSources.AUTO
-
-        PetOccurrenceService(self.session).sync_classification(classification)
-
-        if self.learner is not None and original_identity is not None:
-            # The crop's whole species assignment was wrong, so any example
-            # learned from it belongs to the wrong species' identity too.
-            self.learner.forget_image(crop_path)
-
-        self.session.commit()
-
-        logger.info(
-            "Classification %d species corrected: %r -> %r (identity %r -> %r)",
-            classification.id,
-            original_species,
-            species,
-            original_identity,
-            classification.identity,
-        )
-
-        return classification

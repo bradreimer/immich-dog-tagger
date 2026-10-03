@@ -19,6 +19,8 @@ export function KeyboardHints() {
         1-9 Active identities in order
         {" · "}
         S Skip
+        {" · "}
+        Z Undo last identity
       </p>
     </div>
   );

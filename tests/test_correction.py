@@ -21,7 +21,11 @@ from immich_dog_tagger.models import (
     Identity,
     ReviewAction,
 )
-from immich_dog_tagger.services.correction import ClassificationCorrectionService
+from immich_dog_tagger.services.correction import (
+    ClassificationCorrectionService,
+    ClassificationNotFoundError,
+    NothingToUndoError,
+)
 from immich_dog_tagger.services.learner import Learner
 from immich_dog_tagger.services.review_query import ReviewQueryService
 from tests.conftest import create_test_classification
@@ -957,3 +961,117 @@ def test_correct_species_rejects_unknown_classification(engine):
             assert str(exc) == "Classification 999 not found"
         else:
             raise AssertionError("Expected ValueError")
+
+
+def _pending_dog_classification(session: Session) -> CropClassification:
+    max_dog = Identity(name="Max", species=Species.DOG)
+    session.add(max_dog)
+    session.flush()
+
+    session.add(
+        EmbeddingExample(
+            identity_id=max_dog.id,
+            crop_path="max.jpg",
+            embedding=embedding_to_blob(np.array([1, 0, 0], dtype=np.float32)),
+            source=EmbeddingSources.BOOTSTRAP,
+        )
+    )
+
+    crop = Crop(detection_id=1, path="pending.jpg", species=Species.DOG)
+    session.add(crop)
+    session.flush()
+
+    classification = CropClassification(
+        crop=crop,
+        identity="Max",
+        confidence=0.7,
+        source=ClassificationSources.AUTO,
+        embedding=embedding_to_blob(np.array([0.9, 0.1, 0], dtype=np.float32)),
+    )
+    session.add(classification)
+    session.commit()
+
+    return classification
+
+
+def test_undo_correction_restores_prediction_and_forgets_example(engine):
+    """
+    Issue #382: undo removes the CORRECT action and its learning example,
+    then rescores. The crop's own example must be gone before rescoring, or
+    it would match itself as "Bella" with similarity 1.0.
+    """
+    with Session(engine) as session:
+        classification = _pending_dog_classification(session)
+        service = ClassificationCorrectionService(
+            session,
+            Learner(embedder=FakeEmbedder(), session=session),
+            IdentityClassifier(session),
+        )
+
+        service.correct(classification.id, "Bella")
+
+        result = ClassificationCorrectionService(
+            session,
+            Learner(embedder=FakeEmbedder(), session=session),
+            IdentityClassifier(session),
+        ).undo_correction(classification.id)
+
+        assert result.identity == "Max"
+        assert result.confidence < 1.0
+        assert result.source == ClassificationSources.AUTO
+        assert session.query(ReviewAction).count() == 0
+        assert (
+            session.query(EmbeddingExample)
+            .filter(EmbeddingExample.crop_path == "pending.jpg")
+            .count()
+            == 0
+        )
+        assert ReviewQueryService(session).item_for_classification(classification.id)
+
+
+def test_undo_correction_removes_only_latest_action(engine):
+    with Session(engine) as session:
+        classification = _pending_dog_classification(session)
+        service = ClassificationCorrectionService(session)
+
+        service.correct(classification.id, "Bella")
+        service.correct(classification.id, "Max")
+        service.undo_correction(classification.id)
+
+        actions = session.query(ReviewAction).all()
+        assert [action.identity for action in actions] == ["Bella"]
+
+
+def test_undo_correction_rejects_skip(engine):
+    with Session(engine) as session:
+        classification = _pending_dog_classification(session)
+        session.add(
+            ReviewAction(
+                classification_id=classification.id,
+                action=ReviewActions.SKIP,
+            )
+        )
+        session.commit()
+
+        service = ClassificationCorrectionService(session)
+
+        try:
+            service.undo_correction(classification.id)
+        except NothingToUndoError:
+            pass
+        else:
+            raise AssertionError("Expected NothingToUndoError")
+
+        assert session.query(ReviewAction).count() == 1
+
+
+def test_undo_correction_rejects_unknown_classification(engine):
+    with Session(engine) as session:
+        service = ClassificationCorrectionService(session)
+
+        try:
+            service.undo_correction(999)
+        except ClassificationNotFoundError:
+            pass
+        else:
+            raise AssertionError("Expected ClassificationNotFoundError")

@@ -21,6 +21,7 @@ vi.mock("@/lib/api", () => ({
   unmarkCropNotAnimal: vi.fn(),
   getClassification: vi.fn(),
   repairAsset: vi.fn(),
+  undoReview: vi.fn(),
   ClassificationNotFoundError: class ClassificationNotFoundError extends Error {},
 }));
 
@@ -334,5 +335,69 @@ describe("ReviewPage", () => {
 
     expect(await screen.findByRole("button", { name: "All" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /skip/i })).toBeInTheDocument();
+  });
+  describe("instant advance and undo (issue #382)", () => {
+    const FIRST = buildItem({ classification_id: 42, crop_id: 42 });
+    const SECOND = buildItem({ classification_id: 43, crop_id: 43 });
+
+    beforeEach(() => {
+      vi.mocked(api.getReview).mockResolvedValue([FIRST, SECOND]);
+      vi.mocked(api.getReviewStats).mockResolvedValue(STATS);
+    });
+
+    it("shows the next photo before the correction finishes saving", async () => {
+      vi.mocked(api.correctClassification).mockReturnValue(new Promise(() => {}));
+
+      render(<ReviewPage onNavigate={vi.fn()} />);
+
+      expect(await screen.findByText("1 of 2 in current queue")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Hermann (predicted)" }));
+
+      expect(screen.getByText("1 of 1 in current queue")).toBeInTheDocument();
+      expect(api.correctClassification).toHaveBeenCalledWith(42, "Hermann");
+    });
+
+    it("pressing Z undoes the last identity choice and shows that photo again", async () => {
+      vi.mocked(api.correctClassification).mockResolvedValue(undefined);
+      vi.mocked(api.undoReview).mockResolvedValue(FIRST);
+
+      render(<ReviewPage onNavigate={vi.fn()} />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Hermann (predicted)" }));
+      expect(await screen.findByRole("button", { name: /undo hermann/i })).toBeEnabled();
+
+      fireEvent.keyDown(window, { key: "z" });
+
+      await waitFor(() => expect(api.undoReview).toHaveBeenCalledWith(42));
+      expect(await screen.findByText("1 of 2 in current queue")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    });
+
+    it("puts the photo back with an error when the background save fails", async () => {
+      vi.mocked(api.correctClassification).mockRejectedValue(new Error("boom"));
+
+      render(<ReviewPage onNavigate={vi.fn()} />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Hermann (predicted)" }));
+
+      expect(await screen.findByText(/couldn't save hermann/i)).toBeInTheDocument();
+      expect(screen.getByText("1 of 2 in current queue")).toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: "z" });
+
+      await waitFor(() => expect(api.undoReview).not.toHaveBeenCalled());
+    });
+
+    it("keeps species correction on the same photo", async () => {
+      vi.mocked(api.correctSpecies).mockResolvedValue({ ...FIRST, species: "cat" });
+
+      render(<ReviewPage onNavigate={vi.fn()} />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Cat" }));
+
+      expect(await screen.findByText("Cat Review")).toBeInTheDocument();
+      expect(screen.getByText("1 of 2 in current queue")).toBeInTheDocument();
+    });
   });
 });
