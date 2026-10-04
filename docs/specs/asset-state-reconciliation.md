@@ -229,3 +229,22 @@ time, because `ImmichClient.get_asset()` reported every failure the same way.
   and `failed`.
 - Review drops the photo from the queue (as it already did after any Repair). Photo Lookup clears
   the photo and shows the "Removed" message instead of re-fetching it.
+
+## Addendum: Removed photos lose their crops and review history (#409)
+
+Marking a photo `REMOVED` (by scan reconciliation or Repair) deleted its crop *files* but kept
+its `Crop` and `CropClassification` rows. The Library doesn't filter on asset status, so a
+filtered Library (for example one dog) listed those crops with thumbnails that no longer load.
+
+This supersedes the "review history is kept" wording in the #370 addendum and FR-2's note about
+downstream history.
+
+- `mark_asset_removed()` now deletes the asset's `Detection`, `Crop`, `CropClassification`,
+  `ReviewAction`, `PetOccurrence`, and `CropIdentityRejection` rows. The `Asset` row stays with
+  status `REMOVED` (ADR-001), so the photo is still known and a reappearing photo is
+  re-detected by the next scan.
+- Deleting review history for a deleted photo is deliberate: the photo is gone, so its labels
+  describe nothing. Learned `EmbeddingExample` rows are not touched (FR-5); their crop file is
+  kept when an example still uses it.
+- The Library excludes classifications whose asset is `REMOVED`, the same filter Review uses
+  (#375), so photos removed before this change also disappear without another Repair.
