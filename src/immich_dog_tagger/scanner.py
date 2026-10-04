@@ -3,12 +3,12 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .enums import AssetStatus
 from .immich import ImmichAsset, ImmichClient
-from .models import Asset, EmbeddingExample
+from .models import Asset, CropIdentityRejection, EmbeddingExample
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +26,38 @@ def mark_asset_removed(
 ) -> None:
     """
     Move an asset deleted in Immich to the terminal AssetStatus.REMOVED and
-    clean up its local files. Shared by scan reconciliation (issue #194) and
-    the per-photo Repair action (issue #370). The row itself is kept (ADR-001),
-    so review history/provenance referencing it stay queryable. Doesn't
-    commit -- the caller decides the transaction boundary.
+    clean up its local files and derived rows. Shared by scan reconciliation
+    (issue #194) and the per-photo Repair action (issue #370). The Asset row
+    itself is kept (ADR-001), but its Detection, Crop, CropClassification,
+    ReviewAction and PetOccurrence rows are deleted (issue #409): the photo no
+    longer exists, so nothing derived from it (including its review history)
+    should keep appearing in the Library or counts. Doesn't commit -- the
+    caller decides the transaction boundary.
     """
     asset.status = AssetStatus.REMOVED
 
     if cache_dir is not None:
         asset.cache_path(cache_dir).unlink(missing_ok=True)
 
-    for detection in asset.detections:
-        if detection.crop is not None:
-            _maybe_delete_crop_file(session, detection.crop.path)
+    for detection in list(asset.detections):
+        crop = detection.crop
+
+        if crop is not None:
+            _maybe_delete_crop_file(session, crop.path)
+
+            # No ORM cascade from Crop to its rejections (unlike the
+            # classification), so clear them explicitly.
+            session.execute(
+                delete(CropIdentityRejection).where(
+                    CropIdentityRejection.crop_id == crop.id
+                )
+            )
+
+        # Cascades to the crop, its classification, review actions and pet
+        # occurrence (see models.py).
+        session.delete(detection)
+
+    session.flush()
 
 
 def _maybe_delete_crop_file(session: Session, crop_path: str) -> None:

@@ -515,6 +515,11 @@ def test_scan_retains_crop_backing_active_embedding_example(engine, tmp_path):
         assert in_use_crop_path.exists()
         assert not orphan_crop_path.exists()
 
+        # Issue #409: the removed photos' Crop rows are deleted either way;
+        # only the in-use crop *file* is retained for its embedding example.
+        assert session.query(Crop).count() == 0
+        assert session.query(EmbeddingExample).count() == 1
+
 
 def test_scan_undeletes_asset_that_reappears(engine, tmp_path):
     class FakeClient:

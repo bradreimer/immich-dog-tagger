@@ -1200,6 +1200,12 @@
   uses (extracted from `Scanner`). Other errors (401/403/5xx/network) and another account's photo
   never remove anything. The batch stale-detection repair counts these as `removed`. Photo Lookup
   clears a removed photo instead of re-fetching it.
+- [#409](https://github.com/bradreimer/immich-dog-tagger/issues/409) v1.50.0 Removed photos lose
+  their crops and review history ([spec addendum](specs/asset-state-reconciliation.md)):
+  `mark_asset_removed()` (scan reconciliation and Repair) now deletes the photo's Detection, Crop,
+  classification, review history, pet occurrence, and identity-rejection rows, keeping the Asset
+  row as `REMOVED`. The Library excludes `REMOVED` photos, so thumbnails that no longer load
+  disappear, including ones removed before this change. Crop files a learned example uses are kept.
 - #407 Immich tag/album drift: Sync now attempts the album and tag writes independently and keeps
   going past a rejected batch; new `sync --audit` (read-only drift report, exits non-zero on
   drift) and `sync --repair` (re-applies tags/albums from state.db, prunes extras, rebuilds

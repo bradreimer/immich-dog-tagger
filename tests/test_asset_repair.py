@@ -23,6 +23,7 @@ from immich_dog_tagger.models import (
     Asset,
     Crop,
     CropClassification,
+    CropIdentityRejection,
     Detection,
     EmbeddingExample,
     Identity,
@@ -34,6 +35,7 @@ from immich_dog_tagger.services.asset_repair import AssetRepairService
 from immich_dog_tagger.services.classification import ClassificationService
 from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
+from immich_dog_tagger.services.review_query import ReviewQueryService
 
 _REFRESHED_METADATA = ImmichAsset(
     id="target",
@@ -436,6 +438,7 @@ def _make_asset_with_crop(session, tmp_path, account_id=None):
             identity="Hermann",
         )
     )
+    session.add(CropIdentityRejection(crop_id=crop.id, identity="Fibs"))
     session.commit()
 
     cached = asset.cache_path(tmp_path)
@@ -467,9 +470,41 @@ def test_repair_marks_photo_gone_from_immich_as_removed(engine, tmp_path):
         assert not cached.exists()
         assert not crop_path.exists()
 
-        # Kept, not hard-deleted (ADR-001).
-        assert session.query(Detection).count() == 1
-        assert session.query(ReviewAction).count() == 1
+        # The Asset row is kept (ADR-001); everything derived from the deleted
+        # photo, including its review history, is gone (issue #409).
+        assert session.query(Asset).count() == 1
+        assert session.query(Detection).count() == 0
+        assert session.query(Crop).count() == 0
+        assert session.query(CropClassification).count() == 0
+        assert session.query(ReviewAction).count() == 0
+        assert session.query(CropIdentityRejection).count() == 0
+
+
+def test_removed_photo_no_longer_appears_in_library(engine, tmp_path):
+    # Issue #409: after Repair retires a deleted photo it must not show in
+    # the Library, with or without an identity filter.
+    with Session(engine) as session:
+        _make_asset_with_crop(session, tmp_path)
+
+        assert ReviewQueryService(session).library(identity="Hermann").total == 1
+
+        service, client = _build_service(session, tmp_path)
+        client.get_asset.side_effect = ImmichAssetNotFoundError("404")
+        service.repair("target")
+        session.commit()
+
+        assert ReviewQueryService(session).library(identity="Hermann").total == 0
+        assert ReviewQueryService(session).library().total == 0
+
+
+def test_library_hides_removed_photo_with_leftover_rows(engine, tmp_path):
+    # A photo removed before #409 still has its Crop/classification rows.
+    with Session(engine) as session:
+        asset, _, _ = _make_asset_with_crop(session, tmp_path)
+        asset.status = AssetStatus.REMOVED
+        session.commit()
+
+        assert ReviewQueryService(session).library(identity="Hermann").total == 0
 
 
 def test_repair_keeps_crop_backing_a_reference_example(engine, tmp_path):

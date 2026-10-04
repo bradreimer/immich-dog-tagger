@@ -562,7 +562,9 @@ class ReviewQueryService:
         account_id: int | None = None,
         and_identities: list[str] | None = None,
     ) -> list:
-        filters = []
+        # Issue #409: photos deleted in Immich never appear in the Library,
+        # including ones removed before their derived rows were cleaned up.
+        filters = [~classification_asset_removed()]
 
         if and_identities:
             # AND query: the photo must contain every named pet (a confirmed
