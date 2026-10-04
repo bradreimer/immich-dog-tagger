@@ -288,6 +288,19 @@ def test_cancel_job_running_cancelable_sets_flag_without_changing_status(engine)
         assert again.cancel_requested is True
 
 
+def test_cancel_job_running_reclassify_sets_flag(engine):
+    """Reclassify commits per chunk and checks the flag between chunks."""
+    with Session(engine) as session:
+        service = PipelineJobService(session)
+        job = service.create_job(operation=PipelineOperation.RECLASSIFY)
+        service.start_job(job)
+
+        result = service.cancel_job(job)
+
+        assert result.status is PipelineJobStatus.RUNNING
+        assert result.cancel_requested is True
+
+
 def test_cancel_job_running_non_cancelable_operation_rejected(engine):
     with Session(engine) as session:
         service = PipelineJobService(session)

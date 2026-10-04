@@ -57,6 +57,24 @@ keypress.
 - **FR-7** The response is the restored item, in the same shape `GET /classifications/{id}`
   returns, so the UI can show it without another request.
 
+### Auto-reclassify cooldown and cancel (#410)
+
+- **FR-C1** Automatic Reclassify (queued by a correction, undo, or cluster approve, move, or
+  reassign) is skipped while a Reclassify job is pending or running, as before. It is also skipped
+  for 30 minutes (`AUTO_RECLASSIFY_COOLDOWN`) after the most recent Reclassify job that completed or
+  was canceled. A failed job doesn't start a cooldown, so a retry isn't delayed.
+- **FR-C2** A skipped request is dropped, not deferred. The first request after the cooldown
+  queues one pass, and that pass covers every correction made since the last one.
+- **FR-C3** The cooldown applies only to automatic requests. A manual Reclassify (Jobs page, CLI,
+  Re-embed) and a scheduled one run regardless.
+- **FR-C4** A running Reclassify can be canceled. `RECLASSIFY` is in `CANCELABLE_WHILE_RUNNING`, and
+  `ReclassifyService` checks `should_cancel()` between chunks. Chunks already committed stay, the
+  rest are untouched, and reviewed labels are never in the eligible set.
+- **FR-C5** A canceled pass is recorded as a `ClassificationPass` with status `canceled`. Its trend
+  fields (`labeled_example_count`, `review_queue_size`) stay null, as for a failed pass.
+- **FR-C6** Canceling restarts the cooldown, so it doesn't queue again on the next correction.
+- **FR-C7** The Jobs page shows the existing Cancel button for a running Reclassify.
+
 ### Frontend
 
 - **FR-8** In Queue mode, choosing an identity removes the item from the queue at once and saves
@@ -83,6 +101,11 @@ keypress.
 - Pressing `Z` twice undoes the two most recent choices, newest first.
 - Changing species still stays on the same photo.
 - Undoing a classification whose latest action isn't `CORRECT` returns 409.
+- Given a Reclassify finished less than 30 minutes ago, a correction doesn't queue another one.
+- Given the cooldown has passed, the next correction queues exactly one.
+- A manual or scheduled Reclassify runs even inside the cooldown.
+- Canceling a running Reclassify ends the job as `canceled`, keeps committed chunks, and lets the
+  next queued job start.
 
 ## Open questions
 

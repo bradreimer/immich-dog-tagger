@@ -8,6 +8,7 @@ benefit of the work they have already done.
 """
 
 import logging
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +24,10 @@ from immich_dog_tagger.policy import (
 logger = logging.getLogger(__name__)
 
 SENSITIVITY_KEY = "tagging_sensitivity"
+
+# Minimum gap between automatically queued Reclassify passes. A pass covers
+# every eligible crop, so one per correction keeps the job runner busy.
+AUTO_RECLASSIFY_COOLDOWN = timedelta(minutes=30)
 
 
 class AppSettingsService:
@@ -113,7 +118,13 @@ class AutoReclassifyService:
 
     def request(self) -> bool:
         """
-        Queue a Reclassify unless one is already pending or running.
+        Queue a Reclassify unless one is already pending or running, or one
+        finished (or was canceled) within AUTO_RECLASSIFY_COOLDOWN.
+
+        A request inside the cooldown is dropped, not deferred: the first
+        request after the cooldown queues the pass, and it covers every
+        correction made since the last one. Manual and scheduled runs don't
+        go through here, so the cooldown never blocks them.
 
         The debounce is the important part. Approving a cluster of 200
         photos is one settling batch, not 200, and the job runner permits
@@ -123,7 +134,7 @@ class AutoReclassifyService:
 
         Returns whether a job was queued, so callers can report it.
         """
-        if self._already_queued():
+        if self._already_queued() or self._in_cooldown():
             return False
 
         self.job_service.create_job(
@@ -160,3 +171,30 @@ class AutoReclassifyService:
             )
             is not None
         )
+
+    def _in_cooldown(self) -> bool:
+        from immich_dog_tagger.enums import PipelineJobStatus
+        from immich_dog_tagger.models import PipelineJob
+
+        # Any recent Reclassify counts, however it was started: the
+        # predictions are as fresh as that pass left them. FAILED passes
+        # don't, so a failure never delays the retry.
+        last_finished = self.session.scalar(
+            select(PipelineJob.completed_at)
+            .where(
+                PipelineJob.operation == PipelineOperation.RECLASSIFY,
+                PipelineJob.status.in_(
+                    (PipelineJobStatus.COMPLETED, PipelineJobStatus.CANCELED)
+                ),
+                PipelineJob.completed_at.is_not(None),
+            )
+            .order_by(PipelineJob.completed_at.desc())
+            .limit(1)
+        )
+
+        if last_finished is None:
+            return False
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+
+        return now - last_finished < AUTO_RECLASSIFY_COOLDOWN

@@ -17,13 +17,15 @@ _TERMINAL_STATUSES = (
 # cancelled mid-run for (issue #111). EMBED/SYNC each do one big commit at
 # the end (nothing partial to preserve); LEARN now commits per learned
 # example too (issue #239), but -- like EMBED/SYNC -- isn't wired to check
-# should_cancel() mid-run, so it stays out of this set. RECLASSIFY already
-# batches the same way but is a deliberately separate follow-up.
+# should_cancel() mid-run, so it stays out of this set. RECLASSIFY commits
+# per chunk and checks should_cancel() between chunks, so a cancel keeps the
+# chunks already committed (and every reviewed label) as they were.
 CANCELABLE_WHILE_RUNNING = frozenset(
     {
         PipelineOperation.SCAN,
         PipelineOperation.DETECT,
         PipelineOperation.CLASSIFY,
+        PipelineOperation.RECLASSIFY,
         PipelineOperation.FULL_PIPELINE,
     }
 )

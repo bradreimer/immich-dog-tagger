@@ -476,3 +476,58 @@ def test_reclassify_completes_with_embeddings_from_mixed_models(engine, caplog):
         assert legacy.identity == "Legacy"
         assert current.identity == "Current"
         assert "run Re-embed" in caplog.text
+
+
+def test_reclassify_cancel_stops_between_chunks_and_keeps_committed_work(engine):
+    with Session(engine) as session:
+        _add_identity(session, "Hermann", [1, 0, 0])
+        first = _add_auto_classification(
+            session, "one.jpg", identity=None, embedding=[1, 0, 0]
+        )
+        second = _add_auto_classification(
+            session, "two.jpg", identity=None, embedding=[1, 0, 0]
+        )
+        reviewed = _add_auto_classification(
+            session,
+            "reviewed.jpg",
+            identity=None,
+            embedding=[1, 0, 0],
+            source=ClassificationSources.REVIEW,
+        )
+
+        # batch_size=1 makes each crop its own chunk; cancel after the first.
+        checks = iter([False, True])
+        service = ReclassifyService(session, FakeBatchEmbedder(), batch_size=1)
+
+        result = service.reclassify(should_cancel=lambda: next(checks))
+
+        assert result.status is ClassificationPassStatus.CANCELED
+        assert "Canceled after 1/2" in result.message
+
+        session.refresh(first)
+        session.refresh(second)
+        session.refresh(reviewed)
+
+        assert first.identity == "Hermann"
+        assert second.identity is None
+        assert reviewed.identity is None
+
+        stored = session.scalars(select(ClassificationPass)).one()
+
+        assert stored.status is ClassificationPassStatus.CANCELED
+        assert stored.completed_at is not None
+        assert stored.confident_count + stored.needs_review_count == 1
+        # A partial pass has no well-defined final snapshot.
+        assert stored.review_queue_size is None
+
+
+def test_reclassify_without_cancel_still_completes(engine):
+    with Session(engine) as session:
+        _add_identity(session, "Hermann", [1, 0, 0])
+        _add_auto_classification(session, "one.jpg", identity=None, embedding=[1, 0, 0])
+
+        result = ReclassifyService(session, FakeBatchEmbedder()).reclassify(
+            should_cancel=lambda: False
+        )
+
+        assert result.status is ClassificationPassStatus.COMPLETED

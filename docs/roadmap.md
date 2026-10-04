@@ -420,6 +420,11 @@ has a "View in Immich" link, and the group header shows its earliest and latest 
 [#405](https://github.com/bradreimer/immich-dog-tagger/issues/405): Sync tags every identified pet in
 Immich but only creates an album once a pet has at least `ALBUM_MIN_PHOTOS` photos (default 50).
 
+## v1.50.0 - Auto-reclassify cooldown and cancelable Reclassify
+
+[#410](https://github.com/bradreimer/immich-dog-tagger/issues/410): automatic Reclassify waits 30
+minutes between passes, and a running Reclassify can be canceled from the Jobs page.
+
 ---
 
 ## Active Learning Improvements

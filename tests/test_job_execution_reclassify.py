@@ -33,6 +33,9 @@ class DummyProgress:
     def message(self, value):
         return None
 
+    def is_cancel_requested(self):
+        return False
+
 
 class FakeEmbedder:
     MODEL_ID = "fake:test"

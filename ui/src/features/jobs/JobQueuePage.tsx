@@ -26,6 +26,7 @@ const CANCELABLE_WHILE_RUNNING = new Set<JobOperation>([
   "scan",
   "detect",
   "classify",
+  "reclassify",
   "full_pipeline",
 ]);
 
