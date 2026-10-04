@@ -14,6 +14,8 @@ from immich_dog_tagger.models import (
     CropClassification,
     Detection,
     EmbeddingExample,
+    Identity,
+    PetOccurrence,
     ReviewAction,
 )
 
@@ -439,6 +441,7 @@ class ReviewQueryService:
         self,
         *,
         identity: str | None = None,
+        and_identities: list[str] | None = None,
         species: str | None = None,
         reviewed: bool | None = None,
         captured_after: datetime | None = None,
@@ -461,6 +464,7 @@ class ReviewQueryService:
         """
         filters = self._library_filters(
             identity=identity,
+            and_identities=and_identities,
             species=species,
             reviewed=reviewed,
             captured_after=captured_after,
@@ -556,10 +560,30 @@ class ReviewQueryService:
         captured_after: datetime | None,
         captured_before: datetime | None,
         account_id: int | None = None,
+        and_identities: list[str] | None = None,
     ) -> list:
         filters = []
 
-        if identity is not None:
+        if and_identities:
+            # AND query: the photo must contain every named pet (a confirmed
+            # PetOccurrence, the same fact Friends in Frame counts), and the
+            # listing shows each of those pets' crops from such photos.
+            names = [name for name in [identity, *and_identities] if name]
+
+            filters.append(CropClassification.identity.in_(names))
+
+            for name in dict.fromkeys(names):
+                pet_assets = (
+                    select(PetOccurrence.asset_id)
+                    .join(Identity, PetOccurrence.identity_id == Identity.id)
+                    .where(Identity.name == name)
+                )
+                filters.append(
+                    CropClassification.crop.has(
+                        Crop.detection.has(Detection.asset_id.in_(pet_assets))
+                    )
+                )
+        elif identity is not None:
             filters.append(CropClassification.identity == identity)
 
         if species is not None:

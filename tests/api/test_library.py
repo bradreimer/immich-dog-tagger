@@ -879,3 +879,47 @@ def test_reject_endpoint_400s_for_an_unknown_pet(api_client, engine):
     )
 
     assert response.status_code == 400
+
+
+def test_library_repeated_identity_param_is_an_and_query(api_client, engine):
+    from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
+
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs", species=Species.DOG)
+        henri = Identity(name="Henri", species=Species.DOG)
+        session.add_all([fibs, henri])
+        shared = Asset(immich_asset_id="shared", extension=".jpg")
+        solo = Asset(immich_asset_id="solo", extension=".jpg")
+        session.add_all([shared, solo])
+        session.flush()
+
+        for asset, who in ((shared, fibs), (shared, henri), (solo, fibs)):
+            detection = Detection(
+                asset_id=asset.id,
+                label="dog",
+                confidence=0.9,
+                x1=0,
+                y1=0,
+                x2=10,
+                y2=10,
+            )
+            session.add(detection)
+            session.flush()
+            crop = Crop(detection_id=detection.id, path=f"{asset.id}-{who.id}.jpg")
+            session.add(crop)
+            session.flush()
+            classification = CropClassification(
+                crop=crop, identity=who.name, confidence=0.9
+            )
+            session.add(classification)
+            session.commit()
+            PetOccurrenceService(session).sync_classification(classification)
+            session.commit()
+
+    response = api_client.get(
+        "/library", params=[("identity", "Fibs"), ("identity", "Henri")]
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 2
+    assert api_client.get("/library", params={"identity": "Fibs"}).json()["total"] == 2
