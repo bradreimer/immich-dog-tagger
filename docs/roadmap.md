@@ -410,6 +410,11 @@ Completed.
 [#401](https://github.com/bradreimer/immich-dog-tagger/issues/401): clicking a pair opens the
 Library with an AND query for both pets (repeated `identity` param; URL-only, no manual control).
 
+## v1.48.0 - Grouped Review photo links and date range
+
+[#403](https://github.com/bradreimer/immich-dog-tagger/issues/403): each photo in Grouped Review
+has a "View in Immich" link, and the group header shows its earliest and latest capture dates.
+
 ---
 
 ## Active Learning Improvements

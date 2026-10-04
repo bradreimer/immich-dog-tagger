@@ -405,4 +405,54 @@ describe("ReviewGroupedPanel", () => {
       expect(screen.getByRole("heading", { name: "Rex" })).toBeInTheDocument();
     });
   });
+
+  it("links each member to Immich without toggling its selection", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [buildGroup()],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+
+    render(
+      <ReviewGroupedPanel dogs={[REX]} immichUrl="https://immich.test" onReviewed={vi.fn()} />,
+    );
+
+    const links = await screen.findAllByRole("link", { name: /view in immich/i });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "https://immich.test/photos/asset-1");
+
+    fireEvent.click(links[0]);
+    expect(screen.getByText("2 of 2 selected")).toBeInTheDocument();
+  });
+
+  it("omits the Immich links when no Immich URL is configured", async () => {
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [buildGroup()],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    await screen.findByRole("heading", { name: "Rex" });
+    expect(screen.queryByRole("link", { name: /view in immich/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the group's earliest and latest capture dates", async () => {
+    const group = buildGroup();
+    group.cluster.earliest_captured_at = "2024-03-02T12:00:00Z";
+    group.cluster.latest_captured_at = "2026-01-05T12:00:00Z";
+    vi.mocked(api.getReviewGroups).mockResolvedValue({
+      groups: [group],
+      identity_count: 1,
+      truncated_identities: false,
+      sort: "confidence_desc",
+    });
+
+    render(<ReviewGroupedPanel dogs={[REX]} immichUrl={null} onReviewed={vi.fn()} />);
+
+    expect(await screen.findByText(/March 2, 2024 – January 5, 2026/)).toBeInTheDocument();
+  });
 });
