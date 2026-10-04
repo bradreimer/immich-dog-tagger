@@ -1101,6 +1101,13 @@
   `CORRECT` review action, forgets the crop's learned example, and rescores the stored embedding
   (`ClassificationCorrectionService.undo_correction()`). Species correction, Skip, and Not a dog
   or cat still wait and behave as before. The next crop image is also preloaded.
+- [#401](https://github.com/bradreimer/immich-dog-tagger/issues/401) v1.47.0 Most Common Pairs
+  cards now open the Library scoped to photos containing both pets
+  ([spec](specs/friends-in-frame.md)). `GET /library` treats a repeated `identity` param as an AND
+  query (backed by `PetOccurrence`, so it matches the pair's count); the Library restores it from
+  the URL, shows a removable "Photos also with" chip, and hides "Review these" while it is active.
+  Backend tests were written but could not be run in the authoring environment (no final Python
+  3.14); UI build/lint/tests pass. Not yet checked in a browser.
 - [#396](https://github.com/bradreimer/immich-dog-tagger/issues/396) v1.46.0 Most Common Pairs and
   the Friends in Frame Metrics section ([spec](specs/friends-in-frame.md)). A "Friends in Frame"
   card now sits before "Dogs Over Time" on the Metrics tab: the network, then Most Common Pairs, a

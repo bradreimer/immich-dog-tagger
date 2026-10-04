@@ -102,6 +102,14 @@ Compact horizontal cards (thumbnail ↔ thumbnail, "A + B", "N images together")
 co-occurrence count. Top 6 shown initially in a horizontally scrolling row; "Show more" expands to
 at most 24.
 
+Clicking (or pressing Enter on) a pair card opens the Library at
+`/library?identity=A&identity=B`: an **AND** query showing the crops of both pets from photos that
+contain both ([#401](https://github.com/bradreimer/immich-dog-tagger/issues/401)). `GET /library`
+treats a repeated `identity` param as AND, matched against `PetOccurrence` so the results agree
+with the pair's count. There is no manual multi-pet control: the Library shows the extra pet as a
+removable "Photos also with" chip, and "Review these" is hidden while it is active (Review has no
+AND filter).
+
 ### States
 
 - No pets: friendly empty message.

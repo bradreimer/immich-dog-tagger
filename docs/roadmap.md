@@ -405,6 +405,11 @@ Completed:
 Exit criteria:
 Completed.
 
+## v1.47.0 - Most Common Pairs link to Library
+
+[#401](https://github.com/bradreimer/immich-dog-tagger/issues/401): clicking a pair opens the
+Library with an AND query for both pets (repeated `identity` param; URL-only, no manual control).
+
 ---
 
 ## Active Learning Improvements

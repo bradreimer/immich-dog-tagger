@@ -191,3 +191,27 @@ def test_build_orders_edges_strongest_first(session):
     edges = FriendsInFrameService(session).build().edges
 
     assert [e.count for e in edges] == [2, 1]
+
+
+def test_library_and_identities_returns_only_shared_photos(engine):
+    from immich_dog_tagger.services.review_query import ReviewQueryService
+
+    with Session(engine) as session:
+        fibs = _identity(session, "Fibs")
+        henri = _identity(session, "Henri")
+        both = _asset(session, "both")
+        only_fibs = _asset(session, "only-fibs")
+        _occurrence(session, both, fibs)
+        _occurrence(session, both, henri)
+        _occurrence(session, only_fibs, fibs)
+
+        service = ReviewQueryService(session)
+        page = service.library(identity="Fibs", and_identities=["Henri"])
+
+        assert page.total == 2
+        assert {entry.item.prediction.identity for entry in page.items} == {
+            "Fibs",
+            "Henri",
+        }
+        assert {entry.item.immich_asset_id for entry in page.items} == {"both"}
+        assert service.library(identity="Fibs").total == 2

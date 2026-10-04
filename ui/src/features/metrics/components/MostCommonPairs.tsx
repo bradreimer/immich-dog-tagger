@@ -15,9 +15,11 @@ interface Props {
   nodes: FriendNode[];
   edges: FriendEdge[];
   onHoverPair?: (key: string | null) => void;
+  /** Opens the Library scoped to photos containing both pets. */
+  onNavigate?: (path: string) => void;
 }
 
-export function MostCommonPairs({ nodes, edges, onHoverPair }: Props) {
+export function MostCommonPairs({ nodes, edges, onHoverPair, onNavigate }: Props) {
   const [expanded, setExpanded] = useState(false);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const ranked = useMemo(() => rankPairs(edges, nodes, MAX_PAIR_COUNT), [edges, nodes]);
@@ -56,13 +58,28 @@ export function MostCommonPairs({ nodes, edges, onHoverPair }: Props) {
             return null;
           }
           const key = edgeKey(edge.a_id, edge.b_id);
+          const openPair = () => {
+            const params = new URLSearchParams();
+            params.append("identity", a.name);
+            params.append("identity", b.name);
+            onNavigate?.(`/library?${params.toString()}`);
+          };
 
           return (
             <li
               key={key}
               tabIndex={0}
+              role={onNavigate ? "link" : undefined}
+              aria-label={onNavigate ? `View photos of ${a.name} and ${b.name} together` : undefined}
+              onClick={openPair}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  openPair();
+                }
+              }}
               className={cn(
                 "snap-start rounded-xl border bg-muted/30 p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                onNavigate && "cursor-pointer",
                 expanded ? "" : "w-56 shrink-0",
               )}
               onMouseEnter={() => onHoverPair?.(key)}
