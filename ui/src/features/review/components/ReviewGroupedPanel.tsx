@@ -293,6 +293,7 @@ export function ReviewGroupedPanel({
         key={`${groupKey(group)}:${generation}`}
         group={group}
         identities={identities}
+        immichUrl={immichUrl}
         disabled={busy || loading}
         onChooseIdentity={(identity, ids) => chooseIdentity(group, identity, ids)}
         onReject={(ids) => reject(group, ids)}

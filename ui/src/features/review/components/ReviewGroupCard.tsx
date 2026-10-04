@@ -5,10 +5,12 @@ import { IconUsersGroup } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDate } from "@/lib/utils";
 
 import type { ReviewGroup } from "../../../types/clusters";
 import { useReviewKeyboard } from "../hooks/useReviewKeyboard";
 import { IdentityChooser } from "./IdentityChooser";
+import { ImmichPhotoLink } from "./ImmichPhotoLink";
 import { NotAnimalToggle } from "./NotAnimalToggle";
 import { ReviewReason } from "./ReviewReason";
 import { SpeciesChooser } from "./SpeciesChooser";
@@ -18,6 +20,8 @@ interface Props {
   /** Every active identity of the group's species -- the same list Queue
    * mode's identity chooser offers for an item of that species. */
   identities: string[];
+  /** Configured Immich base URL, for each member's "View in Immich" link. */
+  immichUrl: string | null;
   /** Settle the selection as `identity`. The panel decides whether that is
    * an approval (the group's own identity) or a reassignment (any other). */
   onChooseIdentity: (identity: string, classificationIds: number[]) => void;
@@ -33,6 +37,18 @@ interface Props {
   disabled?: boolean;
 }
 
+/** "Jan 5, 2026 – Mar 2, 2027", a single date when equal, or null when no member is dated. */
+function formatDateRange(earliest: string | null, latest: string | null): string | null {
+  if (!earliest || !latest) {
+    return null;
+  }
+
+  const first = formatDate(earliest);
+  const last = formatDate(latest);
+
+  return first === last ? first : `${first} – ${last}`;
+}
+
 /**
  * The one group Grouped mode shows at a time (see
  * docs/specs/review-grouped-focus-mode.md): large member thumbnails beside
@@ -46,6 +62,7 @@ interface Props {
 export function ReviewGroupCard({
   group,
   identities,
+  immichUrl,
   onChooseIdentity,
   onReject,
   onSkip,
@@ -123,6 +140,11 @@ export function ReviewGroupCard({
       ? `${Math.round(cluster.max_similarity * 100)}%`
       : `${Math.round(cluster.min_similarity * 100)}%–${Math.round(cluster.max_similarity * 100)}%`;
 
+  const dateRange = formatDateRange(
+    cluster.earliest_captured_at,
+    cluster.latest_captured_at,
+  );
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -131,6 +153,7 @@ export function ReviewGroupCard({
         <Badge variant="outline">{species}</Badge>
         <Badge variant="outline">{cluster.size} photos</Badge>
         <span className="text-sm text-muted-foreground">{confidenceRange} confidence</span>
+        {dateRange && <span className="text-sm text-muted-foreground">{dateRange}</span>}
       </div>
 
       {/* Same two-column layout as ReviewCard: the photos on the left, the
@@ -174,6 +197,8 @@ export function ReviewGroupCard({
                       className="aspect-square w-full object-cover"
                     />
                   </button>
+
+                  <ImmichPhotoLink immichUrl={immichUrl} assetId={member.immich_asset_id} />
 
                   {mismatchReason && <ReviewReason reason={mismatchReason} />}
                 </div>

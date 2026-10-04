@@ -71,6 +71,13 @@ can make a confident decision about the whole group without falling back to one-
   the split view handles stale items (issue #356).
 - **FR-10 -- Stats.** Every action that settles members (FR-3 to FR-6) refreshes the lifetime
   `reviewed` stat; "Not `<identity>`" still does not, per the parent spec.
+- **FR-11 -- View in Immich.** Each member thumbnail has the same "View in Immich" link Queue
+  mode shows (`ImmichPhotoLink`), opening the original photo in a new tab. It sits outside the
+  select button, so following it never changes the selection, and is omitted when the Immich URL
+  or asset id is unknown (issue #403).
+- **FR-12 -- Date range.** The group header shows the earliest and latest capture dates of its
+  members (`cluster.earliest_captured_at` / `latest_captured_at`): a single date when equal,
+  nothing when no member is dated (issue #403).
 
 ## Acceptance criteria
 
@@ -93,3 +100,4 @@ can make a confident decision about the whole group without falling back to one-
 
 - FR-1 through FR-10 -- implemented in `ReviewGroupedPanel.tsx` and `ReviewGroupCard.tsx`
   (issue #366).
+- FR-11, FR-12 -- implemented in `ReviewGroupCard.tsx` (issue #403); no backend change.
