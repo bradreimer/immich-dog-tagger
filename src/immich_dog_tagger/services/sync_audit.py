@@ -11,7 +11,18 @@ changes classifications, reviews, or learned examples.
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from sqlalchemy import select
+
+from immich_dog_tagger.immich import (
+    ImmichAssetNotFoundError,
+    ImmichBulkWriteError,
+    ImmichClient,
+    ImmichGetAssetError,
+)
+from immich_dog_tagger.models import Asset
+from immich_dog_tagger.scanner import mark_asset_removed
 from immich_dog_tagger.services.sync import SyncService
 
 logger = logging.getLogger(__name__)
@@ -75,11 +86,22 @@ class RepairResult:
     added_to_albums: int = 0
     removed: int = 0
     failures: list[AuditFailure] = field(default_factory=list)
+    # Photos Immich no longer has, retired in state.db during this repair.
+    retired: int = 0
 
 
 class SyncAuditService:
-    def __init__(self, sync: SyncService):
+    def __init__(
+        self,
+        sync: SyncService,
+        client: ImmichClient | None = None,
+        cache_dir: Path | None = None,
+    ):
         self.sync = sync
+        # Used only to tell a photo Immich deleted from one it won't let this key write to,
+        # when a bulk write reports `no_permission` for it.
+        self.client = client
+        self.cache_dir = cache_dir
 
     def audit(self) -> AuditReport:
         expected = self.sync.expected_state().assets
@@ -163,6 +185,8 @@ class SyncAuditService:
         }
         failures: list[AuditFailure] = list(report.failures)
         added_tags = added_albums = removed = 0
+        retired_ids: set[str] = set()
+        checked_ids: set[str] = set()
 
         for drift in report.drifts:
             key = (drift.species, drift.identity)
@@ -226,6 +250,8 @@ class SyncAuditService:
                     )
                     errors.append(exc)
 
+            errors = self._without_retired(errors, retired_ids, checked_ids)
+
             if errors:
                 failed.add(key)
                 failures.append(
@@ -239,6 +265,10 @@ class SyncAuditService:
                     )
                 )
 
+        if retired_ids:
+            # Retired photos are no longer expected anywhere, so don't record them as synced.
+            expected = self.sync.expected_state().assets
+
         self.sync.save_synced_state(expected, previous, failed)
 
         return RepairResult(
@@ -247,4 +277,71 @@ class SyncAuditService:
             added_to_albums=added_albums,
             removed=removed,
             failures=failures,
+            retired=len(retired_ids),
         )
+
+    def _without_retired(
+        self,
+        errors: list[Exception],
+        retired_ids: set[str],
+        checked_ids: set[str],
+    ) -> list[Exception]:
+        """Drop the bulk-write errors whose only rejections are photos Immich no longer has.
+
+        Immich reports a deleted photo as `no_permission` in a bulk write. A photo that really
+        is gone is retired in state.db (same as scan reconciliation and Repair, issue #370), so
+        it stops counting as drift. Anything else -- a photo that still exists, a non-
+        `no_permission` rejection, an HTTP-level failure -- stays a failure."""
+        if self.client is None:
+            return errors
+
+        remaining: list[Exception] = []
+
+        for exc in errors:
+            if not isinstance(exc, ImmichBulkWriteError) or exc.http_error:
+                remaining.append(exc)
+                continue
+
+            rejected = [item.get("id") for item in exc.failures]
+
+            if not rejected or any(
+                item.get("error") != "no_permission" for item in exc.failures
+            ):
+                remaining.append(exc)
+                continue
+
+            for immich_id in rejected:
+                if immich_id not in checked_ids:
+                    checked_ids.add(immich_id)
+
+                    if self._retire_if_gone(immich_id):
+                        retired_ids.add(immich_id)
+
+            if any(immich_id not in retired_ids for immich_id in rejected):
+                remaining.append(exc)
+
+        return remaining
+
+    def _retire_if_gone(self, immich_asset_id: str) -> bool:
+        asset = self.sync.session.scalar(
+            select(Asset).where(Asset.immich_asset_id == immich_asset_id)
+        )
+
+        if asset is None:
+            return False
+
+        try:
+            self.client.get_asset(immich_asset_id)
+        except ImmichAssetNotFoundError:
+            mark_asset_removed(self.sync.session, asset, self.cache_dir)
+            self.sync.session.commit()
+            logger.info(
+                "Sync repair retired asset id=%d immich_asset_id=%s: no longer in Immich",
+                asset.id,
+                immich_asset_id,
+            )
+            return True
+        except ImmichGetAssetError:
+            return False
+
+        return False

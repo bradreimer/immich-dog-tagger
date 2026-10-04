@@ -73,9 +73,18 @@ class ImmichBulkWriteError(Exception):
     on the Immich API key -- tags in particular are per-owner, not shareable like albums) apart
     from a transient one, without parsing this exception's message text."""
 
-    def __init__(self, message: str, failures: list[dict] | None = None):
+    def __init__(
+        self,
+        message: str,
+        failures: list[dict] | None = None,
+        *,
+        http_error: bool = False,
+    ):
         super().__init__(message)
         self.failures = failures or []
+        # True when at least one batch failed at the HTTP level, so `failures` alone doesn't
+        # account for everything that went wrong.
+        self.http_error = http_error
 
     @property
     def permission_denied(self) -> bool:
@@ -429,6 +438,7 @@ class ImmichClient:
             raise error_cls(
                 "; ".join(http_errors),
                 failures=failures,
+                http_error=True,
             )
 
         if failures:
