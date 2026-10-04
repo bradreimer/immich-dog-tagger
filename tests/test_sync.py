@@ -7,6 +7,7 @@ from immich_dog_tagger.models import (
     Crop,
     CropClassification,
     Detection,
+    Identity,
     ImmichAccount,
     SyncedAsset,
 )
@@ -1083,3 +1084,25 @@ def test_sync_creates_album_once_identity_crosses_threshold(engine):
         assert len(albums.calls) == 1
         assert albums.calls[0][0] == "Rex"
         assert len(albums.calls[0][1]) == 3
+
+
+def test_sync_still_tags_a_deactivated_identity(engine):
+    """Deactivating a dog or cat only stops it being offered for new
+    classification; its labeled photos keep syncing (tag and, at the
+    threshold, album)."""
+    with Session(engine) as session:
+        session.add(Identity(name="Rex", species="dog", is_active=False))
+        _add_classified_assets(session, "Rex", 2)
+
+        albums = FakeAlbums()
+        tags = FakeTags()
+
+        SyncService(
+            session,
+            albums,
+            policy=SyncPolicy(album_minimum_assets=2),
+            tags=tags,
+        ).sync()
+
+        assert [call[0] for call in tags.calls] == ["Rex"]
+        assert [call[0] for call in albums.calls] == ["Rex"]

@@ -26,6 +26,8 @@ an album for pets with at least 50 photos.
 - Deleting or emptying an existing album when an identity falls below the threshold. The app never
   removes an album the owner may be using.
 - Changing tag behavior.
+- Special handling of deactivated identities: sync ignores `is_active`, so a deactivated pet's
+  labeled photos keep their tag (and album, at the threshold).
 
 ## Requirements
 
