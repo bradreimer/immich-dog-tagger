@@ -1200,7 +1200,7 @@ class SyncedAsset(Base):
     # case, so this only matters for the already-out-of-scope shared-asset
     # edge case. SyncService.sync() always writes it going forward; the
     # whole table is truncated and rewritten on every sync
-    # (_save_synced_state), so there is nothing to backfill for existing
+    # (save_synced_state), so there is nothing to backfill for existing
     # rows -- they are replaced by the very next sync.
     account_id: Mapped[int | None] = mapped_column(
         ForeignKey("immich_accounts.id"),

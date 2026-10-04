@@ -382,14 +382,34 @@ class ImmichClient:
 
         return response.json()["id"]
 
-    def add_assets_to_album(
+    def _bulk_membership_write(
         self,
-        album_id: str,
+        method: str,
+        path: str,
         asset_ids: list[str],
+        *,
+        error_cls: type[ImmichBulkWriteError],
+        benign: set[str],
+        action: str,
+        target_id: str,
     ) -> None:
+        """Send a bulk album/tag membership write in batches (issue #407).
+
+        A rejected batch -- an HTTP error, or per-item failures in a 200 body (issue #259) -- no
+        longer stops the batches after it: every batch is attempted, then one `error_cls` carrying
+        all the failures is raised, so one bad asset can't leave the rest of a large identity
+        unwritten. Transport errors (timeouts, connection failures) still propagate immediately.
+        """
+        failures: list[dict] = []
+        http_errors: list[str] = []
+        attempted = 0
+
+        # DELETE needs httpx.Client.request() -- .delete() doesn't accept a json= body.
         for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
-            response = self.client.put(
-                f"{self.url}/api/albums/{album_id}/assets",
+            attempted += len(batch)
+            response = self.client.request(
+                method,
+                f"{self.url}{path}",
                 json={
                     "ids": batch,
                 },
@@ -397,52 +417,69 @@ class ImmichClient:
 
             try:
                 response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                raise ImmichAddAssetsToAlbumError(
+            except httpx.HTTPStatusError:
+                http_errors.append(
                     f"Immich API error {response.status_code}: {response.text}"
-                ) from exc
-
-            failures = _bulk_failures(response.json(), benign={"duplicate"})
-
-            if failures:
-                raise ImmichAddAssetsToAlbumError(
-                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"adding to album {album_id}: {failures}",
-                    failures=failures,
                 )
+                continue
+
+            failures.extend(_bulk_failures(response.json(), benign=benign))
+
+        if http_errors:
+            raise error_cls(
+                "; ".join(http_errors),
+                failures=failures,
+            )
+
+        if failures:
+            raise error_cls(
+                f"Immich rejected {len(failures)}/{attempted} asset(s) "
+                f"{action} {target_id}: {failures}",
+                failures=failures,
+            )
+
+    def add_assets_to_album(
+        self,
+        album_id: str,
+        asset_ids: list[str],
+    ) -> None:
+        self._bulk_membership_write(
+            "PUT",
+            f"/api/albums/{album_id}/assets",
+            asset_ids,
+            error_cls=ImmichAddAssetsToAlbumError,
+            benign={"duplicate"},
+            action="adding to album",
+            target_id=album_id,
+        )
 
     def remove_assets_from_album(
         self,
         album_id: str,
         asset_ids: list[str],
     ) -> None:
-        # DELETE with a JSON body -- the same {"ids": [...]} shape as the
-        # add endpoint above -- so httpx.Client.request() is used directly;
-        # .delete() doesn't accept a json= body.
-        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
-            response = self.client.request(
-                "DELETE",
-                f"{self.url}/api/albums/{album_id}/assets",
-                json={
-                    "ids": batch,
-                },
-            )
+        self._bulk_membership_write(
+            "DELETE",
+            f"/api/albums/{album_id}/assets",
+            asset_ids,
+            error_cls=ImmichRemoveAssetsFromAlbumError,
+            benign={"not_found"},
+            action="removing from album",
+            target_id=album_id,
+        )
 
-            try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                raise ImmichRemoveAssetsFromAlbumError(
-                    f"Immich API error {response.status_code}: {response.text}"
-                ) from exc
+    def get_album_asset_ids(self, album_id: str) -> set[str]:
+        """Ids of every asset currently in an album (issue #407 audit/repair)."""
+        response = self.client.get(f"{self.url}/api/albums/{album_id}")
 
-            failures = _bulk_failures(response.json(), benign={"not_found"})
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise ImmichListAlbumsError(
+                f"Immich API error {response.status_code}: {response.text}"
+            ) from exc
 
-            if failures:
-                raise ImmichRemoveAssetsFromAlbumError(
-                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"removing from album {album_id}: {failures}",
-                    failures=failures,
-                )
+        return {asset["id"] for asset in response.json().get("assets", [])}
 
     def list_tags(self) -> list[dict]:
         response = self.client.get(
@@ -483,58 +520,58 @@ class ImmichClient:
         tag_id: str,
         asset_ids: list[str],
     ) -> None:
-        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
-            response = self.client.put(
-                f"{self.url}/api/tags/{tag_id}/assets",
-                json={
-                    "ids": batch,
-                },
-            )
-
-            try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                raise ImmichTagAssetsError(
-                    f"Immich API error {response.status_code}: {response.text}"
-                ) from exc
-
-            failures = _bulk_failures(response.json(), benign={"duplicate"})
-
-            if failures:
-                raise ImmichTagAssetsError(
-                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"tagging with {tag_id}: {failures}",
-                    failures=failures,
-                )
+        self._bulk_membership_write(
+            "PUT",
+            f"/api/tags/{tag_id}/assets",
+            asset_ids,
+            error_cls=ImmichTagAssetsError,
+            benign={"duplicate"},
+            action="tagging with",
+            target_id=tag_id,
+        )
 
     def untag_assets(
         self,
         tag_id: str,
         asset_ids: list[str],
     ) -> None:
-        # DELETE with a JSON body, same as remove_assets_from_album -- httpx.Client.request()
-        # is needed directly since .delete() doesn't accept a json= body.
-        for batch in _batched(asset_ids, ASSET_BATCH_SIZE):
-            response = self.client.request(
-                "DELETE",
-                f"{self.url}/api/tags/{tag_id}/assets",
+        self._bulk_membership_write(
+            "DELETE",
+            f"/api/tags/{tag_id}/assets",
+            asset_ids,
+            error_cls=ImmichUntagAssetsError,
+            benign={"not_found"},
+            action="untagging from",
+            target_id=tag_id,
+        )
+
+    def get_tag_asset_ids(self, tag_id: str) -> set[str]:
+        """Ids of every asset currently carrying a tag (issue #407 audit/repair), paged through
+        Immich's metadata search since the tag endpoints themselves don't list members."""
+        asset_ids: set[str] = set()
+        page: int | None = 1
+
+        while page is not None:
+            response = self.client.post(
+                f"{self.url}/api/search/metadata",
                 json={
-                    "ids": batch,
+                    "tagIds": [tag_id],
+                    "page": page,
+                    "size": 1000,
+                    "withDeleted": False,
                 },
             )
 
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                raise ImmichUntagAssetsError(
+                raise ImmichListTagsError(
                     f"Immich API error {response.status_code}: {response.text}"
                 ) from exc
 
-            failures = _bulk_failures(response.json(), benign={"not_found"})
+            assets = response.json().get("assets", {})
+            asset_ids.update(item["id"] for item in assets.get("items", []))
+            next_page = assets.get("nextPage")
+            page = int(next_page) if next_page else None
 
-            if failures:
-                raise ImmichUntagAssetsError(
-                    f"Immich rejected {len(failures)}/{len(batch)} asset(s) "
-                    f"untagging from {tag_id}: {failures}",
-                    failures=failures,
-                )
+        return asset_ids

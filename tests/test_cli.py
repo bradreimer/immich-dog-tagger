@@ -250,3 +250,93 @@ def test_reembed_and_reclassify_failure_returns_nonzero(command, service_path):
         assert len(jobs) == 1
         assert jobs[0].status is PipelineJobStatus.FAILED
         assert jobs[0].error_message == "boom"
+
+
+class _FakeImmich:
+    """Immich client double: one album holding a1, and no tags at all."""
+
+    def __init__(self):
+        self.tagged = []
+
+    def list_albums(self):
+        return [{"id": "album1", "albumName": "Dog - Fibs"}]
+
+    def get_album_asset_ids(self, album_id):
+        return {"a1"}
+
+    def list_tags(self):
+        return [{"id": "tag1", "name": "Dog - Fibs"}] if self.tagged else []
+
+    def create_tag(self, name):
+        return "tag1"
+
+    def tag_assets(self, tag_id, asset_ids):
+        self.tagged.extend(asset_ids)
+
+    def get_tag_asset_ids(self, tag_id):
+        return set(self.tagged)
+
+    def add_assets_to_album(self, album_id, asset_ids):
+        pass
+
+
+def _seed_fibs(monkeypatch, tmp_path):
+    from immich_dog_tagger.models import (
+        Asset,
+        Crop,
+        CropClassification,
+        Detection,
+    )
+
+    monkeypatch.chdir(tmp_path)
+    engine = create_database(load_config().state_dir)
+
+    with Session(engine) as session:
+        asset = Asset(immich_asset_id="a1", checksum="c", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="crop.jpg")
+        session.add(CropClassification(crop=crop, identity="Fibs", confidence=0.95))
+        session.commit()
+
+
+def test_sync_audit_exits_nonzero_and_reports_drift(capsys, monkeypatch, tmp_path):
+    _seed_fibs(monkeypatch, tmp_path)
+    client = _FakeImmich()
+
+    with (
+        patch("immich_dog_tagger.cli.resolve_account"),
+        patch("immich_dog_tagger.cli.build_immich_client", return_value=client),
+        patch("sys.argv", ["immich-dog-tagger", "sync", "--audit"]),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        main()
+
+    assert excinfo.value.code == 1
+    output = capsys.readouterr().out
+    assert "dog/Fibs (1 expected): 1 missing tag" in output
+    assert "sync --repair" in output
+    assert client.tagged == []
+
+
+def test_sync_repair_fixes_drift_and_a_second_audit_is_clean(
+    capsys, monkeypatch, tmp_path
+):
+    _seed_fibs(monkeypatch, tmp_path)
+    client = _FakeImmich()
+
+    with (
+        patch("immich_dog_tagger.cli.resolve_account"),
+        patch("immich_dog_tagger.cli.build_immich_client", return_value=client),
+    ):
+        with patch("sys.argv", ["immich-dog-tagger", "sync", "--repair"]):
+            main()
+
+        assert client.tagged == ["a1"]
+        assert "1 tag(s) added" in capsys.readouterr().out
+
+        with patch("sys.argv", ["immich-dog-tagger", "sync", "--audit"]):
+            main()
+
+        assert "Immich matches state.db" in capsys.readouterr().out

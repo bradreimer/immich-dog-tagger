@@ -121,3 +121,20 @@ def test_album_service_remove_from_identity_names_cat_albums_by_species():
     )
 
     assert client.removed == [("album1", ["asset1"])]
+
+
+def test_album_service_member_ids_is_none_and_creates_nothing_without_an_album():
+    class Client:
+        def __init__(self):
+            self.created = []
+
+        def list_albums(self):
+            return []
+
+        def create_album(self, name):
+            self.created.append(name)
+
+    client = Client()
+
+    assert AlbumService(client).member_ids("Hermann") is None
+    assert client.created == []

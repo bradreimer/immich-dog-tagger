@@ -1106,3 +1106,48 @@ def test_sync_still_tags_a_deactivated_identity(engine):
 
         assert [call[0] for call in tags.calls] == ["Rex"]
         assert [call[0] for call in albums.calls] == ["Rex"]
+
+
+class _FailingTags(FakeTags):
+    def sync_identity(self, identity, asset_ids, species="dog"):
+        raise ImmichTagAssetsError(
+            "rejected",
+            failures=[{"id": "asset1", "success": False, "error": "no_permission"}],
+        )
+
+
+def _one_classification(session, identity="Fibs"):
+    asset = Asset(immich_asset_id="asset1", checksum="c", extension=".jpg")
+    detection = Detection(
+        asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+    )
+    crop = Crop(detection=detection, path="crop.jpg")
+    session.add(CropClassification(crop=crop, identity=identity, confidence=0.95))
+    session.commit()
+
+
+def test_sync_still_writes_the_album_when_the_tag_write_fails(engine):
+    """Issue #407: the album write and tag write are independent, and both outcomes are kept."""
+    with Session(engine) as session:
+        _one_classification(session)
+        albums = FakeAlbums()
+
+        summary = SyncService(session, albums, tags=_FailingTags()).sync()
+
+        assert albums.calls == [("Fibs", ["asset1"], "dog")]
+        assert [i.identity for i in summary.failed_identities] == ["Fibs"]
+        assert summary.failed_identities[0].permission_error is True
+        # Not recorded as synced, so the next run retries it.
+        assert session.scalars(select(SyncedAsset)).all() == []
+
+
+def test_sync_still_writes_the_tag_when_the_album_write_fails(engine):
+    with Session(engine) as session:
+        _one_classification(session)
+        albums = FakeAlbums(fail_identities={"Fibs"})
+        tags = FakeTags()
+
+        summary = SyncService(session, albums, tags=tags).sync()
+
+        assert tags.calls == [("Fibs", ["asset1"], "dog")]
+        assert [i.identity for i in summary.failed_identities] == ["Fibs"]

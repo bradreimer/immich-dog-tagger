@@ -131,6 +131,22 @@ docker compose exec dog-tagger immich-dog-tagger scan --account alice
 docker compose exec dog-tagger immich-dog-tagger sync
 ```
 
+### Checking and repairing Immich tags and albums
+
+If photos in an Immich identity album are missing the matching tag (or Immich otherwise drifted
+from state.db, e.g. after a permission problem or manual edits), audit and repair it:
+
+```bash
+docker compose exec dog-tagger immich-dog-tagger sync --audit            # report only; exit 1 on drift
+docker compose exec dog-tagger immich-dog-tagger sync --repair           # fix everything
+docker compose exec dog-tagger immich-dog-tagger sync --repair --no-prune  # only add, never remove
+```
+
+`--repair` re-applies tags and albums from state.db and, unless `--no-prune`, removes photos
+state.db no longer assigns to that identity from its `Dog - <name>` / `Cat - <name>` tag and
+album. It is safe to re-run. A `no_permission` failure means the Immich API key is missing a
+grant, see [immich-api-key-permissions.md](immich-api-key-permissions.md).
+
 The Job Queue and Automation Schedules pages currently start a scan/sync/full-pipeline job against
 the *first* configured account only — a fast-follow UI update will add an account picker there.
 Until then, use the CLI (or the equivalent `account_id` field on `POST /jobs`/`POST /schedules`)

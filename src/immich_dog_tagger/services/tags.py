@@ -69,3 +69,17 @@ class TagService:
             tag_id,
             asset_ids,
         )
+
+    def member_ids(
+        self,
+        identity: str,
+        species: str = "dog",
+    ) -> set[str] | None:
+        """Asset ids currently in this identity's tag in Immich, or None when the tag
+        doesn't exist (issue #407 audit/repair). Never creates one."""
+        tag_id = self._find_tag(f"{species.capitalize()} - {identity}")
+
+        if tag_id is None:
+            return None
+
+        return self.client.get_tag_asset_ids(tag_id)
