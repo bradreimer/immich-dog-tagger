@@ -700,8 +700,10 @@ def _print_audit_failures(label: str, failures) -> None:
 
     if any(failure.permission_error for failure in failures):
         print(
-            f"{label}This looks like a missing Immich API key permission "
-            f"-- see {IMMICH_PERMISSIONS_DOC_URL}"
+            f"{label}Immich rejected some photos with no_permission. If the API key "
+            "lacks a permission, every write fails; if only a few photos fail, "
+            "they belong to another Immich account. "
+            f"See {IMMICH_PERMISSIONS_DOC_URL}"
         )
 
 
@@ -732,7 +734,9 @@ def _sync_audit_account(
             policy=SyncPolicy(album_minimum_assets=config.album_min_photos),
             tags=TagService(client),
             account_id=account_id,
-        )
+        ),
+        client=client,
+        cache_dir=config.cache_dir,
     )
 
     if not repair:
@@ -758,6 +762,12 @@ def _sync_audit_account(
         f"{label}Repaired: {result.added_tags} tag(s) added, "
         f"{result.added_to_albums} album member(s) added, {result.removed} removed"
     )
+
+    if result.retired:
+        print(
+            f"{label}Retired {result.retired} photo(s) no longer in Immich; "
+            "re-run `sync --repair` to confirm everything else is in sync."
+        )
     _print_audit_failures(label, result.failures)
     return bool(result.failures)
 

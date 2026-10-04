@@ -44,3 +44,12 @@ detects this case specifically and calls it out in its output/progress message w
 to this page (issue [#259](https://github.com/bradreimer/immich-dog-tagger/issues/259)). The
 affected identity's previous Immich membership is left untouched and retried on every subsequent
 sync, so fixing the key's permissions and re-running `sync` is enough -- no manual cleanup needed.
+
+### Only a few photos fail, the rest sync fine
+
+A key that is missing a permission fails every photo. If `sync --repair` rejects only a handful
+of photos with `no_permission`, the key is fine and those photos are the problem. Immich answers
+`no_permission` for a photo that was deleted in Immich but is still in `state.db`. `sync --repair`
+now asks Immich about each rejected photo and retires the ones that no longer exist (issue
+[#413](https://github.com/bradreimer/immich-dog-tagger/issues/413)); re-run it to confirm. A
+photo that still exists and is still rejected is most likely owned by another Immich user.

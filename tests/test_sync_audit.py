@@ -2,7 +2,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from immich_dog_tagger.immich import ImmichTagAssetsError
+from immich_dog_tagger.enums import AssetStatus
+from immich_dog_tagger.immich import (
+    ImmichAssetNotFoundError,
+    ImmichGetAssetError,
+    ImmichTagAssetsError,
+)
 from immich_dog_tagger.models import (
     Asset,
     Crop,
@@ -238,3 +243,96 @@ def test_repair_clean_library_changes_nothing(engine, prune):
 
         assert result.report.clean
         assert result.removed == 0
+
+
+class RejectingTags(FakeMembership):
+    """Rejects `rejected` ids with no_permission, but still writes the rest."""
+
+    def __init__(self, rejected, error="no_permission"):
+        super().__init__()
+        self.rejected = set(rejected)
+        self.error = error
+
+    def sync_identity(self, identity, asset_ids, species="dog"):
+        ok = [a for a in asset_ids if a not in self.rejected]
+        self.members.setdefault((species, identity), set()).update(ok)
+        bad = [a for a in asset_ids if a in self.rejected]
+
+        if bad:
+            raise ImmichTagAssetsError(
+                "rejected",
+                failures=[
+                    {"id": a, "success": False, "error": self.error} for a in bad
+                ],
+            )
+
+
+class FakeClient:
+    def __init__(self, gone=(), error=None):
+        self.gone = set(gone)
+        self.error = error
+
+    def get_asset(self, immich_asset_id):
+        if self.error is not None:
+            raise self.error
+
+        if immich_asset_id in self.gone:
+            raise ImmichAssetNotFoundError("Not found or no asset.read access")
+
+        return object()
+
+
+def _repair_with(session, tags, client):
+    return SyncAuditService(
+        SyncService(
+            session,
+            FakeMembership(),
+            policy=SyncPolicy(album_minimum_assets=999),
+            tags=tags,
+        ),
+        client=client,
+    ).repair()
+
+
+def test_repair_retires_photos_immich_no_longer_has(engine):
+    with Session(engine) as session:
+        _classify(session, "a1", "Fibs")
+        _classify(session, "gone", "Fibs")
+
+        result = _repair_with(
+            session, RejectingTags({"gone"}), FakeClient(gone={"gone"})
+        )
+
+        assert result.failures == []
+        assert result.retired == 1
+        gone = session.scalar(select(Asset).where(Asset.immich_asset_id == "gone"))
+        assert gone.status == AssetStatus.REMOVED
+        assert not session.scalars(
+            select(SyncedAsset).where(SyncedAsset.immich_asset_id == "gone")
+        ).all()
+
+
+def test_repair_keeps_the_failure_when_the_photo_still_exists(engine):
+    with Session(engine) as session:
+        _classify(session, "locked", "Fibs")
+
+        result = _repair_with(session, RejectingTags({"locked"}), FakeClient())
+
+        assert result.retired == 0
+        assert result.failures[0].permission_error
+        locked = session.scalar(select(Asset).where(Asset.immich_asset_id == "locked"))
+        assert locked.status != AssetStatus.REMOVED
+
+
+def test_repair_does_not_retire_when_immich_cannot_be_asked(engine):
+    with Session(engine) as session:
+        _classify(session, "a1", "Fibs")
+
+        result = _repair_with(
+            session,
+            RejectingTags({"a1"}),
+            FakeClient(error=ImmichGetAssetError("503")),
+        )
+
+        assert result.retired == 0
+        assert result.failures
