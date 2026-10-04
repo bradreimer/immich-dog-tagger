@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.config import ImmichAccount as ConfiguredAccount
-from immich_dog_tagger.models import Asset
+from immich_dog_tagger.models import Asset, ImmichAccount
 from immich_dog_tagger.services.accounts import (
     AccountResolutionError,
     AccountService,
@@ -25,7 +25,7 @@ def _config(tmp_path, accounts=(), immich_api_key="") -> Config:
     )
 
 
-def test_sync_from_config_creates_a_row_per_account_plus_default(engine, tmp_path):
+def test_sync_from_config_creates_a_row_per_configured_account(engine, tmp_path):
     config = _config(
         tmp_path,
         accounts=(
@@ -36,7 +36,7 @@ def test_sync_from_config_creates_a_row_per_account_plus_default(engine, tmp_pat
 
     with Session(engine) as session:
         accounts = AccountService(session).sync_from_config(config)
-        assert sorted(a.name for a in accounts) == ["alice", "bob", "default"]
+        assert sorted(a.name for a in accounts) == ["alice", "bob"]
 
 
 def test_sync_from_config_backfills_pre_existing_assets_onto_default(engine, tmp_path):
@@ -57,6 +57,42 @@ def test_sync_from_config_backfills_pre_existing_assets_onto_default(engine, tmp
         assert legacy_asset.account_id == default_account.id
 
 
+def test_sync_from_config_keeps_default_when_nothing_is_configured(engine, tmp_path):
+    with Session(engine) as session:
+        accounts = AccountService(session).sync_from_config(_config(tmp_path))
+        assert [a.name for a in accounts] == ["default"]
+
+
+def test_sync_from_config_removes_unreferenced_stale_default(engine, tmp_path):
+    with Session(engine) as session:
+        session.add(ImmichAccount(name="default"))
+        session.commit()
+
+    config = _config(tmp_path, accounts=(ConfiguredAccount(name="alice", api_key="k"),))
+
+    with Session(engine) as session:
+        accounts = AccountService(session).sync_from_config(config)
+        assert [a.name for a in accounts] == ["alice"]
+        assert AccountService(session).get_by_name("default") is None
+
+
+def test_sync_from_config_keeps_default_that_data_references(engine, tmp_path):
+    with Session(engine) as session:
+        default = ImmichAccount(name="default")
+        session.add(default)
+        session.flush()
+        session.add(
+            Asset(immich_asset_id="a1", extension=".jpg", account_id=default.id)
+        )
+        session.commit()
+
+    config = _config(tmp_path, accounts=(ConfiguredAccount(name="alice", api_key="k"),))
+
+    with Session(engine) as session:
+        AccountService(session).sync_from_config(config)
+        assert AccountService(session).get_by_name("default") is not None
+
+
 def test_sync_from_config_is_idempotent(engine, tmp_path):
     config = _config(tmp_path, accounts=(ConfiguredAccount(name="alice", api_key="k"),))
 
@@ -64,7 +100,7 @@ def test_sync_from_config_is_idempotent(engine, tmp_path):
         first = AccountService(session).sync_from_config(config)
         second = AccountService(session).sync_from_config(config)
 
-        assert len(first) == len(second) == 2  # alice + default
+        assert len(first) == len(second) == 1
 
 
 def test_sync_from_config_never_deletes_an_orphaned_account(engine, tmp_path):

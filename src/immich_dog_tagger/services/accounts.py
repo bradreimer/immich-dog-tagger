@@ -11,12 +11,18 @@ and resolves that row back to a real `ImmichClient` at the point of use.
 import logging
 from dataclasses import dataclass
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, exists, select, update
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.config import Config
 from immich_dog_tagger.immich import ImmichClient
-from immich_dog_tagger.models import Asset, ImmichAccount
+from immich_dog_tagger.models import (
+    Asset,
+    ImmichAccount,
+    PipelineJob,
+    PipelineSchedule,
+    SyncedAsset,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +45,21 @@ class AccountService:
     def sync_from_config(self, config: Config) -> list[ImmichAccount]:
         """
         Upsert an `ImmichAccount` row by exact name match for every account
-        `Config.accounts` currently declares, plus one always named
-        `DEFAULT_ACCOUNT_NAME` (creating it if it doesn't already exist as
-        one of the configured accounts) so pre-existing `Asset` rows from
-        before this feature existed have somewhere to backfill onto.
+        `Config.accounts` currently declares.
 
-        Never deletes a row whose name has disappeared from `Config.accounts`
-        (a rename or removal) -- it is left in place, orphaned, per
-        docs/specs/multi-immich-account-sync.md's open question on that
-        topic. Safe to call on every startup: existing rows are left alone,
-        and the backfill only ever touches rows that still have no account.
+        A row named `DEFAULT_ACCOUNT_NAME` is additionally kept only while it
+        is needed: when nothing is configured (`resolve_account`'s fallback
+        resolves to it) or when pre-existing `Asset` rows with no account
+        still need somewhere to backfill onto. Once neither holds, an
+        unconfigured `default` row that nothing references is removed, so a
+        deployment with a real `config.json` doesn't list a phantom account.
+
+        Otherwise never deletes a row whose name has disappeared from
+        `Config.accounts` (a rename or removal) -- it is left in place,
+        orphaned, per docs/specs/multi-immich-account-sync.md's open question
+        on that topic. Safe to call on every startup: existing rows are left
+        alone, and the backfill only ever touches rows that still have no
+        account.
         """
 
         existing_by_name = {
@@ -56,11 +67,13 @@ class AccountService:
             for account in self.session.scalars(select(ImmichAccount)).all()
         }
 
-        configured_names = {account.name for account in config.accounts} | {
-            DEFAULT_ACCOUNT_NAME
-        }
+        configured_names = {account.name for account in config.accounts}
+        needed_names = set(configured_names)
 
-        for name in configured_names:
+        if not configured_names or self._has_unassigned_assets():
+            needed_names.add(DEFAULT_ACCOUNT_NAME)
+
+        for name in needed_names:
             if name not in existing_by_name:
                 account = ImmichAccount(name=name)
                 self.session.add(account)
@@ -70,10 +83,35 @@ class AccountService:
 
         self.session.commit()
 
-        default_account = existing_by_name[DEFAULT_ACCOUNT_NAME]
-        self._backfill_legacy_assets(default_account)
+        default_account = existing_by_name.get(DEFAULT_ACCOUNT_NAME)
+
+        if default_account is not None and DEFAULT_ACCOUNT_NAME in needed_names:
+            self._backfill_legacy_assets(default_account)
+        elif default_account is not None and self._is_unreferenced(default_account):
+            self.session.execute(
+                delete(ImmichAccount).where(ImmichAccount.id == default_account.id)
+            )
+            self.session.commit()
+            del existing_by_name[DEFAULT_ACCOUNT_NAME]
+            logger.info(
+                "Removed unused Immich account %r (not configured, no data)",
+                DEFAULT_ACCOUNT_NAME,
+            )
 
         return list(existing_by_name.values())
+
+    def _has_unassigned_assets(self) -> bool:
+        return bool(
+            self.session.scalar(select(exists().where(Asset.account_id.is_(None))))
+        )
+
+    def _is_unreferenced(self, account: ImmichAccount) -> bool:
+        for model in (Asset, SyncedAsset, PipelineSchedule, PipelineJob):
+            if self.session.scalar(
+                select(exists().where(model.account_id == account.id))
+            ):
+                return False
+        return True
 
     def _backfill_legacy_assets(self, default_account: ImmichAccount) -> None:
         result = self.session.execute(

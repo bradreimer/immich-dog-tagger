@@ -261,6 +261,10 @@ assuming exactly one.
 
 ## Open questions
 
+- **Phantom `default` account** (#415, resolved): the `default` row is created at startup only
+  when no accounts are configured or legacy assets with no account still need backfilling, and an
+  unconfigured, unreferenced `default` row is removed. A referenced one is kept.
+
 - **Renaming or removing a configured account** after it already has synced data: `Config.accounts`
   resolves purely by exact string name, so renaming an account in `config.json` is
   indistinguishable from deleting the old one and adding a brand-new one with the same key --
