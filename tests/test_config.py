@@ -273,3 +273,23 @@ def test_config_file_path_that_is_a_directory_falls_back_to_legacy_env_vars(
 
     assert config.immich_url == "https://immich.example.com"
     assert config.immich_api_key == "secret"
+
+
+def test_album_min_photos_defaults_to_50(monkeypatch):
+    monkeypatch.delenv("ALBUM_MIN_PHOTOS", raising=False)
+
+    assert load_config(load_env_file=False).album_min_photos == 50
+
+
+def test_album_min_photos_from_environment(monkeypatch):
+    monkeypatch.setenv("ALBUM_MIN_PHOTOS", "0")
+
+    assert load_config(load_env_file=False).album_min_photos == 0
+
+
+@pytest.mark.parametrize("value", ["-1", "many", "2.5"])
+def test_album_min_photos_rejects_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("ALBUM_MIN_PHOTOS", value)
+
+    with pytest.raises(ConfigError):
+        load_config(load_env_file=False)

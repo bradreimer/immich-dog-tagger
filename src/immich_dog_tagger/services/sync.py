@@ -184,11 +184,15 @@ class SyncService:
         for (species, identity), asset_ids in assets.items():
             if not dry_run:
                 try:
-                    self.albums.sync_identity(
-                        identity,
-                        sorted(asset_ids),
-                        species=species,
-                    )
+                    # Issue #405: tags go to every identity, albums only to
+                    # popular ones. An existing album is left alone if the
+                    # identity later drops below the threshold.
+                    if len(asset_ids) >= self.policy.album_minimum_assets:
+                        self.albums.sync_identity(
+                            identity,
+                            sorted(asset_ids),
+                            species=species,
+                        )
 
                     if self.tags is not None:
                         self.tags.sync_identity(

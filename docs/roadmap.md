@@ -415,6 +415,11 @@ Library with an AND query for both pets (repeated `identity` param; URL-only, no
 [#403](https://github.com/bradreimer/immich-dog-tagger/issues/403): each photo in Grouped Review
 has a "View in Immich" link, and the group header shows its earliest and latest capture dates.
 
+## v1.49.0 - Albums only for popular pets
+
+[#405](https://github.com/bradreimer/immich-dog-tagger/issues/405): Sync tags every identified pet in
+Immich but only creates an album once a pet has at least `ALBUM_MIN_PHOTOS` photos (default 50).
+
 ---
 
 ## Active Learning Improvements

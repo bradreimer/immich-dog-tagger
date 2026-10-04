@@ -52,6 +52,10 @@ class Config:
     #: than left at the library default.
     immich_timeout_seconds: float = 60.0
 
+    #: Minimum photos an identity needs before Sync creates an Immich album for it (issue #405).
+    #: Every identity is tagged regardless. ``0`` creates an album for every identity.
+    album_min_photos: int = 50
+
     #: Every configured Immich account (today, from either a JSON ``CONFIG_FILE`` or the legacy
     #: ``IMMICH_API_KEY`` env var, which produces one implicit "default" account). Empty when
     #: nothing is configured yet. :attr:`immich_api_key` is a single-account convenience view
@@ -192,6 +196,22 @@ def _immich_settings_from_file(
     )
 
 
+def _album_min_photos_from_env() -> int:
+    raw = os.environ.get("ALBUM_MIN_PHOTOS", "50").strip()
+
+    try:
+        value = int(raw)
+    except ValueError as e:
+        raise ConfigError(
+            f"ALBUM_MIN_PHOTOS must be a whole number, got {raw!r}"
+        ) from e
+
+    if value < 0:
+        raise ConfigError(f"ALBUM_MIN_PHOTOS must not be negative, got {value}")
+
+    return value
+
+
 def load_config(load_env_file: bool = True) -> Config:
     """
     Load application configuration.
@@ -278,6 +298,7 @@ def load_config(load_env_file: bool = True) -> Config:
                 "0.15",
             )
         ),
+        album_min_photos=_album_min_photos_from_env(),
         look_harder_model=os.environ.get(
             "LOOK_HARDER_MODEL",
             DEFAULT_LOOK_HARDER_MODEL,

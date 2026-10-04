@@ -34,6 +34,7 @@ from immich_dog_tagger.services.pipeline import PipelineService
 from immich_dog_tagger.services.reclassify import ReclassifyService
 from immich_dog_tagger.services.reembed import ReembedService
 from immich_dog_tagger.services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
+from immich_dog_tagger.services.sync_policy import SyncPolicy
 from immich_dog_tagger.services.tags import TagService
 from immich_dog_tagger.yolo_detector import YOLODetector
 
@@ -508,6 +509,7 @@ def _sync_handler(
         service = SyncService(
             session,
             AlbumService(client),
+            policy=SyncPolicy(album_minimum_assets=config.album_min_photos),
             tags=TagService(client),
             account_id=account.id,
         )
