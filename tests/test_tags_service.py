@@ -130,3 +130,17 @@ def test_tag_service_remove_from_identity_names_cat_tags_by_species():
     )
 
     assert client.untagged == [("tag1", ["asset1"])]
+
+
+def test_tag_service_member_ids_reads_the_identitys_tag():
+    client = FakeImmich(existing_tags=[{"id": "tag1", "name": "Dog - Hermann"}])
+    client.get_tag_asset_ids = lambda tag_id: {"a1"} if tag_id == "tag1" else set()
+
+    assert TagService(client).member_ids("Hermann") == {"a1"}
+
+
+def test_tag_service_member_ids_is_none_and_creates_nothing_without_a_tag():
+    client = FakeImmich()
+
+    assert TagService(client).member_ids("Hermann") is None
+    assert client.created == []

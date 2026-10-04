@@ -67,6 +67,26 @@ depending on browsing this app's albums.
 - Covered by unit tests for `ImmichClient`'s new methods, `TagService`, and `SyncService`'s tag
   wiring.
 
+## Audit and repair (issue #407)
+
+Sync trusts its own `SyncedAsset` bookkeeping and never reads Immich back, so a tag that was
+rejected, deleted in Immich, or never written leaves a photo in an identity's album without the
+matching tag, with nothing reporting it.
+
+- The album write and tag write for an identity are attempted independently; a failure in one
+  never skips the other, and both outcomes are reported.
+- A rejected batch no longer stops the batches after it: every batch is attempted, then one error
+  carrying all failures is raised.
+- `sync --audit` reads each identity's real album and tag membership from Immich and compares it
+  with what state.db expects (same policy as Sync: confidence threshold, removed assets, manual
+  tags, `ALBUM_MIN_PHOTOS`). It reports photos missing a tag, missing from an expected album, and
+  extras no longer assigned to the identity. Read-only; exits non-zero when drift is found.
+- `sync --repair` adds what is missing and, unless `--no-prune`, removes extras, then rebuilds
+  `SyncedAsset` from the result. Idempotent; each identity is isolated, so re-running picks up
+  anything that failed. Both accept `--account`.
+- state.db remains the source of truth (ADR-001); neither command changes classifications,
+  reviews, or learned examples.
+
 ## Open Questions
 
 None.

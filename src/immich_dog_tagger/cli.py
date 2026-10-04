@@ -35,6 +35,7 @@ from .services.pet_occurrences import PetOccurrenceService
 from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
 from .services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
+from .services.sync_audit import SyncAuditService
 from .services.sync_policy import SyncPolicy
 from .services.tags import TagService
 
@@ -682,6 +683,85 @@ def status_command(args) -> None:
             print(f"{key}:\t{value}")
 
 
+def _print_drift(label: str, report) -> None:
+    for drift in report.drifts:
+        print(
+            f"{label}{drift.species}/{drift.identity} ({drift.expected} expected): "
+            f"{len(drift.missing_tag)} missing tag, "
+            f"{len(drift.missing_from_album)} missing from album, "
+            f"{len(drift.extra_in_tag)} extra in tag, "
+            f"{len(drift.extra_in_album)} extra in album"
+        )
+
+
+def _print_audit_failures(label: str, failures) -> None:
+    for failure in failures:
+        print(f"{label}FAILED {failure.species}/{failure.identity}: {failure.message}")
+
+    if any(failure.permission_error for failure in failures):
+        print(
+            f"{label}This looks like a missing Immich API key permission "
+            f"-- see {IMMICH_PERMISSIONS_DOC_URL}"
+        )
+
+
+def _sync_audit_account(
+    session,
+    config,
+    account_id,
+    label: str,
+    *,
+    repair: bool,
+    prune: bool,
+) -> bool:
+    """Audit (read-only) or repair one account's Immich tag/album drift (issue #407).
+    Returns True when the account still needs attention: drift found by an audit, or a repair
+    that could not fix everything."""
+    try:
+        resolved = resolve_account(session, config, account_id)
+    except AccountResolutionError as exc:
+        print(f"{label}{exc}")
+        return True
+
+    client = build_immich_client(config, resolved)
+
+    audit = SyncAuditService(
+        SyncService(
+            session,
+            AlbumService(client),
+            policy=SyncPolicy(album_minimum_assets=config.album_min_photos),
+            tags=TagService(client),
+            account_id=account_id,
+        )
+    )
+
+    if not repair:
+        report = audit.audit()
+        print(f"{label}Checked {report.checked} identity/ies")
+        _print_drift(label, report)
+        _print_audit_failures(label, report.failures)
+
+        if report.clean:
+            print(f"{label}Immich matches state.db")
+            return False
+
+        print(
+            f"{label}Drift: {report.missing_tag} missing tag, "
+            f"{report.missing_from_album} missing from album, {report.extras} extra. "
+            "Run `sync --repair` to fix."
+        )
+        return True
+
+    result = audit.repair(prune=prune)
+    _print_drift(label, result.report)
+    print(
+        f"{label}Repaired: {result.added_tags} tag(s) added, "
+        f"{result.added_to_albums} album member(s) added, {result.removed} removed"
+    )
+    _print_audit_failures(label, result.failures)
+    return bool(result.failures)
+
+
 def sync_command(args) -> None:
     config = load_config()
 
@@ -697,6 +777,19 @@ def sync_command(args) -> None:
 
         for account_id in account_ids:
             label = _account_label(session, account_id, multi)
+
+            if args.audit or args.repair:
+                if _sync_audit_account(
+                    session,
+                    config,
+                    account_id,
+                    label,
+                    repair=args.repair,
+                    prune=not args.no_prune,
+                ):
+                    any_failed = True
+
+                continue
 
             if args.dry_run:
                 try:
@@ -1079,6 +1172,28 @@ def main(argv: list[str] | None = None) -> None:
     sync_parser.add_argument(
         "--account",
         help="Only sync this configured account (default: every configured account)",
+    )
+
+    sync_mode = sync_parser.add_mutually_exclusive_group()
+
+    sync_mode.add_argument(
+        "--audit",
+        action="store_true",
+        help="Compare Immich's real tag/album membership to state.db and report drift "
+        "(read-only; exits non-zero when drift is found)",
+    )
+
+    sync_mode.add_argument(
+        "--repair",
+        action="store_true",
+        help="Bring Immich's tags/albums back in line with state.db: add what is missing and "
+        "remove photos state.db no longer assigns. Safe to re-run",
+    )
+
+    sync_parser.add_argument(
+        "--no-prune",
+        action="store_true",
+        help="With --repair, only add missing tags/album members; never remove",
     )
 
     pipeline_parser = subparsers.add_parser(

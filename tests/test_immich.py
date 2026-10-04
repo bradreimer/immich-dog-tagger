@@ -790,3 +790,86 @@ def test_get_asset_raises_on_connection_error():
 
     with pytest.raises(ImmichGetAssetError):
         client.get_asset("abc123")
+
+
+def test_tag_assets_attempts_every_batch_even_when_one_is_rejected():
+    """Issue #407: a rejected batch used to abort the batches after it, leaving the rest of a
+    large identity untagged. Every batch is now attempted and the failure raised afterwards."""
+    requests = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append(body["ids"])
+        if len(requests) == 1:
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": i, "success": False, "error": "no_permission"}
+                    for i in body["ids"]
+                ],
+            )
+        return httpx.Response(200, json=[{"id": "x", "success": True}])
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(ImmichTagAssetsError) as excinfo:
+        client.tag_assets("tag1", [f"asset{i}" for i in range(250)])
+
+    assert [len(ids) for ids in requests] == [200, 50]
+    assert excinfo.value.permission_denied is True
+    assert len(excinfo.value.failures) == 200
+
+
+def test_add_assets_to_album_continues_past_an_http_error_batch():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(500, text="boom")
+        return httpx.Response(200, json=[])
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(ImmichAddAssetsToAlbumError, match="boom"):
+        client.add_assets_to_album("album1", [f"asset{i}" for i in range(250)])
+
+    assert len(calls) == 2
+
+
+def test_get_album_asset_ids():
+    def handler(request):
+        assert request.url.path == "/api/albums/album1"
+        return httpx.Response(
+            200, json={"id": "album1", "assets": [{"id": "a"}, {"id": "b"}]}
+        )
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    assert client.get_album_asset_ids("album1") == {"a", "b"}
+
+
+def test_get_tag_asset_ids_pages_through_search_results():
+    pages = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        assert request.url.path == "/api/search/metadata"
+        assert body["tagIds"] == ["tag1"]
+        pages.append(body["page"])
+        if body["page"] == 1:
+            return httpx.Response(
+                200, json={"assets": {"items": [{"id": "a"}], "nextPage": "2"}}
+            )
+        return httpx.Response(
+            200, json={"assets": {"items": [{"id": "b"}], "nextPage": None}}
+        )
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    assert client.get_tag_asset_ids("tag1") == {"a", "b"}
+    assert pages == [1, 2]

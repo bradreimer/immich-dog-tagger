@@ -56,6 +56,15 @@ class SyncSummary:
     failed_identities: list[SyncIdentitySummary] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class ExpectedState:
+    assets: dict[tuple[str, str], set[str]]
+    manual_tags: int = 0
+    skipped_low_confidence: int = 0
+    skipped_unknown: int = 0
+    skipped_missing_asset: int = 0
+
+
 class SyncService:
     def __init__(
         self,
@@ -78,11 +87,10 @@ class SyncService:
         # updated to pass one.
         self.account_id = account_id
 
-    def sync(
-        self,
-        *,
-        dry_run: bool = False,
-    ) -> SyncSummary:
+    def expected_state(self) -> ExpectedState:
+        """What state.db says Immich should hold: (species, identity) -> asset ids, plus the
+        accounting of what was left out and why. Shared by sync and the issue #407 audit/repair
+        so all three agree on the policy (confidence threshold, unknown, removed assets)."""
         # Keyed by (species, identity), not identity alone (DT-1110) -- a
         # dog "Max" and a cat "Max" must sync to two separate albums, not
         # get merged into one because they share a name.
@@ -168,6 +176,26 @@ class SyncService:
             assets[(tag.species, tag.identity)].add(tag.asset.immich_asset_id)
             manual_tag_count += 1
 
+        return ExpectedState(
+            assets=assets,
+            manual_tags=manual_tag_count,
+            skipped_low_confidence=skipped_low_confidence,
+            skipped_unknown=skipped_unknown,
+            skipped_missing_asset=skipped_missing_asset,
+        )
+
+    def sync(
+        self,
+        *,
+        dry_run: bool = False,
+    ) -> SyncSummary:
+        expected = self.expected_state()
+        assets = expected.assets
+        manual_tag_count = expected.manual_tags
+        skipped_low_confidence = expected.skipped_low_confidence
+        skipped_unknown = expected.skipped_unknown
+        skipped_missing_asset = expected.skipped_missing_asset
+
         previous: dict[tuple[str, str], set[str]] = {}
         # Maps a failed (species, identity) key to whether the failure was Immich rejecting the
         # write with `no_permission` (issue #259) -- surfaced per-identity so the final summary
@@ -175,7 +203,7 @@ class SyncService:
         failed: dict[tuple[str, str], bool] = {}
 
         if not dry_run:
-            previous = self._previously_synced_state()
+            previous = self.previously_synced_state()
             failed |= self._remove_stale_memberships(assets, previous)
 
         summary: list[SyncIdentitySummary] = []
@@ -183,36 +211,53 @@ class SyncService:
 
         for (species, identity), asset_ids in assets.items():
             if not dry_run:
-                try:
-                    # Issue #405: tags go to every identity, albums only to
-                    # popular ones. An existing album is left alone if the
-                    # identity later drops below the threshold.
-                    if len(asset_ids) >= self.policy.album_minimum_assets:
+                # Issue #407: the album write and the tag write are attempted independently,
+                # so a failure in one (e.g. a tag `no_permission`) never leaves the other
+                # skipped and silently out of step.
+                errors: list[Exception] = []
+
+                # Issue #405: tags go to every identity, albums only to popular ones. An
+                # existing album is left alone if the identity later drops below the
+                # threshold.
+                if len(asset_ids) >= self.policy.album_minimum_assets:
+                    try:
                         self.albums.sync_identity(
                             identity,
                             sorted(asset_ids),
                             species=species,
                         )
+                    except Exception as exc:
+                        logger.exception(
+                            "Album write failed for %s identity %r (%d asset(s))",
+                            species,
+                            identity,
+                            len(asset_ids),
+                        )
+                        errors.append(exc)
 
-                    if self.tags is not None:
+                if self.tags is not None:
+                    try:
                         self.tags.sync_identity(
                             identity,
                             sorted(asset_ids),
                             species=species,
                         )
-                except Exception as exc:
+                    except Exception as exc:
+                        logger.exception(
+                            "Tag write failed for %s identity %r (%d asset(s))",
+                            species,
+                            identity,
+                            len(asset_ids),
+                        )
+                        errors.append(exc)
+
+                if errors:
                     # One identity's bulk membership write failing (e.g. an Immich timeout
                     # on a very large batch, issue #243) must not abort every other
-                    # identity's sync in this job -- log it, mark it failed, and move on.
-                    logger.exception(
-                        "Sync failed for %s identity %r (%d asset(s)); its Immich "
-                        "membership is unchanged and will be retried on the next sync",
-                        species,
-                        identity,
-                        len(asset_ids),
-                    )
-                    failed[(species, identity)] = getattr(
-                        exc, "permission_denied", False
+                    # identity's sync in this job -- it is logged above, marked failed, and
+                    # retried on the next sync.
+                    failed[(species, identity)] = any(
+                        getattr(exc, "permission_denied", False) for exc in errors
                     )
 
             item = SyncIdentitySummary(
@@ -241,7 +286,7 @@ class SyncService:
             )
 
         if not dry_run:
-            self._save_synced_state(assets, previous, set(failed))
+            self.save_synced_state(assets, previous, set(failed))
 
         return SyncSummary(
             identities=summary,
@@ -252,7 +297,7 @@ class SyncService:
             failed_identities=failed_summary,
         )
 
-    def _previously_synced_state(self) -> dict[tuple[str, str], set[str]]:
+    def previously_synced_state(self) -> dict[tuple[str, str], set[str]]:
         state: dict[tuple[str, str], set[str]] = defaultdict(set)
 
         query = select(SyncedAsset)
@@ -318,7 +363,7 @@ class SyncService:
 
         return failed
 
-    def _save_synced_state(
+    def save_synced_state(
         self,
         current: dict[tuple[str, str], set[str]],
         previous: dict[tuple[str, str], set[str]],

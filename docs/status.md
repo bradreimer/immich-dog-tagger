@@ -1200,6 +1200,10 @@
   uses (extracted from `Scanner`). Other errors (401/403/5xx/network) and another account's photo
   never remove anything. The batch stale-detection repair counts these as `removed`. Photo Lookup
   clears a removed photo instead of re-fetching it.
+- #407 Immich tag/album drift: Sync now attempts the album and tag writes independently and keeps
+  going past a rejected batch; new `sync --audit` (read-only drift report, exits non-zero on
+  drift) and `sync --repair` (re-applies tags/albums from state.db, prunes extras, rebuilds
+  `SyncedAsset`; `--no-prune` to only add)
 
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),

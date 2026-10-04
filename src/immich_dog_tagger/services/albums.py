@@ -68,3 +68,17 @@ class AlbumService:
             album_id,
             asset_ids,
         )
+
+    def member_ids(
+        self,
+        identity: str,
+        species: str = "dog",
+    ) -> set[str] | None:
+        """Asset ids currently in this identity's album in Immich, or None when the album
+        doesn't exist (issue #407 audit/repair). Never creates one."""
+        album_id = self._find_album(f"{species.capitalize()} - {identity}")
+
+        if album_id is None:
+            return None
+
+        return self.client.get_album_asset_ids(album_id)
