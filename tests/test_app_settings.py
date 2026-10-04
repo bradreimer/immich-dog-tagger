@@ -3,8 +3,10 @@ Owner-facing tagging sensitivity, and auto-reclassify (issue #149).
 """
 
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.enums import (
@@ -239,3 +241,95 @@ def test_auto_reclassify_ignores_other_operations(engine):
         service = AutoReclassifyService(session, job_service, FakeJobDispatcher())
 
         assert service.request() is True
+
+
+def _finished_job(session, operation, status, minutes_ago):
+    job = PipelineJob(
+        operation=operation,
+        status=status,
+        completed_at=datetime.now(UTC).replace(tzinfo=None)
+        - timedelta(minutes=minutes_ago),
+    )
+    session.add(job)
+    session.commit()
+    return job
+
+
+def _auto_reclassify(session):
+    dispatcher = FakeJobDispatcher()
+    return AutoReclassifyService(
+        session, PipelineJobService(session), dispatcher
+    ), dispatcher
+
+
+@pytest.mark.parametrize(
+    "status", [PipelineJobStatus.COMPLETED, PipelineJobStatus.CANCELED]
+)
+def test_auto_reclassify_waits_out_the_cooldown(engine, status):
+    """
+    A pass covers every eligible crop, so one per correction keeps the job
+    runner busy. A canceled pass restarts the cooldown too, otherwise
+    cancelling would just queue it again on the next correction.
+    """
+    with Session(engine) as session:
+        _finished_job(session, PipelineOperation.RECLASSIFY, status, minutes_ago=5)
+        service, dispatcher = _auto_reclassify(session)
+
+        assert service.request() is False
+
+        assert session.query(PipelineJob).count() == 1
+        assert dispatcher.triggers == 0
+
+
+def test_auto_reclassify_queues_once_the_cooldown_has_passed(engine):
+    with Session(engine) as session:
+        _finished_job(
+            session,
+            PipelineOperation.RECLASSIFY,
+            PipelineJobStatus.COMPLETED,
+            minutes_ago=31,
+        )
+        service, dispatcher = _auto_reclassify(session)
+
+        assert service.request() is True
+        assert dispatcher.triggers == 1
+
+
+def test_a_failed_reclassify_does_not_delay_the_retry(engine):
+    with Session(engine) as session:
+        _finished_job(
+            session,
+            PipelineOperation.RECLASSIFY,
+            PipelineJobStatus.FAILED,
+            minutes_ago=1,
+        )
+        service, _ = _auto_reclassify(session)
+
+        assert service.request() is True
+
+
+def test_the_cooldown_ignores_other_operations(engine):
+    with Session(engine) as session:
+        _finished_job(
+            session, PipelineOperation.SCAN, PipelineJobStatus.COMPLETED, minutes_ago=1
+        )
+        service, _ = _auto_reclassify(session)
+
+        assert service.request() is True
+
+
+def test_the_cooldown_does_not_block_a_manual_reclassify(engine):
+    """Manual runs create the job directly rather than going through request()."""
+    with Session(engine) as session:
+        _finished_job(
+            session,
+            PipelineOperation.RECLASSIFY,
+            PipelineJobStatus.COMPLETED,
+            minutes_ago=1,
+        )
+
+        job = PipelineJobService(session).create_job(
+            operation=PipelineOperation.RECLASSIFY
+        )
+
+        assert job.status is PipelineJobStatus.PENDING

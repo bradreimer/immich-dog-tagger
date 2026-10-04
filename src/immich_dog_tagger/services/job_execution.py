@@ -291,7 +291,11 @@ def _reclassify_handler(
             policy=AppSettingsService(session).policy(),
         )
 
-        result = service.reclassify(progress=progress, job_id=progress.job.id)
+        result = service.reclassify(
+            progress=progress,
+            job_id=progress.job.id,
+            should_cancel=progress.is_cancel_requested,
+        )
 
         progress.message(f"Reclassify pass {result.pass_id}: {result.message}")
 
@@ -333,7 +337,9 @@ def _reembed_handler(
         policy = AppSettingsService(session).policy()
 
         result = ReclassifyService(session, embedder, policy=policy).reclassify(
-            progress=progress, job_id=progress.job.id
+            progress=progress,
+            job_id=progress.job.id,
+            should_cancel=progress.is_cancel_requested,
         )
 
         progress.message(f"Reclassify pass {result.pass_id}: {result.message}")

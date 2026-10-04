@@ -132,6 +132,8 @@ class ClassificationPassStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    # Stopped by the owner between chunks. Chunks already committed stay.
+    CANCELED = "canceled"
 
 
 class TaggingSensitivity(StrEnum):

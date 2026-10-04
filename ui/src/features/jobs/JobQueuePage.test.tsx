@@ -108,6 +108,32 @@ describe("JobQueuePage", () => {
     ).toBeTruthy();
   });
 
+  it("offers Cancel on a running Reclassify and calls the cancel endpoint", async () => {
+    vi.mocked(api.getJobs).mockResolvedValue([
+      buildJob({ id: 7, operation: "reclassify", status: "running", completed_at: null }),
+    ]);
+    vi.mocked(api.cancelJob).mockResolvedValue(
+      buildJob({ id: 7, operation: "reclassify", status: "running", cancel_requested: true }),
+    );
+
+    render(<JobQueuePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel job #7" }));
+
+    await waitFor(() => expect(api.cancelJob).toHaveBeenCalledWith(7));
+  });
+
+  it("does not offer Cancel on a running job that cannot be canceled mid-run", async () => {
+    vi.mocked(api.getJobs).mockResolvedValue([
+      buildJob({ id: 8, operation: "sync", status: "running", completed_at: null }),
+    ]);
+
+    render(<JobQueuePage />);
+
+    await screen.findByText(/sync/i);
+    expect(screen.queryByRole("button", { name: "Cancel job #8" })).not.toBeInTheDocument();
+  });
+
   it("asks for confirmation before clearing job history", async () => {
     vi.mocked(api.getJobs).mockResolvedValue([buildJob()]);
 

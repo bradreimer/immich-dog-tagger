@@ -15,6 +15,7 @@ the pipeline's classify stage, Reclassify:
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -78,7 +79,12 @@ class ReclassifyService:
         self.batch_size = batch_size
         self.occurrences = PetOccurrenceService(session)
 
-    def reclassify(self, progress=None, job_id: int | None = None) -> ReclassifyResult:
+    def reclassify(
+        self,
+        progress=None,
+        job_id: int | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> ReclassifyResult:
         classification_pass = ClassificationPass(
             status=ClassificationPassStatus.RUNNING,
             classifier_version=self.policy.version,
@@ -97,7 +103,7 @@ class ReclassifyService:
         )
 
         try:
-            message = self._run(classification_pass, progress)
+            message, canceled = self._run(classification_pass, progress, should_cancel)
         except Exception as exc:
             self.session.rollback()
 
@@ -118,15 +124,20 @@ class ReclassifyService:
             )
             raise
 
-        classification_pass.status = ClassificationPassStatus.COMPLETED
+        classification_pass.status = (
+            ClassificationPassStatus.CANCELED
+            if canceled
+            else ClassificationPassStatus.COMPLETED
+        )
         classification_pass.completed_at = _now()
         self.session.commit()
         self.session.refresh(classification_pass)
 
         logger.info(
-            "Reclassify pass %d completed: eligible=%d confident=%d needs_review=%d "
+            "Reclassify pass %d %s: eligible=%d confident=%d needs_review=%d "
             "unknown=%d changed=%d",
             classification_pass.id,
+            classification_pass.status.value,
             classification_pass.eligible_count,
             classification_pass.confident_count,
             classification_pass.needs_review_count,
@@ -151,7 +162,8 @@ class ReclassifyService:
         self,
         classification_pass: ClassificationPass,
         progress,
-    ) -> str:
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[str, bool]:
         example_count = (
             self.session.scalar(
                 select(func.count())
@@ -178,7 +190,7 @@ class ReclassifyService:
                 progress.message(message)
 
             self._snapshot_trend_fields(classification_pass)
-            return message
+            return message, False
 
         if not eligible_ids:
             message = "No eligible crops to reclassify."
@@ -187,7 +199,7 @@ class ReclassifyService:
                 progress.message(message)
 
             self._snapshot_trend_fields(classification_pass)
-            return message
+            return message, False
 
         self._warn_if_stale_embeddings()
 
@@ -200,7 +212,16 @@ class ReclassifyService:
         if progress:
             progress.set(current=0, total=total, message="Reclassifying crops")
 
+        canceled = False
+
         for start in range(0, total, self.batch_size):
+            # Checked between chunks only, never mid-chunk: each chunk commits as a
+            # unit, so a cancel leaves every crop either fully reclassified or
+            # untouched, and reviewed labels were never in the eligible set.
+            if should_cancel and should_cancel():
+                canceled = True
+                break
+
             chunk_ids = eligible_ids[start : start + self.batch_size]
 
             classifications = self.session.scalars(
@@ -307,9 +328,14 @@ class ReclassifyService:
                     message=f"Reclassified {processed}/{total} crop(s)",
                 )
 
+        if canceled:
+            # Counts reflect only the chunks that committed. A partial pass has no
+            # well-defined final snapshot, so trend fields stay null (as for FAILED).
+            return f"Canceled after {processed}/{total} crop(s).", True
+
         self._snapshot_trend_fields(classification_pass)
 
-        return f"Reclassified {total} crop(s)."
+        return f"Reclassified {total} crop(s).", False
 
     def _warn_if_stale_embeddings(self) -> None:
         """

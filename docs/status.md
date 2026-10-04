@@ -1084,6 +1084,14 @@
   longer shows photos deleted in Immich. Queue mode already excluded `REMOVED` photos, but the
   Grouped Review pools didn't, so those photos' images returned 404. All review surfaces now share
   one `classification_asset_removed()` condition.
+- [#410](https://github.com/bradreimer/immich-dog-tagger/issues/410) v1.50.0 Automatic Reclassify
+  (queued after corrections, undo, and cluster approve/move/reassign) waits 30 minutes after the
+  last completed or canceled Reclassify. A request inside the cooldown is dropped, not deferred:
+  the first request after it queues one pass covering every correction since. Manual and scheduled
+  runs ignore the cooldown, and a failed pass doesn't start one. A running Reclassify can now be
+  canceled from the Jobs page; it stops between chunks, keeps the chunks already committed, and is
+  recorded as a `canceled` pass. Spec:
+  [review-instant-advance-and-undo](specs/review-instant-advance-and-undo.md).
 - [#405](https://github.com/bradreimer/immich-dog-tagger/issues/405) v1.49.0 Sync tags every
   identified pet in Immich but only creates an album for pets with at least `ALBUM_MIN_PHOTOS`
   photos (default 50; `0` = album for everyone). Existing albums are never deleted when a pet falls
