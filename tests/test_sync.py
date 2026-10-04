@@ -1023,3 +1023,63 @@ def test_sync_unscoped_still_sees_every_accounts_classifications(engine):
         summary = SyncService(session, FakeAlbums(), account_id=None).sync(dry_run=True)
 
         assert summary.identities[0].assets == 2
+
+
+def _add_classified_assets(session, identity, count):
+    for i in range(count):
+        asset = Asset(
+            immich_asset_id=f"{identity}-{i}", checksum=f"c{i}", extension=".jpg"
+        )
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path=f"{identity}-{i}.jpg")
+        session.add(CropClassification(crop=crop, identity=identity, confidence=0.95))
+
+    session.commit()
+
+
+def test_sync_tags_small_identity_but_creates_no_album(engine):
+    """Issue #405: below the album threshold an identity is tagged only."""
+    with Session(engine) as session:
+        _add_classified_assets(session, "Rex", 2)
+        _add_classified_assets(session, "Fibs", 3)
+
+        albums = FakeAlbums()
+        tags = FakeTags()
+
+        summary = SyncService(
+            session,
+            albums,
+            policy=SyncPolicy(album_minimum_assets=3),
+            tags=tags,
+        ).sync()
+
+        assert [call[0] for call in albums.calls] == ["Fibs"]
+        assert sorted(call[0] for call in tags.calls) == ["Fibs", "Rex"]
+        assert sorted(item.identity for item in summary.identities) == ["Fibs", "Rex"]
+
+
+def test_sync_creates_album_once_identity_crosses_threshold(engine):
+    with Session(engine) as session:
+        _add_classified_assets(session, "Rex", 2)
+
+        albums = FakeAlbums()
+        policy = SyncPolicy(album_minimum_assets=3)
+
+        SyncService(session, albums, policy=policy, tags=FakeTags()).sync()
+        assert albums.calls == []
+
+        asset = Asset(immich_asset_id="Rex-new", checksum="n", extension=".jpg")
+        detection = Detection(
+            asset=asset, label="dog", confidence=1.0, x1=0, y1=0, x2=10, y2=10
+        )
+        crop = Crop(detection=detection, path="rex-new.jpg")
+        session.add(CropClassification(crop=crop, identity="Rex", confidence=0.95))
+        session.commit()
+
+        SyncService(session, albums, policy=policy, tags=FakeTags()).sync()
+
+        assert len(albums.calls) == 1
+        assert albums.calls[0][0] == "Rex"
+        assert len(albums.calls[0][1]) == 3

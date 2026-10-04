@@ -68,6 +68,12 @@ request. Bulk sync writes (tagging or albuming many assets in one identity) can 
 Immich longer to process than a typical read; raise this if `sync` jobs fail with a timeout on a
 large library.
 
+`ALBUM_MIN_PHOTOS` (default `50`) is the number of photos a dog or cat needs before Sync creates an
+Immich album for it. Every identified pet is still tagged in Immich, so you can label pets you
+barely know without cluttering Immich with albums. Set it to `0` to create an album for every pet.
+Lowering the value creates the missing albums on the next sync. Raising it never deletes an
+existing album.
+
 ### JSON config file (alternative to the `IMMICH_*` variables)
 
 Instead of the environment variables above, Immich configuration can live in a JSON file mounted

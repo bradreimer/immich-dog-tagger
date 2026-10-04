@@ -35,6 +35,7 @@ from .services.pet_occurrences import PetOccurrenceService
 from .services.review_query import ReviewQueryService
 from .services.status import PipelinePlan, StatusService
 from .services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
+from .services.sync_policy import SyncPolicy
 from .services.tags import TagService
 
 
@@ -710,6 +711,7 @@ def sync_command(args) -> None:
                 service = SyncService(
                     session,
                     AlbumService(client),
+                    policy=SyncPolicy(album_minimum_assets=config.album_min_photos),
                     tags=TagService(client),
                     account_id=account_id,
                 )
