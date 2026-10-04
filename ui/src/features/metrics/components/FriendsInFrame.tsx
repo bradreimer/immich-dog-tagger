@@ -36,7 +36,7 @@ export function FriendsInFrame({ data, onNavigate }: Props) {
               highlightedEdgeKey={highlightedPair}
               onNavigate={onNavigate}
             />
-            <MostCommonPairs nodes={data.nodes} edges={data.edges} onHoverPair={setHighlightedPair} />
+            <MostCommonPairs nodes={data.nodes} edges={data.edges} onHoverPair={setHighlightedPair} onNavigate={onNavigate} />
           </>
         )}
       </CardContent>

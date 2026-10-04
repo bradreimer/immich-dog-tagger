@@ -36,6 +36,9 @@ if I refresh the page I'm still looking at the same dogs.
 - FR-3: Restoring `offset` from the URL must not be immediately reset to `0` by the existing
   "filters changed -> reset pagination" effect on initial mount.
 
+- FR-4: Repeated `identity` params restore as the pet select plus additional ANDed pets
+  (photos containing all of them). This is URL-only; see Friends in Frame > Most Common Pairs.
+
 ## Acceptance criteria
 
 - Given the Library page with non-default filters applied, when the page is refreshed, then

@@ -97,6 +97,8 @@ export async function getReview(
 
 export type LibraryQuery = {
   identity?: string;
+  /** Additional pets ANDed with `identity`: photos containing all of them. */
+  alsoIdentities?: string[];
   species?: string;
   reviewed?: boolean;
   captured_after?: string;
@@ -112,7 +114,11 @@ export async function getLibrary(
   const params = new URLSearchParams();
 
   if (query.identity) {
-    params.set("identity", query.identity);
+    params.append("identity", query.identity);
+
+    for (const name of query.alsoIdentities ?? []) {
+      params.append("identity", name);
+    }
   }
 
   if (query.species) {

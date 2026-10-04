@@ -26,6 +26,7 @@ export function LibraryPage({ onNavigate }: Props) {
 
   const [species, setSpecies] = useState<LibrarySpeciesFilter>(initialUrlState.species);
   const [identity, setIdentity] = useState(initialUrlState.identity);
+  const [alsoIdentities, setAlsoIdentities] = useState(initialUrlState.alsoIdentities);
   const [reviewedFilter, setReviewedFilter] = useState<LibraryReviewedFilter>(
     initialUrlState.reviewedFilter,
   );
@@ -68,7 +69,8 @@ export function LibraryPage({ onNavigate }: Props) {
   // (no species, no pet) isn't a meaningful bridge, so the action is hidden
   // rather than opening an unscoped Review queue.
   const reviewThese = useMemo(() => {
-    if (species === "all" && !identity) {
+    // Review has no AND filter, so a pair view can't carry over faithfully.
+    if (alsoIdentities.length > 0 || (species === "all" && !identity)) {
       return null;
     }
 
@@ -91,7 +93,7 @@ export function LibraryPage({ onNavigate }: Props) {
     }
 
     return `/review?${params.toString()}`;
-  }, [species, identity, capturedAfter, capturedBefore]);
+  }, [species, identity, alsoIdentities, capturedAfter, capturedBefore]);
 
   // A pet selected under one species no longer applies once the species
   // changes to something that doesn't include it. Skipped while dogs
@@ -119,6 +121,7 @@ export function LibraryPage({ onNavigate }: Props) {
 
     if (identity) {
       query.identity = identity;
+      query.alsoIdentities = alsoIdentities;
     }
 
     if (species !== "all") {
@@ -147,7 +150,7 @@ export function LibraryPage({ onNavigate }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
+  }, [identity, alsoIdentities, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
 
   useEffect(() => {
     load();
@@ -165,7 +168,7 @@ export function LibraryPage({ onNavigate }: Props) {
     }
 
     setOffset(0);
-  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort]);
+  }, [identity, alsoIdentities, species, reviewedFilter, capturedAfter, capturedBefore, sort]);
 
   // The selected photo only means something against the page it was
   // selected from -- clear it whenever that page changes. Also skipped on
@@ -178,7 +181,7 @@ export function LibraryPage({ onNavigate }: Props) {
     }
 
     setSelectedId(null);
-  }, [identity, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
+  }, [identity, alsoIdentities, species, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
 
   // Keep the URL in sync with the current filters so a refresh (or a
   // shared/bookmarked link) returns to the same view. `replaceState` avoids
@@ -187,13 +190,14 @@ export function LibraryPage({ onNavigate }: Props) {
     writeLibraryUrlState({
       species,
       identity,
+      alsoIdentities,
       reviewedFilter,
       capturedAfter,
       capturedBefore,
       sort,
       offset,
     });
-  }, [species, identity, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
+  }, [species, identity, alsoIdentities, reviewedFilter, capturedAfter, capturedBefore, sort, offset]);
 
   const selectedEntry =
     entries.find((entry) => entry.item.classification_id === selectedId) ?? null;
@@ -215,7 +219,12 @@ export function LibraryPage({ onNavigate }: Props) {
         species={species}
         onSpeciesChange={setSpecies}
         identity={identity}
-        onIdentityChange={setIdentity}
+        onIdentityChange={(value) => {
+          setIdentity(value);
+          setAlsoIdentities([]);
+        }}
+        alsoIdentities={alsoIdentities}
+        onClearAlsoIdentities={() => setAlsoIdentities([])}
         identities={speciesIdentities}
         reviewedFilter={reviewedFilter}
         onReviewedFilterChange={setReviewedFilter}

@@ -4,6 +4,8 @@ import type { LibraryReviewedFilter, LibrarySpeciesFilter } from "./components/L
 export interface LibraryUrlState {
   species: LibrarySpeciesFilter;
   identity: string;
+  /** Extra pets ANDed with `identity` (photos containing all of them); URL-only. */
+  alsoIdentities: string[];
   reviewedFilter: LibraryReviewedFilter;
   capturedAfter: string;
   capturedBefore: string;
@@ -14,6 +16,7 @@ export interface LibraryUrlState {
 const DEFAULTS: LibraryUrlState = {
   species: "all",
   identity: "",
+  alsoIdentities: [],
   reviewedFilter: "all",
   capturedAfter: "",
   capturedBefore: "",
@@ -40,11 +43,13 @@ function pick<T extends string>(value: string | null, allowed: T[], fallback: T)
 export function parseLibraryUrlState(search: string): LibraryUrlState {
   const params = new URLSearchParams(search);
 
+  const [identity = DEFAULTS.identity, ...alsoIdentities] = params.getAll("identity").filter(Boolean);
   const offsetParam = Number.parseInt(params.get("offset") ?? "", 10);
 
   return {
     species: pick(params.get("species"), SPECIES_VALUES, DEFAULTS.species),
-    identity: params.get("identity") ?? DEFAULTS.identity,
+    identity,
+    alsoIdentities,
     reviewedFilter: pick(params.get("reviewed"), REVIEWED_VALUES, DEFAULTS.reviewedFilter),
     capturedAfter: params.get("capturedAfter") ?? DEFAULTS.capturedAfter,
     capturedBefore: params.get("capturedBefore") ?? DEFAULTS.capturedBefore,
@@ -64,7 +69,11 @@ export function writeLibraryUrlState(state: LibraryUrlState): void {
     params.set("species", state.species);
   }
   if (state.identity !== DEFAULTS.identity) {
-    params.set("identity", state.identity);
+    params.append("identity", state.identity);
+    // Extra pets only mean something alongside a primary identity.
+    for (const name of state.alsoIdentities) {
+      params.append("identity", name);
+    }
   }
   if (state.reviewedFilter !== DEFAULTS.reviewedFilter) {
     params.set("reviewed", state.reviewedFilter);

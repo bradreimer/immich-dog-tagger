@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { FriendEdge, FriendNode, FriendsInFrame as FriendsData } from "../../../types/metrics";
@@ -54,6 +54,21 @@ describe("FriendsInFrame states", () => {
     fireEvent.mouseEnter(screen.getAllByRole("listitem")[3]);
 
     expect(screen.getByText("5")).toBeInTheDocument();
+  });
+});
+
+describe("Most Common Pairs navigation", () => {
+  it("opens the Library with an AND query for both pets on click and Enter", () => {
+    const onNavigate = vi.fn();
+    render(<FriendsInFrame data={trio} onNavigate={onNavigate} />);
+
+    const card = screen.getByRole("link", { name: "View photos of Fibs and Henri together" });
+
+    fireEvent.click(card);
+    fireEvent.keyDown(card, { key: "Enter" });
+
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+    expect(onNavigate).toHaveBeenCalledWith("/library?identity=Fibs&identity=Henri");
   });
 });
 

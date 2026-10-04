@@ -1,4 +1,4 @@
-import { IconChecklist } from "@tabler/icons-react";
+import { IconChecklist, IconX } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Dog } from "@/types/dogs";
@@ -15,6 +15,9 @@ interface Props {
   onSpeciesChange: (species: LibrarySpeciesFilter) => void;
   identity: string;
   onIdentityChange: (identity: string) => void;
+  /** Extra pets ANDed with `identity` (set via URL, e.g. from Most Common Pairs). */
+  alsoIdentities?: string[];
+  onClearAlsoIdentities?: () => void;
   identities: Dog[];
   reviewedFilter: LibraryReviewedFilter;
   onReviewedFilterChange: (filter: LibraryReviewedFilter) => void;
@@ -35,6 +38,8 @@ export function LibraryFilters({
   onSpeciesChange,
   identity,
   onIdentityChange,
+  alsoIdentities = [],
+  onClearAlsoIdentities,
   identities,
   reviewedFilter,
   onReviewedFilterChange,
@@ -81,6 +86,21 @@ export function LibraryFilters({
             ))}
           </select>
         </label>
+
+        {alsoIdentities.length > 0 && (
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+            Photos also with
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClearAlsoIdentities}
+              aria-label={`Remove ${alsoIdentities.join(", ")} from filter`}
+            >
+              {alsoIdentities.join(" + ")}
+              <IconX className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        )}
 
         <label className="flex flex-col gap-1 text-sm text-muted-foreground">
           Review status

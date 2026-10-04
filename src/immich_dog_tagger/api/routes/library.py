@@ -39,7 +39,7 @@ router = APIRouter(
 )
 def library(
     session: Annotated[Session, Depends(get_session)],
-    identity: str | None = Query(None),
+    identity: list[str] | None = Query(None),
     species: str | None = Query(None),
     reviewed: bool | None = Query(None),
     captured_after: datetime | None = Query(None),
@@ -51,8 +51,10 @@ def library(
 ):
     service = get_review_query_service(session)
 
+    # Repeating `identity` is an AND query: photos containing every named pet.
     page = service.library(
-        identity=identity,
+        identity=identity[0] if identity else None,
+        and_identities=identity[1:] if identity else None,
         species=species,
         reviewed=reviewed,
         captured_after=captured_after,

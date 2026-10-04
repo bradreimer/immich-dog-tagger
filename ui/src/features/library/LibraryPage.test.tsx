@@ -330,4 +330,26 @@ describe("LibraryPage Review bridge", () => {
     expect(params.get("identity")).toBe("Hermann");
     expect(params.get("captured_after")).toBe("2026-01-01");
   });
+
+  it("restores an AND pet filter from repeated identity params and can remove it", async () => {
+    window.history.replaceState({}, "", "/library?identity=Hermann&identity=Mina");
+    render(<LibraryPage onNavigate={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(lastLibraryQuery()).toMatchObject({
+        identity: "Hermann",
+        alsoIdentities: ["Mina"],
+      }),
+    );
+    expect(new URLSearchParams(window.location.search).getAll("identity")).toEqual([
+      "Hermann",
+      "Mina",
+    ]);
+    expect(screen.queryByRole("button", { name: "Review these" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Mina from filter" }));
+
+    await waitFor(() => expect(lastLibraryQuery().alsoIdentities).toEqual([]));
+    expect(new URLSearchParams(window.location.search).getAll("identity")).toEqual(["Hermann"]);
+  });
 });
