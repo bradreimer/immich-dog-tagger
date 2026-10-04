@@ -115,14 +115,18 @@ class DogResponse(BaseModel):
     name: str
     species: Species
     active: bool
+    # Same key thumbnail the Friends in Frame metrics use; None when the
+    # identity has no eligible crop yet.
+    key_crop_id: int | None = None
 
     @classmethod
-    def from_identity(cls, identity):
+    def from_identity(cls, identity, key_crop_id: int | None = None):
         return cls(
             id=identity.id,
             name=identity.name,
             species=identity.species,
             active=identity.is_active,
+            key_crop_id=key_crop_id,
         )
 
 

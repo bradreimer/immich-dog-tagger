@@ -1148,6 +1148,9 @@
   threshold) and sizes thumbnails; `friendsLayout.ts` is a deterministic force-directed layout that
   depends only on the data and canvas size, so it stays stable across hover, filtering and
   sessions. No UI yet (#395, #396).
+- [#416](https://github.com/bradreimer/immich-dog-tagger/issues/416) Dogs page rows show the
+  pet's key thumbnail on the left, reusing the Friends in Frame pick
+  ([spec](specs/friends-in-frame.md)). `GET /dogs` gains nullable `key_crop_id`.
 - [#392](https://github.com/bradreimer/immich-dog-tagger/issues/392),
   [#393](https://github.com/bradreimer/immich-dog-tagger/issues/393) v1.43.0 Friends in Frame
   backend ([spec](specs/friends-in-frame.md)). Each pet gets a key thumbnail: its clearest, most

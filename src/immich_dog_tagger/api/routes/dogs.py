@@ -17,6 +17,12 @@ router = APIRouter(
 )
 
 
+def _response(service: DogService, identity) -> DogResponse:
+    return DogResponse.from_identity(
+        identity, service.key_crop_ids([identity.id]).get(identity.id)
+    )
+
+
 @router.get(
     "",
     response_model=list[DogResponse],
@@ -25,9 +31,12 @@ def list_dogs(
     service: Annotated[DogService, Depends(get_dog_service)],
     include_inactive: bool = Query(True),
 ):
+    identities = service.list_dogs(include_inactive=include_inactive)
+    key_crops = service.key_crop_ids([identity.id for identity in identities])
+
     return [
-        DogResponse.from_identity(identity)
-        for identity in service.list_dogs(include_inactive=include_inactive)
+        DogResponse.from_identity(identity, key_crops.get(identity.id))
+        for identity in identities
     ]
 
 
@@ -40,9 +49,7 @@ def create_dog(
     service: Annotated[DogService, Depends(get_dog_service)],
 ):
     try:
-        return DogResponse.from_identity(
-            service.create_dog(request.name, request.species)
-        )
+        return _response(service, service.create_dog(request.name, request.species))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -57,7 +64,7 @@ def update_dog(
     service: Annotated[DogService, Depends(get_dog_service)],
 ):
     try:
-        return DogResponse.from_identity(service.rename_dog(dog_id, request.name))
+        return _response(service, service.rename_dog(dog_id, request.name))
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc).lower() else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
@@ -72,7 +79,7 @@ def activate_dog(
     service: Annotated[DogService, Depends(get_dog_service)],
 ):
     try:
-        return DogResponse.from_identity(service.activate_dog(dog_id))
+        return _response(service, service.activate_dog(dog_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -103,8 +110,8 @@ def merge_dog(
     target = service.get_dog(summary.target_id)
 
     return DogMergeResponse(
-        source=DogResponse.from_identity(source),
-        target=DogResponse.from_identity(target),
+        source=_response(service, source),
+        target=_response(service, target),
         classifications_reassigned=summary.classifications_reassigned,
         examples_reassigned=summary.examples_reassigned,
         examples_discarded=summary.examples_discarded,
@@ -121,6 +128,6 @@ def deactivate_dog(
     service: Annotated[DogService, Depends(get_dog_service)],
 ):
     try:
-        return DogResponse.from_identity(service.deactivate_dog(dog_id))
+        return _response(service, service.deactivate_dog(dog_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -187,3 +187,19 @@ describe("DogManagementCard deactivate", () => {
     await waitFor(() => expect(api.activateDog).toHaveBeenCalledWith(1));
   });
 });
+
+describe("DogManagementCard thumbnails", () => {
+  it("shows the key crop when present and the initial when not", async () => {
+    vi.mocked(api.getDogs).mockResolvedValue([
+      { id: 1, name: "Fibsy", species: "dog", active: true, key_crop_id: 42 },
+      { id: 3, name: "Mittens", species: "cat", active: true, key_crop_id: null },
+    ]);
+    const { container } = render(<DogManagementCard onNavigate={() => {}} />);
+
+    await screen.findByDisplayValue("Fibsy");
+
+    expect(container.querySelector('img[src="/api/crops/42"]')).toBeInTheDocument();
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(screen.getByText("M")).toBeInTheDocument();
+  });
+});

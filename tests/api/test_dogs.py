@@ -27,6 +27,7 @@ def test_dogs_crud(api_client, engine):
             "name": "Fibs",
             "species": "dog",
             "active": True,
+            "key_crop_id": None,
         }
     ]
 
@@ -170,3 +171,51 @@ def test_dogs_merge_404s_for_an_unknown_identity(api_client):
     )
 
     assert response.status_code == 404
+
+
+def test_dogs_list_includes_key_crop_id_for_identity_with_a_crop(api_client, engine):
+    from immich_dog_tagger.enums import Species
+    from immich_dog_tagger.models import Asset, Detection, PetOccurrence
+
+    with Session(engine) as session:
+        fibs = Identity(name="Fibs", species=Species.DOG)
+        henri = Identity(name="Henri", species=Species.DOG)
+        session.add_all([fibs, henri])
+        asset = Asset(immich_asset_id="a", extension=".jpg")
+        session.add(asset)
+        session.flush()
+        detection = Detection(
+            asset_id=asset.id,
+            label="dog",
+            confidence=0.9,
+            x1=0,
+            y1=0,
+            x2=300,
+            y2=300,
+        )
+        session.add(detection)
+        session.flush()
+        crop = Crop(detection_id=detection.id, path="fibs.jpg")
+        session.add(crop)
+        session.flush()
+        classification = CropClassification(
+            crop=crop, identity=fibs.name, confidence=0.9
+        )
+        session.add(classification)
+        session.flush()
+        session.add(
+            PetOccurrence(
+                crop_classification_id=classification.id,
+                asset_id=asset.id,
+                identity_id=fibs.id,
+                confidence=0.9,
+                source=classification.source,
+            )
+        )
+        session.commit()
+        crop_id = crop.id
+
+    by_name = {dog["name"]: dog for dog in api_client.get("/dogs").json()}
+
+    assert by_name["Fibs"]["key_crop_id"] == crop_id
+    assert by_name["Henri"]["key_crop_id"] is None
