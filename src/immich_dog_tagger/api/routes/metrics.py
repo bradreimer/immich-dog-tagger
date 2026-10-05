@@ -7,6 +7,7 @@ from immich_dog_tagger.api.dependencies import get_session
 from immich_dog_tagger.api.schemas import (
     FriendsInFrameResponse,
     LearningMetricsResponse,
+    PetsPerLibraryResponse,
     SpeciesTimelineResponse,
 )
 from immich_dog_tagger.enums import Species
@@ -41,6 +42,18 @@ def species_timeline(
     service = MetricsService(session)
 
     return SpeciesTimelineResponse.from_timeline(service.species_timeline(species))
+
+
+@router.get(
+    "/pets-per-library",
+    response_model=PetsPerLibraryResponse,
+)
+def pets_per_library(
+    session: Annotated[Session, Depends(get_session)],
+):
+    service = MetricsService(session)
+
+    return PetsPerLibraryResponse.from_libraries(service.pets_per_library())
 
 
 @router.get(

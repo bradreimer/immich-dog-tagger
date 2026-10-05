@@ -586,6 +586,34 @@ class SpeciesTimelineResponse(BaseModel):
         )
 
 
+class LibraryPetCountsResponse(BaseModel):
+    library: str
+    dogs_detected: int
+    dogs_identified: int
+    cats_detected: int
+    cats_identified: int
+
+    @classmethod
+    def from_counts(cls, counts):
+        return cls(
+            library=counts.library,
+            dogs_detected=counts.dogs_detected,
+            dogs_identified=counts.dogs_identified,
+            cats_detected=counts.cats_detected,
+            cats_identified=counts.cats_identified,
+        )
+
+
+class PetsPerLibraryResponse(BaseModel):
+    libraries: list[LibraryPetCountsResponse]
+
+    @classmethod
+    def from_libraries(cls, libraries):
+        return cls(
+            libraries=[LibraryPetCountsResponse.from_counts(item) for item in libraries]
+        )
+
+
 class FriendNodeResponse(BaseModel):
     id: int
     name: str

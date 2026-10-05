@@ -18,6 +18,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     EmbeddingSources,
     Identity,
+    ImmichAccount,
     ReviewAction,
 )
 from immich_dog_tagger.services.metrics import MetricsService
@@ -620,3 +621,141 @@ def test_species_timeline_is_scoped_to_its_species(engine):
 
         assert dog_timeline.identities == ["Hermann"]
         assert cat_timeline.identities == ["Whiskers"]
+
+
+def _library_crop(
+    session,
+    *,
+    account,
+    species=Species.DOG,
+    not_animal=False,
+    identity_name=None,
+):
+    """One detected crop in `account`'s library; settled if `identity_name`."""
+    asset = Asset(
+        immich_asset_id=f"asset-{session.query(Asset).count()}",
+        extension=".jpg",
+        account_id=account.id if account else None,
+    )
+    session.add(asset)
+    session.flush()
+
+    detection = Detection(
+        asset_id=asset.id, label=species.value, confidence=0.9, x1=0, y1=0, x2=1, y2=1
+    )
+    session.add(detection)
+    session.flush()
+
+    crop = Crop(
+        detection_id=detection.id,
+        path=f"crop-{detection.id}.jpg",
+        species=species,
+        not_animal=not_animal,
+    )
+    session.add(crop)
+    session.flush()
+
+    if identity_name is not None:
+        identity = Identity(name=identity_name, species=species)
+        session.add(identity)
+        session.flush()
+        classification = CropClassification(
+            crop=crop,
+            identity=identity_name,
+            confidence=0.9,
+            source=ClassificationSources.AUTO,
+        )
+        session.add(classification)
+        session.commit()
+        PetOccurrenceService(session).sync_classification(classification)
+
+    session.commit()
+
+
+def test_pets_per_library_counts_dogs_and_cats_per_library(engine):
+    with Session(engine) as session:
+        home = ImmichAccount(name="Home")
+        cabin = ImmichAccount(name="Cabin")
+        session.add_all([home, cabin])
+        session.flush()
+
+        for _ in range(3):
+            _library_crop(session, account=home, species=Species.DOG)
+        _library_crop(session, account=home, species=Species.CAT)
+        _library_crop(session, account=cabin, species=Species.DOG)
+        for _ in range(2):
+            _library_crop(session, account=cabin, species=Species.CAT)
+
+        libraries = MetricsService(session).pets_per_library()
+
+        assert [
+            (
+                item.library,
+                item.dogs_detected,
+                item.cats_detected,
+            )
+            for item in libraries
+        ] == [("Home", 3, 1), ("Cabin", 1, 2)]
+
+
+def test_pets_per_library_identified_requires_settled_identity(engine):
+    with Session(engine) as session:
+        home = ImmichAccount(name="Home")
+        session.add(home)
+        session.flush()
+
+        _library_crop(session, account=home, identity_name="Hermann")
+        _library_crop(session, account=home)
+        _library_crop(
+            session, account=home, species=Species.CAT, identity_name="Whiskers"
+        )
+
+        (item,) = MetricsService(session).pets_per_library()
+
+        assert (item.dogs_detected, item.dogs_identified) == (2, 1)
+        assert (item.cats_detected, item.cats_identified) == (1, 1)
+
+
+def test_pets_per_library_excludes_not_animal_crops(engine):
+    with Session(engine) as session:
+        home = ImmichAccount(name="Home")
+        session.add(home)
+        session.flush()
+
+        _library_crop(session, account=home)
+        _library_crop(session, account=home, not_animal=True)
+
+        (item,) = MetricsService(session).pets_per_library()
+
+        assert item.dogs_detected == 1
+
+
+def test_pets_per_library_uses_corrected_species(engine):
+    with Session(engine) as session:
+        home = ImmichAccount(name="Home")
+        session.add(home)
+        session.flush()
+
+        _library_crop(session, account=home, species=Species.DOG)
+        crop = session.query(Crop).one()
+        crop.species = Species.CAT
+        session.commit()
+
+        (item,) = MetricsService(session).pets_per_library()
+
+        assert (item.dogs_detected, item.cats_detected) == (0, 1)
+
+
+def test_pets_per_library_groups_accountless_photos_as_unassigned(engine):
+    with Session(engine) as session:
+        _library_crop(session, account=None)
+
+        (item,) = MetricsService(session).pets_per_library()
+
+        assert item.library == "Unassigned"
+        assert item.dogs_detected == 1
+
+
+def test_pets_per_library_empty_without_pets(engine):
+    with Session(engine) as session:
+        assert MetricsService(session).pets_per_library() == []

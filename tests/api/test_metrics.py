@@ -200,3 +200,44 @@ def test_friends_in_frame_reports_nodes_and_edges(api_client, engine):
     assert all(node["image_count"] == 1 for node in payload["nodes"])
     assert all(node["key_crop_id"] is not None for node in payload["nodes"])
     assert [edge["count"] for edge in payload["edges"]] == [1]
+
+
+def test_pets_per_library_empty_project(api_client):
+    response = api_client.get("/metrics/pets-per-library")
+
+    assert response.status_code == 200
+    assert response.json() == {"libraries": []}
+
+
+def test_pets_per_library_reports_counts(api_client, engine):
+    from sqlalchemy.orm import Session
+
+    from immich_dog_tagger.enums import Species
+    from immich_dog_tagger.models import Asset, Crop, Detection, ImmichAccount
+
+    with Session(engine) as session:
+        account = ImmichAccount(name="Home")
+        session.add(account)
+        session.flush()
+        asset = Asset(immich_asset_id="a1", extension=".jpg", account_id=account.id)
+        session.add(asset)
+        session.flush()
+        detection = Detection(
+            asset_id=asset.id, label="cat", confidence=0.9, x1=0, y1=0, x2=1, y2=1
+        )
+        session.add(detection)
+        session.flush()
+        session.add(Crop(detection_id=detection.id, path="c.jpg", species=Species.CAT))
+        session.commit()
+
+    assert api_client.get("/metrics/pets-per-library").json() == {
+        "libraries": [
+            {
+                "library": "Home",
+                "dogs_detected": 0,
+                "dogs_identified": 0,
+                "cats_detected": 1,
+                "cats_identified": 0,
+            }
+        ]
+    }

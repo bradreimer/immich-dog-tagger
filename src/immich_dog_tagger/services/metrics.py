@@ -25,6 +25,7 @@ from immich_dog_tagger.models import (
     Detection,
     EmbeddingExample,
     Identity,
+    ImmichAccount,
     PetOccurrence,
     ReviewAction,
 )
@@ -180,6 +181,32 @@ class SpeciesTimeline:
     # Stacking order: top identities by total volume, "Other" last if present.
     identities: list[str]
     points: list[SpeciesTimelinePoint]
+
+
+# Library name for photos that carry no account (legacy rows predating
+# multi-account support, issue #346).
+UNASSIGNED_LIBRARY_NAME = "Unassigned"
+
+
+@dataclass(frozen=True)
+class LibraryPetCounts:
+    """
+    Dogs and cats found in one configured Immich library.
+
+    Counts are crops, not photos: a photo with two dogs is two detected
+    dogs. "Detected" excludes crops a reviewer flagged as not an animal;
+    "identified" is the subset with a settled identity (a PetOccurrence).
+    """
+
+    library: str
+    dogs_detected: int
+    dogs_identified: int
+    cats_detected: int
+    cats_identified: int
+
+    @property
+    def total_detected(self) -> int:
+        return self.dogs_detected + self.cats_detected
 
 
 @dataclass(frozen=True)
@@ -512,6 +539,56 @@ class MetricsService:
         return SpeciesTimeline(
             species=species.value, identities=identities, points=points
         )
+
+    def pets_per_library(self) -> list[LibraryPetCounts]:
+        """
+        Two grouped queries regardless of library or crop count, keyed off
+        `Crop.species` (the reviewer-correctable value) rather than the
+        detector's raw label, like `_species_breakdown()`.
+        """
+        base = (
+            select(Asset.account_id, Crop.species, func.count())
+            .select_from(Crop)
+            .join(Detection, Crop.detection_id == Detection.id)
+            .join(Asset, Detection.asset_id == Asset.id)
+            .where(Crop.not_animal.is_(False))
+            .group_by(Asset.account_id, Crop.species)
+        )
+
+        detected = self.session.execute(base).all()
+
+        identified = {
+            (account_id, species): count
+            for account_id, species, count in self.session.execute(
+                base.join(
+                    CropClassification, CropClassification.crop_id == Crop.id
+                ).join(
+                    PetOccurrence,
+                    PetOccurrence.crop_classification_id == CropClassification.id,
+                )
+            ).all()
+        }
+
+        account_names = dict(
+            self.session.execute(select(ImmichAccount.id, ImmichAccount.name)).all()
+        )
+
+        by_account: dict[int | None, dict[Species, int]] = {}
+        for account_id, species, count in detected:
+            by_account.setdefault(account_id, {})[species] = count
+
+        libraries = [
+            LibraryPetCounts(
+                library=account_names.get(account_id, UNASSIGNED_LIBRARY_NAME),
+                dogs_detected=counts.get(Species.DOG, 0),
+                dogs_identified=identified.get((account_id, Species.DOG), 0),
+                cats_detected=counts.get(Species.CAT, 0),
+                cats_identified=identified.get((account_id, Species.CAT), 0),
+            )
+            for account_id, counts in by_account.items()
+        ]
+
+        return sorted(libraries, key=lambda item: (-item.total_detected, item.library))
 
     def _count(self, query) -> int:
         return self.session.scalar(query) or 0
