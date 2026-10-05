@@ -12,6 +12,7 @@ from immich_dog_tagger.models import (
     IdentityMerge,
     PetOccurrence,
 )
+from immich_dog_tagger.services.friends_in_frame import FriendsInFrameService
 
 # Merging a well-populated identity rewrites every classification it owns.
 # Committing in bounded batches keeps state.db's single write lock available
@@ -45,6 +46,13 @@ class DogService:
             query = query.where(Identity.is_active.is_(True))
 
         return self.session.scalars(query).all()
+
+    def key_crop_ids(self, identity_ids: list[int]) -> dict[int, int]:
+        """Key thumbnail crop per identity, shared with Friends in Frame."""
+        if not identity_ids:
+            return {}
+
+        return FriendsInFrameService(self.session).key_crop_ids(identity_ids)
 
     def get_dog(self, dog_id: int) -> Identity | None:
         return self.session.get(Identity, dog_id)

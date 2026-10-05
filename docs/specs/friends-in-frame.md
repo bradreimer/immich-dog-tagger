@@ -63,6 +63,12 @@ to an initial.
 - `edges`: every identity pair sharing at least one photo: `a_id`, `b_id` (`a_id < b_id`), `count`
   (distinct shared photos). Cross-species pairs (a dog and a cat) count.
 
+### Reuse on the Dogs page
+
+`GET /api/dogs` also returns `key_crop_id` (nullable) per identity, from the same
+`key_crop_ids()` pick, and the Dogs page shows it with `PetThumbnail` on the left of each row
+(initial fallback). One selection rule, so a pet looks the same everywhere (#416).
+
 ### Visibility strategy (UI, pure functions)
 
 - Default **Strong** view: each pet's strongest K relationships (K = 3 up to 8 pets, 2 up to 20,
