@@ -11,7 +11,7 @@ import type {
   DerivedDataRepairResult,
   StaleDetectionRepairResult,
 } from "../types/diagnostics";
-import type { FriendsInFrame, LearningMetrics, SpeciesTimeline } from "../types/metrics";
+import type { FriendsInFrame, LearningMetrics, PetsPerLibrary, SpeciesTimeline } from "../types/metrics";
 import type { LibraryPage, LibrarySort } from "../types/library";
 import type {
   ClusterApprovalResult,
@@ -805,6 +805,14 @@ export async function getSpeciesTimeline(species: "dog" | "cat"): Promise<Specie
   const response = await fetch(`/api/metrics/species-timeline/${species}`);
   if (!response.ok) {
     throw new Error(`Failed to load ${species} timeline`);
+  }
+  return response.json();
+}
+
+export async function getPetsPerLibrary(): Promise<PetsPerLibrary> {
+  const response = await fetch("/api/metrics/pets-per-library");
+  if (!response.ok) {
+    throw new Error("Failed to load pets per library");
   }
   return response.json();
 }

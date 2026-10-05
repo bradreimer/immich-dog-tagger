@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MetricsPage } from "./MetricsPage";
-import { getDogs, getSpeciesTimeline } from "../../lib/api";
+import { getDogs, getPetsPerLibrary, getSpeciesTimeline } from "../../lib/api";
 import type { LearningMetrics } from "../../types/metrics";
 
 const metrics: LearningMetrics = {
@@ -37,6 +37,7 @@ vi.mock("../../lib/api", () => ({
   getDogs: vi.fn(() => Promise.resolve([])),
   getSpeciesTimeline: vi.fn(() => Promise.resolve({ species: "dog", identities: [], points: [] })),
   getFriendsInFrame: vi.fn(() => Promise.resolve({ nodes: [], edges: [] })),
+  getPetsPerLibrary: vi.fn(() => Promise.resolve({ libraries: [] })),
 }));
 
 describe("MetricsPage library coverage", () => {
@@ -152,5 +153,28 @@ describe("MetricsPage friends in frame", () => {
 
     expect(await screen.findByText("Photos with a dog")).toBeInTheDocument();
     expect(screen.queryByText("Friends in Frame")).not.toBeInTheDocument();
+  });
+});
+
+describe("MetricsPage pets per library", () => {
+  const home = { library: "Home", dogs_detected: 3, dogs_identified: 2, cats_detected: 1, cats_identified: 0 };
+  const cabin = { library: "Cabin", dogs_detected: 1, dogs_identified: 1, cats_detected: 2, cats_identified: 1 };
+
+  it("hides the card when there is only one library", async () => {
+    vi.mocked(getPetsPerLibrary).mockResolvedValueOnce({ libraries: [home] });
+    render(<MetricsPage onNavigate={vi.fn()} />);
+
+    await screen.findByText("Photos with a dog");
+
+    expect(screen.queryByText("Pets per Library")).not.toBeInTheDocument();
+  });
+
+  it("shows one bar per library when there are two or more", async () => {
+    vi.mocked(getPetsPerLibrary).mockResolvedValueOnce({ libraries: [home, cabin] });
+    render(<MetricsPage onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText("Pets per Library")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Home: 3 dogs, 1 cats" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Cabin: 1 dogs, 2 cats" })).toBeInTheDocument();
   });
 });

@@ -26,6 +26,18 @@ export interface DetectionCoverage {
   unprocessable_count: number;
 }
 
+export interface LibraryPetCounts {
+  library: string;
+  dogs_detected: number;
+  dogs_identified: number;
+  cats_detected: number;
+  cats_identified: number;
+}
+
+export interface PetsPerLibrary {
+  libraries: LibraryPetCounts[];
+}
+
 export interface SpeciesTimelinePoint {
   label: string;
   counts: Record<string, number>;

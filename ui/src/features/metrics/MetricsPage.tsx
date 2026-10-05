@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getDogs, getFriendsInFrame, getLearningMetrics, getSpeciesTimeline } from "../../lib/api";
+import { getDogs, getFriendsInFrame, getLearningMetrics, getPetsPerLibrary, getSpeciesTimeline } from "../../lib/api";
 import type { Dog } from "../../types/dogs";
-import type { FriendsInFrame as FriendsInFrameData, LearningMetrics, SpeciesTimeline } from "../../types/metrics";
+import type {
+  FriendsInFrame as FriendsInFrameData,
+  LearningMetrics,
+  PetsPerLibrary,
+  SpeciesTimeline,
+} from "../../types/metrics";
 import {
   IconBolt,
   IconBooks,
@@ -32,6 +37,7 @@ import {
 import { StatTile } from "@/components/ui/stat-tile";
 import { DonutChart } from "./components/DonutChart";
 import { FriendsInFrame } from "./components/FriendsInFrame";
+import { PetsPerLibraryChart } from "./components/PetsPerLibraryChart";
 import { ProgressOverTimeChart, type ProgressPassPoint } from "./components/ProgressOverTimeChart";
 import { SpeciesTimelineChart } from "./components/SpeciesTimelineChart";
 
@@ -121,6 +127,7 @@ export function MetricsPage({ onNavigate }: Props) {
   const [dogTimeline, setDogTimeline] = useState<SpeciesTimeline | null>(null);
   const [catTimeline, setCatTimeline] = useState<SpeciesTimeline | null>(null);
   const [friends, setFriends] = useState<FriendsInFrameData | null>(null);
+  const [petsPerLibrary, setPetsPerLibrary] = useState<PetsPerLibrary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,12 +136,14 @@ export function MetricsPage({ onNavigate }: Props) {
     setError(null);
 
     try {
-      const [learningMetrics, dogItems, dogTimelineData, catTimelineData, friendsData] = await Promise.all([
+      const [learningMetrics, dogItems, dogTimelineData, catTimelineData, friendsData, petsPerLibraryData] =
+        await Promise.all([
         getLearningMetrics(),
         getDogs({ includeInactive: false }).catch(() => null),
         getSpeciesTimeline("dog").catch(() => null),
         getSpeciesTimeline("cat").catch(() => null),
         getFriendsInFrame().catch(() => null),
+        getPetsPerLibrary().catch(() => null),
       ]);
       setMetrics(learningMetrics);
       setActiveDogCount(dogItems ? dogItems.length : null);
@@ -142,6 +151,7 @@ export function MetricsPage({ onNavigate }: Props) {
       setDogTimeline(dogTimelineData);
       setCatTimeline(catTimelineData);
       setFriends(friendsData);
+      setPetsPerLibrary(petsPerLibraryData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load metrics");
     } finally {
@@ -426,6 +436,21 @@ export function MetricsPage({ onNavigate }: Props) {
                 />
               </>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {metrics && petsPerLibrary && petsPerLibrary.libraries.length >= 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pets per Library</CardTitle>
+            <CardDescription>
+              Dogs and cats detected in each Immich library. Counts are detected pets, so a photo
+              with two dogs counts twice. Identified pets are those with a settled identity.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PetsPerLibraryChart libraries={petsPerLibrary.libraries} />
           </CardContent>
         </Card>
       )}
