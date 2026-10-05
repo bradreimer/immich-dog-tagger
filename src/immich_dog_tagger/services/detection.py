@@ -17,18 +17,14 @@ from immich_dog_tagger.services.crop_files import discard_crop_file
 
 logger = logging.getLogger(__name__)
 
-# See scanner.BATCH_SIZE -- same rationale (issue #99), extended to `detect`
-# because a single commit at the end of the whole run held state.db's write
-# lock for the run's entire duration, blocking every other reader (issue
-# #104; WAL mode, issue #107, has since made reader-vs-writer concurrent,
-# but SQLite still allows only one writer at a time). Kept much smaller
-# than scan/download's 1000: this is GPU/CPU-bound ML inference, so a batch
-# can take minutes rather than seconds, and a should_cancel() cancellation
-# request (issue #111) is itself a writer -- it has to wait for whichever
-# batch is currently open to commit and release SQLite's write lock, which
-# must stay comfortably under the 30s busy_timeout (database.py) for a
-# Cancel click to feel responsive.
-BATCH_SIZE = 50
+# Each asset commits on its own (issues #104, #111, #418). SQLite allows one
+# writer at a time and the write lock is held from an open transaction's first
+# write until its commit, so batching commits kept the lock across every
+# inference in the batch -- minutes of CPU/GPU work -- and any other writer
+# (a Cancel click, creating a dog, a review correction) hit the 30s
+# busy_timeout and failed with "database is locked". Committing per asset
+# holds the lock only for one asset's row writes. WAL mode makes the commit
+# itself cheap, and a cancel now keeps every asset already detected.
 
 
 @dataclass
@@ -106,30 +102,10 @@ class DetectionService:
         dog_count = 0
         cat_count = 0
         failed_count = 0
-        committed_processed = 0
-        committed_detection_count = 0
-        committed_dog_count = 0
-        committed_cat_count = 0
-        committed_failed_count = 0
-        since_commit = 0
-        pending_unlinks: list[tuple[str, Path]] = []
 
         for asset in assets:
             if should_cancel and should_cancel():
-                # Discard whatever's accumulated since the last commit, and
-                # the cache-file removals queued for it -- those assets
-                # revert to DOWNLOADED, so their cache file must still
-                # exist for a future detect run (issue #111).
-                self.session.rollback()
-                pending_unlinks.clear()
-
-                return DetectionSummary(
-                    processed=committed_processed,
-                    detections=committed_detection_count,
-                    dogs=committed_dog_count,
-                    cats=committed_cat_count,
-                    failed=committed_failed_count,
-                )
+                break
 
             image_path = asset.cache_path(self.cache_dir)
 
@@ -150,7 +126,10 @@ class DetectionService:
 
                     self.session.delete(detection)
 
-                self.session.flush()
+                # Committed now, not left pending: the delete's flush would
+                # otherwise hold the write lock through this asset's
+                # inference (issue #418).
+                self._commit(1)
 
             if not image_path.exists():
                 # The cached original is gone -- most likely a state.db
@@ -168,18 +147,8 @@ class DetectionService:
                     image_path,
                 )
                 failed_count += 1
-                since_commit += 1
 
-                if since_commit >= BATCH_SIZE:
-                    self._commit(since_commit)
-                    committed_processed = processed
-                    committed_detection_count = detection_count
-                    committed_dog_count = dog_count
-                    committed_cat_count = cat_count
-                    committed_failed_count = failed_count
-                    since_commit = 0
-                    self._unlink_all(pending_unlinks)
-                    pending_unlinks.clear()
+                self._commit(1)
 
                 continue
 
@@ -230,18 +199,8 @@ class DetectionService:
                     image_path,
                 )
                 failed_count += 1
-                since_commit += 1
 
-                if since_commit >= BATCH_SIZE:
-                    self._commit(since_commit)
-                    committed_processed = processed
-                    committed_detection_count = detection_count
-                    committed_dog_count = dog_count
-                    committed_cat_count = cat_count
-                    committed_failed_count = failed_count
-                    since_commit = 0
-                    self._unlink_all(pending_unlinks)
-                    pending_unlinks.clear()
+                self._commit(1)
 
                 continue
 
@@ -285,7 +244,8 @@ class DetectionService:
             asset.upright_detected_at = datetime.now(UTC).replace(tzinfo=None)
 
             processed += 1
-            since_commit += 1
+
+            self._commit(1)
 
             if self.crop_writer:
                 # The original is only needed to run detection -- embed,
@@ -294,27 +254,10 @@ class DetectionService:
                 # cache_dir proportional to what's actually needed rather
                 # than to the whole library; a future `detect --force` on
                 # this asset needs `download --force` first to get it back.
-                # Deferred until this asset's batch actually commits (issue
-                # #111) -- unlinking immediately meant a rolled-back batch
-                # (a mid-batch failure, or now a cancellation) could leave
-                # an asset back at DOWNLOADED with its cache file already
-                # gone, and download_pending() only re-fetches PENDING/
-                # DOWNLOAD_FAILED assets, so it would get stuck.
-                pending_unlinks.append((asset.immich_asset_id, image_path))
-
-            if since_commit >= BATCH_SIZE:
-                self._commit(since_commit)
-                committed_processed = processed
-                committed_detection_count = detection_count
-                committed_dog_count = dog_count
-                committed_cat_count = cat_count
-                committed_failed_count = failed_count
-                since_commit = 0
-                self._unlink_all(pending_unlinks)
-                pending_unlinks.clear()
-
-        self._commit(since_commit)
-        self._unlink_all(pending_unlinks)
+                # Only after the commit (issue #111): the asset must be
+                # recorded as DETECTED before its cache file goes away, or a
+                # failed commit would leave it DOWNLOADED with no original.
+                self._unlink_all([(asset.immich_asset_id, image_path)])
 
         return DetectionSummary(
             processed=processed,
