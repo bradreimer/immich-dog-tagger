@@ -11,7 +11,7 @@ from immich_dog_tagger.models import (
     EmbeddingExample,
     Identity,
 )
-from immich_dog_tagger.services.detection import BATCH_SIZE, DetectionService
+from immich_dog_tagger.services.detection import DetectionService
 
 
 class FakeDetector:
@@ -557,18 +557,15 @@ def test_detection_deletes_cached_original_after_crop_writer_succeeds(
         assert (tmp_path / "abc123_0.jpg").exists()
 
 
-def test_detection_cancellation_keeps_cache_files_for_the_rolled_back_batch(
+def test_detection_cancellation_keeps_cache_files_for_undetected_assets(
     engine,
     tmp_path,
 ):
-    # Issue #111: the cached-original unlink is deferred until an asset's
-    # batch actually commits. Without that, a cancellation rolling back the
-    # tail of a batch would revert those assets to DOWNLOADED in the DB
-    # while their cache file was already gone -- and download_pending()
-    # only re-fetches PENDING/DOWNLOAD_FAILED assets, not DOWNLOADED ones,
-    # so they'd be stuck needing a manual --force redownload.
-    total = 2 * BATCH_SIZE
-    cancel_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+    # Issue #111: a cancelled run only removes the cached original of assets
+    # it actually detected; the rest stay DOWNLOADED and keep their file for
+    # a future run.
+    total = 4
+    detected_before_cancel = 2
 
     class FakeCropWriter:
         def write(self, image_path, asset_id, detections):
@@ -604,19 +601,16 @@ def test_detection_cancellation_keeps_cache_files_for_the_rolled_back_batch(
 
         def should_cancel():
             calls["count"] += 1
-            return calls["count"] > cancel_at
+            return calls["count"] > detected_before_cancel
 
         summary = service.run(should_cancel=should_cancel)
 
-        assert summary.processed == BATCH_SIZE
+        assert summary.processed == detected_before_cancel
 
-        # The committed batch's cache files are gone (crops exist instead)...
-        for path in original_paths[:BATCH_SIZE]:
+        for path in original_paths[:detected_before_cancel]:
             assert not path.exists()
 
-        # ...but the rolled-back batch's assets are still DOWNLOADED in the
-        # DB, so their cache files must still be there for a future run.
-        for path in original_paths[BATCH_SIZE:]:
+        for path in original_paths[detected_before_cancel:]:
             assert path.exists()
 
 
@@ -701,14 +695,14 @@ def test_detection_removes_cached_original_when_nothing_detected(
         assert asset.status is AssetStatus.DETECTED
 
 
-def test_detection_commits_in_batches(
+def test_detection_commits_after_each_asset(
     engine,
     tmp_path,
 ):
-    # Regression test for issue #104: a single commit at the end of the
-    # whole run held state.db's write lock for the run's entire duration,
-    # blocking every other reader for as long as the run took.
-    total = BATCH_SIZE + BATCH_SIZE // 2
+    # Regression test for issues #104/#418: no uncommitted write may span
+    # more than one asset, or the write lock is held through other assets'
+    # inference.
+    total = 3
 
     with Session(engine) as session:
         assets = [
@@ -744,11 +738,59 @@ def test_detection_commits_in_batches(
         summary = service.run()
 
         assert summary.processed == total
-        # One commit at the BATCH_SIZE boundary, one final commit for the
-        # remainder -- proves the loop doesn't hold everything for a single
-        # commit at the end.
-        assert len(commit_calls) == 2
+        assert len(commit_calls) == total
         assert session.query(Detection).count() == total
+
+
+def test_detection_does_not_hold_the_write_lock_during_inference(
+    engine,
+    tmp_path,
+):
+    # Regression test for issue #418: Cancel (and any other writer) failed
+    # with "database is locked" because the write lock was held across
+    # inference. A second connection probes for the write lock at the
+    # moment each asset is detected, for both a normal and a forced run.
+    import sqlite3
+
+    probe = sqlite3.connect(str(tmp_path / "state.db"), timeout=0.05)
+    lock_held: list[bool] = []
+
+    class ProbingDetector(FakeDetector):
+        def detect(self, image_path):
+            try:
+                probe.execute("BEGIN IMMEDIATE")
+                probe.execute("ROLLBACK")
+                lock_held.append(False)
+            except sqlite3.OperationalError:
+                lock_held.append(True)
+
+            return super().detect(image_path)
+
+    try:
+        with Session(engine) as session:
+            assets = [
+                Asset(
+                    immich_asset_id=f"asset-{index}",
+                    checksum=f"checksum-{index}",
+                    extension=".jpg",
+                    status=AssetStatus.DOWNLOADED,
+                )
+                for index in range(3)
+            ]
+            session.add_all(assets)
+            session.commit()
+
+            for asset in assets:
+                asset.cache_path(tmp_path).write_bytes(b"data")
+
+            service = DetectionService(ProbingDetector(), session, tmp_path)
+
+            service.run()
+            service.run(force=True)
+
+        assert lock_held == [False] * 6
+    finally:
+        probe.close()
 
 
 def test_detection_one_bad_asset_does_not_abort_the_rest_of_the_run(
@@ -759,8 +801,8 @@ def test_detection_one_bad_asset_does_not_abort_the_rest_of_the_run(
     # must not take the rest of the batch/job down with it -- every other
     # asset still gets detected and committed, and the run completes
     # (rather than raising) with the failure counted on its own asset.
-    total = BATCH_SIZE + 500
-    fail_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+    total = 10
+    fail_at = 4
 
     class FlakyDetector:
         def __init__(self):
@@ -811,14 +853,14 @@ def test_detection_one_bad_asset_does_not_abort_the_rest_of_the_run(
         )
 
 
-def test_detection_honors_should_cancel_and_keeps_only_committed_batches(
+def test_detection_honors_should_cancel_and_keeps_assets_already_detected(
     engine,
     tmp_path,
 ):
-    # Issue #111: cancellation reuses the same commit checkpoint as a
-    # crash-safety failure would.
-    total = 2 * BATCH_SIZE
-    cancel_at = BATCH_SIZE + max(1, BATCH_SIZE // 2)
+    # Issue #111: cancel stops at the next asset boundary and keeps every
+    # asset already detected.
+    total = 4
+    detected_before_cancel = 2
 
     with Session(engine) as session:
         assets = [
@@ -846,17 +888,17 @@ def test_detection_honors_should_cancel_and_keeps_only_committed_batches(
 
         def should_cancel():
             calls["count"] += 1
-            return calls["count"] > cancel_at
+            return calls["count"] > detected_before_cancel
 
         summary = service.run(should_cancel=should_cancel)
 
-        assert summary.processed == BATCH_SIZE
+        assert summary.processed == detected_before_cancel
 
     with Session(engine) as verify_session:
-        assert verify_session.query(Detection).count() == BATCH_SIZE
+        assert verify_session.query(Detection).count() == detected_before_cancel
         assert (
             verify_session.query(Asset).filter_by(status=AssetStatus.DETECTED).count()
-            == BATCH_SIZE
+            == detected_before_cancel
         )
 
 
