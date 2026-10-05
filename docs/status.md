@@ -1148,6 +1148,12 @@
   threshold) and sizes thumbnails; `friendsLayout.ts` is a deterministic force-directed layout that
   depends only on the data and canvas size, so it stays stable across hover, filtering and
   sessions. No UI yet (#395, #396).
+- [#421](https://github.com/bradreimer/immich-dog-tagger/issues/421) v1.52.0 Pets per Library
+  ([spec](specs/pets-per-library.md)). `MetricsService.pets_per_library()` and
+  `GET /metrics/pets-per-library` count detected and identified dogs and cats per Immich library
+  (crops, not photos; `not_animal` crops excluded; accountless photos grouped as "Unassigned").
+  The Metrics tab shows a stacked-bar "Pets per Library" card only when two or more libraries have
+  detected pets.
 - [#416](https://github.com/bradreimer/immich-dog-tagger/issues/416) Dogs page rows show the
   pet's key thumbnail on the left, reusing the Friends in Frame pick
   ([spec](specs/friends-in-frame.md)). `GET /dogs` gains nullable `key_crop_id`.

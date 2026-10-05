@@ -430,6 +430,12 @@ minutes between passes, and a running Reclassify can be canceled from the Jobs p
 [#416](https://github.com/bradreimer/immich-dog-tagger/issues/416): each dog and cat row on the
 Dogs page shows the pet's key thumbnail, the same pick Friends in Frame uses.
 
+## v1.52.0 - Pets per library
+
+[#421](https://github.com/bradreimer/immich-dog-tagger/issues/421): with two or more Immich
+libraries, the Metrics tab shows a stacked bar per library splitting detected and identified dogs
+and cats ([docs/specs/pets-per-library.md](specs/pets-per-library.md)).
+
 ---
 
 ## Active Learning Improvements
