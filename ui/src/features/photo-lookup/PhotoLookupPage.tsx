@@ -52,7 +52,7 @@ export function PhotoLookupPage() {
   const [showAccount, setShowAccount] = useState(false);
 
   useEffect(() => {
-    getDogs()
+    getDogs({ includeInactive: false })
       .then(setIdentities)
       .catch(() => setIdentities([]));
 
