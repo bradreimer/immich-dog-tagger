@@ -61,6 +61,7 @@ from immich_dog_tagger.services.review_query import (
     ReviewItem,
     ReviewQueryService,
     classification_asset_removed,
+    classification_identity_inactive,
 )
 
 logger = logging.getLogger(__name__)
@@ -412,6 +413,7 @@ class RecommendationClusterService:
             # Same exclusion Queue mode applies (issue #375): a photo
             # deleted in Immich has no image left to show.
             .where(~classification_asset_removed())
+            .where(~classification_identity_inactive())
             # Strongest case first, so a capped pool keeps the candidates
             # most worth approving. The id tie-break makes the ordering
             # total, which is what keeps clustering deterministic.
@@ -617,6 +619,7 @@ class RecommendationClusterService:
                 | (CropClassification.candidates != [])
             )
             .where(~classification_asset_removed())
+            .where(~classification_identity_inactive())
             # A crop the owner has already said is not this pet must not be
             # proposed as this pet again (issue #144). Excluded in the pool
             # query rather than filtered after clustering, so a rejected

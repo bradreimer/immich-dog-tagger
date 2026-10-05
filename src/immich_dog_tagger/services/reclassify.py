@@ -42,7 +42,10 @@ from immich_dog_tagger.policy import (
 )
 from immich_dog_tagger.services.pet_occurrences import PetOccurrenceService
 from immich_dog_tagger.services.rejections import rejected_identities_for
-from immich_dog_tagger.services.review_query import ReviewQueryService
+from immich_dog_tagger.services.review_query import (
+    ReviewQueryService,
+    classification_identity_inactive,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +180,9 @@ class ReclassifyService:
         eligible_ids = self.session.scalars(
             select(CropClassification.id)
             .where(CropClassification.source == ClassificationSources.AUTO)
+            # Deactivating a pet keeps its classifications: its examples are
+            # excluded from matching, so re-scoring would reassign them.
+            .where(~classification_identity_inactive())
             .order_by(CropClassification.id)
         ).all()
 

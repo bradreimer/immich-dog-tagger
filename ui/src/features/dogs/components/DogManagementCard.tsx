@@ -380,7 +380,7 @@ export function DogManagementCard({ onNavigate }: Props) {
                 {confirmingDeactivateId === dog.id && (
                   <div className="flex flex-wrap items-center gap-2 rounded-md border p-3">
                     <span className="text-sm text-muted-foreground">
-                      Deactivate “{dog.name}”? You can reactivate it any time.
+                      Deactivate “{dog.name}”? Its classifications are kept; it is only hidden from review. You can reactivate it any time.
                     </span>
                     <Button
                       variant="outline"

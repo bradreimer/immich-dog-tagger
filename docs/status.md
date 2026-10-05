@@ -1225,6 +1225,10 @@
 - `sync --repair` retires photos Immich no longer has instead of failing the identity with
   `no_permission` (#413): rejected photos are checked with `get_asset()` and marked `REMOVED`.
 
+- Deactivating a pet keeps every classification and only hides it from review (#420): pending
+  items for an inactive pet leave the queue, Grouped mode and batch approval, and Reclassify
+  skips its `AUTO` classifications. The Library and sync are unchanged.
+
 ## Current Milestone
 v1.13.0 Feature PR Minor Version Bump ([#265](https://github.com/bradreimer/immich-dog-tagger/issues/265),
 [docs/specs/feature-pr-version-bump.md](specs/feature-pr-version-bump.md)) is **complete**. See the

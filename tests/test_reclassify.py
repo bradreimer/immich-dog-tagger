@@ -531,3 +531,27 @@ def test_reclassify_without_cancel_still_completes(engine):
         )
 
         assert result.status is ClassificationPassStatus.COMPLETED
+
+
+def test_reclassify_leaves_inactive_pet_classifications_unchanged(engine):
+    with Session(engine) as session:
+        retired = _add_identity(session, "Retired", [1, 0, 0])
+        _add_identity(session, "Other", [0, 1, 0])
+        retired.is_active = False
+        session.commit()
+
+        classification = _add_auto_classification(
+            session,
+            "retired_photo.jpg",
+            identity="Retired",
+            confidence=0.9,
+            embedding=[1, 0, 0],
+        )
+
+        result = ReclassifyService(session, FakeBatchEmbedder()).reclassify()
+
+        assert result.eligible_count == 0
+
+        session.refresh(classification)
+        assert classification.identity == "Retired"
+        assert classification.confidence == 0.9
