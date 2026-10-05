@@ -36,6 +36,7 @@ from immich_dog_tagger.services.review_query import (
     TEMPORAL_MISMATCH_THRESHOLD,
     ReviewQueryService,
     classification_asset_removed,
+    classification_identity_inactive,
 )
 
 logger = logging.getLogger(__name__)
@@ -305,6 +306,7 @@ class ReviewGroupingService:
                 | (CropClassification.candidates != [])
             )
             .where(~classification_asset_removed())
+            .where(~classification_identity_inactive())
         ).all()
 
         pairs: set[tuple[str, Species]] = set()

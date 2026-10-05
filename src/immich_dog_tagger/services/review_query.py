@@ -152,6 +152,26 @@ def classification_asset_removed():
     )
 
 
+def classification_identity_inactive():
+    """
+    SQL condition: the classification's accepted identity is a deactivated
+    pet. Deactivating keeps every classification and only retires the pet
+    from review, so every *pending-review* surface excludes these rows
+    (the Library does not -- it must still show and correct them). Names
+    are unique per species, so the match is on (name, crop species).
+    """
+    return exists(
+        select(Identity.id).where(
+            Identity.name == CropClassification.identity,
+            Identity.is_active.is_(False),
+            Identity.species
+            == select(Crop.species)
+            .where(Crop.id == CropClassification.crop_id)
+            .scalar_subquery(),
+        )
+    )
+
+
 class ReviewQueryService:
     def __init__(
         self,
@@ -322,6 +342,7 @@ class ReviewQueryService:
                 | (CropClassification.confidence < threshold)
             )
             .where(~classification_asset_removed())
+            .where(~classification_identity_inactive())
         )
 
         return self.session.scalar(query) or 0
@@ -377,6 +398,7 @@ class ReviewQueryService:
                 | (CropClassification.confidence < threshold)
             )
             .where(~classification_asset_removed())
+            .where(~classification_identity_inactive())
             .order_by(
                 priority.asc(),
                 func.random(),

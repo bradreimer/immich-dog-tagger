@@ -97,3 +97,24 @@ def test_dog_service_persists_identity_is_active(engine):
 
     assert result is not None
     assert result.is_active is True
+
+
+def test_deactivated_pet_keeps_classifications_but_leaves_review(engine):
+    from immich_dog_tagger.services.review_query import ReviewQueryService
+
+    with Session(engine) as session:
+        dog = DogService(session).create_dog("Fibs")
+        _add_classification(session, identity="Fibs", path="fibs.jpg", confidence=0.4)
+
+        assert len(ReviewQueryService(session).active_review()) == 1
+        assert ReviewQueryService(session).review_queue_count() == 1
+
+        DogService(session).deactivate_dog(dog.id)
+
+        assert ReviewQueryService(session).active_review() == []
+        assert ReviewQueryService(session).review_queue_count() == 0
+        assert session.scalar(select(CropClassification.identity)) == "Fibs"
+
+        DogService(session).activate_dog(dog.id)
+
+        assert len(ReviewQueryService(session).active_review()) == 1
