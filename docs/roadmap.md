@@ -425,6 +425,11 @@ Immich but only creates an album once a pet has at least `ALBUM_MIN_PHOTOS` phot
 [#410](https://github.com/bradreimer/immich-dog-tagger/issues/410): automatic Reclassify waits 30
 minutes between passes, and a running Reclassify can be canceled from the Jobs page.
 
+## v1.51.0 - Thumbnails on the Dogs page
+
+[#416](https://github.com/bradreimer/immich-dog-tagger/issues/416): each dog and cat row on the
+Dogs page shows the pet's key thumbnail, the same pick Friends in Frame uses.
+
 ---
 
 ## Active Learning Improvements
