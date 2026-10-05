@@ -102,6 +102,19 @@ describe("PhotoLookupPage", () => {
     expect(api.getPhotoLookup).toHaveBeenCalledWith("asset-42");
   });
 
+  it("loads only active pets for its identity pickers", async () => {
+    // Issue #424: deactivated pets must not be selectable here.
+    vi.mocked(api.getDogs).mockResolvedValue([]);
+
+    window.history.replaceState({}, "", "/photo-lookup");
+
+    render(<PhotoLookupPage />);
+
+    await waitFor(() =>
+      expect(api.getDogs).toHaveBeenCalledWith({ includeInactive: false }),
+    );
+  });
+
   it("shows the same not-found message for a deep-linked asset that hasn't been scanned", async () => {
     vi.mocked(api.getDogs).mockResolvedValue([]);
     vi.mocked(api.getPhotoLookup).mockRejectedValue(
