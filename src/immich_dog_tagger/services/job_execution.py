@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy import select
@@ -150,6 +151,50 @@ def _accounts_for_job(
     ]
 
 
+def _run_for_each_account[T](
+    accounts: list[ResolvedAccount],
+    progress: JobProgressReporter,
+    description: str,
+    run_account: Callable[[ResolvedAccount], T],
+) -> tuple[list[T], int]:
+    """
+    Run `run_account` for each account in turn and return the per-account
+    results plus the number of accounts that failed. With several accounts one
+    account's bad key or network error is logged, named in the job's progress
+    message, and does not stop the rest (spec FR-3/FR-5 per-account failure
+    isolation); if every account fails the job fails. With a single account
+    the error propagates unchanged. Cancel is honored between accounts.
+    """
+
+    multi = len(accounts) > 1
+    results: list[T] = []
+    failed: list[str] = []
+
+    for account in accounts:
+        if multi and progress.is_cancel_requested():
+            break
+
+        try:
+            results.append(run_account(account))
+        except Exception as error:
+            if not multi:
+                raise
+
+            logger.exception("%s failed for account %s", description, account.name)
+            progress.message(f"[{account.name}] failed: {error}")
+            failed.append(account.name)
+
+    if failed:
+        if len(failed) == len(accounts):
+            raise RuntimeError(
+                f"{description} failed for every account ({', '.join(failed)})"
+            )
+
+        progress.message(f"Failed for account(s): {', '.join(failed)}")
+
+    return results, len(failed)
+
+
 def _create_client(config: Config, account: ResolvedAccount) -> ImmichClient:
     """
     Thin wrapper kept as its own module-level name (rather than calling
@@ -169,21 +214,34 @@ def _scan_handler(
     def run(progress: JobProgressReporter) -> dict[str, int]:
         progress.message("Scanning Immich")
 
-        account = _account_for_job(session, config, progress)
+        accounts = _accounts_for_job(session, config, progress)
 
-        scanner = Scanner(
-            _create_client(config, account),
-            session,
-            config.cache_dir,
-            account_id=account.id,
-        )
-        scanned = scanner.scan(
-            limit=options.get("limit"),
-            force=options.get("force", False),
-            should_cancel=progress.is_cancel_requested,
-        )
+        def scan_account(account: ResolvedAccount) -> int:
+            scanner = Scanner(
+                _create_client(config, account),
+                session,
+                config.cache_dir,
+                account_id=account.id,
+            )
+            scanned = scanner.scan(
+                limit=options.get("limit"),
+                force=options.get("force", False),
+                should_cancel=progress.is_cancel_requested,
+            )
+
+            if len(accounts) > 1:
+                progress.message(f"[{account.name}] Scanned {scanned} assets")
+
+            return scanned
+
+        counts, failed = _run_for_each_account(accounts, progress, "Scan", scan_account)
+        scanned = sum(counts)
 
         progress.message(f"Scanned {scanned} assets")
+
+        if len(accounts) > 1:
+            return {"scanned": scanned, "failed_accounts": failed}
+
         return {"scanned": scanned}
 
     return run
@@ -539,85 +597,117 @@ def _sync_handler(
     def run(progress: JobProgressReporter) -> dict[str, int]:
         progress.message("Synchronizing albums and tags")
 
-        account = _account_for_job(session, config, progress)
-        client = _create_client(config, account)
+        accounts = _accounts_for_job(session, config, progress)
+        multi = len(accounts) > 1
 
-        service = SyncService(
-            session,
-            AlbumService(client),
-            policy=SyncPolicy(album_minimum_assets=config.album_min_photos),
-            tags=TagService(client),
-            account_id=account.id,
-        )
-        summary = service.sync(
-            dry_run=options.get("dry_run", False),
-        )
+        def sync_account(account: ResolvedAccount) -> dict[str, object]:
+            client = _create_client(config, account)
+            prefix = f"[{account.name}] " if multi else ""
 
-        total_assets = sum(item.assets for item in summary.identities)
-        message = (
-            f"Synchronized {len(summary.identities)} identities "
-            f"({total_assets} asset(s))"
-        )
-
-        skipped = (
-            summary.skipped_low_confidence
-            + summary.skipped_unknown
-            + summary.skipped_missing_asset
-        )
-
-        if skipped:
-            # Issue #11: without this, a lower-than-expected album count
-            # has no explanation anywhere the operator would see it.
-            message += (
-                f"; skipped {skipped} classification(s) "
-                f"({summary.skipped_low_confidence} below confidence threshold, "
-                f"{summary.skipped_unknown} unidentified, "
-                f"{summary.skipped_missing_asset} missing asset data)"
+            service = SyncService(
+                session,
+                AlbumService(client),
+                policy=SyncPolicy(album_minimum_assets=config.album_min_photos),
+                tags=TagService(client),
+                account_id=account.id,
+            )
+            summary = service.sync(
+                dry_run=options.get("dry_run", False),
             )
 
-        permission_error = False
-
-        if summary.failed_identities:
-            # Issue #243: a single identity's bulk membership write can still fail (e.g. an
-            # Immich timeout on a very large batch) without aborting the rest of the job --
-            # that must stay visible here rather than only in the logs.
-            failed_names = ", ".join(
-                f"{item.species}/{item.identity}" for item in summary.failed_identities
-            )
-            message += f"; failed to sync {len(summary.failed_identities)} identity/ies ({failed_names})"
-
-            permission_error = any(
-                item.permission_error for item in summary.failed_identities
+            total_assets = sum(item.assets for item in summary.identities)
+            message = (
+                f"Synchronized {len(summary.identities)} identities "
+                f"({total_assets} asset(s))"
             )
 
-            if permission_error:
-                # Issue #259: Immich rejected the write with `no_permission` -- almost always a
-                # missing tag.asset/albumAsset.* grant on the API key, not a transient failure --
-                # so point straight at the exact permissions Sync needs instead of "see logs".
+            skipped = (
+                summary.skipped_low_confidence
+                + summary.skipped_unknown
+                + summary.skipped_missing_asset
+            )
+
+            if skipped:
+                # Issue #11: without this, a lower-than-expected album count
+                # has no explanation anywhere the operator would see it.
                 message += (
-                    f"; this looks like a missing Immich API key permission -- see "
-                    f"{IMMICH_PERMISSIONS_DOC_URL}"
+                    f"; skipped {skipped} classification(s) "
+                    f"({summary.skipped_low_confidence} below confidence threshold, "
+                    f"{summary.skipped_unknown} unidentified, "
+                    f"{summary.skipped_missing_asset} missing asset data)"
                 )
 
-        progress.message(message)
+            permission_error = False
 
-        return {
-            "identities": len(summary.identities),
-            "skipped_low_confidence": summary.skipped_low_confidence,
-            "skipped_unknown": summary.skipped_unknown,
-            "skipped_missing_asset": summary.skipped_missing_asset,
-            "failed_identities": len(summary.failed_identities),
-            "permission_error": permission_error,
-            "items": [
-                {
-                    "identity": item.identity,
-                    "assets": item.assets,
-                }
-                for item in summary.identities
-            ],
-        }
+            if summary.failed_identities:
+                # Issue #243: a single identity's bulk membership write can still fail (e.g. an
+                # Immich timeout on a very large batch) without aborting the rest of the job --
+                # that must stay visible here rather than only in the logs.
+                failed_names = ", ".join(
+                    f"{item.species}/{item.identity}"
+                    for item in summary.failed_identities
+                )
+                message += f"; failed to sync {len(summary.failed_identities)} identity/ies ({failed_names})"
+
+                permission_error = any(
+                    item.permission_error for item in summary.failed_identities
+                )
+
+                if permission_error:
+                    # Issue #259: Immich rejected the write with `no_permission` -- almost always a
+                    # missing tag.asset/albumAsset.* grant on the API key, not a transient failure --
+                    # so point straight at the exact permissions Sync needs instead of "see logs".
+                    message += (
+                        f"; this looks like a missing Immich API key permission -- see "
+                        f"{IMMICH_PERMISSIONS_DOC_URL}"
+                    )
+
+            progress.message(f"{prefix}{message}")
+
+            return {
+                "identities": len(summary.identities),
+                "skipped_low_confidence": summary.skipped_low_confidence,
+                "skipped_unknown": summary.skipped_unknown,
+                "skipped_missing_asset": summary.skipped_missing_asset,
+                "failed_identities": len(summary.failed_identities),
+                "permission_error": permission_error,
+                "items": [
+                    {
+                        "identity": item.identity,
+                        "assets": item.assets,
+                    }
+                    for item in summary.identities
+                ],
+            }
+
+        results, failed = _run_for_each_account(
+            accounts, progress, "Sync", sync_account
+        )
+
+        if not multi:
+            return results[0]
+
+        return _combine_sync_results(results, failed)
 
     return run
+
+
+def _combine_sync_results(
+    results: list[dict[str, object]],
+    failed_accounts: int,
+) -> dict[str, object]:
+    """Total the per-account sync results into one job result."""
+
+    return {
+        "identities": sum(r["identities"] for r in results),
+        "skipped_low_confidence": sum(r["skipped_low_confidence"] for r in results),
+        "skipped_unknown": sum(r["skipped_unknown"] for r in results),
+        "skipped_missing_asset": sum(r["skipped_missing_asset"] for r in results),
+        "failed_identities": sum(r["failed_identities"] for r in results),
+        "permission_error": any(r["permission_error"] for r in results),
+        "items": [item for r in results for item in r["items"]],
+        "failed_accounts": failed_accounts,
+    }
 
 
 def _full_pipeline_handler(
@@ -685,39 +775,17 @@ def _full_pipeline_handler(
                 account_id=account.id,
             )
 
-        totals = {"scanned": 0, "downloaded": 0, "detected": 0, "classified": 0}
-        failed: list[str] = []
+        summaries, failed = _run_for_each_account(
+            accounts, progress, "Full pipeline", run_account
+        )
 
-        for account in accounts:
-            if progress.is_cancel_requested():
-                break
+        totals = {
+            "scanned": sum(s.scanned for s in summaries),
+            "downloaded": sum(s.downloaded for s in summaries),
+            "detected": sum(s.detected for s in summaries),
+            "classified": sum(s.classified for s in summaries),
+        }
 
-            try:
-                summary = run_account(account)
-            except Exception as error:
-                if not multi:
-                    raise
-
-                # One account's bad key or network error must not stop the
-                # others (spec FR-3 per-account failure isolation).
-                logger.exception("Full pipeline failed for account %s", account.name)
-                progress.message(f"[{account.name}] failed: {error}")
-                failed.append(account.name)
-                continue
-
-            totals["scanned"] += summary.scanned
-            totals["downloaded"] += summary.downloaded
-            totals["detected"] += summary.detected
-            totals["classified"] += summary.classified
-
-        if failed:
-            if len(failed) == len(accounts):
-                raise RuntimeError(
-                    f"Full pipeline failed for every account ({', '.join(failed)})"
-                )
-
-            progress.message(f"Failed for account(s): {', '.join(failed)}")
-
-        return {**totals, "failed_accounts": len(failed)}
+        return {**totals, "failed_accounts": failed}
 
     return run
