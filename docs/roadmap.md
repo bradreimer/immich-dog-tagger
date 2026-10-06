@@ -436,6 +436,13 @@ Dogs page shows the pet's key thumbnail, the same pick Friends in Frame uses.
 libraries, the Metrics tab shows a stacked bar per library splitting detected and identified dogs
 and cats ([docs/specs/pets-per-library.md](specs/pets-per-library.md)).
 
+## v1.53.0 - Scan and Sync jobs cover every account
+
+[#428](https://github.com/bradreimer/immich-dog-tagger/issues/428): the standalone Scan and Sync
+jobs run against every configured Immich account when no account is selected, matching the
+full-pipeline job
+([docs/specs/multi-immich-account-sync.md](specs/multi-immich-account-sync.md)).
+
 ---
 
 ## Active Learning Improvements

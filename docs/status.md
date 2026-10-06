@@ -1427,8 +1427,7 @@ change smaller).
   in the job's progress messages and `failed_accounts` count, and does not stop the others; the job
   only fails if every account fails. Single-account and legacy `IMMICH_API_KEY` installs are
   unchanged. This reverses #346's deliberately scoped-down "unpinned resolves to the default
-  account" behavior for `full_pipeline`; the scan and sync jobs still resolve an unpinned job to the
-  default account and remain a follow-up.
+  account" behavior for `full_pipeline`; scan and sync followed in #428.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/ -- but only once there's a concrete
@@ -1453,3 +1452,11 @@ change smaller).
 - Some pipeline status counters may need future cleanup.
 - Endpoint-level API auth is not implemented yet.
 - DT-1008's scale validation used synthetic-scale regression tests rather than a literal 30,000-real-image run (no GPU/Immich instance in the development environment); a real-library run is recommended before relying on it at that scale in production.
+- [#428](https://github.com/bradreimer/immich-dog-tagger/issues/428) the standalone Scan and Sync
+  jobs now fan out the same way as `full_pipeline` (#426): an unpinned job runs against every
+  configured Immich account in turn, a job pinned to an `account_id` runs just that account, and
+  single-account/legacy installs are unchanged. The per-account loop with failure isolation (named
+  in progress messages and a `failed_accounts` count; the job fails only if every account fails;
+  cancel honored between accounts) is now one shared helper, `_run_for_each_account`, used by all
+  three handlers. Sync results are totaled across accounts. There is no standalone download job
+  (download runs inside `full_pipeline`).

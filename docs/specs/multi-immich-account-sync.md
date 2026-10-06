@@ -2,12 +2,12 @@
 
 ## Status: Shipped (v1.34.0, issue #346)
 
-FR-1 through FR-5 shipped as designed. FR-6 (jobs/schedules) shipped in a deliberately scoped-down
-form: a job/schedule can be pinned to one specific account (`account_id`), but an account-scoped
-schedule/job left unpinned resolves to the *default* (first configured) account rather than fanning
-out into one job per account -- avoiding changes to the scheduler's existing due-occurrence dedup
-logic, which this work didn't need to touch. A multi-account owner wanting a second library
-scheduled creates a second schedule with `account_id` set explicitly. FR-7's backend (account
+FR-1 through FR-5 shipped as designed. FR-6 (jobs/schedules) first shipped scoped down: a
+job/schedule can be pinned to one specific account (`account_id`), and an unpinned one resolved to
+the *default* (first configured) account. Issues #426 and #428 lifted that for the full-pipeline,
+scan, and sync jobs: an unpinned job now runs against every configured account in turn, with
+per-account failure isolation, while a pinned job still runs just that account. The scheduler's
+dedup logic is untouched -- an unpinned schedule still produces one job, which fans out. FR-7's backend (account
 filter/field on Library/Review/Photo Lookup, account on Job/Schedule responses) is complete, and its
 display half (issue #354) also shipped: the Review card, Library detail panel, and Photo Lookup page
 now name a photo's account alongside its capture date/location, shown only when more than one
