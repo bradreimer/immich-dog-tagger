@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from sqlalchemy import select
@@ -18,6 +19,7 @@ from immich_dog_tagger.models import Crop
 from immich_dog_tagger.runtime import get_embedder, get_look_harder_detector
 from immich_dog_tagger.scanner import Scanner
 from immich_dog_tagger.services.accounts import (
+    AccountService,
     ResolvedAccount,
     build_immich_client,
     resolve_account,
@@ -30,13 +32,15 @@ from immich_dog_tagger.services.detection import DetectionService
 from immich_dog_tagger.services.job_runner import JobProgressReporter, PipelineJobRunner
 from immich_dog_tagger.services.jobs import PipelineJobRepository, PipelineJobService
 from immich_dog_tagger.services.learner import Learner
-from immich_dog_tagger.services.pipeline import PipelineService
+from immich_dog_tagger.services.pipeline import PipelineService, PipelineSummary
 from immich_dog_tagger.services.reclassify import ReclassifyService
 from immich_dog_tagger.services.reembed import ReembedService
 from immich_dog_tagger.services.sync import IMMICH_PERMISSIONS_DOC_URL, SyncService
 from immich_dog_tagger.services.sync_policy import SyncPolicy
 from immich_dog_tagger.services.tags import TagService
 from immich_dog_tagger.yolo_detector import YOLODetector
+
+logger = logging.getLogger(__name__)
 
 
 def create_pipeline_job_runner(
@@ -118,6 +122,32 @@ def _account_for_job(
     """
 
     return resolve_account(session, config, progress.job.account_id)
+
+
+def _accounts_for_job(
+    session: Session,
+    config: Config,
+    progress: JobProgressReporter,
+) -> list[ResolvedAccount]:
+    """
+    Every account a job should run against. A job with its own `account_id`
+    runs for just that account; a job with none (created from the API or a
+    schedule with no account selected) runs for every configured account in
+    turn, per docs/specs/multi-immich-account-sync.md FR-3 -- the same
+    fan-out the CLI's `_resolve_account_selection` does. With zero or one
+    configured account this is the single default account, unchanged.
+    """
+
+    if progress.job.account_id is not None or len(config.accounts) < 2:
+        return [_account_for_job(session, config, progress)]
+
+    service = AccountService(session)
+    service.sync_from_config(config)
+
+    return [
+        resolve_account(session, config, service.get_by_name(account.name).id)
+        for account in config.accounts
+    ]
 
 
 def _create_client(config: Config, account: ResolvedAccount) -> ImmichClient:
@@ -596,66 +626,98 @@ def _full_pipeline_handler(
     options: dict,
 ):
     def run(progress: JobProgressReporter) -> dict[str, int]:
-        account = _account_for_job(session, config, progress)
-        client = _create_client(config, account)
-
         policy = AppSettingsService(session).policy()
-
-        pipeline = PipelineService(
-            Scanner(client, session, config.cache_dir, account_id=account.id),
-            Downloader(client, session, config.cache_dir),
-            DetectionService(
-                YOLODetector(config.yolo_model),
-                session,
-                config.cache_dir,
-                CropWriter(
-                    config.crop_dir,
-                    config.crop_padding,
-                ),
-            ),
-            ClassificationService(
-                session,
-                get_embedder(),
-                IdentityClassifier(session, policy=policy),
-                policy=policy,
-            ),
-        )
-
         progress_callback = options.get("progress_callback")
 
-        def report(message: str) -> None:
-            progress.message(message)
+        accounts = _accounts_for_job(session, config, progress)
+        multi = len(accounts) > 1
 
-            if progress_callback is not None:
-                progress_callback(message)
+        def run_account(account: ResolvedAccount) -> PipelineSummary:
+            client = _create_client(config, account)
 
-        def report_batch_progress(current: int, total: int) -> None:
-            # Separate from report() above -- current/total drive the Jobs
-            # page's progress bar, independent of (and in addition to) the
-            # stage-label text messages, matching the existing
-            # progress.set(current=, total=) pattern used by _embed_handler/
-            # _learn_handler/ReclassifyService (issue #103 acceptance
-            # criterion: the UI should reflect batch-level count/total, not
-            # only a stage-label message).
-            progress.set(
-                current=current,
-                total=total,
+            pipeline = PipelineService(
+                Scanner(client, session, config.cache_dir, account_id=account.id),
+                Downloader(client, session, config.cache_dir),
+                DetectionService(
+                    YOLODetector(config.yolo_model),
+                    session,
+                    config.cache_dir,
+                    CropWriter(
+                        config.crop_dir,
+                        config.crop_padding,
+                    ),
+                ),
+                ClassificationService(
+                    session,
+                    get_embedder(),
+                    IdentityClassifier(session, policy=policy),
+                    policy=policy,
+                ),
             )
 
-        summary = pipeline.run(
-            progress=report,
-            on_batch_progress=report_batch_progress,
-            limit=options.get("limit"),
-            force=options.get("force", False),
-            should_cancel=progress.is_cancel_requested,
-            account_id=account.id,
-        )
+            prefix = f"[{account.name}] " if multi else ""
 
-        return {
-            "scanned": summary.scanned,
-            "downloaded": summary.downloaded,
-            "detected": summary.detected,
-            "classified": summary.classified,
-        }
+            def report(message: str) -> None:
+                progress.message(f"{prefix}{message}")
+
+                if progress_callback is not None:
+                    progress_callback(message)
+
+            def report_batch_progress(current: int, total: int) -> None:
+                # Separate from report() above -- current/total drive the Jobs
+                # page's progress bar, independent of (and in addition to) the
+                # stage-label text messages, matching the existing
+                # progress.set(current=, total=) pattern used by
+                # _embed_handler/_learn_handler/ReclassifyService (issue #103
+                # acceptance criterion: the UI should reflect batch-level
+                # count/total, not only a stage-label message).
+                progress.set(
+                    current=current,
+                    total=total,
+                )
+
+            return pipeline.run(
+                progress=report,
+                on_batch_progress=report_batch_progress,
+                limit=options.get("limit"),
+                force=options.get("force", False),
+                should_cancel=progress.is_cancel_requested,
+                account_id=account.id,
+            )
+
+        totals = {"scanned": 0, "downloaded": 0, "detected": 0, "classified": 0}
+        failed: list[str] = []
+
+        for account in accounts:
+            if progress.is_cancel_requested():
+                break
+
+            try:
+                summary = run_account(account)
+            except Exception as error:
+                if not multi:
+                    raise
+
+                # One account's bad key or network error must not stop the
+                # others (spec FR-3 per-account failure isolation).
+                logger.exception("Full pipeline failed for account %s", account.name)
+                progress.message(f"[{account.name}] failed: {error}")
+                failed.append(account.name)
+                continue
+
+            totals["scanned"] += summary.scanned
+            totals["downloaded"] += summary.downloaded
+            totals["detected"] += summary.detected
+            totals["classified"] += summary.classified
+
+        if failed:
+            if len(failed) == len(accounts):
+                raise RuntimeError(
+                    f"Full pipeline failed for every account ({', '.join(failed)})"
+                )
+
+            progress.message(f"Failed for account(s): {', '.join(failed)}")
+
+        return {**totals, "failed_accounts": len(failed)}
 
     return run

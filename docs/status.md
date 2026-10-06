@@ -1418,6 +1418,17 @@ change smaller).
   `accounts.length > 1`), so a legacy single-account install looks exactly as it did before --
   matching the parent spec's backward-compatibility acceptance criterion. Account filter UI and a
   Jobs/Schedules account picker remain separate, not-yet-scoped follow-ups.
+- [#426](https://github.com/bradreimer/immich-dog-tagger/issues/426) a full-pipeline job with no
+  account selected (created from the API, or from a schedule left unpinned) now runs against every
+  configured Immich account in turn, matching the CLI's existing `pipeline` fan-out and
+  [spec FR-3](specs/multi-immich-account-sync.md), instead of resolving to the first account only
+  (which left a second account's photos permanently unscanned). A job pinned to an `account_id`
+  still runs just that account. One account's failure (bad key, network error) is logged and named
+  in the job's progress messages and `failed_accounts` count, and does not stop the others; the job
+  only fails if every account fails. Single-account and legacy `IMMICH_API_KEY` installs are
+  unchanged. This reverses #346's deliberately scoped-down "unpinned resolves to the default
+  account" behavior for `full_pipeline`; the scan and sync jobs still resolve an unpinned job to the
+  default account and remain a follow-up.
 
 ## Workflow Notes
 - New features should begin with a spec in docs/specs/ -- but only once there's a concrete
