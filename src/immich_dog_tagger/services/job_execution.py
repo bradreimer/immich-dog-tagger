@@ -24,6 +24,7 @@ from immich_dog_tagger.services.accounts import (
     ResolvedAccount,
     build_immich_client,
     resolve_account,
+    resolve_asset_account,
 )
 from immich_dog_tagger.services.albums import AlbumService
 from immich_dog_tagger.services.app_settings import AppSettingsService
@@ -462,9 +463,9 @@ def _look_harder_handler(
 
         progress.message("Looking harder at this photo (this can take several minutes)")
 
-        # The default account's client, same as the Repair endpoint
-        # (get_asset_repair_service) -- see AssetRepairService.account_id.
-        account = resolve_account(session, config, None)
+        # The photo's owning account, same as the Repair endpoint
+        # (get_photo_asset_repair_service) -- see AssetRepairService.account_id.
+        account = resolve_asset_account(session, config, immich_asset_id)
         policy = AppSettingsService(session).policy()
 
         service = AssetRepairService(

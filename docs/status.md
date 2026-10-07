@@ -1,6 +1,7 @@
 # Current Status
 
 ## Completed
+- #430 Photo Lookup image, Repair, manual assignment and Look harder use the photo's owning Immich account
 - Detection pipeline
 - Classification pipeline
 - Review queue API

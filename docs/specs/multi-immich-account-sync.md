@@ -235,6 +235,13 @@ assuming exactly one.
 - "View in Immich" / Photo Lookup links need no account-specific logic: the link resolves through
   the browser's own logged-in Immich session, not this app's server-side API key, so the existing
   `immich_link_base_url` behavior is unaffected by which account a photo came from.
+- **Photo Lookup's server-side per-photo requests use the owning account's key.** The image
+  endpoint, Repair, manual detection assignment, and Look harder resolve the photo's
+  `Asset.account_id` to that account's API key (`resolve_asset_account`), because Immich answers
+  "not found / no asset.read access" for another account's photo. A photo with no recorded
+  account uses the default account. If the owning account is no longer in the configuration,
+  the API answers 409 naming it. Library-wide Repair (Diagnostics) still runs under the default
+  account only.
 
 ## Acceptance criteria
 

@@ -237,6 +237,26 @@ def resolve_account(
     )
 
 
+def resolve_asset_account(
+    session: Session,
+    config: Config,
+    immich_asset_id: str,
+) -> ResolvedAccount:
+    """
+    Resolve the account that owns a scanned photo, so a per-photo request
+    (image, Repair, manual assignment) uses that account's API key: Immich
+    answers "not found / no asset.read access" for another account's photo.
+    A photo with no recorded account (or one never scanned) resolves to the
+    default account, the pre-#346 behavior.
+    """
+
+    account_id = session.scalar(
+        select(Asset.account_id).where(Asset.immich_asset_id == immich_asset_id)
+    )
+
+    return resolve_account(session, config, account_id)
+
+
 def build_immich_client(config: Config, account: ResolvedAccount) -> ImmichClient:
     return ImmichClient(
         config.immich_url,

@@ -4,12 +4,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from immich_dog_tagger.api.dependencies import (
-    get_asset_repair_service,
-    get_immich_client,
+    get_asset_immich_client,
     get_job_dispatcher,
     get_job_service,
-    get_manual_detection_assignment_service,
+    get_photo_asset_repair_service,
     get_photo_lookup_service,
+    get_photo_manual_detection_assignment_service,
 )
 from immich_dog_tagger.api.schemas import (
     AssetRepairResponse,
@@ -100,7 +100,7 @@ def photo_lookup(
 def photo_lookup_image(
     immich_asset_id: str,
     service: Annotated[PhotoLookupService, Depends(get_photo_lookup_service)],
-    client: Annotated[ImmichClient, Depends(get_immich_client)],
+    client: Annotated[ImmichClient, Depends(get_asset_immich_client)],
 ):
     # Looked up here too (not just by the sibling metadata endpoint) so a
     # request for an asset this instance has never scanned gets the same 404
@@ -152,7 +152,7 @@ def photo_lookup_image(
 @router.post("/{immich_asset_id}/repair", response_model=AssetRepairResponse)
 def repair_photo(
     immich_asset_id: str,
-    service: Annotated[AssetRepairService, Depends(get_asset_repair_service)],
+    service: Annotated[AssetRepairService, Depends(get_photo_asset_repair_service)],
 ):
     # Forces this one asset back through download/detect/classify (issue
     # #226) -- a deliberate, per-photo action a human takes from Review or
@@ -220,7 +220,7 @@ def assign_detection(
     lookup_service: Annotated[PhotoLookupService, Depends(get_photo_lookup_service)],
     service: Annotated[
         ManualDetectionAssignmentService,
-        Depends(get_manual_detection_assignment_service),
+        Depends(get_photo_manual_detection_assignment_service),
     ],
 ):
     # Issue #261: map a crop-less detection (YOLO labeled it outside
@@ -248,7 +248,7 @@ def mark_detection_not_animal(
     lookup_service: Annotated[PhotoLookupService, Depends(get_photo_lookup_service)],
     service: Annotated[
         ManualDetectionAssignmentService,
-        Depends(get_manual_detection_assignment_service),
+        Depends(get_photo_manual_detection_assignment_service),
     ],
 ):
     # Same crop-less case as assign_detection above, but confirming the
