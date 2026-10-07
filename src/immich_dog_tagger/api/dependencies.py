@@ -2,7 +2,7 @@ from collections.abc import Generator
 from functools import cache
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from immich_dog_tagger.classifier import IdentityClassifier
@@ -13,7 +13,12 @@ from immich_dog_tagger.downloader import Downloader
 from immich_dog_tagger.embedder import Embedder
 from immich_dog_tagger.immich import ImmichClient
 from immich_dog_tagger.runtime import get_embedder, get_yolo_detector
-from immich_dog_tagger.services.accounts import resolve_account
+from immich_dog_tagger.services.accounts import (
+    AccountResolutionError,
+    ResolvedAccount,
+    resolve_account,
+    resolve_asset_account,
+)
 from immich_dog_tagger.services.app_settings import (
     AppSettingsService,
     AutoReclassifyService,
@@ -241,11 +246,47 @@ def get_immich_client() -> ImmichClient:
     )
 
 
-def get_asset_repair_service(
+@cache
+def _account_client(url: str, api_key: str, timeout: float) -> ImmichClient:
+    return ImmichClient(url, api_key, timeout=timeout)
+
+
+def get_asset_account(
+    immich_asset_id: str,
     session: Annotated[Session, Depends(get_session)],
     config: Annotated[Config, Depends(get_config)],
-    client: Annotated[ImmichClient, Depends(get_immich_client)],
-    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> ResolvedAccount:
+    """The account owning the photo in the request path (see resolve_asset_account)."""
+    try:
+        return resolve_asset_account(session, config, immich_asset_id)
+    except AccountResolutionError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Can't reach this photo's Immich account: {e}",
+        ) from e
+
+
+def get_asset_immich_client(
+    account: Annotated[ResolvedAccount, Depends(get_asset_account)],
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+    default_client: Annotated[ImmichClient, Depends(get_immich_client)],
+) -> ImmichClient:
+    """Client holding the API key of the account that owns the requested photo."""
+    if account.api_key == resolve_account(session, config, None).api_key:
+        return default_client
+
+    return _account_client(
+        config.immich_url, account.api_key, config.immich_timeout_seconds
+    )
+
+
+def _build_asset_repair_service(
+    session: Session,
+    config: Config,
+    client: ImmichClient,
+    embedder: Embedder,
+    account_id: int | None,
 ) -> AssetRepairService:
     policy = AppSettingsService(session).policy()
 
@@ -264,10 +305,54 @@ def get_asset_repair_service(
             IdentityClassifier(session, policy=policy),
             policy=policy,
         ),
-        # get_immich_client() holds the default account's API key (issue
-        # #370): only that account's photos may be marked removed on a
-        # "not found" from Immich.
-        account_id=resolve_account(session, config, None).id,
+        account_id=account_id,
+    )
+
+
+def get_asset_repair_service(
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+    client: Annotated[ImmichClient, Depends(get_immich_client)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> AssetRepairService:
+    # Library-wide callers (diagnostics) repair many photos through one
+    # service, so this one holds the default account's API key (issue #370):
+    # only that account's photos may be marked removed on a "not found".
+    return _build_asset_repair_service(
+        session,
+        config,
+        client,
+        embedder,
+        resolve_account(session, config, None).id,
+    )
+
+
+def get_photo_asset_repair_service(
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+    account: Annotated[ResolvedAccount, Depends(get_asset_account)],
+    client: Annotated[ImmichClient, Depends(get_asset_immich_client)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> AssetRepairService:
+    """Repair for the one photo in the request path, using its owning account."""
+    return _build_asset_repair_service(session, config, client, embedder, account.id)
+
+
+def _build_manual_detection_assignment_service(
+    session: Session,
+    config: Config,
+    client: ImmichClient,
+    embedder: Embedder,
+    correction_service: ClassificationCorrectionService,
+    false_positive_service: FalsePositiveService,
+) -> ManualDetectionAssignmentService:
+    return ManualDetectionAssignmentService(
+        session=session,
+        client=client,
+        embedder=embedder,
+        crop_writer=CropWriter(config.crop_dir, config.crop_padding),
+        correction_service=correction_service,
+        false_positive_service=false_positive_service,
     )
 
 
@@ -285,13 +370,28 @@ def get_manual_detection_assignment_service(
         Depends(get_false_positive_service),
     ],
 ) -> ManualDetectionAssignmentService:
-    return ManualDetectionAssignmentService(
-        session=session,
-        client=client,
-        embedder=embedder,
-        crop_writer=CropWriter(config.crop_dir, config.crop_padding),
-        correction_service=correction_service,
-        false_positive_service=false_positive_service,
+    return _build_manual_detection_assignment_service(
+        session, config, client, embedder, correction_service, false_positive_service
+    )
+
+
+def get_photo_manual_detection_assignment_service(
+    session: Annotated[Session, Depends(get_session)],
+    config: Annotated[Config, Depends(get_config)],
+    client: Annotated[ImmichClient, Depends(get_asset_immich_client)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+    correction_service: Annotated[
+        ClassificationCorrectionService,
+        Depends(get_correction_service),
+    ],
+    false_positive_service: Annotated[
+        FalsePositiveService,
+        Depends(get_false_positive_service),
+    ],
+) -> ManualDetectionAssignmentService:
+    """Manual assignment for the photo in the request path, using its owning account."""
+    return _build_manual_detection_assignment_service(
+        session, config, client, embedder, correction_service, false_positive_service
     )
 
 
