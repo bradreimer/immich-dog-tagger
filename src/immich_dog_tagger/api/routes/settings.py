@@ -38,7 +38,9 @@ def get_settings(
         scanned_image_count=scanned_image_count,
         version=get_version(),
         tagging_sensitivity=AppSettingsService(session).sensitivity(),
-        accounts=[AccountResponse.from_account(account) for account in accounts],
+        accounts=AccountResponse.from_accounts(
+            accounts, AccountService.configured_names(config)
+        ),
     )
 
 
@@ -70,5 +72,7 @@ def set_tagging_sensitivity(
         scanned_image_count=scanned_image_count,
         version=get_version(),
         tagging_sensitivity=settings.sensitivity(),
-        accounts=[AccountResponse.from_account(account) for account in accounts],
+        accounts=AccountResponse.from_accounts(
+            accounts, AccountService.configured_names(config)
+        ),
     )

@@ -750,10 +750,21 @@ class AccountResponse(BaseModel):
 
     id: int
     name: str
+    # False once the account is removed or renamed in configuration (issue
+    # #432): its photos stay in state.db and remain visible, but nothing can
+    # be fetched or synced from Immich for it.
+    configured: bool = True
 
     @classmethod
-    def from_account(cls, account):
-        return cls(id=account.id, name=account.name)
+    def from_account(cls, account, configured: bool = True):
+        return cls(id=account.id, name=account.name, configured=configured)
+
+    @classmethod
+    def from_accounts(cls, accounts, configured_names: set[str]):
+        return [
+            cls.from_account(account, account.name in configured_names)
+            for account in accounts
+        ]
 
 
 class SettingsResponse(BaseModel):

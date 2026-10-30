@@ -184,8 +184,13 @@ export function SettingsPage() {
                 label="Immich Accounts"
                 value={settings.accounts.length}
                 subtext={
-                  settings.accounts.map((account) => account.name).join(", ") ||
-                  "none configured"
+                  settings.accounts
+                    .map((account) =>
+                      account.configured === false
+                        ? `${account.name} (removed from configuration)`
+                        : account.name,
+                    )
+                    .join(", ") || "none configured"
                 }
               />
             </div>

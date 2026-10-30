@@ -26,6 +26,11 @@ export interface Settings {
 export interface Account {
   id: number;
   name: string;
+  /**
+   * False once removed or renamed in configuration (issue #432). Its photos
+   * stay visible; only Immich access for it is gone.
+   */
+  configured?: boolean;
 }
 
 export type TaggingSensitivity = "cautious" | "balanced" | "eager";
