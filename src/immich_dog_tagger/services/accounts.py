@@ -128,6 +128,21 @@ class AccountService:
                 default_account.name,
             )
 
+    @staticmethod
+    def configured_names(config: Config) -> set[str]:
+        """
+        Names of the accounts `config` currently declares. With none
+        declared, the implicit `default` account is the configured one
+        (`resolve_account`'s fallback). A row outside this set belongs to an
+        account that was removed or renamed in configuration: its data stays
+        in state.db, but no Immich call can be made for it.
+        """
+
+        if not config.accounts:
+            return {DEFAULT_ACCOUNT_NAME}
+
+        return {account.name for account in config.accounts}
+
     def list_accounts(self) -> list[ImmichAccount]:
         return list(
             self.session.scalars(select(ImmichAccount).order_by(ImmichAccount.id)).all()

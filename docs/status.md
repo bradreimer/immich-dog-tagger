@@ -1,6 +1,7 @@
 # Current Status
 
 ## Completed
+- #432 Photos from an account removed from configuration stay visible in Review, Library and Metrics; Settings and `/accounts` flag the account as removed from configuration
 - #430 Photo Lookup image, Repair, manual assignment and Look harder use the photo's owning Immich account
 - Detection pipeline
 - Classification pipeline

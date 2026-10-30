@@ -1,9 +1,9 @@
 [project]
 name = "immich-dog-tagger"
-version = "1.54.0"
+version = "1.55.0"
 description = "AI-assisted dog detection and tagging for Immich"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "python-dotenv>=1.0.0",
     "sqlalchemy>=2.0.0",

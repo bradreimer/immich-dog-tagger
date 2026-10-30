@@ -35,4 +35,6 @@ def list_accounts(
     """
 
     accounts = AccountService(session).sync_from_config(config)
-    return [AccountResponse.from_account(account) for account in accounts]
+    return AccountResponse.from_accounts(
+        accounts, AccountService.configured_names(config)
+    )

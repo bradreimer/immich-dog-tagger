@@ -34,6 +34,26 @@ describe("SettingsPage", () => {
     expect(screen.getByText("https://immich.example.com")).toBeInTheDocument();
   });
 
+  it("marks accounts removed from configuration (issue #432)", async () => {
+    vi.mocked(api.getSettings).mockResolvedValueOnce({
+      immich_url: "http://immich-server:2283",
+      immich_external_url: "https://immich.example.com",
+      scanned_image_count: 42,
+      version: "1.6.0",
+      tagging_sensitivity: "balanced",
+      accounts: [
+        { id: 1, name: "alice", configured: true },
+        { id: 2, name: "bob", configured: false },
+      ],
+    });
+
+    render(<SettingsPage />);
+
+    expect(
+      await screen.findByText("alice, bob (removed from configuration)"),
+    ).toBeInTheDocument();
+  });
+
   it("lists configured Immich accounts (issue #346)", async () => {
     vi.mocked(api.getSettings).mockResolvedValueOnce({
       immich_url: "http://immich-server:2283",

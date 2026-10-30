@@ -272,7 +272,13 @@ assuming exactly one.
   when no accounts are configured or legacy assets with no account still need backfilling, and an
   unconfigured, unreferenced `default` row is removed. A referenced one is kept.
 
-- **Renaming or removing a configured account** after it already has synced data: `Config.accounts`
+- **Renaming or removing a configured account** (#432, visibility resolved): the
+  `ImmichAccount` row and its data are kept, and Review, Library and Metrics keep showing
+  the account's photos under its name. Settings and `GET /accounts` flag it with
+  `configured: false` ("removed from configuration"). Scan and sync fan-out only covers
+  configured accounts, and Immich-backed actions for its photos answer 409. An explicit
+  rename operation remains undecided. Original discussion:
+  Renaming or removing a configured account after it already has synced data: `Config.accounts`
   resolves purely by exact string name, so renaming an account in `config.json` is
   indistinguishable from deleting the old one and adding a brand-new one with the same key --
   the old `ImmichAccount` DB row simply stops matching anything in `Config.accounts` (per FR-2's
