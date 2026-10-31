@@ -31,6 +31,11 @@ export interface Account {
    * stay visible; only Immich access for it is gone.
    */
   configured?: boolean;
+  /**
+   * False when removed from configuration or set to `"enabled": false`
+   * (issue #434): its photos leave Review and scan/sync skip it.
+   */
+  active?: boolean;
 }
 
 export type TaggingSensitivity = "cautious" | "balanced" | "eager";

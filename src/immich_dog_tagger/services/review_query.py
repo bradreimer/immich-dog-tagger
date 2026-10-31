@@ -15,6 +15,7 @@ from immich_dog_tagger.models import (
     Detection,
     EmbeddingExample,
     Identity,
+    ImmichAccount,
     PetOccurrence,
     ReviewAction,
 )
@@ -149,6 +150,25 @@ def classification_asset_removed():
     """
     return CropClassification.crop.has(
         Crop.detection.has(Detection.asset.has(Asset.status == AssetStatus.REMOVED))
+    )
+
+
+def classification_account_inactive():
+    """
+    SQL condition: the classification's photo belongs to an account that is
+    removed from configuration or set to `"enabled": false` (issue #434).
+    Its data stays in state.db and in the Library, but nothing can be done
+    for it in Immich, so every *pending-review* surface excludes it. Photos
+    with no recorded account are never excluded.
+    """
+    return CropClassification.crop.has(
+        Crop.detection.has(
+            Detection.asset.has(
+                Asset.account_id.in_(
+                    select(ImmichAccount.id).where(ImmichAccount.is_active.is_(False))
+                )
+            )
+        )
     )
 
 
@@ -342,6 +362,7 @@ class ReviewQueryService:
                 | (CropClassification.confidence < threshold)
             )
             .where(~classification_asset_removed())
+            .where(~classification_account_inactive())
             .where(~classification_identity_inactive())
         )
 
@@ -398,6 +419,7 @@ class ReviewQueryService:
                 | (CropClassification.confidence < threshold)
             )
             .where(~classification_asset_removed())
+            .where(~classification_account_inactive())
             .where(~classification_identity_inactive())
             .order_by(
                 priority.asc(),

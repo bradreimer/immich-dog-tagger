@@ -146,5 +146,7 @@ These were open questions when this spec was written; resolved during implementa
   auto-created-directory case); running from source, an operator opts in by setting
   `CONFIG_FILE=./config.json` (or any path) in `.env` themselves.
 - **Exact JSON schema.** Settled as proposed: `{"immich": {"url", "external_url",
-  "timeout_seconds", "accounts": [{"name", "api_key"}]}}`. `external_url` and `timeout_seconds`
+  "timeout_seconds", "accounts": [{"name", "api_key", "enabled"}]}}`. `enabled` (boolean,
+  default `true`, issue #434) lets an operator keep an account in the file while turning it off;
+  at least one account must stay enabled. `external_url` and `timeout_seconds`
   are optional (default `""` and `60`, mirroring the legacy environment variables' defaults).

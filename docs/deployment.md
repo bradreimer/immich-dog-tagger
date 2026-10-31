@@ -100,6 +100,11 @@ To adopt it:
 }
 ```
 
+To keep an account in the file but switch it off, add `"enabled": false` to it. A disabled
+account (like one removed from the file) is skipped by scan and sync, and its photos no longer
+appear in Review. Its data stays in the database and in the Library and Metrics, and setting
+`enabled` back to `true` (then restarting) brings it back. At least one account must be enabled.
+
 `docker-compose.yml` always sets `CONFIG_FILE=/app/config/config.json` inside the container and
 mounts `${HOST_CONFIG_FILE:-./data/config.json}` there. If that host path doesn't exist, the mount
 is an empty directory and the backend falls back to the `IMMICH_*` variables with no error — this

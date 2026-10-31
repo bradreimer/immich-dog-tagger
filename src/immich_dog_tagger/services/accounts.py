@@ -81,6 +81,12 @@ class AccountService:
                 existing_by_name[name] = account
                 logger.info("Registered Immich account %r", name)
 
+        active_names = self.active_names(config)
+        for name, account in existing_by_name.items():
+            account.is_active = name in active_names or (
+                name == DEFAULT_ACCOUNT_NAME and name in needed_names
+            )
+
         self.session.commit()
 
         default_account = existing_by_name.get(DEFAULT_ACCOUNT_NAME)
@@ -142,6 +148,18 @@ class AccountService:
             return {DEFAULT_ACCOUNT_NAME}
 
         return {account.name for account in config.accounts}
+
+    @staticmethod
+    def active_names(config: Config) -> set[str]:
+        """
+        Names of the accounts scan, sync and Review act on: configured and not
+        `enabled: false`. With none declared, the implicit `default` account.
+        """
+
+        if not config.accounts:
+            return {DEFAULT_ACCOUNT_NAME}
+
+        return {account.name for account in config.enabled_accounts}
 
     def list_accounts(self) -> list[ImmichAccount]:
         return list(
@@ -225,6 +243,12 @@ def resolve_account(
                 "configuration (it may have been renamed or removed)"
             )
 
+        if not configured.enabled:
+            raise AccountResolutionError(
+                f"Account {db_account.name!r} is disabled in the current "
+                'configuration ("enabled": false)'
+            )
+
         return ResolvedAccount(
             id=db_account.id,
             name=configured.name,
@@ -232,8 +256,9 @@ def resolve_account(
         )
 
     if config.accounts:
-        default_name = config.accounts[0].name
-        default_api_key = config.accounts[0].api_key
+        default = (config.enabled_accounts or config.accounts)[0]
+        default_name = default.name
+        default_api_key = default.api_key
     else:
         # Empty even when config.immich_api_key is also empty -- that's the
         # pre-#346 status quo (an unconfigured deployment building a client

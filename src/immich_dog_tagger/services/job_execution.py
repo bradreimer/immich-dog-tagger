@@ -140,7 +140,7 @@ def _accounts_for_job(
     configured account this is the single default account, unchanged.
     """
 
-    if progress.job.account_id is not None or len(config.accounts) < 2:
+    if progress.job.account_id is not None or len(config.enabled_accounts) < 2:
         return [_account_for_job(session, config, progress)]
 
     service = AccountService(session)
@@ -148,7 +148,7 @@ def _accounts_for_job(
 
     return [
         resolve_account(session, config, service.get_by_name(account.name).id)
-        for account in config.accounts
+        for account in config.enabled_accounts
     ]
 
 

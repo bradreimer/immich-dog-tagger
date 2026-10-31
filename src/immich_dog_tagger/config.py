@@ -29,6 +29,9 @@ class ConfigError(Exception):
 class ImmichAccount:
     name: str
     api_key: str
+    #: ``"enabled": false`` keeps the account in the file but treats it like a
+    #: removed one: no scan/sync, and its photos leave Review (issue #434).
+    enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -66,6 +69,11 @@ class Config:
     #: Hugging Face model id, or a local directory, for Photo Lookup's "Look harder" detector
     #: (issue #390, ADR-012). Loaded lazily on first use; weights cache under ``HF_HOME``.
     look_harder_model: str = DEFAULT_LOOK_HARDER_MODEL
+
+    @property
+    def enabled_accounts(self) -> tuple[ImmichAccount, ...]:
+        """Accounts scan, sync and Review act on; ``enabled: false`` ones are skipped."""
+        return tuple(account for account in self.accounts if account.enabled)
 
     @property
     def crop_dir(self) -> Path:
@@ -182,16 +190,29 @@ def _immich_settings_from_file(
                 f'config file {path}: duplicate account name "{name}" in immich.accounts'
             )
 
+        enabled = raw_account.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ConfigError(
+                f'config file {path}: immich.accounts[{index}] ("{name}") "enabled" '
+                "must be true or false"
+            )
+
         seen_names.add(name)
-        accounts.append(ImmichAccount(name=name, api_key=api_key))
+        accounts.append(ImmichAccount(name=name, api_key=api_key, enabled=enabled))
 
     accounts = tuple(accounts)
+
+    first_enabled = next((account for account in accounts if account.enabled), None)
+    if first_enabled is None:
+        raise ConfigError(
+            f'config file {path}: at least one account in "immich.accounts" must be enabled'
+        )
 
     return (
         immich_url,
         immich_external_url,
         immich_timeout_seconds,
-        accounts[0].api_key,
+        first_enabled.api_key,
         accounts,
     )
 

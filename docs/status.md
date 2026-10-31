@@ -1,6 +1,7 @@
 # Current Status
 
 ## Completed
+- #434 Photos from a removed or `"enabled": false` account leave Review; accounts can be disabled in `config.json`
 - #432 Photos from an account removed from configuration stay visible in Review, Library and Metrics; Settings and `/accounts` flag the account as removed from configuration
 - #430 Photo Lookup image, Repair, manual assignment and Look harder use the photo's owning Immich account
 - Detection pipeline
