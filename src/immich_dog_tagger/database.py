@@ -79,6 +79,7 @@ def create_database(state_dir: Path):
     _ensure_account_columns(engine)
     _ensure_detection_detector_column(engine)
     _ensure_pipeline_job_target_asset_column(engine)
+    _ensure_account_active_column(engine)
     _cleanup_dangling_pet_occurrences(engine)
     _disable_learn_schedules(engine)
 
@@ -537,6 +538,24 @@ def _ensure_pipeline_job_target_asset_column(engine) -> None:
     with engine.begin() as connection:
         connection.exec_driver_sql(
             "ALTER TABLE pipeline_jobs ADD COLUMN target_immich_asset_id VARCHAR(255)"
+        )
+
+
+def _ensure_account_active_column(engine) -> None:
+    """
+    Issue #434: accounts gained an `is_active` flag so photos from a removed or
+    disabled account can leave Review. Existing accounts stay active; the next
+    startup's `sync_from_config` sets the real value.
+    """
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("immich_accounts")}
+
+    if "is_active" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE immich_accounts ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
         )
 
 

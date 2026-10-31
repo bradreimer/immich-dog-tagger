@@ -293,3 +293,51 @@ def test_album_min_photos_rejects_invalid_values(monkeypatch, value):
 
     with pytest.raises(ConfigError):
         load_config(load_env_file=False)
+
+
+def _accounts_config(monkeypatch, tmp_path, accounts):
+    monkeypatch.delenv("IMMICH_API_KEY", raising=False)
+    path = _write_config_file(
+        tmp_path,
+        {"immich": {"url": "https://immich.example.com", "accounts": accounts}},
+    )
+    monkeypatch.setenv("CONFIG_FILE", str(path))
+
+    return load_config(load_env_file=False)
+
+
+def test_config_file_accounts_are_enabled_unless_disabled(monkeypatch, tmp_path):
+    config = _accounts_config(
+        monkeypatch,
+        tmp_path,
+        [
+            {"name": "alice", "api_key": "alice-key", "enabled": False},
+            {"name": "bob", "api_key": "bob-key"},
+        ],
+    )
+
+    assert [(a.name, a.enabled) for a in config.accounts] == [
+        ("alice", False),
+        ("bob", True),
+    ]
+    assert [a.name for a in config.enabled_accounts] == ["bob"]
+    # The single-account convenience view follows the first *enabled* account.
+    assert config.immich_api_key == "bob-key"
+
+
+def test_config_file_rejects_a_non_boolean_enabled(monkeypatch, tmp_path):
+    with pytest.raises(ConfigError, match='"enabled" must be true or false'):
+        _accounts_config(
+            monkeypatch,
+            tmp_path,
+            [{"name": "alice", "api_key": "k", "enabled": "no"}],
+        )
+
+
+def test_config_file_rejects_every_account_disabled(monkeypatch, tmp_path):
+    with pytest.raises(ConfigError, match="at least one account"):
+        _accounts_config(
+            monkeypatch,
+            tmp_path,
+            [{"name": "alice", "api_key": "k", "enabled": False}],
+        )

@@ -225,3 +225,80 @@ def test_build_immich_client_uses_the_resolved_accounts_key(tmp_path):
 
     assert client.url == config.immich_url
     assert client.client.headers["x-api-key"] == "alice-key"
+
+
+def test_sync_from_config_marks_removed_and_disabled_accounts_inactive(
+    engine, tmp_path
+):
+    def config(*accounts):
+        return Config(
+            immich_url="http://fake",
+            immich_api_key="",
+            state_dir=tmp_path,
+            cache_dir=tmp_path,
+            yolo_model=tmp_path / "unused.pt",
+            crop_padding=0.0,
+            accounts=accounts,
+        )
+
+    with Session(engine) as session:
+        service = AccountService(session)
+        service.sync_from_config(
+            config(
+                ConfiguredAccount(name="A", api_key="a"),
+                ConfiguredAccount(name="B", api_key="b"),
+                ConfiguredAccount(name="C", api_key="c"),
+            )
+        )
+
+        accounts = service.sync_from_config(
+            config(
+                ConfiguredAccount(name="A", api_key="a"),
+                ConfiguredAccount(name="B", api_key="b", enabled=False),
+            )
+        )
+
+        assert {a.name: a.is_active for a in accounts} == {
+            "A": True,
+            "B": False,
+            "C": False,
+        }
+
+        accounts = service.sync_from_config(
+            config(
+                ConfiguredAccount(name="A", api_key="a"),
+                ConfiguredAccount(name="B", api_key="b"),
+            )
+        )
+
+        assert {a.name: a.is_active for a in accounts} == {
+            "A": True,
+            "B": True,
+            "C": False,
+        }
+
+
+def test_resolve_account_raises_for_a_disabled_account(engine, tmp_path):
+    config = Config(
+        immich_url="http://fake",
+        immich_api_key="",
+        state_dir=tmp_path,
+        cache_dir=tmp_path,
+        yolo_model=tmp_path / "unused.pt",
+        crop_padding=0.0,
+        accounts=(
+            ConfiguredAccount(name="A", api_key="a"),
+            ConfiguredAccount(name="B", api_key="b", enabled=False),
+        ),
+    )
+
+    with Session(engine) as session:
+        by_name = {
+            a.name: a.id for a in AccountService(session).sync_from_config(config)
+        }
+
+        with pytest.raises(AccountResolutionError, match="disabled"):
+            resolve_account(session, config, by_name["B"])
+
+        # The default (no explicit account) skips it too.
+        assert resolve_account(session, config, None).name == "A"

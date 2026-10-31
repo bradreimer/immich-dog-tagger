@@ -96,7 +96,9 @@ def _resolve_account_selection(
     if account_name is not None:
         account = AccountService(session).get_by_name(account_name)
 
-        if account is None or account_name not in {a.name for a in config.accounts}:
+        if account is None or account_name not in {
+            a.name for a in config.enabled_accounts
+        }:
             print(f"No configured account named {account_name!r}")
             raise SystemExit(1)
 
@@ -111,7 +113,7 @@ def _resolve_account_selection(
 
     return [
         AccountService(session).get_by_name(account.name).id
-        for account in config.accounts
+        for account in config.enabled_accounts
     ]
 
 

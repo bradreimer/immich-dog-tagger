@@ -54,6 +54,24 @@ describe("SettingsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("marks accounts disabled in configuration (issue #434)", async () => {
+    vi.mocked(api.getSettings).mockResolvedValueOnce({
+      immich_url: "http://immich-server:2283",
+      immich_external_url: "https://immich.example.com",
+      scanned_image_count: 42,
+      version: "1.6.0",
+      tagging_sensitivity: "balanced",
+      accounts: [
+        { id: 1, name: "alice", configured: true, active: true },
+        { id: 2, name: "bob", configured: true, active: false },
+      ],
+    });
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("alice, bob (disabled)")).toBeInTheDocument();
+  });
+
   it("lists configured Immich accounts (issue #346)", async () => {
     vi.mocked(api.getSettings).mockResolvedValueOnce({
       immich_url: "http://immich-server:2283",

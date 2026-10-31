@@ -35,6 +35,7 @@ from immich_dog_tagger.services.review_query import (
     SPATIAL_MISMATCH_THRESHOLD,
     TEMPORAL_MISMATCH_THRESHOLD,
     ReviewQueryService,
+    classification_account_inactive,
     classification_asset_removed,
     classification_identity_inactive,
 )
@@ -306,6 +307,7 @@ class ReviewGroupingService:
                 | (CropClassification.candidates != [])
             )
             .where(~classification_asset_removed())
+            .where(~classification_account_inactive())
             .where(~classification_identity_inactive())
         ).all()
 

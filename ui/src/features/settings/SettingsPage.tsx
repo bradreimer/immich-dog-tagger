@@ -188,7 +188,9 @@ export function SettingsPage() {
                     .map((account) =>
                       account.configured === false
                         ? `${account.name} (removed from configuration)`
-                        : account.name,
+                        : account.active === false
+                          ? `${account.name} (disabled)`
+                          : account.name,
                     )
                     .join(", ") || "none configured"
                 }

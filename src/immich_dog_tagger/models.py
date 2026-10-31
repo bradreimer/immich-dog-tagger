@@ -65,6 +65,16 @@ class ImmichAccount(Base):
         nullable=False,
     )
 
+    # Issue #434: refreshed from configuration on every startup. False once the
+    # account is removed from configuration or set to `"enabled": false`; its
+    # data is kept, but its photos leave the pending-review surfaces.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="1",
+        nullable=False,
+    )
+
 
 class Identity(Base):
     __tablename__ = "identities"

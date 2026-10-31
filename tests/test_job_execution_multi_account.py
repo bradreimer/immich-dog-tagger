@@ -186,3 +186,29 @@ def test_handler_single_and_legacy_config_unchanged(
 
     assert len(scanned or synced) == 1
     assert "failed_accounts" not in result
+
+
+@pytest.mark.parametrize("handler_factory", [_scan_handler, _sync_handler])
+def test_handler_skips_disabled_accounts(
+    engine, tmp_path, monkeypatch, handler_factory
+):
+    scanned, synced = _install_fakes(monkeypatch)
+    config = Config(
+        immich_url="http://fake",
+        immich_api_key="",
+        state_dir=tmp_path,
+        cache_dir=tmp_path,
+        yolo_model=tmp_path / "unused.pt",
+        crop_padding=0.0,
+        accounts=(
+            ImmichAccount(name="alice", api_key="key-alice", enabled=False),
+            ImmichAccount(name="bob", api_key="key-bob"),
+            ImmichAccount(name="carol", api_key="key-carol"),
+        ),
+    )
+
+    with Session(engine) as session:
+        ids = _ids(session, config)
+        handler_factory(session, config, {})(RecordingProgress())
+
+    assert sorted(scanned or synced) == sorted([ids["bob"], ids["carol"]])
