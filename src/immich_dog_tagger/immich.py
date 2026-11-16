@@ -341,12 +341,23 @@ class ImmichClient:
         asset_id: str,
     ) -> bytes:
         """
-        Download original asset bytes.
+        Download asset bytes, with any rotation, crop or mirror edits made in
+        Immich applied (issue #438).
+
+        `edited=true` asks Immich for the edited rendition when the photo has
+        edits, and the unedited original otherwise. Every caller (download,
+        Photo Lookup image, manual assignment) goes through here, so detection
+        boxes and the images they're drawn on stay in one coordinate space.
+        An Immich server that rejects the parameter with 400 (one released
+        before photo editing) is retried once without it.
         """
 
-        response = self.client.get(
-            f"{self.url}/api/assets/{asset_id}/original",
-        )
+        url = f"{self.url}/api/assets/{asset_id}/original"
+
+        response = self.client.get(url, params={"edited": "true"})
+
+        if response.status_code == 400:
+            response = self.client.get(url)
 
         try:
             response.raise_for_status()

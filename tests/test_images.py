@@ -303,3 +303,18 @@ def test_open_upright_still_corrects_when_expected_size_does_not_match(
     image = open_upright(path, expected_size=upright)
 
     assert image.size == upright
+
+
+def test_open_upright_leaves_an_immich_edited_rendition_as_is(tmp_path: Path):
+    """
+    Issue #438: Immich renders edits (rotate, crop) into an already-upright
+    file without the original's orientation tag. The asset's stored exif
+    dimensions still describe the original, so expected_size can disagree;
+    the edited pixels must still be used unchanged, never rotated again.
+    """
+    path = _write(tmp_path / "edited.jpg", _landscape(), None)
+
+    image = open_upright(path, expected_size=(100, 200))
+
+    assert image.size == (200, 100)
+    assert image.tobytes() == Image.open(path).tobytes()

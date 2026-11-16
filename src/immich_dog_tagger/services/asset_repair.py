@@ -12,6 +12,10 @@ values (issue #326) -- a full library scan() already does this for every
 asset but Repair never did for just the one being looked at, and captured_at
 specifically is never refreshed by scan() either, even for an existing row.
 
+Because the re-download asks Immich for the edited rendition (issue #438),
+Repair is also how a rotation, crop or mirror edit made in Immich after the
+photo was first processed takes effect here.
+
 Deliberately per-asset and human-triggered (a "Repair" action on the Review
 or Photo Lookup page for the one photo being looked at), never run
 automatically across the library: DetectionService.run(force=True) deletes

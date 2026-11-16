@@ -443,6 +443,12 @@ jobs run against every configured Immich account when no account is selected, ma
 full-pipeline job
 ([docs/specs/multi-immich-account-sync.md](specs/multi-immich-account-sync.md)).
 
+## v1.56.0 - Repair applies Immich photo edits
+
+[#438](https://github.com/bradreimer/immich-dog-tagger/issues/438): photos are downloaded with any
+rotation, crop or mirror edits made in Immich applied, so Repair on an edited photo re-detects it
+as edited ([docs/specs/immich-photo-edits.md](specs/immich-photo-edits.md)).
+
 ---
 
 ## Active Learning Improvements
