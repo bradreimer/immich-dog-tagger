@@ -7,6 +7,7 @@ from immich_dog_tagger.immich import (
     ImmichAddAssetsToAlbumError,
     ImmichAssetNotFoundError,
     ImmichClient,
+    ImmichDownloadError,
     ImmichGetAssetError,
     ImmichRemoveAssetsFromAlbumError,
     ImmichTagAssetsError,
@@ -313,6 +314,63 @@ def test_download_asset():
     data = client.download_asset("abc123")
 
     assert data == b"image-data"
+
+
+def test_download_asset_requests_edited_rendition():
+    """Issue #438: edits made in Immich (rotate, crop) apply to the download."""
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+
+        return httpx.Response(200, content=b"edited-image")
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    data = client.download_asset("abc123")
+
+    assert data == b"edited-image"
+    assert len(requests) == 1
+    assert requests[0].url.path == "/api/assets/abc123/original"
+    assert requests[0].url.params["edited"] == "true"
+
+
+def test_download_asset_falls_back_when_edited_is_rejected():
+    """An Immich server without photo editing that rejects the parameter still works."""
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+
+        if "edited" in request.url.params:
+            return httpx.Response(
+                400, json={"message": "property edited should not exist"}
+            )
+
+        return httpx.Response(200, content=b"original-image")
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    data = client.download_asset("abc123")
+
+    assert data == b"original-image"
+    assert len(requests) == 2
+    assert "edited" not in requests[1].url.params
+
+
+def test_download_asset_raises_when_fallback_also_fails():
+    def handler(request):
+        return httpx.Response(400, json={"message": "bad request"})
+
+    client = ImmichClient("http://immich.test", "secret")
+    client.client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(ImmichDownloadError):
+        client.download_asset("abc123")
 
 
 def test_remove_assets_from_album():

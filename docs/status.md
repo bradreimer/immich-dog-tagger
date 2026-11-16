@@ -1,6 +1,7 @@
 # Current Status
 
 ## Completed
+- #438 Repair applies rotation, crop and mirror edits made in Immich; every photo download asks Immich for the edited rendition
 - #434 Photos from a removed or `"enabled": false` account leave Review; accounts can be disabled in `config.json`
 - #432 Photos from an account removed from configuration stay visible in Review, Library and Metrics; Settings and `/accounts` flag the account as removed from configuration
 - #430 Photo Lookup image, Repair, manual assignment and Look harder use the photo's owning Immich account
